@@ -38,6 +38,11 @@ export interface IAgentNetworkFilterService {
 	isUriAllowed(uri: URI): boolean;
 
 	/**
+	 * Returns whether network filtering is currently enabled.
+	 */
+	isEnabled(): boolean;
+
+	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
 	 * @param uri The URI that was blocked.
 	 * @returns A localized error message explaining that access to the URI is blocked by policy.
@@ -90,7 +95,7 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	isUriAllowed(uri: URI): boolean {
 		// When domain filtering is inactive, allow all requests.
-		if (!this.shouldFilter()) {
+		if (!this.isEnabled()) {
 			return true;
 		}
 
@@ -112,9 +117,8 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 		return result;
 	}
-	// Determines whether network filtering should be applied for a given request
-	// based on the global network filter setting.
-	private shouldFilter(): boolean {
+
+	isEnabled(): boolean {
 		return this.networkFilterEnabled;
 	}
 

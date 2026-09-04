@@ -5,21 +5,29 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { EMPTY_DIFF_STATS, IDiffStats, observeTurnStatusPillsEnabled } from '../chatTurnPills.js';
+import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
- * Renders a single agent turn's aggregate changed-file and changed-line counts.
+ * Renders a single agent turn's changes as a checkpoint-style summary: a
+ * `N files changed +ins -del` header, where the counts open the changes and the
+ * rest of the header is a disclosure that expands to the list of changed files.
  */
 export class ChatTurnPillsContentPart extends Disposable implements IChatContentPart {
 
@@ -33,6 +41,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -43,7 +53,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		// keep the last non-empty result rather than dropping a rendered summary.
 		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const diffs = providedDiffs.read(reader);
-			return diffs.length > 0 ? diffs : (lastValue ?? diffs);
+			return diffs.length > 0 || diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? diffs : (lastValue ?? diffs);
 		});
 
 		const providedStats = this._chatResponseFileChangesService.getChangeStatsForRequest?.(
@@ -57,7 +67,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			}
 			const diffs = this._diffs.read(reader);
 			if (diffs.length === 0) {
-				return lastValue ?? EMPTY_DIFF_STATS;
+				return diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? EMPTY_DIFF_STATS : (lastValue ?? EMPTY_DIFF_STATS);
 			}
 			let insertions = 0, deletions = 0;
 			for (const diff of diffs) {
@@ -72,10 +82,17 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
 
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
-		const header = root.appendChild(document.createElement('div'));
+		const details = root.appendChild(document.createElement('details'));
+		details.classList.add('checkpoint-file-changes-disclosure');
+		const header = details.appendChild(document.createElement('summary'));
 		header.classList.add('checkpoint-file-changes-summary-header');
 
 		this._register(this._renderChangesHeader(header, stats));
+		this._register(this._renderChevron(header, details));
+		this._register(dom.addDisposableListener(header, 'click', () => {
+			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		}));
+		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
 
 		this._register(autorun(reader => {
 			this.domNode.style.display = showChanges.read(reader) ? '' : 'none';
@@ -113,7 +130,27 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 				insertions,
 				deletions
 			));
+			header.setAttribute('aria-label', localize(
+				'chat.turnChanges.accessibleSummary',
+				'{0}, {1} lines added, {2} lines deleted',
+				fileCountLabel,
+				insertions,
+				deletions
+			));
 		}));
+	}
+
+	private _renderChevron(header: HTMLElement, details: HTMLDetailsElement): IDisposable {
+		const chevron = header.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
+
+		const setExpansionState = () => {
+			header.setAttribute('aria-expanded', String(details.open));
+			chevron.classList.toggle('expanded', details.open);
+		};
+		setExpansionState();
+
+		return dom.addDisposableListener(details, 'toggle', setExpansionState);
 	}
 
 	private _openChanges(): void {

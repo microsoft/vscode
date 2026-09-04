@@ -32,6 +32,7 @@ This service supplies per-window policy to the shared editor:
 - available management sections;
 - whether the surface is in the Agents Window;
 - the active project root;
+- the active project display label;
 - welcome-page capabilities.
 
 The editor workbench resolves project context from its workspace. The Agents Window resolves it from the scoped active session.
@@ -48,6 +49,10 @@ The service owns:
 - harness-specific item and enablement providers.
 
 Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses when their backing agents are available. The Agents Window exposes harnesses backed by registered session content providers and does not assume a Local fallback.
+
+### `ICustomizationMigrationService`
+
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage; MCP migrations report known servers' binary harness compatibility together with discovery and policy-coverage state. The service also produces a localized, harness-specific hint summarizing available file migrations for UI consumers.
 
 ### `IHarnessDescriptor`
 
@@ -105,12 +110,6 @@ Changes to that item shape must remain aligned across:
 5. the internal customization item.
 
 New fields should be optional unless the proposal explicitly introduces a breaking version.
-
-## Enabling and disabling built-in skills
-
-Built-in discovery and user enablement are separate stores. Discovery determines which built-in items exist; enablement records the user's disabled set. Item projection combines both and keeps the built-in source distinct from extension and user storage.
-
-Harness filtering must happen before enablement presentation so an item hidden from a harness cannot be reintroduced by its stored enablement state.
 
 ## Feature gating
 

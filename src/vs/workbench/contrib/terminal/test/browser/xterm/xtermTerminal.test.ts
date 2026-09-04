@@ -149,7 +149,7 @@ suite('XtermTerminal', () => {
 		});
 	});
 
-	test('disables custom glyphs when moved into an auxiliary window', async () => {
+	test('keeps custom glyphs enabled when moved out of an auxiliary window', async () => {
 		await configurationService.setUserConfiguration('terminal.integrated', {
 			...defaultTerminalConfig,
 			gpuAcceleration: 'on',
@@ -160,12 +160,6 @@ suite('XtermTerminal', () => {
 				return section.startsWith('terminal.integrated');
 			}
 		});
-
-		const mainContainer = document.createElement('div');
-		document.body.appendChild(mainContainer);
-		store.add(toDisposable(() => mainContainer.remove()));
-		xterm.attachToElement(mainContainer);
-		await timeout(0);
 
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
@@ -179,20 +173,21 @@ suite('XtermTerminal', () => {
 		};
 		store.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
 
-		auxiliaryContainer.appendChild(xterm.raw.element!);
-		xterm.raw.open(xterm.raw.element!);
-		xterm.refresh();
+		xterm.attachToElement(auxiliaryContainer);
 		await timeout(0);
 
+		const mainContainer = document.createElement('div');
+		document.body.appendChild(mainContainer);
+		store.add(toDisposable(() => mainContainer.remove()));
 		mainContainer.appendChild(xterm.raw.element!);
 		xterm.raw.open(xterm.raw.element!);
 		xterm.refresh();
 		await timeout(0);
 
-		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true, false, true]);
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
 	});
 
-	test('does not load stale custom glyph settings when moved during addon import', async () => {
+	test('keeps custom glyphs enabled when moved during addon import', async () => {
 		await configurationService.setUserConfiguration('terminal.integrated', {
 			...defaultTerminalConfig,
 			gpuAcceleration: 'on',
@@ -226,7 +221,7 @@ suite('XtermTerminal', () => {
 		xterm.refresh();
 		await timeout(0);
 
-		deepStrictEqual(TestWebglAddon.customGlyphOptions, [false]);
+		deepStrictEqual(TestWebglAddon.customGlyphOptions, [true]);
 	});
 
 	suite('getContentsAsText', () => {

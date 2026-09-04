@@ -25,6 +25,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -280,6 +281,36 @@ function isResponseOutcomeTool(part: IChatRendererContent): boolean {
 		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
 }
 
+function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
+	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'sessionCreated'
+		? part.toolSpecificData.openLink
+		: undefined;
+}
+
+function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent>): ReadonlySet<string> {
+	const targets = new Set<string>();
+	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+	if (finalResponseStartIndex === undefined) {
+		return targets;
+	}
+
+	for (let index = finalResponseStartIndex; index < content.length; index++) {
+		const part = content[index];
+		if (part.kind !== 'markdownContent') {
+			break;
+		}
+		rewriteMarkdownLinks(part.content.value, {
+			rewriteLink: token => {
+				if (token.type === 'link') {
+					targets.add(token.href);
+				}
+				return undefined;
+			}
+		});
+	}
+	return targets;
+}
+
 export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
 	const finalResponseStartIndex = getFinalResponseStartIndex(content);
 	if (finalResponseStartIndex === undefined) {
@@ -304,6 +335,21 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	if (outcomeTools.length === 0) {
 		return [...content];
 	}
+	const responseLinkTargets = outcomeTools.some(part => getSessionCreatedOutcomeLink(part) !== undefined)
+		? getFinalResponseLinkTargets(content)
+		: undefined;
+	const seenSessionLinks = new Set<string>();
+	const uniqueOutcomeTools = outcomeTools.filter(part => {
+		const openLink = getSessionCreatedOutcomeLink(part);
+		if (openLink === undefined) {
+			return true;
+		}
+		if (responseLinkTargets?.has(openLink) || seenSessionLinks.has(openLink)) {
+			return false;
+		}
+		seenSessionLinks.add(openLink);
+		return true;
+	});
 
 	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
@@ -315,7 +361,7 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	while (reordered[insertionIndex]?.kind === 'markdownContent') {
 		insertionIndex++;
 	}
-	reordered.splice(insertionIndex, 0, ...outcomeTools);
+	reordered.splice(insertionIndex, 0, ...uniqueOutcomeTools);
 	return reordered;
 }
 
@@ -615,6 +661,10 @@ function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation
 		case 'radiantLines': return ClickAnimation.RadiantLines;
 		default: return undefined;
 	}
+}
+
+export function isAnchorTarget(target: EventTarget | null): boolean {
+	return dom.isHTMLElement(target) && !!target.closest('a');
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -1302,7 +1352,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'terminal-command-request');
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
 		templateData.dragHandle?.remove();
 		templateData.dragHandle = undefined;
 		delete templateData.rowContainer.dataset.pendingRequestId;
@@ -1340,20 +1390,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		templateData.footerToolbar.context = element;
 
+		const rendersInlineSystemNotificationTiming = isResponseVM(element)
+			&& element.response.value.length > 0
+			&& element.response.value.every(part => part.kind === 'systemNotification' && part.renderInlineTiming);
 		const responseTimingListeners = templateData.elementDisposables.add(new MutableDisposable());
 		const updateResponseDetails = () => {
-			const details = isResponseVM(element) ? element.result?.details : undefined;
+			const inlineTimingContainer = rendersInlineSystemNotificationTiming
+				? templateData.renderedParts?.findLast(part => part instanceof ChatSystemNotificationContentPart)?.inlineTimingContainer
+				: undefined;
+			const responseDetailsContainer = inlineTimingContainer ?? templateData.footerDetailsContainer;
+			if (rendersInlineSystemNotificationTiming) {
+				renderChatResponseDetails(templateData.footerDetailsContainer, undefined, undefined, undefined, false);
+			}
+			const details = isResponseVM(element) && !rendersInlineSystemNotificationTiming ? element.result?.details : undefined;
 			// Providers report usage asynchronously, often after the footer has already
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
 			const tokenStats = isResponseVM(element)
+				&& !rendersInlineSystemNotificationTiming
 				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
 				: undefined;
 			const completedAtElement = renderChatResponseDetails(
-				templateData.footerDetailsContainer,
+				responseDetailsContainer,
 				details,
 				isResponseVM(element) ? element.model.completionTimestamp : undefined,
-				isResponseVM(element) ? element.model.elapsedMs : undefined,
+				isResponseVM(element) && !rendersInlineSystemNotificationTiming ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
 				tokenStats?.footerAriaLabel,
 			);
@@ -1382,29 +1443,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			listeners.add(dom.addDisposableListener(completedAtElement, dom.EventType.MOUSE_ENTER, e => {
 				const bounds = completedAtElement.getBoundingClientRect();
 				responseTimingBounds = bounds;
-				templateData.footerDetailsContainer.classList.add('chat-response-flip-reset');
-				templateData.footerDetailsContainer.classList.remove('chat-response-flip-active');
-				templateData.footerDetailsContainer.classList.toggle('chat-response-flip-down', e.clientY < bounds.top + bounds.height / 2);
-				void templateData.footerDetailsContainer.offsetWidth;
-				templateData.footerDetailsContainer.classList.remove('chat-response-flip-reset');
-				void templateData.footerDetailsContainer.offsetWidth;
-				templateData.footerDetailsContainer.classList.add('chat-response-flip-active');
+				responseDetailsContainer.classList.add('chat-response-flip-reset');
+				responseDetailsContainer.classList.remove('chat-response-flip-active');
+				responseDetailsContainer.classList.toggle('chat-response-flip-down', e.clientY < bounds.top + bounds.height / 2);
+				void responseDetailsContainer.offsetWidth;
+				responseDetailsContainer.classList.remove('chat-response-flip-reset');
+				void responseDetailsContainer.offsetWidth;
+				responseDetailsContainer.classList.add('chat-response-flip-active');
 			}));
-			listeners.add(dom.addDisposableListener(templateData.footerDetailsContainer, dom.EventType.MOUSE_MOVE, e => {
+			listeners.add(dom.addDisposableListener(responseDetailsContainer, dom.EventType.MOUSE_MOVE, e => {
 				if (responseTimingBounds && (e.clientX < responseTimingBounds.left || e.clientX > responseTimingBounds.right || e.clientY < responseTimingBounds.top || e.clientY > responseTimingBounds.bottom)) {
 					responseTimingBounds = undefined;
-					templateData.footerDetailsContainer.classList.remove('chat-response-flip-active');
+					responseDetailsContainer.classList.remove('chat-response-flip-active');
 				}
 			}));
-			listeners.add(dom.addDisposableListener(templateData.footerDetailsContainer, dom.EventType.MOUSE_LEAVE, () => {
+			listeners.add(dom.addDisposableListener(responseDetailsContainer, dom.EventType.MOUSE_LEAVE, () => {
 				responseTimingBounds = undefined;
-				templateData.footerDetailsContainer.classList.remove('chat-response-flip-active');
+				responseDetailsContainer.classList.remove('chat-response-flip-active');
 			}));
-			listeners.add(dom.addDisposableListener(templateData.footerDetailsContainer, dom.EventType.FOCUS, () => {
-				templateData.footerDetailsContainer.classList.remove('chat-response-flip-active', 'chat-response-flip-down');
+			listeners.add(dom.addDisposableListener(responseDetailsContainer, dom.EventType.FOCUS, () => {
+				responseDetailsContainer.classList.remove('chat-response-flip-active', 'chat-response-flip-down');
 			}));
 		};
-		updateResponseDetails();
 
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
@@ -1414,6 +1474,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
+		templateData.rowContainer.classList.toggle('chat-system-notification-response', rendersInlineSystemNotificationTiming);
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
@@ -1598,6 +1659,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.updateStickyScrollSourceRange(element, templateData);
 			}
 		}
+		updateResponseDetails();
 		templateData.renderedPartsMounted = true;
 	}
 
@@ -2079,7 +2141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
-				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+				if ((ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) && !isAnchorTarget(e.target)) {
 					if (this.viewModel?.editing?.id !== element.id) {
 						ev.preventDefault();
 						ev.stopPropagation();
@@ -2134,6 +2196,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				explicitFileAttachmentsPart.domNode.style.flexWrap = 'nowrap';
 				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
+			}
+			if (otherVariables.length) {
+				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
+				if (otherAttachmentsPart.domNode) {
+					templateData.value.appendChild(otherAttachmentsPart.domNode);
+				}
+				templateData.elementDisposables.add(otherAttachmentsPart);
 			}
 		}
 		const contentContainer = templateData.value;
@@ -2261,15 +2330,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const stickyScrollSourcePart = parts.find(part => part.domNode === templateData.stickyScrollSource);
 		if (stickyScrollSourcePart?.addDisposable && templateData.stickyScrollSource?.classList.contains('clickable')) {
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
-		}
-
-		if (!isStickyScrollRow && otherVariables.length) {
-			const newPart = this.renderAttachments(otherVariables, element.contentReferences, element.modelId, templateData);
-			if (newPart.domNode) {
-				// p has a :last-child rule for margin
-				templateData.value.appendChild(newPart.domNode);
-			}
-			templateData.elementDisposables.add(newPart);
 		}
 
 		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
@@ -2489,7 +2549,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// gets summarized instead of being shown to the user verbatim.
 		const agentMerge = element.systemInitiatedLabel === undefined ? parseAgentMergePrompt(element.messageText) : undefined;
 		if (agentMerge) {
-			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer);
+			const agentMergePart = this.instantiationService.createInstance(ChatAgentMergeContentPart, agentMerge, element.sessionResource, this.chatContentMarkdownRenderer, element.requestTimestamp);
 			templateData.elementDisposables.add(agentMergePart);
 			templateData.value.appendChild(agentMergePart.domNode);
 			return;
@@ -4508,11 +4568,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return;
 					}
 
-					// Don't handle clicks on links
-					const clickedElement = e.target as HTMLElement;
-					if (clickedElement.tagName === 'A') {
+					if (isAnchorTarget(e.target)) {
 						return;
 					}
+					const clickedElement = e.target as HTMLElement;
 
 					// Don't handle if there's a text selection in the window
 					const selection = dom.getWindow(templateData.rowContainer).getSelection();

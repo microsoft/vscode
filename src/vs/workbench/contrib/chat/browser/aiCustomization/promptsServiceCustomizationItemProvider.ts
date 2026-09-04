@@ -71,7 +71,8 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			// folders like ~/.copilot/skills read naturally. Only folders that
 			// carry a source (currently skills) use this; others fall back.
 			label: (folder.source !== undefined ? getSourceDescription(folder.source) : undefined) ?? this.promptsService.getPromptLocationLabel(folder),
-			source: folder.storage
+			source: folder.storage,
+			destinationGroupId: dirname(folder.uri).toString(),
 		}));
 	}
 

@@ -276,19 +276,21 @@ A user can contribute lifecycle hooks through a client-pushed Copilot plugin to 
     --grep "plugin .* hook|failing plugin hook|non-JSON plugin hook"
   ```
 
-### File-tool denial mutates the workspace during Linux replay
+### Copilot file edit metadata is lost after a host restart
 
-- Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Claude and Copilot on Linux.
-- Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
-- Observed: the turn completes, but `denied.txt` exists on Linux. For Copilot, the host auto-approves the in-workspace write before the synthetic denial reaches the permission request; both providers pass on macOS.
-- Gate: the Claude and Copilot variants are disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
-- Reproduce on Linux:
+A user can reopen an Agent Host session and ask Copilot to edit a file. The file changes successfully, but the restored provider does not publish the before-and-after edit metadata, so the completed edit renders as a generic tool call instead of an edit pill and edit attribution is unavailable.
+
+- Test: `file edit metadata survives a host restart`.
+- Scope: Copilot on all platforms.
+- Expected: an edit made after the host restores the provider session includes readable before-and-after content references in the completed tool result.
+- Observed: the edit tool succeeds, but its completed tool result contains no file edit metadata.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
 
   ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/{claude,copilot}AgentHostE2E.integrationTest.ts \
-    --grep "declining a file creation tool"
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "file edit metadata survives a host restart"
   ```
 
 ### Client-pushed plugin MCP coverage is provider-scoped
@@ -718,6 +720,7 @@ Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.p
 - `lists workspace entries`
 - `runs a deterministic shell command`
 - `inspects git status`
+- `shell init script runs before the shell command`
 
 Use the affected provider command with `--grep "<exact test title>"` and temporarily remove the platform gate to reevaluate a row.
 
@@ -761,6 +764,39 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
+### Codex successful shell result text
+
+- Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
+  - `reads a file from a nested directory`
+  - `lists workspace entries`
+  - `reads a value from JSON`
+  - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
+- Scope: Codex.
+- Expected: successful shell tool completions include the command output in their result text.
+- Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
+- Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
+- Failing runs:
+  - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
+  - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
+  - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
+  - [Build 469897](https://dev.azure.com/monacotools/a6d41577-0fa3-498e-af22-257312ff0545/_build/results?buildId=469897&view=logs&j=e352877c-ff47-5dec-32e2-b206099d9704&t=b83513b4-f303-5ddc-d18a-1b47c02d8dad)
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "handles a missing file without a session error"
+  ```
+
+  Temporarily clear `shellToolResultTextUnreliable`.
+
 ### Claude subagent replay on Windows
 
 - Test: `reopening a session keeps sub-agent messages out of the parent transcript (replay path)`.
@@ -770,6 +806,23 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Gate: `subagentReplayUnstableOnWindows: true`.
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
+
+### Copilot custom subagent without a display name
+
+A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
+
+- Test: `custom agent without a display name completes as a subagent`.
+- Scope: Copilot.
+- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
+- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
+- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "custom agent without a display name completes as a subagent"
+  ```
 
 ### Mid-turn abort is record-only
 
@@ -813,6 +866,24 @@ Copilot errors currently end a turn without offering an in-place retry. The retr
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "restores and resumes a turn interrupted by host shutdown"
+  ```
+
+### Codex client-plugin discovery can stall the first turn
+
+A user can attach a client-provided plugin containing agents, rules, and skills to a Codex session and immediately send the first message. Plugin synchronization can overlap that turn and leave it incomplete, so the user receives no response.
+
+- Test: `customization discovery: configured plugin exposes its agent rule and skill children`.
+- Scope: Codex on all platforms.
+- Expected: the plugin is synchronized, its children are published, and the first turn completes.
+- Observed: the first turn can time out after receiving plugin customization updates without receiving `chat/turnComplete` or `chat/error`.
+- Gate: `supportsPluginCustomizationDiscoveryE2E: false`.
+- Related failure: [build 469961](https://dev.azure.com/monacotools/Monaco/_build/results?buildId=469961&view=logs&j=e352877c-ff47-5dec-32e2-b206099d9704&t=b83513b4-f303-5ddc-d18a-1b47c02d8dad).
+- Reproduce: temporarily set the gate to `true`, then run:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "customization discovery: configured plugin exposes its agent rule and skill children"
   ```
 
 ## Test-design limitations

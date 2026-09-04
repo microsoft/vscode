@@ -13,7 +13,7 @@ import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAc
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, AutomationCatalogState, AutomationRunState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
@@ -65,8 +65,6 @@ export interface IAgentSubscription<T> {
 export interface IActiveSubscriptionInfo {
 	/** The protocol resource URI subscribed to. */
 	readonly resource: URI;
-	/** Exact protocol channel string used on the wire. */
-	readonly channel: string;
 	/** Which state component this subscription tracks. */
 	readonly kind: StateComponents;
 	/** Number of outstanding {@link IReference} holders. */
@@ -105,6 +103,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
 	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
+	private _awaitingSnapshotRefresh = false;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -142,9 +141,45 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Apply an initial snapshot from the server.
 	 */
 	handleSnapshot(state: T, fromSeq: number): void {
+		this._awaitingSnapshotRefresh = false;
 		this._confirmedState = state;
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
+		this._onDidChange.fire(this.value as T);
+	}
+
+	/**
+	 * Buffer incoming envelopes until the next {@link handleSnapshot}.
+	 *
+	 * Needed when a subscription that already holds confirmed state is
+	 * re-subscribed to be reseated from a restarted host: the snapshot is
+	 * computed at some `fromSeq`, but the channel is already live, so newer
+	 * actions can reach the client before the subscribe response does.
+	 * Applying them first and then installing the older snapshot would drop
+	 * them silently — losing, say, the action that ends a turn.
+	 */
+	beginSnapshotRefresh(): void {
+		this._awaitingSnapshotRefresh = true;
+	}
+
+	/**
+	 * Abandon a refresh started by {@link beginSnapshotRefresh} when the
+	 * snapshot never arrives, applying whatever was buffered meanwhile so the
+	 * subscription does not silently lose those actions too.
+	 */
+	cancelSnapshotRefresh(): void {
+		if (!this._awaitingSnapshotRefresh) {
+			return;
+		}
+		this._awaitingSnapshotRefresh = false;
+		const buffered = this._bufferedEnvelopes;
+		if (!buffered || this._confirmedState === undefined) {
+			return;
+		}
+		this._bufferedEnvelopes = undefined;
+		for (const envelope of buffered) {
+			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
+		}
 		this._onDidChange.fire(this.value as T);
 	}
 
@@ -167,7 +202,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 		// Buffer actions that arrive before the snapshot has been applied.
 		// They're replayed in _onSnapshotApplied().
-		if (this._confirmedState === undefined) {
+		if (this._confirmedState === undefined || this._awaitingSnapshotRefresh) {
 			if (!this._bufferedEnvelopes) {
 				this._bufferedEnvelopes = [];
 			}
@@ -579,13 +614,13 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 }
 
 /** Subscription to the singleton host-owned automation catalogue. */
-export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationCatalogState> {
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
 
 	constructor(clientId: string, log: (msg: string) => void) {
 		super(clientId, log);
 	}
 
-	protected override _applyReducer(state: AutomationCatalogState, action: StateAction): AutomationCatalogState {
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
 		return automationReducer(state, action as AutomationAction, this._log);
 	}
 
@@ -852,14 +887,7 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = {
-	readonly resource: URI;
-	readonly channel: string;
-	readonly sub: ManagedSubscription;
-	readonly kind: StateComponents;
-	refCount: number;
-	readonly holders: Map<number, string>;
-};
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -963,38 +991,30 @@ export class AgentSubscriptionManager extends Disposable {
 	 * acquiring class name.
 	 */
 	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
-		return this._getSubscription(kind, this._subscriptionResource(resource), owner);
-	}
-
-	/** Get or create a subscription using an exact protocol channel string. */
-	getSubscriptionByChannel<T>(kind: StateComponents, channel: string, owner: string): IReference<IAgentSubscription<T>> {
-		return this._getSubscription(kind, this._subscriptionResource(URI.parse(channel)), owner);
-	}
-
-	private _getSubscription<T>(kind: StateComponents, resolved: Pick<ManagedSubscriptionEntry, 'resource' | 'channel'>, owner: string): IReference<IAgentSubscription<T>> {
-		const existing = this._subscriptions.get(resolved.resource);
+		const existing = this._subscriptions.get(resource);
 		if (existing) {
 			if (existing.sub.value instanceof Error) {
 				// Failed subscriptions should not poison the resource forever. Evict
 				// the errored entry so this acquire performs a fresh subscribe.
-				this._subscriptions.delete(resolved.resource);
-				this._disposeSubscriptionEntry(existing);
+				this._subscriptions.delete(resource);
+				this._disposeSubscriptionEntry(resource, existing);
 			} else {
 				existing.refCount++;
-				return this._acquireReference<T>(existing, owner);
+				return this._acquireReference<T>(resource, existing, owner);
 			}
 		}
 
 		// Create new subscription based on caller-specified kind
-		const sub = this._createSubscription(kind, resolved.channel);
-		const entry: ManagedSubscriptionEntry = { ...resolved, sub, kind, refCount: 1, holders: new Map() };
-		this._subscriptions.set(resolved.resource, entry);
+		const key = resource.toString();
+		const sub = this._createSubscription(kind, key);
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
+		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
 		void (async () => {
-			const inflight = this._inflightCreates.get(resolved.resource);
+			const inflight = this._inflightCreates.get(resource);
 			if (inflight) {
 				try {
 					await inflight;
@@ -1005,18 +1025,18 @@ export class AgentSubscriptionManager extends Disposable {
 				}
 			}
 			try {
-				const snapshot = await this._subscribe(resolved.resource);
-				if (this._subscriptions.get(resolved.resource) === entry) {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 				}
 			} catch (err) {
-				if (this._subscriptions.get(resolved.resource) === entry) {
+				if (this._subscriptions.get(resource) === entry) {
 					sub.setError(err instanceof Error ? err : new Error(String(err)));
 				}
 			}
 		})();
 
-		return this._acquireReference<T>(entry, owner);
+		return this._acquireReference<T>(resource, entry, owner);
 	}
 
 	/**
@@ -1025,7 +1045,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * caller is responsible for the matching refcount increment (a fresh
 	 * entry starts at 1; an existing entry is bumped before calling this).
 	 */
-	private _acquireReference<T>(entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
+	private _acquireReference<T>(resource: URI, entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
 		const ownerId = ++this._referenceOwnerIds;
 		entry.holders.set(ownerId, owner);
 
@@ -1038,13 +1058,13 @@ export class AgentSubscriptionManager extends Disposable {
 				}
 				isDisposed = true;
 				entry.holders.delete(ownerId);
-				this._releaseSubscription(entry);
+				this._releaseSubscription(resource, entry);
 			},
 		};
 	}
 
-	private _disposeSubscriptionEntry(entry: ManagedSubscriptionEntry): void {
-		this._tryUnsubscribe(entry.resource);
+	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
+		this._tryUnsubscribe(resource);
 		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 			entry.sub.clearPending();
 		}
@@ -1112,8 +1132,8 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Does NOT include the always-live root state, which the protocol
 	 * client manages separately.
 	 */
-	currentSubscriptionChannels(): string[] {
-		return [...this._subscriptions.values()].map(entry => entry.channel);
+	currentSubscriptionUris(): URI[] {
+		return [...this._subscriptions.keys()];
 	}
 
 	/**
@@ -1123,10 +1143,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		const out: IActiveSubscriptionInfo[] = [];
-		for (const entry of this._subscriptions.values()) {
+		for (const [resource, entry] of this._subscriptions) {
 			const value = entry.sub.value;
 			const status = value === undefined ? 'pending' : value instanceof Error ? 'error' : 'snapshot';
-			out.push({ resource: entry.resource, channel: entry.channel, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
+			out.push({ resource, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
 		}
 		return out;
 	}
@@ -1197,19 +1217,33 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Put a subscription into snapshot-refresh mode ahead of an explicit
+	 * re-`subscribe` that reseats it from a restarted host. See
+	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
+	 */
+	beginSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.beginSnapshotRefresh();
+	}
+
+	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
+	cancelSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
+	}
+
+	/**
 	 * Mark a set of subscriptions as no longer resumable on the server
 	 * (reported via `ReconnectReplayResult.missing`). The subscriptions
 	 * themselves stay alive so consumers continue to hold valid references,
 	 * but their value transitions to an `Error` until they're recreated.
 	 */
-	markSubscriptionsMissing(missing: readonly string[]): void {
-		for (const channel of missing) {
-			const entry = this._subscriptions.get(URI.parse(channel));
+	markSubscriptionsMissing(missing: readonly URI[]): void {
+		for (const resource of missing) {
+			const entry = this._subscriptions.get(resource);
 			if (entry) {
 				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
 				}
-				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${entry.channel}`));
+				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
 			}
 		}
 	}
@@ -1237,34 +1271,27 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	private _releaseSubscription(expected: ManagedSubscriptionEntry): void {
-		const entry = this._subscriptions.get(expected.resource);
+	private _releaseSubscription(resource: URI, expected?: ManagedSubscriptionEntry): void {
+		const entry = this._subscriptions.get(resource);
 		// A failed subscription can be evicted and replaced while old references
 		// still exist; stale disposals must not release the replacement entry.
-		if (!entry || entry !== expected) {
+		if (!entry || (expected && entry !== expected)) {
 			return;
 		}
 		entry.refCount--;
 		if (entry.refCount <= 0) {
-			this._subscriptions.delete(entry.resource);
-			this._disposeSubscriptionEntry(entry);
+			this._subscriptions.delete(resource);
+			this._disposeSubscriptionEntry(resource, entry);
 		}
 	}
 
 	override dispose(): void {
-		for (const entry of this._subscriptions.values()) {
-			this._tryUnsubscribe(entry.resource);
+		for (const [resource, entry] of this._subscriptions) {
+			this._tryUnsubscribe(resource);
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();
 		super.dispose();
-	}
-
-	private _subscriptionResource(resource: URI): Pick<ManagedSubscriptionEntry, 'resource' | 'channel'> {
-		return {
-			resource,
-			channel: resource.toString(),
-		};
 	}
 }
 
@@ -1273,6 +1300,14 @@ export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvel
 	if (isAhpRootChannel(envelope.channel)) {
 		for (const uri of subscribedUris) {
 			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (isAhpAutomationCatalogChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpAutomationCatalogChannel(uri)) {
 				return true;
 			}
 		}

@@ -150,9 +150,19 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } })),
 		], [true, false]);
+	});
+
+	test('uses declared agents window support', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+		], [true, false, false]);
 	});
 });
 

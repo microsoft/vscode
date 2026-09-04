@@ -91,7 +91,7 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
@@ -121,7 +121,7 @@ import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../speechToT
 import { IDictationOnboardingService } from '../../speechToText/dictationOnboarding.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../speechToText/dictationSession.js';
 import { VoiceModeActionViewItem } from '../../voiceClient/voiceModeActionViewItem.js';
-import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { isVoiceSessionActiveForInput, IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -129,7 +129,7 @@ import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
-import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
+import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
@@ -162,7 +162,7 @@ import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js'
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -185,14 +185,20 @@ const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
+const CHAT_INPUT_COMPACT_PICKER_WIDTH = 22;
 
-function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactStates: ReadonlyMap<string, ISettableObservable<boolean>>): IChatInputPickerResponsiveLayoutItem[] {
+function getToolbarPickerResponsiveItems(
+	toolbar: MenuWorkbenchToolBar,
+	compactStates: ReadonlyMap<string, ISettableObservable<boolean>>,
+	minimalStates?: ReadonlyMap<string, ISettableObservable<boolean>>,
+): IChatInputPickerResponsiveLayoutItem[] {
 	const items: IChatInputPickerResponsiveLayoutItem[] = [];
 	const visibleActionIds = new Set<string>();
 
 	for (let index = 0; index < toolbar.getItemsLength(); index++) {
 		const action = toolbar.getItemAction(index);
 		const state = action && compactStates.get(action.id);
+		const minimalState = action && minimalStates?.get(action.id);
 		const viewItem = toolbar.getItemViewItem(index);
 		const viewItemState = isChatInputPickerResponsiveState(viewItem) ? viewItem : undefined;
 		if (!action || (!state && !viewItemState)) {
@@ -202,21 +208,27 @@ function getToolbarPickerResponsiveItems(toolbar: MenuWorkbenchToolBar, compactS
 		const element = toolbar.getItemElement(index);
 		items.push({
 			element,
+			canShrink: action.id === OpenModelPickerAction.ID,
 			isCompact: () => viewItemState?.isCompact() ?? state!.get(),
+			isMinimal: minimalState ? () => minimalState.get() : undefined,
 			setCompact: compact => {
 				state?.set(compact, undefined);
 				viewItemState?.setCompact(compact);
 				element?.classList.toggle('compact-picker', compact);
 			},
+			setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 		});
 	}
 
 	for (const [actionId, state] of compactStates) {
 		if (!visibleActionIds.has(actionId)) {
+			const minimalState = minimalStates?.get(actionId);
 			items.push({
 				element: undefined,
 				isCompact: () => state.get(),
+				isMinimal: minimalState ? () => minimalState.get() : undefined,
 				setCompact: compact => state.set(compact, undefined),
+				setMinimal: minimalState ? minimal => minimalState.set(minimal, undefined) : undefined,
 			});
 		}
 	}
@@ -3141,12 +3153,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.interactive-input-and-edit-session', [
-					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
+				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
+					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+					dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
 					dom.h(`.${chatInputStackClass}`, [
 						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3168,19 +3180,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-input-status-container@statusToolbarContainer'),
 					]),
-					dom.h('.chat-attachments-container@attachmentsContainer', [
+					dom.h(`.chat-attachments-container.${chatInputSurfaceStackSlotClass}@attachmentsContainer`, [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
-					dom.h('.interactive-input-followups@followupsContainer'),
+					dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				])
 			]);
 		} else {
-			elements = dom.h('.interactive-input-part', [
+			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
-				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
-				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
-				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
+				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
+				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
+				dom.h(`.interactive-input-followups.${chatInputSurfaceStackSlotClass}@followupsContainer`),
 				dom.h(`.${chatInputStackClass}`, [
 					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
 					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
@@ -3433,18 +3445,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
+		const voiceSessionResource = observableFromEvent(this, widget.onDidChangeViewModel, () => widget.viewModel?.sessionResource);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isVoiceSessionActive = derived(this, reader => {
-			if (!isVoiceInputActive.read(reader)) {
-				return false;
-			}
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
-			const resource = widget.viewModel?.sessionResource;
-			return !hasDraftTarget && (!target || (!!resource && isEqual(target, resource)));
+			const resource = voiceSessionResource.read(reader);
+			return isVoiceSessionActiveForInput(isVoiceInputActive.read(reader), target, hasDraftTarget, resource);
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
+		const inputPickerMinimalStates = new Map<string, ISettableObservable<boolean>>();
 		const secondaryPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
 		const inputOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
 		const secondaryOverflowPickerHandlers = new Map<string, (anchor: HTMLElement) => void>();
@@ -3460,6 +3471,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: getCompactState(inputPickerCompactStates, actionId),
+			minimal: actionId === OpenModelPickerAction.ID ? getCompactState(inputPickerMinimalStates, actionId) : undefined,
 		});
 		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
@@ -3522,10 +3534,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			ConfigureToolsAction.ID,
 		]);
 		const getInputActionMinWidth = (action: IAction): number | undefined => {
-			if (shorterChatInputActionIds.has(action.id)) {
-				return 22;
+			if (action.id === OpenModelPickerAction.ID) {
+				return this.modelWidget?.minimumWidth ?? 60;
 			}
-			return inputPickerCompactStates.get(action.id)?.get() ? 22 : undefined;
+			if (shorterChatInputActionIds.has(action.id)) {
+				return CHAT_INPUT_COMPACT_PICKER_WIDTH;
+			}
+			return inputPickerCompactStates.get(action.id)?.get() ? CHAT_INPUT_COMPACT_PICKER_WIDTH : undefined;
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -3538,7 +3553,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			responsiveBehavior: {
 				enabled: true,
 				kind: 'last',
-				minItems: 1,
+				minItems: 2,
 				actionMinWidth: 48,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -3731,20 +3746,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// floor so icon-only items do not retain empty space from the labeled form.
 		// The tunnel-sharing toggle has no chevron and can collapse further.
 		const secondaryPickerMinWidths = new Map<string, number>([
-			[OpenSessionTargetPickerAction.ID, 22],
-			[OpenDelegationPickerAction.ID, 22],
-			[OpenWorkspacePickerAction.ID, 22],
-			[OpenPermissionPickerAction.ID, 22],
-			[ChatSessionPrimaryPickerAction.ID, 22],
-			[OpenAgentHostModePickerAction.ID, 22],
-			['sessions.agentHost.runningSessionModePicker', 22],
-			['sessions.agentHost.runningSessionConfigPicker', 22],
-			['sessions.agentHost.runningSessionPermissionModePicker', 22],
-			['sessions.agentHost.runningSessionCodexApprovalsPicker', 22],
-			[OpenAgentHostAutoApprovePickerAction.ID, 22],
-			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostCodexApprovalsPickerAction.ID, 22],
-			[OpenAgentHostFolderPickerAction.ID, 22],
+			[OpenSessionTargetPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenDelegationPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenWorkspacePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenPermissionPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[ChatSessionPrimaryPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostModePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionModePicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionConfigPicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionPermissionModePicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			['sessions.agentHost.runningSessionCodexApprovalsPicker', CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostAutoApprovePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostPermissionModePickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostCodexApprovalsPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
+			[OpenAgentHostFolderPickerAction.ID, CHAT_INPUT_COMPACT_PICKER_WIDTH],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -3925,7 +3940,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputToolbarElement = this.inputActionsToolbar.getElement();
 		this._inputPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.primaryPicker', inputToolbarElement, {
-			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates),
+			getItems: () => getToolbarPickerResponsiveItems(this.inputActionsToolbar, inputPickerCompactStates, inputPickerMinimalStates),
 			hasOverflow: () => this.inputActionsToolbar.hasOverflow(),
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));
@@ -4086,20 +4101,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			: this._implicitContext?.values.some(v => v.enabled || v.isSelection) ?? false;
 		if (this._implicitContext && hasVisibleImplicitContext) {
 			const isAttachmentAlreadyAttached = (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined): boolean => {
-				return this._attachmentModel.attachments.some(a => {
-					const aUri = URI.isUri(a.value) ? a.value : isLocation(a.value) ? a.value.uri : undefined;
-					const aRange = isLocation(a.value) ? a.value.range : undefined;
-					if (targetHandle !== undefined && isStringVariableEntry(a) && a.handle === targetHandle) {
-						return true;
-					}
-					if (targetUri && aUri && isEqual(targetUri, aUri)) {
-						if (targetRange && aRange) {
-							return Range.equalsRange(targetRange, aRange);
-						}
-						return !targetRange && !aRange;
-					}
-					return false;
-				});
+				return isImplicitContextAlreadyAttached(this._attachmentModel.attachments, targetUri, targetRange, targetHandle);
 			};
 			const implicitContextWidget = this.instantiationService.createInstance(
 				ImplicitContextAttachmentWidget,

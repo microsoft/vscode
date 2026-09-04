@@ -35,6 +35,7 @@ export const SessionHasSideChatsContext = new RawContextKey<boolean>('sessionHas
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
 export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the session's active chat can be closed (hidden) from the tab strip, i.e. it is not the main chat. Includes read-only subagent chats. Used to scope the close-chat keybinding so it closes the tab instead of the session"));
+export const SessionFocusedChatIsRenameTargetContext = new RawContextKey<boolean>('sessionFocusedChatIsRenameTarget', false, localize('sessionFocusedChatIsRenameTarget', "Whether the focused chat group's visible chat is a non-main chat that should receive the chat-specific rename command instead of the session rename command"));
 export const SessionActiveChatIsDeletableContext = new RawContextKey<boolean>('sessionActiveChatIsDeletable', false, localize('sessionActiveChatIsDeletable', "Whether the session's active chat can be permanently deleted from the tab strip, i.e. it is a real, user-created non-main chat (not the main chat and not a tool-spawned subagent chat, which are transient children). Used to scope the delete-chat keybinding"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session in scope is archived/marked as done (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -74,6 +75,29 @@ export const SessionsEditorScopeContext = ContextKeyExpr.or(EditorAreaFocusConte
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
+
+//#endregion
+
+//#region < --- Changes --- >
+
+/**
+ * Id of the first pull request operation the agent host currently advertises
+ * for the active session (for example `pr-merge`), or the empty string when
+ * none is advertised. Lets client-side contributions to the changes button bar
+ * react to the pull request's live state without duplicating it.
+ */
+export const SessionPrimaryPullRequestOperationContext = new RawContextKey<string>('sessionPrimaryPullRequestOperation', '', localize('sessionPrimaryPullRequestOperation', "The id of the first pull request operation advertised for the active session, or empty when there is none"));
+
+/** Whether Agent Merge is currently enabled on the active session. */
+export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessionAgentMergeEnabled', false, localize('sessionAgentMergeEnabled', "True when Agent Merge is enabled for the active agent session"));
+
+/**
+ * Whether the active session has an open pull request, independent of whether
+ * the agent host has any operation to offer for it. A pull request that is
+ * open but blocked — and whose repository does not allow auto-merge — offers
+ * no operation, yet is exactly when Agent Merge has work to do.
+ */
+export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
 
 //#endregion
 

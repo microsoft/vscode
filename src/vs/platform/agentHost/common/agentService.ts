@@ -775,6 +775,11 @@ export interface IAgentHostManagementService {
 	 * `createChat` (`title` and `model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
+	claimDetachedWorktree(handle: string): Promise<void>;
+	deleteDetachedWorktree(handle: string): Promise<void>;
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -813,6 +818,11 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1058,8 +1068,6 @@ export interface IAgentConnection {
 	 * acquiring class name.
 	 */
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
-	/** Acquire a subscription using an exact protocol channel string that must not be URI-normalized. */
-	getSubscriptionByChannel<T extends StateComponents>(kind: T, channel: string, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	/**
@@ -1116,6 +1124,11 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;

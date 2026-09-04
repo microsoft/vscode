@@ -32,8 +32,10 @@ import { WorkbenchState } from '../../../../../platform/workspace/common/workspa
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/media/floatingPanels.css';
+import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
+import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
@@ -962,6 +964,126 @@ suite('ModernUIContribution', () => {
 			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			railWidths: [44, 44],
+		});
+	});
+
+	test('keeps floating rail overlays anchored to the viewport', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.height = '200px';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'part activitybar left');
+		const content = appendElement(activityBar, 'content');
+		const menubar = appendElement(content, 'menubar compact');
+		const menuButton = appendElement(menubar, 'menubar-menu-button open');
+		const menu = appendElement(menuButton, 'menubar-menu-items-holder monaco-menu-container');
+		menu.style.top = '120px';
+		menu.style.left = '240px';
+		menu.style.width = '200px';
+		menu.style.height = '160px';
+
+		const activityBarBounds = activityBar.getBoundingClientRect();
+		const menuBounds = menu.getBoundingClientRect();
+		const menuBarStyle = getWindow(menubar).getComputedStyle(menubar);
+
+		assert.deepStrictEqual({
+			position: getWindow(menu).getComputedStyle(menu).position,
+			menuBarHeight: menubar.clientHeight,
+			menuBarComputedHeight: menuBarStyle.height,
+			menuBarDisplay: menuBarStyle.display,
+			menuBarPaddingTop: menuBarStyle.paddingTop,
+			top: menuBounds.top,
+			left: menuBounds.left,
+			width: menuBounds.width,
+			leavesRail: menuBounds.left > activityBarBounds.right,
+		}, {
+			position: 'fixed',
+			menuBarHeight: 39,
+			menuBarComputedHeight: '39px',
+			menuBarDisplay: 'flex',
+			menuBarPaddingTop: '3px',
+			top: 120,
+			left: 240,
+			width: 200,
+			leavesRail: true,
+		});
+	});
+
+	test('styles focused and open compact application menu states', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--vscode-codiconFontSize', '16px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-menubar-selectionBorder', '#123456');
+		root.style.setProperty('--vscode-modernActivityBarItem-hoverBackground', '#234567');
+		root.style.setProperty('--vscode-modernActivityBarItem-hoverForeground', '#345678');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeBackground', '#456789');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeForeground', '#56789a');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'part activitybar left');
+		const content = appendElement(activityBar, 'content');
+		const menubar = appendElement(content, 'menubar compact');
+		const menuButton = appendElement(menubar, 'menubar-menu-button');
+		menuButton.tabIndex = 0;
+		const target = appendElement(menuButton, 'menubar-menu-title toolbar-toggle-more');
+		const targetWindow = getWindow(target);
+		const targetStyles = () => {
+			const style = targetWindow.getComputedStyle(target);
+			return {
+				buttonBackgroundColor: targetWindow.getComputedStyle(menuButton).backgroundColor,
+				backgroundColor: style.backgroundColor,
+				color: style.color,
+				outlineColor: style.outlineColor,
+				outlineStyle: style.outlineStyle,
+				outlineWidth: style.outlineWidth,
+			};
+		};
+
+		// The headless runner cannot activate :focus; .open exercises the shared focus/open selectors.
+		menuButton.classList.add('open');
+		const focusAndOpen = targetStyles();
+		root.classList.add('hc-black');
+		root.style.setProperty('--vscode-menubar-selectionBorder', '#abcdef');
+		const highContrastFocusAndOpen = targetStyles();
+
+		assert.deepStrictEqual({
+			fontSize: targetWindow.getComputedStyle(target).fontSize,
+			focusAndOpen,
+			highContrastFocusAndOpen,
+		}, {
+			fontSize: '16px',
+			focusAndOpen: {
+				buttonBackgroundColor: 'rgba(0, 0, 0, 0)',
+				backgroundColor: 'rgb(69, 103, 137)',
+				color: 'rgb(86, 120, 154)',
+				outlineColor: 'rgb(18, 52, 86)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+			},
+			highContrastFocusAndOpen: {
+				buttonBackgroundColor: 'rgba(0, 0, 0, 0)',
+				backgroundColor: 'rgb(69, 103, 137)',
+				color: 'rgb(86, 120, 154)',
+				outlineColor: 'rgb(171, 205, 239)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+			},
 		});
 	});
 

@@ -437,7 +437,7 @@ suite('LanguageModelAccess model info', () => {
 		}
 	});
 
-	test('publishes core-only aliases for dictation cleanup without publishing hidden models directly', async () => {
+	test('publishes core-only dictation cleanup models without exposing them in the picker', async () => {
 		const makeHiddenEndpoint = (model: string): IChatEndpoint => ({
 			model,
 			name: model,
@@ -510,13 +510,15 @@ suite('LanguageModelAccess model info', () => {
 			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
 			const nanoAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-nano');
 			const lunaAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-luna');
+			const lunaModel = modelInfo.find(m => m.id === 'gpt-5.6-luna');
 			assert.deepStrictEqual({
 				nanoAliasPublished: Boolean(nanoAlias),
 				nanoAliasUserSelectable: nanoAlias?.isUserSelectable,
 				lunaAliasPublished: Boolean(lunaAlias),
 				lunaAliasUserSelectable: lunaAlias?.isUserSelectable,
 				nanoPublishedDirectly: modelInfo.some(m => m.id === 'gpt-5.4-nano'),
-				lunaPublishedDirectly: modelInfo.some(m => m.id === 'gpt-5.6-luna'),
+				lunaPublishedDirectly: Boolean(lunaModel),
+				lunaDirectlyUserSelectable: lunaModel?.isUserSelectable,
 				otherPublished: modelInfo.some(m => m.id === 'some-hidden-model'),
 			}, {
 				nanoAliasPublished: true,
@@ -524,13 +526,14 @@ suite('LanguageModelAccess model info', () => {
 				lunaAliasPublished: true,
 				lunaAliasUserSelectable: false,
 				nanoPublishedDirectly: false,
-				lunaPublishedDirectly: false,
+				lunaPublishedDirectly: true,
+				lunaDirectlyUserSelectable: false,
 				otherPublished: false,
 			});
-			for (const alias of [nanoAlias!, lunaAlias!]) {
+			for (const model of [nanoAlias!, lunaAlias!, lunaModel!]) {
 				await assert.rejects(
 					testAccess._provideLanguageModelChatResponse(
-						alias,
+						model,
 						[],
 						{ requestInitiator: 'publisher.extension' } as vscode.ProvideLanguageModelChatResponseOptions,
 						{ report: () => { } },
@@ -688,6 +691,12 @@ suite('reasoning effort schema', () => {
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
 	});
+
+	test('buildReasoningEffortSchemaProperty honors a default override only when advertised', () => {
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', 'medium').default, 'medium');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'high'], 'claude-opus-4.5', 'medium').default, 'high');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', undefined).default, 'high');
+	});
 });
 
 suite('auto mode tier schema', () => {
@@ -698,10 +707,10 @@ suite('auto mode tier schema', () => {
 		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
 			type: 'string',
 			title: 'Optimize for',
-			enum: ['eco', 'balanced', 'max'],
+			enum: ['efficiency', 'balance', 'intelligence'],
 			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
 			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
-			default: 'balanced',
+			default: 'balance',
 			group: 'navigation',
 		});
 	});

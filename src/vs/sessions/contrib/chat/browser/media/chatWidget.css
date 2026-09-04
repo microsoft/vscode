@@ -89,6 +89,12 @@
 	align-self: center;
 }
 
+/* Flex centering shares attachment growth above and below the midpoint. Offset
+ * that growth so the bottom controls stay anchored and the composer grows up. */
+.sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
+	position: relative;
+}
+
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;
@@ -156,10 +162,15 @@
 	display: none;
 }
 
+.new-chat-widget-container .compact-picker .sessions-chat-sandbox-icon {
+	display: none;
+}
+
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item,
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -168,9 +179,10 @@
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	justify-content: flex-start;
-	padding: 2px 2px 2px 8px;
+	justify-content: center;
+	padding: 0;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label > .codicon {
@@ -195,7 +207,7 @@
  * model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
-	padding: 3px 8px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
@@ -216,20 +228,25 @@
 	display: none;
 }
 
-/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
- * lack the chevron that visually balances the 7px left padding, so use
- * symmetric horizontal padding and drop the picker min-width that would
- * otherwise leave the icon left-aligned inside a 30px box. */
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
-	min-width: 0;
+/* Icon status actions use the compact control box; text actions remain intrinsic. */
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
+	width: 22px;
+	min-width: 22px;
 }
 
-.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
-	padding: 3px 4px;
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
+	box-sizing: border-box;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* The category row is quiet at rest, while hover/open state reveals the active target. */
@@ -260,13 +277,13 @@
 
 .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label {
 	gap: var(--vscode-spacing-size80);
-	min-height: var(--vscode-spacing-size320);
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
 	border-radius: var(--vscode-cornerRadius-circle);
 	box-sizing: border-box;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: var(--vscode-spacing-size160);
 }
 
@@ -286,6 +303,14 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
 .sessions-workspace-category-picker .sessions-chat-dropdown-label {
 	margin-left: 0;
 }
@@ -302,6 +327,11 @@
 	min-width: 0;
 }
 
+.sessions-chat-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
+}
+
 .sessions-chat-picker-slot {
 	display: flex;
 	align-items: center;
@@ -313,7 +343,7 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 7px 3px 7px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);
@@ -399,7 +429,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 10px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	margin-left: 2px;
 	line-height: 1;
 	width: 12px;

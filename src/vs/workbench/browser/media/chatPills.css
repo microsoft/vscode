@@ -37,6 +37,7 @@
 	align-items: center;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-medium);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	touch-action: manipulation;
@@ -131,6 +132,10 @@
 	padding-left: var(--vscode-spacing-size20);
 }
 
+.chat-pill-item .monaco-button.chat-resource-pill-button .chat-resource-pill-compact-icon {
+	display: none;
+}
+
 .chat-resource-pill-button .monaco-icon-label {
 	align-items: center;
 	min-width: 0;
@@ -145,11 +150,111 @@
 }
 
 /* File rows render a themed file icon in the same slot codicon rows use, so
-	every label in the dropdown starts on the same vertical line. */
-.action-widget .action-list-item .icon.file-icon {
+	every label in the dropdown starts on the same vertical line. The icon paints
+	through `::before`, which would otherwise sit on the row's text baseline and
+	ride high, so the slot takes the row's height and centres the icon in it. */
+.action-widget .monaco-list-row.action .icon.file-icon {
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-spacing-size240);
+}
+
+.action-widget .monaco-list-row.action .icon.file-icon::before {
+	width: var(--vscode-codiconFontSize);
 	background-size: var(--vscode-codiconFontSize);
 	background-repeat: no-repeat;
 	background-position: center center;
+}
+
+/* Horizontally scrollable status pills above a chat input. */
+.chat-pills-row {
+	width: 100%;
+	min-width: 0;
+}
+
+.chat-pills-row-content {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size60);
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40) 0;
+}
+
+.chat-pills-row-content > .chat-pills {
+	flex-shrink: 0;
+}
+
+.chat-pills-row-content > * {
+	pointer-events: auto;
+}
+
+.chat-pills-row.hidden {
+	display: none;
+}
+
+.chat-pills-row.compact .chat-pills-row-content,
+.chat-pills-row.compact .chat-pills .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-pills-row.compact .chat-pill-item .monaco-button.chat-pill-button {
+	gap: var(--vscode-spacing-size20);
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+}
+
+/* Compact rows are truly collapsed rather than merely tighter: all current
+	pill renderers keep their identifying icon while labels, counters and dropdown
+	chevrons remain available through the button's tooltip and accessible name. */
+.chat-pills-row.compact .chat-pill-label,
+.chat-pills-row.compact .monaco-animated-counter,
+.chat-pills-row.compact .chat-pill-chevron,
+.chat-pills-row.compact .chat-resource-pill-button .monaco-icon-label {
+	display: none;
+}
+
+.chat-pills-row.compact .chat-pill-item .monaco-button.chat-resource-pill-button .chat-resource-pill-compact-icon {
+	display: inline-flex;
+}
+
+/* Keep the visibility menu reachable when every pill with data is hidden. */
+.chat-pills-row.empty {
+	pointer-events: auto;
+}
+
+.chat-pills-row.empty .chat-pills-row-content {
+	min-height: var(--vscode-spacing-size120);
+}
+
+.chat-pills-row.empty .chat-pills-row-content:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* The floating row is click-through, so its slider is informational only. */
+.chat-pills-row > .scrollbar > .slider {
+	background: transparent;
+}
+
+.chat-pills-row > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: var(--vscode-strokeThickness);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.chat-pills-row > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.chat-pills-row > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
 }

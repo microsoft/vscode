@@ -47,6 +47,7 @@ import { ChatTransferService, IChatTransferService } from '../../../common/model
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
@@ -91,9 +92,10 @@ suite('ChatEditingService', function () {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
-		collection.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService);
+		collection.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService);
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
+		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		const contextKeyService = store.add(new MockContextKeyService());
 		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));

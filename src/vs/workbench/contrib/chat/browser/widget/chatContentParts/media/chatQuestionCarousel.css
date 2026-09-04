@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* question carousel - this is above edits and todos */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty,
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:empty {
-	display: none;
-}
-
 /* input specific styling - box look comes from the shared container rule below */
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container {
@@ -41,11 +35,6 @@
 	gap: 8px;
 }
 
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:not(:empty),
-.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container:not(:empty) {
-	margin-top: 8px;
-}
-
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-content,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-content {
 	min-height: 0;
@@ -74,15 +63,6 @@
 			-webkit-user-select: text;
 
 			.rendered-markdown {
-				a {
-					color: var(--vscode-textLink-foreground);
-				}
-
-				a:hover,
-				a:active {
-					color: var(--vscode-textLink-activeForeground);
-				}
-
 				p {
 					margin: 0;
 				}
@@ -104,6 +84,15 @@
 			flex-shrink: 0;
 		}
 	}
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a:hover,
+.interactive-session .chat-question-carousel-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {

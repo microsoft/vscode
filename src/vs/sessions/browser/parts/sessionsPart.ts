@@ -15,7 +15,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -81,6 +81,13 @@ export class SessionsPart extends Part {
 	 * because the workbench grid only calls {@link setVisible} on change.
 	 */
 	private _isPartVisible = true;
+
+	/** Whether the workbench permits the mounted session views to render. */
+	private _contentVisible = true;
+
+	private get _sessionViewsVisible(): boolean {
+		return this._isPartVisible && this._contentVisible;
+	}
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -281,6 +288,10 @@ export class SessionsPart extends Part {
 		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
 	}
 
+	getFocusedSessionView(): SessionView | undefined {
+		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
+	}
+
 	/**
 	 * Moves keyboard focus into the session view hosting the given session id (or
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
@@ -339,7 +350,7 @@ export class SessionsPart extends Part {
 	private _createSlot(): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
-		view.setPartVisible(this._isPartVisible);
+		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
 		// Promote a visible session to the active session when its view receives
 		// focus or is clicked. Pointer-down covers clicks on non-focusable chrome
@@ -382,13 +393,27 @@ export class SessionsPart extends Part {
 		this._gridWidget?.style({ separatorBorder: this._gridSeparatorBorder });
 	}
 
+	setContentVisible(visible: boolean): void {
+		if (this._contentVisible === visible) {
+			return;
+		}
+
+		this._contentVisible = visible;
+		this._updateSessionViewsVisibility();
+	}
+
+	private _updateSessionViewsVisibility(): void {
+		const visible = this._sessionViewsVisible;
+		for (const slot of this._slots) {
+			slot.view.setPartVisible(visible);
+		}
+	}
+
 	override setVisible(visible: boolean): void {
 		if (this._isPartVisible !== visible) {
 			// Update before `super`, whose event re-enters this method.
 			this._isPartVisible = visible;
-			for (const slot of this._slots) {
-				slot.view.setPartVisible(visible);
-			}
+			this._updateSessionViewsVisibility();
 		}
 
 		super.setVisible(visible);

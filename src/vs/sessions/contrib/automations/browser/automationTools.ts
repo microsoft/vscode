@@ -369,10 +369,12 @@ export class ConfigureAutomationTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.configure.displayName', "Configure Automation"),
 			userDescription: localize('automation.tool.configure.userDescription', "Create or update an automation"),
-			modelDescription: `Create or update a scheduled automation.
+			modelDescription: `Create or update a persistent scheduled automation.
 
-Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session.
-Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values.
+Create a new automation only when the user explicitly asks for an automation, or for a prompt to run on a recurring schedule. Do not infer that intent from requests merely to monitor, watch, follow, or keep something (such as a pull request) green.
+
+Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values.
+
 The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,

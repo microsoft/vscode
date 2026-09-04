@@ -8,7 +8,7 @@ import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
@@ -49,13 +49,24 @@ export interface IActionListDelegate<T> {
  */
 export interface IActionListItemHover {
 	/**
-	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
+	 * Content to display in the hover. Pass a function to build the content the first
+	 * time the panel opens, for content that is expensive to construct.
 	 */
-	readonly content?: string | IMarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement | (() => HTMLElement);
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
 	readonly disposable?: IDisposable;
+	/**
+	 * When true, the row shows a chevron that opens the hover panel on click, and
+	 * ArrowRight opens it from the keyboard. The panel still auto-shows on hover.
+	 */
+	readonly expandable?: boolean;
+	/**
+	 * CSS class set on the hover panel while this item's hover is showing, so a
+	 * consumer can style the panel without reaching for the content inside it.
+	 */
+	readonly panelClassName?: string;
 }
 
 /**
@@ -136,7 +147,7 @@ export interface IActionListItem<T> {
 	 */
 	readonly isSectionToggle?: boolean;
 	/**
-	 * Optional CSS class name to add to the row container.
+	 * Optional CSS class names to add to the row container, separated by spaces.
 	 */
 	readonly className?: string;
 	/**
@@ -167,7 +178,7 @@ interface IActionMenuTemplateData {
 	readonly submenuIndicator: HTMLElement;
 	readonly inlineToggleContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
-	previousClassName?: string;
+	previousClassNames?: readonly string[];
 }
 
 export const enum ActionListItemKind {
@@ -222,12 +233,21 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
+		templateData.container.classList.toggle('has-label', !!element.label);
 		templateData.text.textContent = element.label ?? '';
 	}
 
 	disposeTemplate(_templateData: ISeparatorTemplateData): void {
 		// noop
 	}
+}
+
+/**
+ * Whether the item shows a chevron that opens its panel. Items whose panel only
+ * auto-shows on hover get no chevron.
+ */
+function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
+	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
 }
 
 class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IActionMenuTemplateData> {
@@ -238,11 +258,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _supportsPreview: boolean,
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		private readonly _onShowSubmenu: ((item: IActionListItem<T>) => void) | undefined,
-		private readonly _hasAnySubmenuActions: boolean,
+		private readonly _reservesSubmenuSpace: () => boolean,
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
-		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Toggle) => IDisposable,
+		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -326,14 +346,15 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		// Apply optional className - clean up previous to avoid stale classes
 		// from virtualized row reuse
-		if (data.previousClassName) {
-			data.container.classList.remove(data.previousClassName);
+		if (data.previousClassNames?.length) {
+			data.container.classList.remove(...data.previousClassNames);
 		}
-		data.container.classList.toggle('action-list-custom', !!element.className);
-		if (element.className) {
-			data.container.classList.add(element.className);
+		const classNames = element.className?.split(/\s+/).filter(name => name.length > 0) ?? [];
+		data.container.classList.toggle('action-list-custom', classNames.length > 0);
+		if (classNames.length) {
+			data.container.classList.add(...classNames);
 		}
-		data.previousClassName = element.className;
+		data.previousClassNames = classNames;
 
 		data.text.textContent = stripNewlines(element.label);
 
@@ -392,6 +413,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
+		data.container.classList.toggle('has-detail', !!element.detail);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
@@ -406,18 +428,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.inlineToggleContainer.style.display = '';
 			data.container.classList.toggle('has-inline-toggle', !!element.inlineToggle);
 			data.container.classList.toggle('has-standalone-toggle', !!element.standaloneToggle);
-			const toggle = data.elementDisposables.add(new Toggle({
-				title: toggleConfig.title ?? toggleConfig.label,
-				isChecked: toggleConfig.checked,
-				actionClassName: 'action-list-inline-switch',
-				notFocusable: false,
-				inputActiveOptionBorder: undefined,
-				inputActiveOptionForeground: undefined,
-				inputActiveOptionBackground: undefined,
+			const toggle = data.elementDisposables.add(new Switch({
+				// Callers use `title` to say why a switch is unavailable, so it names the
+				// control for a screen reader too rather than only appearing on hover.
+				ariaLabel: toggleConfig.title ?? toggleConfig.label,
+				checked: toggleConfig.checked,
+				disabled: toggleConfig.disabled,
 			}));
-			if (toggleConfig.disabled) {
-				toggle.disable();
-			}
 			data.inlineToggleContainer.append(toggle.domNode);
 			if (element.standaloneToggle) {
 				data.elementDisposables.add(this._registerStandaloneToggle(element, toggle));
@@ -476,24 +493,33 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			actionBar.push(toolbarActions, { icon: true, label: false });
 		}
 
-		// Show submenu indicator only for items with submenu actions
-		// but not when the item also has hover content (panel auto-shows on hover)
-		if (element.submenuActions?.length && !element.hover?.content) {
+		// Show submenu indicator for items with submenu actions, or for items that
+		// opt into an expandable hover panel.
+		if (hasSubmenuIndicator(element)) {
 			data.submenuIndicator.className = 'action-list-submenu-indicator has-submenu ' + ThemeIcon.asClassName(Codicon.chevronRight);
 			data.submenuIndicator.style.display = '';
 			data.submenuIndicator.style.visibility = '';
+			// Names what the row opens, so a screen reader can tell that there is more
+			// here than the row itself. Rows are recycled, so the state is always set
+			// rather than only added.
+			data.container.setAttribute('aria-haspopup', element.hover?.expandable ? 'dialog' : 'menu');
+			data.container.setAttribute('aria-expanded', 'false');
 			data.elementDisposables.add(dom.addDisposableListener(data.submenuIndicator, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();
 				this._onShowSubmenu?.(element);
 			}));
-		} else if (this._hasAnySubmenuActions) {
+		} else if (this._reservesSubmenuSpace()) {
 			// Reserve space for alignment when other items have submenus
 			data.submenuIndicator.className = 'action-list-submenu-indicator';
 			data.submenuIndicator.style.display = '';
 			data.submenuIndicator.style.visibility = 'hidden';
+			data.container.removeAttribute('aria-haspopup');
+			data.container.removeAttribute('aria-expanded');
 		} else {
 			data.submenuIndicator.className = 'action-list-submenu-indicator';
 			data.submenuIndicator.style.display = 'none';
+			data.container.removeAttribute('aria-haspopup');
+			data.container.removeAttribute('aria-expanded');
 		}
 	}
 
@@ -614,10 +640,13 @@ export interface IActionListOptions {
 	readonly initialFocusItemId?: string;
 
 	/**
-	 * When false, non-submenu items do not reserve space for the submenu chevron.
-	 * Defaults to true for alignment consistency.
+	 * Controls the gutter kept for the submenu chevron on items that have none.
+	 * - `true` (default): kept while some item shows a chevron.
+	 * - `'always'`: kept regardless, for lists whose items gain and lose their chevron
+	 *   while the popup stays open, where a collapsing gutter would shift every row.
+	 * - `false`: never kept.
 	 */
-	readonly reserveSubmenuSpace?: boolean;
+	readonly reserveSubmenuSpace?: boolean | 'always';
 
 	/**
 	 * When true, items without an explicit `tooltip` or `hover` do not get a
@@ -701,6 +730,9 @@ export class ActionListWidget<T> extends Disposable {
 	private _submenuShowTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
+	private _submenuPanelClassName: string | undefined;
+	/** The row currently reporting `aria-expanded`, reset when its panel closes. */
+	private _expandedTrigger: HTMLElement | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -713,7 +745,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
-	private readonly _standaloneToggles = new Map<IActionListItem<T>, Toggle>();
+	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -761,6 +793,18 @@ export class ActionListWidget<T> extends Disposable {
 		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
+		// A panel showing only hover content has no inner list to own the keyboard, so
+		// the way back to the row it belongs to lives here. A panel that does have a
+		// submenu list stops these keys before they reach this handler.
+		this._register(dom.addDisposableListener(this._submenuContainer, 'keydown', (e: KeyboardEvent) => {
+			if (e.key !== 'ArrowLeft' && e.key !== 'Escape') {
+				return;
+			}
+			dom.EventHelper.stop(e, true);
+			this._hideSubmenu();
+			this._list.domFocus();
+		}));
+
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {
 			this._cancelSubmenuHide();
 		}));
@@ -791,11 +835,15 @@ export class ActionListWidget<T> extends Disposable {
 		};
 
 
-		const reserveSubmenuSpace = this._options?.reserveSubmenuSpace ?? true;
-		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
+		// Read on every render: whether any item opens a panel can change when the items
+		// are rebuilt in place, and a stale answer shifts every row by a chevron's width.
+		const reservesSubmenuSpace = () => {
+			const reserve = this._options?.reserveSubmenuSpace ?? true;
+			return reserve === 'always' || (reserve && this._allMenuItems.some(hasSubmenuIndicator));
+		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
+			new ActionItemRenderer<T>(this._supportsPreview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), reservesSubmenuSpace, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, (item, toggle) => {
 				this._standaloneToggles.set(item, toggle);
 				return toDisposable(() => {
 					if (this._standaloneToggles.get(item) === toggle) {
@@ -824,8 +872,7 @@ export class ActionListWidget<T> extends Disposable {
 						}
 						if (element.hover?.content && !element.ariaDescription && !element.description) {
 							const hoverContent = element.hover.content;
-							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined;
-							if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
 								label = label + ', ' + stripNewlines(hoverText);
 							}
 						}
@@ -1010,12 +1057,16 @@ export class ActionListWidget<T> extends Disposable {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);
-					if (element?.submenuActions?.length) {
+					if (element?.submenuActions?.length || element?.hover?.expandable) {
 						dom.EventHelper.stop(e, true);
 						const rowElement = this._getRowElement(focused[0]);
 						if (rowElement) {
 							this._showSubmenuForElement(element, rowElement);
-							this._currentSubmenuWidget?.focus();
+							if (this._currentSubmenuWidget) {
+								this._currentSubmenuWidget.focus();
+							} else {
+								this._submenuContainer.focus();
+							}
 						}
 					}
 				}
@@ -1205,6 +1256,9 @@ export class ActionListWidget<T> extends Disposable {
 		// Capture whether the filter input currently has focus before splice
 		// which may cause DOM changes that shift focus.
 		const filterInputHasFocus = this._filterInput && dom.isActiveElement(this._filterInput);
+		// Focus is only ours to restore if the list had it. Something outside the list,
+		// like a footer control, can rebuild the items while keeping focus itself.
+		const listHasFocus = dom.isAncestorOfActiveElement(this._list.getHTMLElement());
 
 		this._visibleMenuItems = visible;
 		this._list.splice(0, this._list.length, visible);
@@ -1231,9 +1285,12 @@ export class ActionListWidget<T> extends Disposable {
 						if ((el.item as { id?: string })?.id === focusedItemId) {
 							this._list.setFocus([i]);
 							this._list.reveal(i);
-							// Move DOM focus back to the list: the splice above destroyed
-							// the previously focused row, leaving DOM focus on the body.
-							this._list.domFocus();
+							// Move DOM focus back to the list when the list had it: the splice
+							// above destroyed the previously focused row, leaving DOM focus on
+							// the body.
+							if (listHasFocus) {
+								this._list.domFocus();
+							}
 							break;
 						}
 					}
@@ -1295,16 +1352,21 @@ export class ActionListWidget<T> extends Disposable {
 
 	/**
 	 * Replaces the items in the list in place, preserving the current filter,
-	 * without closing or repositioning the widget. When {@link focusItemId} is
-	 * provided, that item ({@link IActionListItem.item}'s `id`) is focused;
-	 * otherwise the previously focused item is preserved (matched by id).
+	 * without closing the widget. When {@link focusItemId} is provided, that item
+	 * ({@link IActionListItem.item}'s `id`) is focused; otherwise the previously
+	 * focused item is preserved (matched by id). The widget only re-measures when
+	 * the number of visible rows changed.
 	 */
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
 		this._allMenuItems = [...items];
-		// Don't fire a layout request: the item set keeps the same shape, so the
-		// widget size is unchanged and repositioning could mis-anchor if the
-		// anchor element was re-rendered by the action that triggered this update.
+		const previousVisibleCount = this._visibleMenuItems.length;
+		// Re-layout only when the number of rows changed. Holding the widget still
+		// otherwise keeps it from re-anchoring against a trigger that the same action
+		// just re-rendered.
 		this._applyFilter(false, false);
+		if (this._visibleMenuItems.length !== previousVisibleCount) {
+			this._onDidRequestLayout.fire();
+		}
 		if (focusItemId !== undefined) {
 			this.focusItemById(focusItemId);
 		}
@@ -1466,9 +1528,11 @@ export class ActionListWidget<T> extends Disposable {
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
 
-		// Place filter container on the preferred side.
-		if (this._filterContainer && this._filterContainer.parentElement) {
-			this._filterContainer.parentElement.insertBefore(this._filterContainer, this.domNode);
+		// Keep the filter above the list. Skipped when the caller mounted the filter
+		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
+		const listParent = this.domNode.parentElement;
+		if (listParent && this._filterContainer?.parentElement === listParent) {
+			listParent.insertBefore(this._filterContainer, this.domNode);
 		}
 	}
 
@@ -1654,7 +1718,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (element.standaloneToggle) {
 			this._list.setSelection([]);
 			const toggle = this._standaloneToggles.get(element);
-			if (toggle?.enabled) {
+			if (toggle && !toggle.disabled) {
 				toggle.checked = !toggle.checked;
 				element.standaloneToggle.onChange(toggle.checked);
 			}
@@ -1730,7 +1794,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		try {
-			return rows.map(({ element, item }) => element.getBoundingClientRect().width + this._computeToolbarWidth(item));
+			return rows.map(({ element, item }) => element.getBoundingClientRect().width + (item.detail ? 0 : this._computeToolbarWidth(item)));
 		} finally {
 			for (const { element } of rows) {
 				element.style.width = '';
@@ -1796,9 +1860,20 @@ export class ActionListWidget<T> extends Disposable {
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
+		// Marks the row the panel belongs to as open, so a screen reader can tell what
+		// ArrowRight opened. Reset in `_clearSubmenuContainer`.
+		anchor.setAttribute('aria-expanded', 'true');
+		this._expandedTrigger = anchor;
+
+		// Set after clearing, which is what removes the previous item's class.
+		this._submenuPanelClassName = element.hover?.panelClassName;
+		if (this._submenuPanelClassName) {
+			this._submenuContainer.classList.add(this._submenuPanelClassName);
+		}
+
 		// When the item has hover content, render it as a header
 		let hoverHeader: HTMLElement | undefined;
-		const hoverContent = element.hover?.content;
+		const hoverContent = typeof element.hover?.content === 'function' ? element.hover.content() : element.hover?.content;
 		if (hoverContent) {
 			if (dom.isHTMLElement(hoverContent)) {
 				hoverHeader = hoverContent;
@@ -1839,7 +1914,16 @@ export class ActionListWidget<T> extends Disposable {
 		// Show container before creating widget so List can measure during construction
 		this._submenuContainer.style.display = '';
 		this._submenuContainer.style.position = 'absolute';
-		this._submenuContainer.removeAttribute('role');
+		// An expandable hover panel is a named region the user travels into, so it says
+		// what it is. A panel carrying a submenu list leaves the semantics to that list.
+		if (element.hover?.expandable) {
+			this._submenuContainer.setAttribute('role', 'dialog');
+			if (element.label) {
+				this._submenuContainer.setAttribute('aria-label', element.label);
+			}
+		} else {
+			this._submenuContainer.removeAttribute('role');
+		}
 
 		const anchorRect = anchor.getBoundingClientRect();
 		const parentRect = this.domNode.getBoundingClientRect();
@@ -2017,6 +2101,18 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._submenuContainer.contains(dom.getActiveElement())) {
 			this._list.domFocus();
 		}
+		if (this._submenuPanelClassName) {
+			this._submenuContainer.classList.remove(this._submenuPanelClassName);
+			this._submenuPanelClassName = undefined;
+		}
+		this._submenuContainer.removeAttribute('role');
+		this._submenuContainer.removeAttribute('aria-label');
+		// The row that opened the panel is no longer expanded. Skipped when the row has
+		// since been recycled onto an item with no panel, which drops the attribute.
+		if (this._expandedTrigger?.hasAttribute('aria-expanded')) {
+			this._expandedTrigger.setAttribute('aria-expanded', 'false');
+		}
+		this._expandedTrigger = undefined;
 		dom.clearNode(this._submenuContainer);
 	}
 

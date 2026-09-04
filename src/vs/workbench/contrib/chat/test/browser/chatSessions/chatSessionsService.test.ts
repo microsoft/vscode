@@ -14,7 +14,7 @@ import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -390,6 +390,111 @@ suite('ChatSessionsService - deletion lifecycle', () => {
 			counters: { deleted: 2, provided: 2, disposed: 1 },
 			cachedAfterFailure: true,
 			recreatedAfterSuccess: true,
+		});
+	});
+
+	test('disposes cached content when the controller removes a session', async () => {
+		const sessionType = 'remove-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const counters = { provided: 0, disposed: 0 };
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: changed.event,
+			items: [],
+			async refresh(): Promise<void> { },
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				const disposable = store.add(toDisposable(() => {
+					counters.disposed++;
+				}));
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => disposable.dispose(),
+				};
+			},
+		}));
+
+		const initialSession = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		changed.fire({ removed: [resource] });
+		const sessionAfterRemoval = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			recreatedAfterRemoval: sessionAfterRemoval !== initialSession,
+		}, {
+			counters: { provided: 2, disposed: 1 },
+			recreatedAfterRemoval: true,
+		});
+	});
+
+	test('cancels pending content resolution when the controller removes a session', async () => {
+		const sessionType = 'remove-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const providerStarted = new DeferredPromise<void>();
+		const firstResult = new DeferredPromise<IChatSession>();
+		const counters = { provided: 0, disposed: 0 };
+		const createSession = (): IChatSession => {
+			const disposable = store.add(toDisposable(() => {
+				counters.disposed++;
+			}));
+			return {
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => disposable.dispose(),
+			};
+		};
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: changed.event,
+			items: [],
+			async refresh(): Promise<void> { },
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async () => {
+				counters.provided++;
+				if (counters.provided === 1) {
+					providerStarted.complete();
+					return firstResult.p;
+				}
+				return createSession();
+			},
+		}));
+
+		const pendingSession = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await providerStarted.p;
+		changed.fire({ removed: [resource] });
+		await assert.rejects(pendingSession);
+
+		const abandonedSession = createSession();
+		firstResult.complete(abandonedSession);
+		await firstResult.p;
+		const sessionAfterRemoval = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			recreatedAfterRemoval: sessionAfterRemoval !== abandonedSession,
+		}, {
+			counters: { provided: 2, disposed: 1 },
+			recreatedAfterRemoval: true,
 		});
 	});
 });
