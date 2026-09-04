@@ -63,7 +63,6 @@ import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } fr
 
 interface IGitHubContextBrowseHarness {
 	readonly commandService: Pick<ICommandService, 'executeCommand'>;
-	readonly gitService: Pick<IGitService, 'openRepository'>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -471,7 +470,6 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
-			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -527,7 +525,6 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
-			gitService: upcastPartial<IGitService>({ openRepository: async () => undefined }),
 		};
 		const repositoryRoot = (repositoryId: string) => URI.from({
 			scheme: GITHUB_REMOTE_FILE_SCHEME,
@@ -572,20 +569,15 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('resolves an initially unknown GitHub remote before browsing context', async () => {
+	test('uses the selected folder without waiting for unresolved local GitHub metadata', async () => {
 		const calls: { commandId: string; repoId: unknown }[] = [];
-		const repositoryState = observableValue('repositoryState', {
-			HEAD: undefined,
-			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
 		const harness: IGitHubContextBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
 				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
 					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
 					return {
 						repoId: 'microsoft/vscode',
 						url: 'https://github.com/microsoft/vscode/issues/1',
@@ -593,9 +585,6 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
-			gitService: upcastPartial<IGitService>({
-				openRepository: async () => upcastPartial<IGitRepository>({ rootUri: root, state: repositoryState }),
-			}),
 		};
 		const root = URI.file('/test/vscode');
 		const workspace: ISessionWorkspace = {
@@ -620,21 +609,15 @@ suite('CopilotChatSessionsProvider', () => {
 			calls,
 			issue: { uri: issue?.uri.toString(), label: issue?.label },
 		}, {
-			calls: [{ commandId: 'openIssue', repoId: 'microsoft/vscode' }],
+			calls: [
+				{ commandId: 'openIssue', repoId: root },
+			],
 			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
 		});
 	});
 
-	test('selects a repository when the selected folder has no matching Git root', async () => {
+	test('passes the selected folder through when it has no matching Git root', async () => {
 		const calls: { commandId: string; repoId: unknown }[] = [];
-		const staleRepositoryState = observableValue('staleRepositoryState', {
-			HEAD: undefined,
-			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/old.git', pushUrl: undefined, isReadOnly: false }],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
 		const harness: IGitHubContextBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
 				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
@@ -649,12 +632,6 @@ suite('CopilotChatSessionsProvider', () => {
 					} as T;
 				}
 			}(),
-			gitService: upcastPartial<IGitService>({
-				openRepository: async () => upcastPartial<IGitRepository>({
-					rootUri: URI.file('/test/old-repository'),
-					state: staleRepositoryState,
-				}),
-			}),
 		};
 		const root = URI.file('/test/new-folder');
 		const workspace: ISessionWorkspace = {
@@ -670,8 +647,7 @@ suite('CopilotChatSessionsProvider', () => {
 		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
 
 		assert.deepStrictEqual(calls, [
-			{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
-			{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+			{ commandId: 'openIssue', repoId: root },
 		]);
 	});
 
