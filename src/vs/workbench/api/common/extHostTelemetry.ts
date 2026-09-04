@@ -69,6 +69,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 
 	instantiateLogger(extension: IExtensionDescription, sender: vscode.TelemetrySender, options?: vscode.TelemetryLoggerOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
+		const extensionId = extension.identifier.value;
 		const logger = new ExtHostTelemetryLogger(
 			sender,
 			options,
@@ -76,11 +77,26 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 			this._outputLogger,
 			this._inLoggingOnlyMode,
 			this.getBuiltInCommonProperties(extension),
-			{ isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled }
+			{ isUsageEnabled: telemetryDetails.isUsageEnabled, isErrorsEnabled: telemetryDetails.isErrorsEnabled },
+			logger => this.removeTelemetryLogger(extensionId, logger)
 		);
-		const loggers = this._telemetryLoggers.get(extension.identifier.value) ?? [];
-		this._telemetryLoggers.set(extension.identifier.value, [...loggers, logger]);
+		const loggers = this._telemetryLoggers.get(extensionId) ?? [];
+		this._telemetryLoggers.set(extensionId, [...loggers, logger]);
 		return logger.apiTelemetryLogger;
+	}
+
+	private removeTelemetryLogger(extensionId: string, logger: ExtHostTelemetryLogger): void {
+		const loggers = this._telemetryLoggers.get(extensionId);
+		if (!loggers) {
+			return;
+		}
+
+		const remainingLoggers = loggers.filter(candidate => candidate !== logger);
+		if (remainingLoggers.length === 0) {
+			this._telemetryLoggers.delete(extensionId);
+		} else {
+			this._telemetryLoggers.set(extensionId, remainingLoggers);
+		}
 	}
 
 	$initializeTelemetryLevel(level: TelemetryLevel, supportsTelemetry: boolean, productConfig?: { usage: boolean; error: boolean }): void {
@@ -203,7 +219,8 @@ export class ExtHostTelemetryLogger {
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
 		private readonly _commonProperties: Record<string, any>,
-		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }
+		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean },
+		private readonly _onDidDispose: (logger: ExtHostTelemetryLogger) => void
 	) {
 		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
@@ -322,15 +339,22 @@ export class ExtHostTelemetryLogger {
 	}
 
 	dispose(): void {
-		if (this._sender?.flush) {
-			let tempSender: vscode.TelemetrySender | undefined = this._sender;
-			this._sender = undefined;
-			Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
-			this._apiObject = undefined;
-		} else {
-			this._sender = undefined;
+		const wasDisposed = this.isDisposed;
+		try {
+			if (this._sender?.flush) {
+				let tempSender: vscode.TelemetrySender | undefined = this._sender;
+				this._sender = undefined;
+				this._apiObject = undefined;
+				Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
+			} else {
+				this._sender = undefined;
+			}
+		} finally {
+			this._onDidChangeEnableStates.dispose();
+			if (!wasDisposed) {
+				this._onDidDispose(this);
+			}
 		}
-		this._onDidChangeEnableStates.dispose();
 	}
 }
 
