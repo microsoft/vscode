@@ -12,11 +12,12 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -93,6 +94,7 @@ suite('SessionServerTools', () => {
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
@@ -1424,6 +1426,138 @@ suite('SessionServerTools', () => {
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
+	});
+
+	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.InProgress,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const prompts: string[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
+			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const firstResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
+		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
+
+		const targetState = stateManager.getChatState(targetChat);
+		assert.deepStrictEqual({
+			results: [firstResult, secondResult],
+			activeTurn: targetState?.activeTurn?.id,
+			queuedMessages: targetState?.queuedMessages?.map(queued => ({
+				text: queued.message.text,
+				origin: queued.message.origin,
+				delegation: readAgentMessageDelegationMeta(queued.message),
+			})),
+			prompts,
+		}, {
+			results: [
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message queued (agent-host-session://copilot/s2).',
+			],
+			activeTurn: 'active-turn',
+			queuedMessages: [
+				{
+					text: 'first',
+					origin: { kind: MessageKind.Agent },
+					delegation: {
+						sourceSession: 'copilot:/s1',
+						sourceChat: buildDefaultChatUri('copilot:/s1'),
+						sourceTurnId: 'turn-1',
+					},
+				},
+				{
+					text: 'second',
+					origin: { kind: MessageKind.Agent },
+					delegation: {
+						sourceSession: 'copilot:/s1',
+						sourceChat: buildDefaultChatUri('copilot:/s1'),
+						sourceTurnId: 'turn-1',
+					},
+				},
+			],
+			prompts: [],
+		});
+		store.dispose();
+	});
+
+	test('send_message queues behind pending messages when the target chat has no active turn', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const queuedSession = 'copilot:/s2';
+		const steeringSession = 'copilot:/s3';
+		for (const resource of [queuedSession, steeringSession]) {
+			stateManager.createSession({
+				resource,
+				provider: 'copilot',
+				title: 'Target',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			});
+		}
+		const queuedChat = buildDefaultChatUri(queuedSession);
+		stateManager.dispatchServerAction(queuedChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'older-message',
+			message: { text: 'older', origin: { kind: MessageKind.User } },
+		});
+		const steeringChat = buildDefaultChatUri(steeringSession);
+		stateManager.dispatchServerAction(steeringChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steering-message',
+			message: { text: 'steering', origin: { kind: MessageKind.User } },
+		});
+		const prompts: string[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [
+				sessionMeta('s1', SessionStatus.InProgress, workspace),
+				sessionMeta('s2', SessionStatus.Idle, workspace),
+				sessionMeta('s3', SessionStatus.Idle, workspace),
+			],
+			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const queuedResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' });
+		const steeringResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' });
+
+		assert.deepStrictEqual({
+			results: [queuedResult, steeringResult],
+			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
+			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
+			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
+			prompts,
+		}, {
+			results: [
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message queued (agent-host-session://copilot/s3).',
+			],
+			queuedMessages: ['older', 'after queued'],
+			steeringQueuedMessages: ['after steering'],
+			steeringMessage: 'steering',
+			prompts: [],
+		});
+		store.dispose();
 	});
 
 	suite('get_session_context', () => {
