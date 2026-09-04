@@ -692,8 +692,8 @@ export async function processResponseFromMessagesEndpoint(
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments } = getRequestId(response.headers);
-		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
+		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, copilotServiceRequestId, serverExperiments);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -775,6 +775,7 @@ interface AnthropicCompletionState {
 	readonly thinkingTokens: number | undefined;
 	readonly requestId: string;
 	readonly ghRequestId: string;
+	readonly copilotServiceRequestId: string;
 	readonly serverExperiments: string;
 	readonly telemetryData: TelemetryData;
 	readonly copilotUsage?: { total_nano_aiu: number };
@@ -818,6 +819,7 @@ function buildAnthropicCompletion(state: AnthropicCompletionState, logService: I
 		requestId: {
 			headerRequestId: state.requestId,
 			gitHubRequestId: state.ghRequestId,
+			copilotServiceRequestId: state.copilotServiceRequestId,
 			completionId: state.messageId,
 			created: Date.now(),
 			deploymentId: '',
@@ -922,7 +924,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 	telemetryData: TelemetryData
 ): Promise<AsyncIterableObject<ChatCompletion>> {
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
-		const { headerRequestId, serverExperiments } = getRequestId(response.headers);
+		const { headerRequestId, serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
 		const requestId = headerRequestId || generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
 
@@ -1035,6 +1037,7 @@ export async function processNonStreamingResponseFromMessagesEndpoint(
 			thinkingTokens: usage?.output_tokens_details?.thinking_tokens,
 			requestId,
 			ghRequestId,
+			copilotServiceRequestId,
 			serverExperiments,
 			telemetryData,
 		}, logService);
@@ -1093,6 +1096,7 @@ export class AnthropicMessagesProcessor {
 		private readonly telemetryData: TelemetryData,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly copilotServiceRequestId: string,
 		private readonly serverExperiments: string,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1379,6 +1383,7 @@ export class AnthropicMessagesProcessor {
 					thinkingTokens: this.thinkingTokens,
 					requestId: this.requestId,
 					ghRequestId: this.ghRequestId,
+					copilotServiceRequestId: this.copilotServiceRequestId,
 					serverExperiments: this.serverExperiments,
 					telemetryData: this.telemetryData,
 					copilotUsage: this.copilotUsage,
