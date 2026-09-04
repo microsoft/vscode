@@ -168,8 +168,8 @@ export function setup(logger: Logger): void {
 				// focusable for the additional settings written by nested suites.
 				['editor.wordWrap', '"on"'],
 				['chat.agent.sandbox.enabled', '"on"'],
-				// Leave allowNetwork at its default (false), and prevent a failed probe
-				// from being retried with relaxed network access or outside the sandbox.
+				['chat.agent.sandbox.allowNetwork', 'false'],
+				// Prevent failed probes from being retried with relaxed network access or outside the sandbox.
 				['chat.agent.sandbox.retryWithAllowNetworkRequests', 'false'],
 				['chat.agent.sandbox.allowUnsandboxedCommands', 'false'],
 			]);
@@ -278,7 +278,7 @@ export function setup(logger: Logger): void {
 		 * Expected result: The sandbox blocks the request and its output contains a network error such as
 		 * `ECONNREFUSED`, `EPERM`, `EACCES`, `ENETUNREACH`, `EHOSTUNREACH`, `ENETDOWN`, or `EAI_AGAIN`.
 		 */
-		it('blocks terminal network access by default', async function () {
+		it('blocks terminal network access when disabled', async function () {
 			const app = this.app as Application;
 
 			try {
