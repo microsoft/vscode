@@ -288,7 +288,7 @@ suite('Agent Merge gate', () => {
 		);
 	});
 
-	test('describes effective Agent Merge configuration changes', () => {
+	test('describes effective Agent Merge configuration changes, and who they apply to', () => {
 		const previous: AgentMergeConfiguration = {
 			...configuration,
 			mergePullRequest: 'never',
@@ -304,15 +304,23 @@ suite('Agent Merge gate', () => {
 			mergeMethod: 'squash',
 			replyAttribution: false,
 		};
-
-		assert.strictEqual(agentMergeConfigurationChangedNotice(previous, current), [
-			'Agent Merge settings changed.',
+		const changes = [
 			'It will no longer address new pull request review comments or wait for them before merging.',
 			'It will no longer fix failing CI checks.',
 			'It will no longer resolve merge conflicts or update a behind branch.',
 			'It will now merge the pull request automatically when it is ready.',
 			'It will now squash-merge the pull request.',
-		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+		];
+		const noticeFor = (heading: string) => [heading, ...changes]
+			.map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n');
+
+		assert.deepStrictEqual({
+			session: agentMergeConfigurationChangedNotice(previous, current, 'session'),
+			global: agentMergeConfigurationChangedNotice(previous, current, 'global'),
+		}, {
+			session: noticeFor('Agent Merge settings changed for this session.'),
+			global: noticeFor('Agent Merge default settings changed for all sessions.'),
+		});
 	});
 
 	test('describes an already-bound pull request without claiming disabled review behavior', () => {
@@ -336,19 +344,20 @@ suite('Agent Merge gate', () => {
 
 	test('announces reply-attribution changes only while review replies are enabled', () => {
 		assert.deepStrictEqual({
-			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }),
+			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }, 'session'),
 			reviewsDisabled: agentMergeConfigurationChangedNotice(
 				{ ...configuration, addressReviews: false },
 				{ ...configuration, addressReviews: false, replyAttribution: false },
+				'session',
 			),
 		}, {
-			enabled: 'Agent Merge settings changed.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
+			enabled: 'Agent Merge settings changed for this session.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
 			reviewsDisabled: undefined,
 		});
 	});
 
 	test('omits an Agent Merge configuration notice when effective behavior is unchanged', () => {
-		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }), undefined);
+		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }, 'session'), undefined);
 	});
 
 	test('only merges automatically when the merge choice is not "never"', () => {

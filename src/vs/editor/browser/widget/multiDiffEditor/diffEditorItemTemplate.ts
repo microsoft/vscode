@@ -22,6 +22,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { observableCodeEditor } from '../../observableCodeEditor.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
+import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
 import { ActionRunnerWithContext } from './utils.js';
 import { IVirtualizedItemBindingContext, VirtualizedItemBinding, VirtualizedItemTemplate } from './virtualizedItemManager.js';
 import { IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from './workbenchUIElementFactory.js';
@@ -69,6 +70,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration,
 		private readonly _optionsOverride: IObservable<IDiffEditorOptions> | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
@@ -77,7 +79,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
 		this._collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
 		this._editorContentHeight = observableValue<number>(this, 500);
-		this._itemHorizontalInsets = this._workbenchUIElementFactory.diffEditorItemHorizontalInsets ?? { left: 9, right: 9 };
+		this._itemHorizontalInsets = this._variantConfiguration.horizontalInsets;
 		this.size = derived(this, reader => {
 			if (this._collapsed.read(reader)) {
 				return this._headerHeight;
@@ -160,14 +162,18 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		} else {
 			this._openBinaryDiffButton = undefined;
 		}
+		const primaryAccessory = h('div.multi-diff-resource-label-accessory').root;
 		this._resourceLabel = this._workbenchUIElementFactory.createResourceLabel
-			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath, MultiDiffEditorItemLabelKind.Primary))
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath, MultiDiffEditorItemLabelKind.Primary, primaryAccessory))
 			: undefined;
+		this._elements.primaryPath.appendChild(primaryAccessory);
+		const secondaryAccessory = h('div.multi-diff-resource-label-accessory').root;
 		this._resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
-			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath, MultiDiffEditorItemLabelKind.Secondary))
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath, MultiDiffEditorItemLabelKind.Secondary, secondaryAccessory))
 			: undefined;
+		this._elements.secondaryPath.appendChild(secondaryAccessory);
 		this._dataStore = this._register(new DisposableStore());
-		this._headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
+		this._headerHeight = this._variantConfiguration.headerHeight;
 
 		const btn = this._register(new Button(this._elements.collapseButton, {}));
 		const activateItem = () => this._viewModel.get()?.setActive(undefined);
@@ -195,7 +201,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			}));
 		}
 
-		if (this._workbenchUIElementFactory.headerClickToCollapse) {
+		if (this._variantConfiguration.headerClickToCollapse) {
 			// Make the header clickable to toggle collapse/expand
 			this._elements.header.tabIndex = 0;
 			this._elements.header.setAttribute('role', 'button');
@@ -243,7 +249,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			this._elements.binaryFilePlaceholder.style.display = !collapsed && isBinary ? 'grid' : 'none';
 			this._elements.binaryFilePlaceholder.tabIndex = canOpenDiff ? -1 : 0;
 			this._elements.binaryFilePlaceholderActions.style.display = canOpenDiff ? '' : 'none';
-			if (this._workbenchUIElementFactory.headerClickToCollapse) {
+			if (this._variantConfiguration.headerClickToCollapse) {
 				this._elements.header.setAttribute('aria-expanded', String(!collapsed));
 			}
 		}));
@@ -279,7 +285,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		}));
 
 		this._container.appendChild(this._elements.root);
-		this._outerEditorHeight = this._headerHeight + (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0);
+		this._outerEditorHeight = this._headerHeight + this._variantConfiguration.contentBottomPadding;
 
 		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
 		const ctxAllUnchangedRegionsShown = EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.bindTo(this._contextKeyService);

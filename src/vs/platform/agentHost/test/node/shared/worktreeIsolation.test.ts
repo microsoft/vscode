@@ -195,20 +195,23 @@ suite('WorktreeIsolation', () => {
 		const repoWorktree = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 		const repoWorktreeSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
 		const repoFolder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		const repoFolderSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'main' } });
 		headCommit = undefined; // unborn HEAD (no commits)
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
 			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolderSelected: { branchDefault: repoFolderSelected.branchDefault, branchValue: repoFolderSelected.branchValue },
 			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
 			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
 			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});

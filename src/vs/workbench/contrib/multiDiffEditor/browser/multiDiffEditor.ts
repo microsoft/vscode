@@ -7,6 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorVariant } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -18,7 +19,6 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabel } from '../../../browser/labels.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { ICompositeControl } from '../../../common/composite.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -28,9 +28,10 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
@@ -83,7 +84,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			undefined,
+			{ variant: MultiDiffEditorVariant.Compact },
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -243,15 +244,10 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 }
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
-	readonly headerClickToCollapse: boolean;
-
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-	) {
-		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
-	}
+	) { }
 
 	createResourceLabel(element: HTMLElement, _kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});

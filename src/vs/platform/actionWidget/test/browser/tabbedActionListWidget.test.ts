@@ -142,6 +142,47 @@ suite('TabbedActionListWidget', () => {
 		assert.deepStrictEqual(calls, ['Remote']);
 	});
 
+	test('popup class names are re-read on tab switch, not replayed from show()', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		let dimmed = false;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			widgetClassNames: tab => ['picker', `tab-${tab}`, ...(dimmed ? ['dimmed'] : [])],
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const classes = () => {
+			const popup = document.querySelector('.action-widget:not(.action-list-submenu-panel)');
+			return [...(popup?.classList ?? [])].filter(name => name !== 'action-widget').sort();
+		};
+
+		const onShow = classes();
+		// State the popup reports changes while it stays open.
+		dimmed = true;
+		widget.refreshActiveList();
+		const afterRefresh = classes();
+		// Switching tabs re-renders the popup, which must not bring back the old state.
+		document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[1].click();
+		const afterTabSwitch = classes();
+
+		assert.deepStrictEqual(
+			{ onShow, afterRefresh, afterTabSwitch },
+			{
+				onShow: ['picker', 'tab-Local'],
+				afterRefresh: ['dimmed', 'picker', 'tab-Local'],
+				afterTabSwitch: ['dimmed', 'picker', 'tab-Remote'],
+			},
+		);
+	});
+
 	test('hide() then show() resets visibility cleanly', () => {
 		const { widget } = createWidget(disposables);
 		const anchor = document.createElement('div');

@@ -98,6 +98,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`createBranch:${branchName}`);
 		this.createdBranch = branchName;
 	}
+	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;

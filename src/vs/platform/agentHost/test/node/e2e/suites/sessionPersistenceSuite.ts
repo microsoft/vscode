@@ -18,7 +18,7 @@ import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/
 import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, ToolResultContentType, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 
@@ -232,6 +232,12 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			restored: true,
 			isArchived: true,
 		});
+
+		await context.client.call('disposeSession', { channel: sessionUri }, getAgentHostE2ETestTimeout(30_000, 90_000));
+		const trackedIndex = createdSessions.indexOf(sessionUri);
+		if (trackedIndex >= 0) {
+			createdSessions.splice(trackedIndex, 1);
+		}
 	});
 
 	const peerChatPersistenceEnabled = config.supportsMultipleChats

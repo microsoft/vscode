@@ -277,6 +277,46 @@ suite('URI Label', () => {
 		registration.dispose();
 	});
 
+	test('URI home templates resolve all parameters', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/orgs/${org}/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: context => ({
+				label: `${context.parameters.get('org')}/${context.parameters.get('sessionId')}`,
+				separator: '/',
+			}),
+		});
+		const resource = URI.parse('test://current/orgs/acme/sessions/session-id/file.md');
+
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.path,
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: '/orgs/acme/sessions/session-id',
+			label: 'acme/session-id/file.md',
+		});
+
+		registration.dispose();
+	});
+
+	test('URI home templates support trailing separators', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/sessions/${sessionId}/'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		});
+
+		assert.deepStrictEqual({
+			exact: labelService.getUriLabel(URI.parse('test://current/sessions/session-id')),
+			descendant: labelService.getUriLabel(URI.parse('test://current/sessions/session-id/file.md')),
+		}, {
+			exact: 'Session',
+			descendant: 'Session/file.md',
+		});
+
+		registration.dispose();
+	});
+
 	test('equally specific URI home templates use registration order', () => {
 		const formatter = {
 			home: URI.parse('test://current/sessions/${sessionId}'),
