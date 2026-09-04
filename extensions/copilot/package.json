@@ -7116,7 +7116,7 @@
     "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
-    "vscode-tas-client": "^0.3.1",
+    "vscode-tas-client": "^0.3.3",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {
