@@ -840,6 +840,24 @@ export function getLocation(text: string, position: number): Location {
 
 
 /**
+ * Safely assigns `value` to `obj[key]`, using `Object.defineProperty` for the
+ * `__proto__` key so that the own property is preserved without triggering the
+ * prototype setter (prototype pollution).
+ */
+export function setObjectProperty(obj: Record<string, unknown>, key: string, value: unknown): void {
+	if (key === '__proto__') {
+		Object.defineProperty(obj, '__proto__', {
+			value,
+			enumerable: true,
+			writable: true,
+			configurable: true,
+		});
+	} else {
+		obj[key] = value;
+	}
+}
+
+/**
  * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  * Therefore always check the errors list to find out if the input was valid.
  */
@@ -852,7 +870,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 		if (Array.isArray(currentParent)) {
 			currentParent.push(value);
 		} else if (currentProperty !== null) {
-			currentParent[currentProperty] = value;
+			setObjectProperty(currentParent, currentProperty, value);
 		}
 	}
 
