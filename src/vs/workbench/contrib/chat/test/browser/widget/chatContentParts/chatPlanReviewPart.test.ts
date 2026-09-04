@@ -26,6 +26,7 @@ import { ITextFileContent, ITextFileService } from '../../../../../../services/t
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { AgentEditorCommentsBridge, IAgentEditorComment, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../../../base/common/event.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -87,6 +88,7 @@ suite('ChatPlanReviewPart', () => {
 	let lastTextFileService: ITextFileService | undefined;
 	let lastModelService: IModelService | undefined;
 	let lastCommentsBridge: AgentEditorCommentsBridge | undefined;
+	let lastContextMenuService: IContextMenuService | undefined;
 	let fileChangesEmitter: Emitter<FileChangesEvent> | undefined;
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService, onSubmit?: () => void): ChatPlanReviewPart {
@@ -101,6 +103,7 @@ suite('ChatPlanReviewPart', () => {
 		lastTextFileService = instantiationService.get(ITextFileService);
 		lastModelService = instantiationService.get(IModelService);
 		lastCommentsBridge = commentsBridge;
+		lastContextMenuService = instantiationService.get(IContextMenuService);
 		if (fileChangesEmitter) {
 			sinon.stub(instantiationService.get(IFileService), 'createWatcher').returns({
 				onDidChange: fileChangesEmitter.event,
@@ -133,6 +136,7 @@ suite('ChatPlanReviewPart', () => {
 		lastTextFileService = undefined;
 		lastModelService = undefined;
 		lastCommentsBridge = undefined;
+		lastContextMenuService = undefined;
 		fileChangesEmitter = undefined;
 		sinon.restore();
 	});
@@ -358,11 +362,15 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Feedback mode', () => {
-		test('clicking Review button opens the plan editor and preserves the approval action', async () => {
+		test('clicking Review button opens the plan editor and preserves the approval dropdown', async () => {
 			createWidget(createMockReviewWithPlan({
-				actions: [{ label: 'Implement Plan', default: true }],
+				actions: [
+					{ id: 'interactive', label: 'Implement Plan', default: true },
+					{ id: 'autopilot', label: 'Implement with Autopilot' },
+				],
 			}));
 			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
+			const showContextMenuStub = sinon.stub(lastContextMenuService!, 'showContextMenu');
 
 			const reviewButton = getReviewButton(widget)!;
 			reviewButton.click();
@@ -381,12 +389,19 @@ suite('ChatPlanReviewPart', () => {
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			const approveButton = buttons.find(b => b.textContent?.includes('Implement Plan'));
-			assert.ok(approveButton, 'approve button should remain visible');
-			assert.ok(!approveButton.classList.contains('disabled'), 'approve button should remain enabled without feedback');
-			approveButton.click();
+			const dropdown = widget.domNode.querySelector('.chat-plan-review-footer .monaco-button-dropdown');
+			assert.ok(dropdown, 'approval dropdown should remain visible');
+			assert.ok(!dropdown.classList.contains('disabled'), 'approval dropdown should remain enabled without feedback');
+
+			(dropdown.querySelector('.monaco-dropdown-button') as HTMLElement).click();
+			assert.strictEqual(showContextMenuStub.calledOnce, true, 'approval dropdown should open its menu');
+			const menuDelegate = showContextMenuStub.firstCall.args[0];
+			assert.ok(menuDelegate.getActions);
+			const autopilotAction = menuDelegate.getActions().find(action => action.id === 'Implement with Autopilot');
+			assert.ok(autopilotAction, 'non-default approval action should be available');
+			await autopilotAction.run();
 			await tick();
-			assert.deepStrictEqual(lastSubmitResult, { action: 'Implement Plan', rejected: false });
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Implement with Autopilot', actionId: 'autopilot', rejected: false });
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -553,6 +568,33 @@ suite('ChatPlanReviewPart', () => {
 			}, {
 				approveDisabled: false,
 				submitDisabled: true,
+			});
+		});
+
+		test('closing feedback mode keeps approval disabled while feedback is pending', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Please change the plan';
+			textarea.dispatchEvent(new Event('input'));
+
+			(widget.domNode.querySelector('.chat-plan-review-feedback-close') as HTMLElement).click();
+			await tick();
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'))!;
+			approveButton.click();
+			await tick();
+			assert.deepStrictEqual({
+				feedbackHidden: getFeedbackSection(widget).style.display,
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitResult: lastSubmitResult,
+			}, {
+				feedbackHidden: 'none',
+				approveDisabled: true,
+				submitResult: undefined,
 			});
 		});
 	});

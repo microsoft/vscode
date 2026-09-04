@@ -539,9 +539,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 
 		this.renderCommentsList();
-		if (this._isFeedbackMode) {
-			this.updateFeedbackActionButtonState();
-		}
+		this.updateFeedbackActionButtonState();
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 	}
@@ -619,9 +617,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (primary.description) {
 			approveButton.element.title = primary.description;
 		}
-		if (this._isFeedbackMode) {
-			approveButton.enabled = !this.canSubmitFeedback();
-		}
+		approveButton.enabled = !this.review.planUri || !this.canSubmitFeedback();
 		this._buttonStore.add(approveButton.onDidClick(() => this.submitApproval(primary)));
 
 		// Reject is omitted in the collapsed title bar (parity with
@@ -654,15 +650,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	 * destroying the button row. Cheap enough to run on every keystroke.
 	 */
 	private updateFeedbackActionButtonState(): void {
-		if (!this._isFeedbackMode) {
-			return;
-		}
 		const canSubmitFeedback = this.canSubmitFeedback();
 		if (this._submitButton) {
 			this._submitButton.enabled = canSubmitFeedback;
 		}
 		if (this._approveButton) {
-			this._approveButton.enabled = !canSubmitFeedback;
+			this._approveButton.enabled = !this.review.planUri || !canSubmitFeedback;
 		}
 		const inlineCount = this.getInlineFeedbackItems().length;
 		if (this._submitButton && inlineCount !== this._renderedSubmitInlineCount) {
