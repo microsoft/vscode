@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { equals } from '../../../../../base/common/objects.js';
+import type { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationType, FileCustomizationMigrationType, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -32,7 +36,7 @@ export interface ICustomizationMigrationConfirmation {
  * Prominent explanation shown above the migration list.
  */
 export interface ICustomizationMigrationBanner {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly consequence?: string;
 }
 
@@ -47,6 +51,8 @@ export interface ICustomizationMigrationCategory {
 	readonly sourceTypes: readonly PromptsType[];
 	/** Experimental setting gating this migration. Each category is enabled independently. */
 	readonly enablementSetting: ChatConfiguration;
+	/** Settings that must differ from their defaults for this migration to apply. */
+	readonly configurationSettingIds?: readonly string[];
 	readonly shortcutLabel: string;
 	readonly shortcutTooltip: string;
 	readonly cardLabel: string;
@@ -65,7 +71,8 @@ export interface ICustomizationMigrationCategory {
 	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
+	getModifiedSettingIds?(configurationService: IConfigurationService): readonly string[];
+	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel: string | undefined, modifiedSettingIds: readonly string[]): ICustomizationMigrationBanner;
 	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
@@ -74,6 +81,12 @@ export interface ICustomizationMigrationCategory {
 
 const SKILLS_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
 const CUSTOMIZATION_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/overview?referrer=in-product';
+const CONFIGURED_LOCATION_SETTING_IDS = [
+	PromptsConfig.AGENTS_LOCATION_KEY,
+	PromptsConfig.MODE_LOCATION_KEY,
+	PromptsConfig.SKILLS_LOCATION_KEY,
+	PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
+] as const;
 
 /**
  * Converts `*.prompt.md` files into skills. Agent-host harnesses ignore prompt
@@ -397,7 +410,8 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	migrationType: CustomizationMigrationType.ConfiguredLocations,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.skill],
 	enablementSetting: ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled,
-	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Locations"),
+	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
+	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Custom Locations"),
 	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
 	cardLabel: localize('configuredLocationsMigrationCardLabel', "Migrate Configured Locations"),
 	cardActionLabel: localize('configuredLocationsMigrationCardAction', "Migrate..."),
@@ -411,6 +425,13 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	noFilesMigratedMessage: localize('configuredLocationsMigrationNoFilesMigrated', "No customizations from configured locations were migrated."),
 
 	isCandidate: isConfiguredLocationMigrationCandidate,
+
+	getModifiedSettingIds(configurationService) {
+		return CONFIGURED_LOCATION_SETTING_IDS.filter(settingId => {
+			const inspected = configurationService.inspect(settingId);
+			return !equals(inspected.value, inspected.defaultValue);
+		});
+	},
 
 	group(customizations) {
 		return [
@@ -450,12 +471,21 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 			: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings that {1} does not use. Move them to supported harness locations.", customizations.length, harnessLabel);
 	},
 
-	getBanner(_customizations, harnessLabel, destinationLabel) {
+	getBanner(_customizations, harnessLabel, destinationLabel, modifiedSettingIds) {
+		const settingsLinks = modifiedSettingIds.map(settingId => `[${settingId}](${createCommandUri('workbench.action.openSettings', { query: `@id:${settingId}` })})`);
+		const settingsList = formatSettingLinks(settingsLinks);
+		const message = settingsLinks.length === 1
+			? destinationLabel
+				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel)
+			: destinationLabel
+				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel);
 		return {
-			message: destinationLabel
-				? localize('configuredLocationsMigrationBannerMessageWithDestination', "These files are in locations that {0} does not read. Move them to '{1}' so both VS Code and this harness can use them.", harnessLabel, destinationLabel)
-				: localize('configuredLocationsMigrationBannerMessage', "These files are in locations that {0} does not read. Move them into supported harness folders so both VS Code and this harness can use them.", harnessLabel),
-			consequence: localize('configuredLocationsMigrationBannerConsequence', "The configured location settings are not changed."),
+			message: new MarkdownString(message, {
+				isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
+			}),
+			consequence: localize('configuredLocationsMigrationBannerConsequence', "The option to clear unused location settings after migration is selected by default."),
 		};
 	},
 
@@ -488,6 +518,21 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 			: localize('configuredLocationsMigrationFilesFailed', "Failed to migrate {0} customizations: {1}.", failedCount, failedFileNames.join(', '));
 	},
 };
+
+function formatSettingLinks(settingsLinks: readonly string[]): string {
+	switch (settingsLinks.length) {
+		case 1:
+			return settingsLinks[0];
+		case 2:
+			return localize('twoConfiguredLocationSettings', "{0} and {1}", settingsLinks[0], settingsLinks[1]);
+		case 3:
+			return localize('threeConfiguredLocationSettings', "{0}, {1}, and {2}", settingsLinks[0], settingsLinks[1], settingsLinks[2]);
+		case 4:
+			return localize('fourConfiguredLocationSettings', "{0}, {1}, {2}, and {3}", settingsLinks[0], settingsLinks[1], settingsLinks[2], settingsLinks[3]);
+		default:
+			throw new Error('Expected at least one configured location setting');
+	}
+}
 
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
 	promptFilesMigrationCategory,

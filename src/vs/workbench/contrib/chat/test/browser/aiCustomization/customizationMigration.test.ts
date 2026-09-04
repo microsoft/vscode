@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createCommandUri, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -13,6 +14,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -112,6 +114,37 @@ suite('customizationMigration', () => {
 			label: 'Agents',
 			files: ['/workspace/.custom/agents/super.agent.md'],
 		}]);
+	});
+
+	test('configured locations banner links to affected settings', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const modifiedSettingIds = [
+			PromptsConfig.MODE_LOCATION_KEY,
+			PromptsConfig.SKILLS_LOCATION_KEY,
+		];
+		const banner = category.getBanner?.([], 'Copilot', undefined, modifiedSettingIds);
+		const message = banner?.message;
+		const settingsLinks = [
+			PromptsConfig.MODE_LOCATION_KEY,
+			PromptsConfig.SKILLS_LOCATION_KEY,
+		].map(settingId => `[${settingId}](${createCommandUri('workbench.action.openSettings', { query: `@id:${settingId}` })})`);
+
+		assert.deepStrictEqual(isMarkdownString(message) ? {
+			settingIds: category.configurationSettingIds,
+			value: message.value,
+			isTrusted: message.isTrusted,
+			consequence: banner?.consequence,
+		} : message, {
+			settingIds: [
+				PromptsConfig.AGENTS_LOCATION_KEY,
+				PromptsConfig.MODE_LOCATION_KEY,
+				PromptsConfig.SKILLS_LOCATION_KEY,
+				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
+			],
+			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
+			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
+			consequence: 'The option to clear unused location settings after migration is selected by default.',
+		});
 	});
 
 

@@ -10,6 +10,7 @@ import { ISettableObservable, observableValue } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -23,11 +24,12 @@ import { PromptsStorage } from '../../../common/promptSyntax/service/promptsServ
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,12 +83,15 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationListContainer: HTMLElement | undefined;
 		migrationSectionLists: readonly unknown[];
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
+		migrationClearSettingsCheckbox: Checkbox | undefined;
+		migrationClearSettingsContainer: HTMLElement | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		migrationPageDisposables: DisposableStore;
+		migrationBannerDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		quickInputService: {
 			pick(items: readonly { folder: ICustomizationSourceFolder }[]): Promise<{ folder: ICustomizationSourceFolder } | undefined>;
@@ -107,6 +112,8 @@ suite('aiCustomizationManagementEditor', () => {
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
 		updateCustomizationMigrationActionState(): void;
+		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
+		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
 		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
 		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
@@ -128,6 +135,13 @@ suite('aiCustomizationManagementEditor', () => {
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
+			inspect: (key: string) => ({
+				key,
+				value: merged[key],
+				defaultValue: undefined,
+				policyValue: undefined,
+			}),
+			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
 		} as unknown as IConfigurationService & { setValue(key: string, value: unknown): void };
 	}
 
@@ -161,12 +175,15 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationListContainer = undefined;
 		editor.migrationSectionLists = [];
 		editor.migrationMigrateButton = undefined;
+		editor.migrationClearSettingsCheckbox = undefined;
+		editor.migrationClearSettingsContainer = undefined;
 		editor.migrationTitleElement = undefined;
 		editor.migrationDescriptionElement = undefined;
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.migrationBannerDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
 		};
@@ -355,6 +372,7 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
 		editor.refreshCustomizationMigrationUi();
 		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
+		configurationService.setValue('chat.agentFilesLocations', { '/workspace/custom-agents': true });
 		editor.refreshCustomizationMigrationUi();
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
@@ -480,6 +498,111 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.updateCustomizationMigrationActionState();
 
 		assert.strictEqual(editor.migrationMigrateButton.enabled, false);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('keeps clearing enabled and clears only settings unused after the selected migrations', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agentSettingId = 'chat.agentFilesLocations';
+		const instructionsSettingId = 'chat.instructionsFilesLocations';
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[agentSettingId]: { '/custom/agents': true },
+			[instructionsSettingId]: { '/custom/instructions': true },
+		}));
+		const customizations: MigratableConfiguration[] = [
+			{
+				uri: URI.file('/custom/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/custom/style.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		];
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		editor.migrationClearSettingsCheckbox = new Checkbox('Clear unused location settings after migration', true, defaultCheckboxStyles);
+		editor.setCustomizationsToMigrate(new Map([[category.id, customizations]]), new Map());
+		editor.activeMigrationCategoryId = category.id;
+		editor.migrationListContainer = document.createElement('div');
+		document.body.appendChild(editor.migrationListContainer);
+
+		editor.renderCustomizationMigrationPage();
+		const settingsGroupToggle = editor.migrationListContainer.querySelector<HTMLButtonElement>('.prompt-migration-settings-group .customization-section-toggle');
+		const settingsGroupItems = editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-settings-group .prompt-migration-group-items');
+		const allSelected = {
+			enabled: editor.migrationClearSettingsCheckbox.enabled,
+			checked: editor.migrationClearSettingsCheckbox.checked,
+			settingsToClear: editor.getConfiguredLocationSettingsToClear(category, customizations),
+			settingsGroupTitle: editor.migrationListContainer.querySelector('.prompt-migration-settings-group .prompt-migration-group-title')?.textContent,
+			settingsGroupToggle: {
+				ariaExpanded: settingsGroupToggle?.getAttribute('aria-expanded'),
+				ariaLabel: settingsGroupToggle?.getAttribute('aria-label'),
+			},
+			settingsItemLabel: editor.migrationListContainer.querySelector('.prompt-migration-settings-item-label')?.textContent,
+			settingsItemDescription: editor.migrationListContainer.querySelector('.prompt-migration-settings-item-description')?.textContent,
+		};
+		settingsGroupToggle?.click();
+		const collapsedSettingsGroup = {
+			ariaExpanded: settingsGroupToggle?.getAttribute('aria-expanded'),
+			itemsHidden: settingsGroupItems?.hidden,
+		};
+
+		editor.setCustomizationSelectedForMigration(customizations[0], false);
+		editor.updateCustomizationMigrationActionState();
+		const partiallySelected = {
+			enabled: editor.migrationClearSettingsCheckbox.enabled,
+			checked: editor.migrationClearSettingsCheckbox.checked,
+			settingsToClear: editor.getConfiguredLocationSettingsToClear(category, [customizations[1]]),
+		};
+
+		assert.deepStrictEqual({ allSelected, collapsedSettingsGroup, partiallySelected }, {
+			allSelected: {
+				enabled: true,
+				checked: true,
+				settingsToClear: [agentSettingId, instructionsSettingId],
+				settingsGroupTitle: 'Settings',
+				settingsGroupToggle: {
+					ariaExpanded: 'true',
+					ariaLabel: 'Collapse Settings',
+				},
+				settingsItemLabel: 'Clear unused location settings',
+				settingsItemDescription: 'Remove deprecated settings that are no longer needed after the selected customizations migrate successfully.',
+			},
+			collapsedSettingsGroup: {
+				ariaExpanded: 'false',
+				itemsHidden: true,
+			},
+			partiallySelected: {
+				enabled: true,
+				checked: true,
+				settingsToClear: [instructionsSettingId],
+			},
+		});
+		editor.migrationListContainer.remove();
+		editor.migrationClearSettingsCheckbox.dispose();
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('clears each configured location setting without changing its target', async () => {
+		const updates: [string, unknown][] = [];
+		const editor = createTestEditor(undefined, {
+			updateValue: async (key: string, value: unknown) => { updates.push([key, value]); },
+		} as unknown as IConfigurationService);
+
+		await editor.clearConfiguredLocationSettings([
+			'chat.agentFilesLocations',
+			'chat.modeFilesLocations',
+		]);
+
+		assert.deepStrictEqual(updates, [
+			['chat.agentFilesLocations', undefined],
+			['chat.modeFilesLocations', undefined],
+		]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
