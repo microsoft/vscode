@@ -2184,11 +2184,7 @@ suite('ChatService', () => {
 		nextAgentInvocation = new DeferredPromise();
 		const summaryFirst = await testService.sendRequest(summarySessionResource, 'summary-first', { agentId: sessionType });
 		ChatSendResult.assertSent(summaryFirst);
-		const agentInvokedBeforeSummary = await Promise.race([
-			nextAgentInvocation.p.then(() => true),
-			timeout(100).then(() => false),
-		]);
-		assert.strictEqual(agentInvokedBeforeSummary, true, 'Agent invocation waited for customization summary discovery');
+		await nextAgentInvocation.p;
 		delayedSummaryHint.complete(migrationHint);
 		delayedSummaryHint = undefined;
 		nextAgentInvocation = undefined;
