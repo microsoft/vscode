@@ -28,7 +28,7 @@
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
-	padding: 0 var(--vscode-spacing-size100);
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */

@@ -233,7 +233,8 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 
-		// Set the final host width before measuring the wrapped inner content.
+		// Set the host to the full session width; its centered inner content is
+		// capped and aligned via CSS (see chatCompositeBar.css).
 		this._centeredContentContainer.style.width = `${width}px`;
 
 		const barHeight = this._header.visible ? this._header.height : 0;
