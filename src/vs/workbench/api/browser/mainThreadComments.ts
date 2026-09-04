@@ -550,6 +550,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private readonly _openViewListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly _onChangeContainerListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly _onChangeContainerLocationListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private _commentsViewRegistered = false;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -707,6 +708,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	private registerView() {
+		if (this._commentsViewRegistered) {
+			return;
+		}
+		this._commentsViewRegistered = true;
+
 		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({

@@ -32,6 +32,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { FeedbackInputWidget } from './feedbackInputWidget.js';
+import { IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
@@ -171,6 +172,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentFeedbackCommentsArbitrationService private readonly _commentsArbitrationService: IAgentFeedbackCommentsArbitrationService,
 	) {
 		super();
 
@@ -246,6 +248,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				} else {
 					this._widget.setPlaceholder(this._getPlaceholder());
 				}
+			}
+		}));
+		this._store.add(this._commentsArbitrationService.onDidChange(() => {
+			this._clearHoverGlyph();
+			this._sessionResource = this._getSessionForModel();
+			if (!this._sessionResource) {
+				this._hide();
 			}
 		}));
 		this._getSessionForModel();
@@ -500,6 +509,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
 		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+			this._hasAgentFeedbackSessionContext.set(false);
+			this._sessionResource = undefined;
+			return undefined;
+		}
+		void this._commentsArbitrationService.resolve(model.uri);
+		if (!this._commentsArbitrationService.usesNativeComments(model.uri)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;

@@ -29,6 +29,8 @@ import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/cha
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { AgentFeedbackCommentsArbitrationService, IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
+import { AgentFeedbackWorkbenchCommentsContribution } from './agentFeedbackWorkbenchComments.js';
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
  * currently active session has pending agent feedback items.
@@ -83,12 +85,14 @@ registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeed
 registerWorkbenchContribution2(AgentFeedbackPRThreadResolverContribution.ID, AgentFeedbackPRThreadResolverContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackPRReviewSeederContribution.ID, AgentFeedbackPRReviewSeederContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentEditorCommentsProviderContribution.ID, AgentEditorCommentsProviderContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(AgentFeedbackWorkbenchCommentsContribution.ID, AgentFeedbackWorkbenchCommentsContribution, WorkbenchPhase.BlockRestore);
 
 registerAgentFeedbackEditorActions();
 
 registerAgentFeedbackReviewCommands();
 
 registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
+registerSingleton(IAgentFeedbackCommentsArbitrationService, AgentFeedbackCommentsArbitrationService, InstantiationType.Delayed);
 
 // Register the custom attachment widget for agentFeedback attachments
 class AgentFeedbackAttachmentWidgetContribution {

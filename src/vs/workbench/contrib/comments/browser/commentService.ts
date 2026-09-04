@@ -26,9 +26,14 @@ import { Schemas } from '../../../../base/common/network.js';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
-interface IResourceCommentThreadEvent {
+export interface IResourceCommentThreadEvent {
 	resource: URI;
 	commentInfos: ICommentInfo[];
+}
+
+export interface IFetchedDocumentCommentsEvent {
+	resource: URI;
+	commentInfos: readonly (ICommentInfo | null)[];
 }
 
 export interface ICommentInfo<T = IRange> extends CommentInfo<T> {
@@ -81,6 +86,7 @@ export interface IContinueOnCommentProvider {
 export interface ICommentService {
 	readonly _serviceBrand: undefined;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
+	readonly onDidFetchDocumentComments: Event<IFetchedDocumentCommentsEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
@@ -134,6 +140,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
+
+	private readonly _onDidFetchDocumentComments: Emitter<IFetchedDocumentCommentsEvent> = this._register(new Emitter<IFetchedDocumentCommentsEvent>());
+	readonly onDidFetchDocumentComments: Event<IFetchedDocumentCommentsEvent> = this._onDidFetchDocumentComments.event;
 
 	private readonly _onDidSetAllCommentThreads: Emitter<IWorkspaceCommentThreadsEvent> = this._register(new Emitter<IWorkspaceCommentThreadsEvent>());
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = this._onDidSetAllCommentThreads.event;
@@ -238,7 +247,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		this._register(this.modelService.onModelAdded(model => {
 			// Excluded schemes
-			if ((model.uri.scheme === Schemas.vscodeSourceControl)) {
+			if (model.uri.scheme === Schemas.vscodeSourceControl || model.uri.scheme === Schemas.commentsInput) {
 				return;
 			}
 			// Allows comment providers to cause their commenting ranges to be prefetched by opening text documents in the background.
@@ -249,15 +258,15 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	private _updateResourcesWithCommentingRanges(resource: URI, commentInfos: (ICommentInfo | null)[]) {
-		let addedResources = false;
+		const resourceKey = resource.toString();
 		for (const comments of commentInfos) {
 			if (comments && (comments.commentingRanges.ranges.length > 0 || comments.threads.length > 0)) {
-				this._commentingRangeResources.add(resource.toString());
-				addedResources = true;
+				if (!this._commentingRangeResources.has(resourceKey)) {
+					this._commentingRangeResources.add(resourceKey);
+					this._onResourceHasCommentingRanges.fire();
+				}
+				return;
 			}
-		}
-		if (addedResources) {
-			this._onResourceHasCommentingRanges.fire();
 		}
 	}
 
@@ -486,6 +495,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		const commentInfos = await Promise.all(commentControlResult);
 		this._updateResourcesWithCommentingRanges(resource, commentInfos);
+		this._onDidFetchDocumentComments.fire({ resource, commentInfos });
 		return commentInfos;
 	}
 

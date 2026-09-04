@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -32,6 +33,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
+		@IAgentFeedbackCommentsArbitrationService private readonly _commentsArbitrationService: IAgentFeedbackCommentsArbitrationService,
 	) {
 		super();
 
@@ -40,6 +42,10 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateDecorations()));
 		this._store.add(this._agentFeedbackService.onDidChangeFeedbackVisibility(() => this._updateDecorations()));
 		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
+			this._resolveSession();
+			this._updateDecorations();
+		}));
+		this._store.add(this._commentsArbitrationService.onDidChange(() => {
 			this._resolveSession();
 			this._updateDecorations();
 		}));
@@ -55,6 +61,11 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	private _resolveSession(): void {
 		const model = this._editor.getModel();
 		if (!model) {
+			this._sessionResource = undefined;
+			return;
+		}
+		void this._commentsArbitrationService.resolve(model.uri);
+		if (!this._commentsArbitrationService.usesNativeComments(model.uri)) {
 			this._sessionResource = undefined;
 			return;
 		}
