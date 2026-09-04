@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { derived } from '../../../../../base/common/observable.js';
+import { derived, ISettableObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -371,6 +371,42 @@ suite('SinglePane layout strategies', () => {
 				editorVisible: false,
 				auxiliaryBarVisible: false,
 			},
+		});
+	});
+
+	test('Existing Session does not reveal the side pane when a draft is submitted beside another session', () => {
+		const ctx = setup();
+		const otherSession = makeSession(URI.parse('session:/other'));
+		const draft = makeSession(URI.parse('session:/draft'), { status: SessionStatus.Untitled, isCreated: false });
+		const visibilityStore = createVisibilityStore();
+		// Seed the shared Existing profile with a visible side pane, so a reveal
+		// would be observable if the submit transition wrongly triggered one.
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel()
+		));
+
+		// A draft composed to the side of an existing session, with the side pane closed.
+		harness.activeSessionObs.set(draft, undefined);
+		harness.visibleSessionsObs.set([otherSession, draft], undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.setPartHiddenCalls.length = 0;
+
+		// Submitting the draft must leave the layout as the user composed it.
+		(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
 		});
 	});
 
