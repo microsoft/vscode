@@ -543,8 +543,7 @@
 		 * @param {EventTarget | null} target
 		 */
 		function setContextMenuImage(target) {
-			/** @type {any} */
-			const node = target;
+const node = /** @type {HTMLImageElement | null} */ (target);
 			// The element belongs to the inner frame's realm so we can't use `instanceof` here
 			contextMenuImage = node?.tagName?.toLowerCase() === 'img' ? new WeakRef(node) : undefined;
 		}
