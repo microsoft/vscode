@@ -10,6 +10,7 @@ import { IChannel, IChannelClient } from '../../../../base/parts/ipc/common/ipc.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
+import { IPtyHostController, ptyServiceEvents } from '../../common/terminal.js';
 import { IPtyHostConnection, IPtyHostStarter } from '../../node/ptyHost.js';
 import { PtyHostService } from '../../node/ptyHostService.js';
 
@@ -63,5 +64,35 @@ suite('PtyHostService', () => {
 			[...baseline.entries()].sort(),
 			'listener counts should not grow across pty host restarts'
 		);
+	});
+
+	test('every event of the service is accounted for on the local pty channel', () => {
+		// `ProxyChannel.fromService` buffers every `on*` property of the service it is handed until a client
+		// listens, and the local pty channel lists the `IPtyService` events as unbuffered because a window
+		// never listens to them there (see app.ts, #328885). `ptyServiceEvents` is exhaustive for the
+		// interface; this checks the class, which is what the channel reflects over: an event it gains that is
+		// in neither list would be buffered in the main process for a client that never comes.
+		const consumedOverLocalPtyChannel = [
+			'onPtyHostExit', 'onPtyHostStart', 'onPtyHostUnresponsive', 'onPtyHostResponsive', 'onPtyHostRequestResolveVariables'
+		] satisfies readonly (keyof IPtyHostController)[];
+
+		const starter: IPtyHostStarter = {
+			start: (): IPtyHostConnection => { throw new Error('the pty host is not expected to start'); },
+			dispose: () => { }
+		};
+		const service = store.add(new PtyHostService(
+			starter,
+			new TestConfigurationService(),
+			new NullLogService(),
+			store.add(new NullLoggerService())
+		));
+
+		const events: string[] = [];
+		for (const key in service) {
+			if (/^on[A-Z]/.test(key)) {
+				events.push(key);
+			}
+		}
+		deepStrictEqual(events.sort(), [...ptyServiceEvents, ...consumedOverLocalPtyChannel].sort());
 	});
 });
