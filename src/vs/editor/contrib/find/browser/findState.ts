@@ -15,7 +15,15 @@ function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
 	if (!a || !b || a.length !== b.length) {
 		return false;
 	}
-	return a.every(rangeA => b.some(rangeB => Range.equalsRange(rangeA, rangeB)));
+	const matched = new Array<boolean>(b.length).fill(false);
+	return a.every(rangeA => {
+		const index = b.findIndex((rangeB, i) => !matched[i] && Range.equalsRange(rangeA, rangeB));
+		if (index === -1) {
+			return false;
+		}
+		matched[index] = true;
+		return true;
+	});
 }
 
 export interface FindReplaceStateChangedEvent {
