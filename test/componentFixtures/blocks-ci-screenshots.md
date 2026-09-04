@@ -204,12 +204,6 @@
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fe4b95bf8348637bba9f8c0dda791924e6c67fd7b5d173398f9b2c0bfc9f7071)
 
-#### sessions/chat/input/chatInput/ResponsiveModelResizeCycleCompact/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92c03d2a84e6fa15cfa01193f81961fb648ec03571e97030c458348ea81b759)
-
-#### sessions/chat/input/chatInput/ResponsiveModelResizeCycleCompact/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/53fe36871b8b384e93c928b25acad531c2bcec683521d22307d025265ed19d9c)
-
 #### sessions/chat/input/chatInput/ResponsiveModelResizeCycleMinimal/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8afa4c4eeb9f78079ea98efe10b841be3ba1104fe5fcf7f0e936113243017792)
 
