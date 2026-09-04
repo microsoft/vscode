@@ -1103,12 +1103,19 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	let isScenarioRequest = false;
 	let requestToolNames: string[] = [];
 	let input: any[] = [];
+	let streaming = true;
 	try {
 		const parsed = JSON.parse(body);
 		// Responses API uses `input` array and `tools` array
 		input = parsed.input || [];
 		const tools = parsed.tools || [];
 		requestToolNames = tools.map((t: any) => t.name).filter(Boolean);
+		// The Responses API request may omit `stream` (defaulting to a
+		// non-streaming JSON body) or set it explicitly. The CLI issues
+		// non-streaming `/responses` requests on some paths (e.g. a resumed
+		// session's follow-up turn), so honor the flag rather than always
+		// replying with SSE.
+		streaming = parsed.stream === true;
 
 		// Search input items for scenario tags (input items have role + content)
 		for (let i = input.length - 1; i >= 0; i--) {
@@ -1128,17 +1135,25 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		}
 
 		const ts = new Date().toISOString().slice(11, -1);
-		_log(`[mock-llm]   ${ts} → responses-api: ${input.length} input items, ${requestToolNames.length} tools, scenario=${scenarioId}`);
+		_log(`[mock-llm]   ${ts} → responses-api: ${input.length} input items, ${requestToolNames.length} tools, scenario=${scenarioId}, streaming=${streaming}`);
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
 
-	res.writeHead(200, {
-		'Content-Type': 'text/event-stream',
-		'Cache-Control': 'no-cache',
-		'Connection': 'keep-alive',
-		'X-Request-Id': 'perf-benchmark-' + Date.now(),
-	});
+	if (streaming) {
+		res.writeHead(200, {
+			'Content-Type': 'text/event-stream',
+			'Cache-Control': 'no-cache',
+			'Connection': 'keep-alive',
+			'X-Request-Id': 'perf-benchmark-' + Date.now(),
+		});
+	} else {
+		res.writeHead(200, {
+			'Content-Type': 'application/json',
+			'Cache-Control': 'no-cache',
+			'X-Request-Id': 'perf-benchmark-' + Date.now(),
+		});
+	}
 
 	// Multi-turn scenarios — mirror the chat-completions / Anthropic handlers.
 	// Only triggers when the request actually has tools so ancillary requests
@@ -1150,25 +1165,25 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		_log(`[mock-llm]   ${ts} → responses-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input);
+			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input, streaming);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-message') {
 			const lastItem = input[input.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
-			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest, streaming);
 			return;
 		}
 
 		if (turn.kind === 'echo-last-tool-result') {
 			const payload = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
-			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest, streaming);
 			return;
 		}
 
 		// content / thinking — stream the chunks as text
-		await streamResponsesContent(res, turn.chunks, isScenarioRequest);
+		await streamResponsesContent(res, turn.chunks, isScenarioRequest, streaming);
 		return;
 	}
 
@@ -1177,7 +1192,7 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		? getFirstContentTurn(scenario)
 		: scenario as StreamChunk[];
 
-	await streamResponsesContent(res, chunks, isScenarioRequest);
+	await streamResponsesContent(res, chunks, isScenarioRequest, streaming);
 }
 
 /**
@@ -1240,7 +1255,8 @@ async function streamResponsesApiToolCalls(
 	requestToolNames: string[],
 	scenarioId: string,
 	isScenarioRequest: boolean,
-	request: readonly any[]
+	request: readonly any[],
+	streaming: boolean = true
 ): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1257,17 +1273,19 @@ async function streamResponsesApiToolCalls(
 		usage: null,
 	};
 
-	res.write(`event: response.created\ndata: ${JSON.stringify({
-		type: 'response.created',
-		sequence_number: nextSeq(),
-		response: skeleton,
-	})}\n\n`);
+	if (streaming) {
+		res.write(`event: response.created\ndata: ${JSON.stringify({
+			type: 'response.created',
+			sequence_number: nextSeq(),
+			response: skeleton,
+		})}\n\n`);
 
-	res.write(`event: response.in_progress\ndata: ${JSON.stringify({
-		type: 'response.in_progress',
-		sequence_number: nextSeq(),
-		response: skeleton,
-	})}\n\n`);
+		res.write(`event: response.in_progress\ndata: ${JSON.stringify({
+			type: 'response.in_progress',
+			sequence_number: nextSeq(),
+			response: skeleton,
+		})}\n\n`);
+	}
 
 	const finalOutput: any[] = [];
 
@@ -1292,61 +1310,68 @@ async function streamResponsesApiToolCalls(
 			arguments: '',
 		};
 
-		res.write(`event: response.output_item.added\ndata: ${JSON.stringify({
-			type: 'response.output_item.added',
-			sequence_number: nextSeq(),
-			output_index: i,
-			item,
-		})}\n\n`);
-
-		res.write(`event: response.function_call_arguments.delta\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.delta',
-			sequence_number: nextSeq(),
-			item_id: itemId,
-			output_index: i,
-			delta: argsJson,
-		})}\n\n`);
-
-		res.write(`event: response.function_call_arguments.done\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.done',
-			sequence_number: nextSeq(),
-			item_id: itemId,
-			output_index: i,
-			arguments: argsJson,
-		})}\n\n`);
-
 		const doneItem = { ...item, status: 'completed', arguments: argsJson };
 		finalOutput.push(doneItem);
 
-		res.write(`event: response.output_item.done\ndata: ${JSON.stringify({
-			type: 'response.output_item.done',
-			sequence_number: nextSeq(),
-			output_index: i,
-			item: doneItem,
-		})}\n\n`);
+		if (streaming) {
+			res.write(`event: response.output_item.added\ndata: ${JSON.stringify({
+				type: 'response.output_item.added',
+				sequence_number: nextSeq(),
+				output_index: i,
+				item,
+			})}\n\n`);
+
+			res.write(`event: response.function_call_arguments.delta\ndata: ${JSON.stringify({
+				type: 'response.function_call_arguments.delta',
+				sequence_number: nextSeq(),
+				item_id: itemId,
+				output_index: i,
+				delta: argsJson,
+			})}\n\n`);
+
+			res.write(`event: response.function_call_arguments.done\ndata: ${JSON.stringify({
+				type: 'response.function_call_arguments.done',
+				sequence_number: nextSeq(),
+				item_id: itemId,
+				output_index: i,
+				arguments: argsJson,
+			})}\n\n`);
+
+			res.write(`event: response.output_item.done\ndata: ${JSON.stringify({
+				type: 'response.output_item.done',
+				sequence_number: nextSeq(),
+				output_index: i,
+				item: doneItem,
+			})}\n\n`);
+		}
 	}
 
-	res.write(`event: response.completed\ndata: ${JSON.stringify({
-		type: 'response.completed',
-		sequence_number: nextSeq(),
-		response: {
-			id: responseId,
-			object: 'response',
-			created_at: Math.floor(Date.now() / 1000),
-			model,
-			status: 'completed',
-			output: finalOutput,
-			usage: {
-				input_tokens: 100,
-				output_tokens: 1,
-				total_tokens: 101,
-				input_tokens_details: { cached_tokens: 0 },
-				output_tokens_details: { reasoning_tokens: 0 },
-			},
+	const finalResponse = {
+		id: responseId,
+		object: 'response',
+		created_at: Math.floor(Date.now() / 1000),
+		model,
+		status: 'completed',
+		output: finalOutput,
+		usage: {
+			input_tokens: 100,
+			output_tokens: 1,
+			total_tokens: 101,
+			input_tokens_details: { cached_tokens: 0 },
+			output_tokens_details: { reasoning_tokens: 0 },
 		},
-	})}\n\n`);
+	};
 
-	res.end();
+	if (streaming) {
+		res.write(`event: response.completed\ndata: ${JSON.stringify({
+			type: 'response.completed',
+			sequence_number: nextSeq(),
+			response: finalResponse,
+		})}\n\n`);
+		res.end();
+	} else {
+		res.end(JSON.stringify(finalResponse));
+	}
 
 	if (isScenarioRequest) {
 		serverEvents.emit('scenarioCompletion');
@@ -1356,10 +1381,48 @@ async function streamResponsesApiToolCalls(
 /**
  * Stream content as Responses API SSE events.
  */
-async function streamResponsesContent(res: import('http').ServerResponse, chunks: StreamChunk[], isScenarioRequest: boolean): Promise<void> {
+async function streamResponsesContent(res: import('http').ServerResponse, chunks: StreamChunk[], isScenarioRequest: boolean, streaming: boolean = true): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const outputItemId = `msg_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
+
+	// Accumulate the full text up-front so both the streaming and
+	// non-streaming branches emit an identical final message.
+	let fullText = '';
+	for (const chunk of chunks) {
+		fullText += chunk.content;
+	}
+
+	if (!streaming) {
+		const finalResponse = {
+			id: responseId,
+			object: 'response',
+			created_at: Math.floor(Date.now() / 1000),
+			model,
+			status: 'completed',
+			output: [
+				{
+					id: outputItemId,
+					type: 'message',
+					role: 'assistant',
+					status: 'completed',
+					content: [{ type: 'output_text', text: fullText }],
+				},
+			],
+			usage: {
+				input_tokens: 100,
+				output_tokens: Math.max(1, Math.ceil(fullText.length / 4)),
+				total_tokens: 100 + Math.max(1, Math.ceil(fullText.length / 4)),
+				input_tokens_details: { cached_tokens: 0 },
+				output_tokens_details: { reasoning_tokens: 0 },
+			},
+		};
+		res.end(JSON.stringify(finalResponse));
+		if (isScenarioRequest) {
+			serverEvents.emit('scenarioCompletion');
+		}
+		return;
+	}
 
 	// 1. response.created
 	res.write(`data: ${JSON.stringify({
@@ -1397,10 +1460,10 @@ async function streamResponsesContent(res: import('http').ServerResponse, chunks
 	})}\n\n`);
 
 	// 4. Stream text deltas
-	let fullText = '';
+	let streamedText = '';
 	for (const chunk of chunks) {
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
-		fullText += chunk.content;
+		streamedText += chunk.content;
 		res.write(`data: ${JSON.stringify({
 			type: 'response.output_text.delta',
 			output_index: 0,
