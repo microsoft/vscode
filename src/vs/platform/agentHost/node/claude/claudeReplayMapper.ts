@@ -436,7 +436,8 @@ class ReplayBuilder {
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
 			.join('\n');
-		if (isSubagent) {
+		// A denied or failed call spawned nothing, so it has no transcript to link.
+		if (isSubagent && !isError) {
 			content.push({
 				type: ToolResultContentType.Subagent,
 				resource: buildSubagentSessionUri(this._session.toString(), previousState.toolCallId),

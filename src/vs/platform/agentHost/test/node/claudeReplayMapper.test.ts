@@ -279,6 +279,28 @@ suite('claudeReplayMapper', () => {
 		}
 	});
 
+	test('Fixture 5c: a denied Agent tool_use produces no subagent marker', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'spawn subagent'),
+			makeAssistantToolUse('a1', 'tu1', 'Agent', { description: 'do thing' }),
+			makeUserToolResult('synthetic1', 'tu1', 'auto mode cannot determine the safety of Agent right now', true),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		const toolCallPart = turns[0].responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
+		assert.ok(toolCallPart && toolCallPart.kind === ResponsePartKind.ToolCall);
+		if (toolCallPart.kind === ResponsePartKind.ToolCall) {
+			assert.strictEqual(toolCallPart.toolCall._meta?.toolKind, 'subagent', 'the tool is still a subagent by name');
+			if (toolCallPart.toolCall.status === ToolCallStatus.Completed) {
+				assert.strictEqual(toolCallPart.toolCall.success, false);
+				const hasSubagentMarker = toolCallPart.toolCall.content?.some(c => c.type === ToolResultContentType.Subagent) ?? false;
+				assert.strictEqual(hasSubagentMarker, false, 'a denied call spawned nothing, so it has no transcript to link');
+			} else {
+				assert.fail(`expected Completed status, got ${toolCallPart.toolCall.status}`);
+			}
+		}
+	});
 	test('Fixture 6: tail Turn with orphan tool_use is Cancelled', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'do work'),
