@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
@@ -45,7 +45,7 @@ export const pastedTextArtifactDefaultMinLength = 10000;
  */
 const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
-
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 interface SerializedCopyData {
 	readonly uri: UriComponents;
 	readonly range: IRange;
@@ -340,6 +340,33 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 	}
 }
 
+export function getGitHubIssueOrPullRequestAttachments(input: string, metadata?: Record<string, unknown>): readonly IChatRequestVariableEntry[] {
+	const attachments: IChatRequestVariableEntry[] = [];
+	const ids = new Set<string>();
+	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+		const groups = match.groups;
+		const number = Number(groups?.['number']);
+		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
+			continue;
+		}
+		const owner = groups['owner'];
+		const repo = groups['repo'];
+		const kind = groups['kind'].toLowerCase();
+		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
+		const id = `github-context:${uri}`;
+		if (ids.has(id)) {
+			continue;
+		}
+		ids.add(id);
+		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
+			id,
+			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			_meta: metadata,
+		}));
+	}
+	return attachments;
+}
+
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
@@ -371,6 +398,29 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const target = this.pasteTargetService.getTarget(model.uri);
 		if (!target) {
 			return;
+		}
+
+		if (model.uri.scheme !== Schemas.sessionsChatInput) {
+			const currentContextIds = new Set(target.attachments.map(attachment => attachment.id));
+			const githubAttachments = getGitHubIssueOrPullRequestAttachments(textdata).filter(attachment => !currentContextIds.has(attachment.id));
+			if (githubAttachments.length) {
+				if (ranges.length !== 1) {
+					return;
+				}
+				const announcement = githubAttachments.length === 1
+					? localize('chat.pastedGitHubContextAttached', "Attached {0} as context", githubAttachments[0].name)
+					: localize('chat.pastedGitHubContextsAttached', "Attached {0} GitHub links as context", githubAttachments.length);
+				const edit = createCustomPasteEdit(
+					model,
+					githubAttachments,
+					Mimes.text,
+					this.kind,
+					localize('chat.pasteGitHubContext', "Paste GitHub Context"),
+					this.pasteTargetService,
+					{ insertText: textdata, statusAnnouncement: announcement },
+				);
+				return createEditSession(edit);
+			}
 		}
 
 		let copiedContext: IChatRequestPasteVariableEntry | undefined;
@@ -538,6 +588,8 @@ function createCustomPasteEdit(
 	options?: {
 		readonly inlineReference?: { readonly text: string; readonly range: IRange };
 		readonly announcement?: string;
+		readonly insertText?: string;
+		readonly statusAnnouncement?: string;
 	},
 ): DocumentPasteEdit {
 
@@ -570,6 +622,8 @@ function createCustomPasteEdit(
 			}
 			if (options?.announcement) {
 				alert(options.announcement);
+			} else if (options?.statusAnnouncement) {
+				status(options.statusAnnouncement);
 			} else if (announceImageAttachment) {
 				alert(localize('chat.pastedImageAttached', 'Attached image'));
 			}
@@ -581,7 +635,7 @@ function createCustomPasteEdit(
 	};
 
 	return {
-		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : '',
+		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : options?.insertText ?? '',
 		title,
 		kind,
 		handledMimeType,

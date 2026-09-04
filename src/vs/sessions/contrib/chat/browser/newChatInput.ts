@@ -107,6 +107,7 @@ import { IChatStatusItemService } from '../../../../workbench/contrib/chat/brows
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { compactCodiconsIn } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatPasteTargetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { NewChatInputPasteTarget } from './newChatInputPasteTarget.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
@@ -138,7 +139,6 @@ const OTEL_STATUS_COMMAND = 'github.copilot.chat.otel.statusActive';
 const OTEL_STATUS_ENTRY_ID = 'copilot.otelStatus';
 const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/agents/guides/monitoring-agents';
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
-const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
@@ -218,30 +218,7 @@ export function hasSendableNewChatContent(query: string, attachments: readonly I
 }
 
 function getInputGitHubContextAttachments(input: string): readonly IChatRequestVariableEntry[] {
-	const attachments: IChatRequestVariableEntry[] = [];
-	const ids = new Set<string>();
-	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
-		const groups = match.groups;
-		const number = Number(groups?.['number']);
-		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
-			continue;
-		}
-		const owner = groups['owner'];
-		const repo = groups['repo'];
-		const kind = groups['kind'].toLowerCase();
-		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
-		const id = `github-context:${uri}`;
-		if (ids.has(id)) {
-			continue;
-		}
-		ids.add(id);
-		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
-			id,
-			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
-			_meta: toInputGitHubContextMetadata(),
-		}));
-	}
-	return attachments;
+	return getGitHubIssueOrPullRequestAttachments(input, toInputGitHubContextMetadata());
 }
 
 class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
