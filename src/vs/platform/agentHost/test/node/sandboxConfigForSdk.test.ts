@@ -120,6 +120,12 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
+		test('preserves an explicit outbound network restriction', () => {
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, false)), expectedSandboxConfig({ allowOutbound: false }));
+			}
+		});
+
 		test('maps the unsandboxed commands setting to SDK bypass', () => {
 			assert.deepStrictEqual([
 				buildSandboxConfigForSdk('linux', {
