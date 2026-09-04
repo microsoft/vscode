@@ -159,16 +159,16 @@
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item,
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot {
 	box-sizing: border-box;
-	width: 22px;
-	min-width: 22px;
+	width: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
 	padding: 0;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.action-item .action-label,
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .compact-picker.sessions-chat-picker-slot .action-label {
 	box-sizing: border-box;
-	width: 22px;
-	min-width: 22px;
+	width: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
 	justify-content: flex-start;
 	padding: 2px 2px 2px 8px;
 }
@@ -194,8 +194,9 @@
  * (e.g. session control pickers and repo config pickers) so they align with the
  * model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
-	height: 16px;
-	padding: 3px 8px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 8px;
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
@@ -316,8 +317,9 @@
 .sessions-chat-picker-slot .action-label {
 	display: flex;
 	align-items: center;
-	height: 16px;
-	padding: 3px 7px 3px 7px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size80);
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);

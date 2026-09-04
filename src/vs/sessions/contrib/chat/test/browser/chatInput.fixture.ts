@@ -22,12 +22,21 @@ import '../../browser/media/chatView.css';
  * the `isSessionsWindow` layout path accounts for. Returns a derived context whose
  * `container` is the `.part.sessionspart` element the input should render into.
  */
-function sessionsWindowContext(context: ComponentFixtureContext): ComponentFixtureContext {
+function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
 	sessionsPart.classList.add('part', 'sessionspart');
 	context.container.appendChild(sessionsPart);
-	return { ...context, container: sessionsPart };
+	if (!withBackground) {
+		return { ...context, container: sessionsPart };
+	}
+
+	sessionsPart.classList.add('has-chat-background');
+	sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
+	const chatView = document.createElement('div');
+	chatView.classList.add('chat-view');
+	sessionsPart.appendChild(chatView);
+	return { ...context, container: chatView };
 }
 
 const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
@@ -71,6 +80,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,
 			value: 'word word word word word word word word word word word word word word word word word word word word word word word word',
+		})
+	}),
+	SessionsWindowBackgroundControls: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderChatInput(sessionsWindowContext(context, true), {
+			isSessionsWindow: true,
+			value: 'Implement the approved plan',
+			secondaryPickerLabels: ['Plan', 'Allow All'],
 		})
 	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are

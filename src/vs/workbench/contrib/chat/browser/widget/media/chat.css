@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench {
+	--chat-input-control-height: 22px;
+}
+
 .interactive-session {
 	display: flex;
 	flex-direction: column;
@@ -1434,8 +1438,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 	justify-content: center;
 	font-size: var(--vscode-codiconFontSize-compact);
 	/* Keep the fully-rounded shape in both states — the enabled rule below only
@@ -1935,6 +1939,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.interactive-session .chat-secondary-toolbar .action-label,
+.interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
@@ -1982,7 +1992,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
@@ -2088,7 +2098,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
 	display: flex;
 	align-items: center;
@@ -2097,7 +2107,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
@@ -2117,9 +2127,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
-	width: 22px;
-	min-width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 	padding: 0;
 	box-sizing: border-box;
 	display: flex;
