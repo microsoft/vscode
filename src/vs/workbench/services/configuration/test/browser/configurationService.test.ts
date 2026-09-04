@@ -161,6 +161,135 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		}
 	});
 
+	test('keeps an auto experiment override when it resolves again to the same value', async () => {
+		const treatments: Record<string, string | undefined> = {
+			testFirstAutoExperimentalSetting: 'treatment',
+			testSecondAutoExperimentalSetting: undefined,
+		};
+		type TestContribution = {
+			processedExperimentalSettings: Set<string>;
+			autoExperimentalSettings: Set<string>;
+			pendingStartupExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+			configurationRegistry: IConfigurationRegistry;
+			workbenchAssignmentService: {
+				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+			};
+			environmentService: { isSessionsWindow: boolean };
+			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+		};
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		configurationRegistry.registerConfiguration(configuration);
+
+		const readDefault = () => configurationRegistry.getConfigurationProperties()[firstSetting].default;
+
+		try {
+			await contribution.processExperimentalSettings([firstSetting], false);
+			const afterInitial = readDefault();
+
+			// Assignments are refetched shortly after startup and yield the same value. The override
+			// must survive, otherwise the setting flips back to its built-in default and the
+			// workbench visibly shifts (e.g. between the classic and Modern UI layouts).
+			await contribution.processExperimentalSettings([firstSetting], true);
+			const afterRefetch = readDefault();
+
+			// Leaving the experiment removes the override again.
+			treatments.testFirstAutoExperimentalSetting = undefined;
+			await contribution.processExperimentalSettings([firstSetting], true);
+
+			assert.deepStrictEqual({ afterInitial, afterRefetch, afterLeavingExperiment: readDefault() }, {
+				afterInitial: 'treatment',
+				afterRefetch: 'treatment',
+				afterLeavingExperiment: 'control',
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+
+	test('applies an auto experiment value that matches the schema default over another default override', async () => {
+		const overriddenSetting = 'test.overriddenAutoExperimentalSetting';
+		const overriddenConfiguration: IConfigurationNode = {
+			id: 'test.overriddenAutoExperimentalSettings',
+			type: 'object',
+			properties: {
+				[overriddenSetting]: {
+					type: 'string',
+					default: 'control',
+					experiment: {
+						mode: 'auto',
+						name: 'testOverriddenAutoExperimentalSetting'
+					}
+				}
+			}
+		};
+		// Another (non-experiment) default override is in place, as an extension or an embedder can
+		// contribute through `configurationDefaults`. It does not opt out of experiment overrides,
+		// so the control arm of the experiment must still win over it.
+		const otherDefaults: IConfigurationDefaults = { overrides: { [overriddenSetting]: 'otherDefault' }, source: 'otherDefaults' };
+		const treatments: Record<string, string | undefined> = {
+			testOverriddenAutoExperimentalSetting: 'control',
+		};
+		type TestContribution = {
+			processedExperimentalSettings: Set<string>;
+			autoExperimentalSettings: Set<string>;
+			pendingStartupExperimentalSettings: Set<string>;
+			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+			configurationRegistry: IConfigurationRegistry;
+			workbenchAssignmentService: {
+				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+			};
+			environmentService: { isSessionsWindow: boolean };
+			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+		};
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		configurationRegistry.registerConfiguration(overriddenConfiguration);
+		configurationRegistry.registerDefaultConfigurations([otherDefaults]);
+
+		const readDefault = () => configurationRegistry.getConfigurationProperties()[overriddenSetting].default;
+
+		try {
+			const beforeExperiment = readDefault();
+			await contribution.processExperimentalSettings([overriddenSetting], false);
+			const afterInitial = readDefault();
+
+			await contribution.processExperimentalSettings([overriddenSetting], true);
+
+			assert.deepStrictEqual({ beforeExperiment, afterInitial, afterRefetch: readDefault() }, {
+				beforeExperiment: 'otherDefault',
+				afterInitial: 'control',
+				afterRefetch: 'control',
+			});
+		} finally {
+			if (contribution.registeredExperimentalDefaults.size) {
+				configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			}
+			configurationRegistry.deregisterDefaultConfigurations([otherDefaults]);
+			configurationRegistry.deregisterConfigurations([overriddenConfiguration]);
+		}
+	});
+
 	test('defers a startup experiment until its value first resolves, then latches it', async () => {
 		const startupSetting = 'test.startupExperimentalSetting';
 		const startupConfiguration: IConfigurationNode = {
