@@ -15,11 +15,10 @@ export class Extension extends vscode.Disposable {
 	private readonly _output: vscode.LogOutputChannel;
 	private readonly _featureInstances = new Map<string, vscode.Disposable>();
 	
-	// Yeni özellikler eklemek istediğinde buraya tanımlaman yeterli olacak dostum.
 	private readonly _features: FeatureDefinition[] = [
 		{
 			configKey: 'vscode-extras.npmUpToDateFeature.enabled',
-			factory: (output) => new NpmUpToDateFeature(output)
+			factory: output => new NpmUpToDateFeature(output)
 		}
 	];
 
