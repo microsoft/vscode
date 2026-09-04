@@ -42,6 +42,7 @@ const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
 const AGENT_HOST_MODEL = 'gpt-5.3-codex';
 const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement';
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
+const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
 const AGENT_HOST_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sandbox';
 const AGENT_HOST_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SANDBOX_RESPONSE';
@@ -215,6 +216,73 @@ export function setup(logger: Logger) {
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	describe('Agents Window (Dev Container AgentHost)', () => {
+		const devContainer = setupAgentHostSuite(logger, {
+			serverLabel: 'Dev Container AgentHost',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(DEV_CONTAINER_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
+			},
+			settings: {
+				'chat.agentHost.devContainer.enabled': true,
+				'chat.remoteAgentHostsEnabled': true,
+			},
+			prepareWorkspace: workspacePath => {
+				const configDirectory = path.join(workspacePath, '.devcontainer');
+				fs.mkdirSync(configDirectory, { recursive: true });
+				fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
+					name: 'Agents Window Smoke',
+					image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
+					remoteUser: 'vscode',
+				}, null, 2));
+			},
+			cleanupWorkspace: workspacePath => {
+				fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
+				const containerIds = cp.execFileSync('docker', [
+					'ps',
+					'-aq',
+					'--filter',
+					`label=devcontainer.local_folder=${workspacePath}`,
+				], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+				if (containerIds.length > 0) {
+					cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+				}
+			},
+		});
+
+		it('Starts a session in a Dev Container', async function () {
+			this.timeout(10 * 60 * 1000);
+			cp.execFileSync('docker', ['info'], { stdio: 'pipe' });
+			const app = this.app as Application;
+
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				await app.workbench.agentsWindow.selectDevContainer();
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+
+				const ahpFrames = await waitForLogContent(
+					() => readAhpFrames(path.join(devContainer.logsPath, 'ahp')),
+					/"transport":"devcontainer"/,
+					30_000,
+				);
+				assert.match(ahpFrames, /"vscode\.clientConnectionKind":"dev_container"/);
+				assert.match(ahpFrames, /"transport":"devcontainer"/);
+
+				const rendererLogs = await waitForLogContent(
+					() => readRendererLogs(devContainer.logsPath),
+					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
+					30_000,
+				);
+				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+			} catch (error) {
+				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
 			}
 		});
@@ -515,9 +583,12 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly serverLabel: string;
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
+	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
+	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
 	let logsPath: string;
+	let workspacePath: string | undefined;
 
 	before(async function () {
 		const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
@@ -554,6 +625,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 			},
 		}));
+		workspacePath = (this.app as Application).workspacePathOrFolder;
+		await config.prepareWorkspace?.(workspacePath);
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
 		// Agents profile so Agent Host startup observes the test configuration.
@@ -588,7 +661,11 @@ function setupAgentHostSuite(logger: Logger, config: {
 		await (this.app as Application).start();
 	});
 
-	installAppAfterHandler();
+	installAppAfterHandler(undefined, async () => {
+		if (workspacePath) {
+			await config.cleanupWorkspace?.(workspacePath);
+		}
+	});
 
 	before(async function () {
 		const app = this.app as Application;
@@ -640,4 +717,13 @@ function ahpJsonlFiles(ahpLogDir: string): string[] {
 /** Concatenates every AHP JSONL transcript in `ahpLogDir` into one string. */
 function readAhpFrames(ahpLogDir: string): string {
 	return ahpJsonlFiles(ahpLogDir).map(f => fs.readFileSync(path.join(ahpLogDir, f), 'utf8')).join('\n');
+}
+
+function readRendererLogs(logsPath: string): string {
+	return fs.existsSync(logsPath)
+		? fs.readdirSync(logsPath, { withFileTypes: true })
+			.filter(entry => entry.isDirectory() && /^window\d+$/.test(entry.name))
+			.map(entry => readFileIfExists(path.join(logsPath, entry.name, 'renderer.log')))
+			.join('\n')
+		: '';
 }
