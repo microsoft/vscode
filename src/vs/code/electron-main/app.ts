@@ -1444,7 +1444,12 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
-		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables);
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables, {
+			// Do not buffer high-volume terminal data events: renderers connect to the
+			// pty host directly and never listen on this channel, so `Event.buffer`
+			// would retain every data event for the lifetime of the app (#332603)
+			unbufferedEvents: ['onProcessData', 'onProcessReplay']
+		});
 		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
