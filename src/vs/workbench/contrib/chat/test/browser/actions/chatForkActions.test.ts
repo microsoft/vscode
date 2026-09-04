@@ -5,13 +5,9 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ForkConversationAction } from '../../../browser/actions/chatForkActions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../browser/chat.js';
@@ -33,20 +29,14 @@ class TestForkConversationAction extends ForkConversationAction {
 suite('ForkConversationAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function stubSelectionTelemetryServices(instantiationService: TestInstantiationService): void {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
-	}
-
-	test('opens a fork with the current session selection reason', async () => {
+	test('opens the forked session in the chat view pane', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		stubSelectionTelemetryServices(instantiationService);
 		const parentSessionResource = URI.parse('vscode-chat-session://parent');
 		const forkedSessionResource = URI.parse('vscode-chat-session://fork');
-		let openCall: { resource: URI; usesViewTarget: boolean; selectionReason: SessionTypeSelectionReason | undefined } | undefined;
+		let openCall: { resource: URI; usesViewTarget: boolean } | undefined;
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-			openSession: async (resource, target, options) => {
-				openCall = { resource, usesViewTarget: target === ChatViewPaneTarget, selectionReason: options?.sessionTypeSelectionTelemetry?.reason };
+			openSession: async (resource, target) => {
+				openCall = { resource, usesViewTarget: target === ChatViewPaneTarget };
 				return undefined;
 			},
 		}));
@@ -56,13 +46,11 @@ suite('ForkConversationAction', () => {
 		assert.deepStrictEqual(openCall, {
 			resource: forkedSessionResource,
 			usesViewTarget: true,
-			selectionReason: 'currentSession',
 		});
 	});
 
 	test('loads a local fork with the current session selection reason', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		stubSelectionTelemetryServices(instantiationService);
 		const sourceSessionResource = URI.parse('vscode-chat-session://source');
 		const forkedSessionResource = URI.parse('vscode-chat-session://fork');
 		const serializedData: ISerializableChatData = {
