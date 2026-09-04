@@ -46,21 +46,56 @@ class RemoteSourceProviderQuickPick implements Disposable {
 			this.quickpick.ignoreFocusOut = true;
 			this.disposables.push(this.quickpick.onDidHide(() => this.dispose()));
 			if (this.provider.supportsQuery) {
+				if (this.provider.onDidChangeRemoteSources) {
+					this.quickpick.sortByLabel = false;
+					this.quickpick.matchOnDescription = false;
+					this.quickpick.matchOnDetail = false;
+				}
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name (type to search)');
 				this.disposables.push(this.quickpick.onDidChangeValue(this.onDidChangeValue, this));
+				if (this.provider.onDidChangeRemoteSources) {
+					this.disposables.push(this.provider.onDidChangeRemoteSources(() => this.query()));
+				}
 			} else {
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name');
 			}
 		}
 	}
 
-	@debounce(300)
 	private onDidChangeValue(): void {
+		if (this.provider.onDidChangeRemoteSources) {
+			this.query();
+		} else {
+			this.queryAfterDelay();
+		}
+	}
+
+	@debounce(300)
+	private queryAfterDelay(): void {
 		this.query();
+	}
+
+	private updateItems(remoteSources: RemoteSource[]): void {
+		if (!this.quickpick) {
+			return;
+		}
+
+		if (remoteSources.length === 0) {
+			this.quickpick.items = [{ label: l10n.t('No remote repositories found.'), alwaysShow: true }];
+		} else {
+			this.quickpick.items = remoteSources.map(remoteSource => ({
+				label: remoteSource.icon ? `$(${remoteSource.icon}) ${remoteSource.name}` : remoteSource.name,
+				description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
+				detail: remoteSource.detail,
+				remoteSource,
+				alwaysShow: true
+			}));
+		}
 	}
 
 	@throttle
 	private async query(): Promise<void> {
+		let query: string | undefined;
 		try {
 			if (this.isDisposed) {
 				return;
@@ -68,33 +103,26 @@ class RemoteSourceProviderQuickPick implements Disposable {
 			this.ensureQuickPick();
 			this.quickpick!.busy = true;
 			this.quickpick!.show();
+			query = this.quickpick!.value;
 
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
+			const remoteSources = await this.provider.getRemoteSources(query) || [];
 			// The user may have cancelled the picker in the meantime
 			if (this.isDisposed) {
 				return;
 			}
-
-			if (remoteSources.length === 0) {
-				this.quickpick!.items = [{
-					label: l10n.t('No remote repositories found.'),
-					alwaysShow: true
-				}];
-			} else {
-				this.quickpick!.items = remoteSources.map(remoteSource => ({
-					label: remoteSource.icon ? `$(${remoteSource.icon}) ${remoteSource.name}` : remoteSource.name,
-					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
-					detail: remoteSource.detail,
-					remoteSource,
-					alwaysShow: true
-				}));
+			if (query !== this.quickpick!.value) {
+				return;
 			}
+
+			this.updateItems(remoteSources);
 		} catch (err) {
-			this.quickpick!.items = [{ label: l10n.t('{0} Error: {1}', '$(error)', err.message), alwaysShow: true }];
+			if (query === this.quickpick?.value) {
+				this.quickpick!.items = [{ label: l10n.t('{0} Error: {1}', '$(error)', err.message), alwaysShow: true }];
+			}
 			console.error(err);
 		} finally {
 			if (!this.isDisposed) {
-				this.quickpick!.busy = false;
+				this.quickpick!.busy = query !== this.quickpick!.value;
 			}
 		}
 	}
