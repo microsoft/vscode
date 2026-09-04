@@ -10,10 +10,33 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions } from './actionList.js';
 import './tabbedActionListWidget.css';
+
+/** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
+const TAB_RESIZE_ANIMATION: KeyframeAnimationOptions = { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+
+/** The box a tab occupied, including the spacing that travels with its width. */
+interface ITabBox {
+	readonly width: number;
+	readonly paddingLeft: string;
+	readonly paddingRight: string;
+	readonly columnGap: string;
+}
+
+function readTabBox(element: HTMLElement): ITabBox {
+	const style = dom.getComputedStyle(element);
+	return {
+		width: element.getBoundingClientRect().width,
+		paddingLeft: style.paddingLeft,
+		paddingRight: style.paddingRight,
+		// `normal` is the initial value and cannot be interpolated.
+		columnGap: style.columnGap === 'normal' ? '0px' : style.columnGap,
+	};
+}
 
 /**
  * Result of {@link ITabbedActionListShowOptions.createActionList}. The list
@@ -89,6 +112,8 @@ export interface ITabbedActionListShowOptions<T> {
 	 * while the popup stays open is not replayed stale on a tab switch.
 	 */
 	readonly widgetClassNames?: (activeTab: string) => readonly string[];
+	/** Tab whose contents fix the popup's height, so switching tabs scrolls instead of resizing. */
+	readonly sizingTab?: string;
 	/** Optional icon buttons rendered after the tabs. */
 	readonly tabBarActions?: readonly ITabBarAction[];
 	/**
@@ -124,6 +149,12 @@ export class TabbedActionListWidget extends Disposable {
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
 	private _refreshActiveList: (() => void) | undefined;
+	/** Boxes and labels from the last render, so the next one can animate from them. */
+	private _previousTabBoxes: Map<string, ITabBox> | undefined;
+	private _previousTabTexts: ReadonlyMap<string, string> | undefined;
+	/** List height the popup keeps for this session, from {@link ITabbedActionListShowOptions.sizingTab}. */
+	private _fixedListHeight: number | undefined;
+	private _hasMeasuredSizingTab = false;
 
 	get isVisible(): boolean {
 		return !!this._activePopup.value;
@@ -132,6 +163,7 @@ export class TabbedActionListWidget extends Disposable {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 	}
@@ -145,6 +177,12 @@ export class TabbedActionListWidget extends Disposable {
 		if (isSwap) {
 			this._swappingTab = true;
 			this._activePopup.value = undefined;
+		} else {
+			// A fresh popup has nothing to animate from, and its models may have changed.
+			this._previousTabBoxes = undefined;
+			this._previousTabTexts = undefined;
+			this._fixedListHeight = undefined;
+			this._hasMeasuredSizingTab = false;
 		}
 
 		let activeTab = options.initialTab;
@@ -214,14 +252,20 @@ export class TabbedActionListWidget extends Disposable {
 					this.show({ ...options, initialTab: next });
 				};
 
+				// Kept aside so a tab that loses its label on the next swap can hold on to it
+				// while it shrinks.
+				const tabTexts = new Map(options.tabs.map(tab => {
+					const label = tab.label ?? tab.id;
+					const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
+					const labelMode = options.tabLabels ?? 'always';
+					const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
+					return [tab.id, showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix] as const;
+				}));
+
 				const radio = renderDisposables.add(new Radio({
 					items: options.tabs.map(tab => {
 						const label = tab.label ?? tab.id;
-						const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
-						const labelMode = options.tabLabels ?? 'always';
-						const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
-						const text = showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix;
-						return { text, tooltip: tab.tooltip ?? label, ariaLabel: label, isActive: tab.id === activeTab };
+						return { text: tabTexts.get(tab.id)!, tooltip: tab.tooltip ?? label, ariaLabel: label, isActive: tab.id === activeTab };
 					}),
 				}));
 				tabStrip.appendChild(radio.domNode);
@@ -251,6 +295,15 @@ export class TabbedActionListWidget extends Disposable {
 						tabAction.run();
 					}));
 				}
+
+				// Built before the active tab's list because a consumer may hold per-tab state
+				// while building, and the active tab has to be the one that keeps it.
+				const needsSizing = !this._hasMeasuredSizingTab
+					&& options.sizingTab !== undefined
+					&& options.tabs.some(tab => tab.id === options.sizingTab);
+				const sizingBuild = needsSizing && options.sizingTab !== activeTab
+					? options.createActionList(options.sizingTab!)
+					: undefined;
 
 				const { items, listOptions } = options.createActionList(activeTab);
 				const emptyBody = items.length === 0 ? this._renderEmptyBody(widget, options, activeTab, renderDisposables) : undefined;
@@ -295,8 +348,26 @@ export class TabbedActionListWidget extends Disposable {
 					renderDisposables.add(options.renderFooter(footer, activeTab));
 				}
 
-				const width = list.layout(0);
+				// Measured from the sizing tab's own items, so every tab lands on the same
+				// height however the popup opened.
+				if (needsSizing) {
+					const sizing = sizingBuild ?? { items, listOptions };
+					this._fixedListHeight = list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
+					this._hasMeasuredSizingTab = true;
+				}
+
+				const width = list.layout(0, this._fixedListHeight);
 				widget.style.width = `${options.width ?? width}px`;
+				// The list's own height is the clamped one, which the empty body has to match
+				// or it can make the popup taller than every other tab.
+				if (emptyBody && this._fixedListHeight !== undefined) {
+					emptyBody.style.minHeight = list.domNode.style.height;
+				}
+				// Boxes are read before the animation starts, so they are the resting ones.
+				const tabBoxes = this._measureTabBoxes(radio, options.tabs);
+				renderDisposables.add(this._animateTabResize(radio, options.tabs, tabBoxes, tabTexts));
+				this._previousTabBoxes = tabBoxes;
+				this._previousTabTexts = tabTexts;
 				if (emptyBody) {
 					// The list is not in the DOM at all, so focusing it would drop focus
 					// out of the popup. The active tab is the nearest thing to act on, and
@@ -396,6 +467,67 @@ export class TabbedActionListWidget extends Disposable {
 		if (isSwap) {
 			this._swappingTab = false;
 		}
+	}
+
+	/** Boxes of the currently rendered tabs, keyed by tab id. */
+	private _measureTabBoxes(radio: Radio, tabs: readonly ITabDescriptor[]): Map<string, ITabBox> {
+		const boxes = new Map<string, ITabBox>();
+		const elements = radio.optionElements;
+		for (let index = 0; index < tabs.length; index++) {
+			const element = elements[index];
+			if (element) {
+				boxes.set(tabs[index].id, readTabBox(element));
+			}
+		}
+		return boxes;
+	}
+
+	/** Grows and shrinks the tabs from the boxes the previous render left them in. */
+	private _animateTabResize(radio: Radio, tabs: readonly ITabDescriptor[], boxes: ReadonlyMap<string, ITabBox>, texts: ReadonlyMap<string, string>): IDisposable {
+		const store = new DisposableStore();
+		const previousBoxes = this._previousTabBoxes;
+		const previousTexts = this._previousTabTexts;
+		if (!previousBoxes || this._accessibilityService.isMotionReduced()) {
+			return store;
+		}
+		const elements = radio.optionElements;
+		for (let index = 0; index < tabs.length; index++) {
+			const element = elements[index];
+			const from = previousBoxes.get(tabs[index].id);
+			const to = boxes.get(tabs[index].id);
+			// A tab that is not laid out yet measures 0, which would animate it away.
+			if (!element || !from || !to || to.width <= 0 || Math.abs(from.width - to.width) < 1) {
+				continue;
+			}
+			const animation = element.animate([
+				{ width: `${from.width}px`, paddingLeft: from.paddingLeft, paddingRight: from.paddingRight, columnGap: from.columnGap },
+				{ width: `${to.width}px`, paddingLeft: to.paddingLeft, paddingRight: to.paddingRight, columnGap: to.columnGap },
+			], TAB_RESIZE_ANIMATION);
+			store.add(toDisposable(() => animation.cancel()));
+
+			// Without its old label a closing tab drops the text at once and slides a lone
+			// icon across the space it filled.
+			const previousText = previousTexts?.get(tabs[index].id);
+			const currentText = texts.get(tabs[index].id);
+			if (to.width < from.width && previousText !== undefined && previousText !== currentText) {
+				store.add(this._holdLabelWhileShrinking(radio, index, element, animation, previousText));
+			}
+		}
+		return store;
+	}
+
+	/** Keeps a closing tab's label on screen, collapsed to nothing by the time it settles. */
+	private _holdLabelWhileShrinking(radio: Radio, index: number, element: HTMLElement, animation: Animation, previousText: string): IDisposable {
+		const store = new DisposableStore();
+		store.add(radio.overrideOptionLabel(index, previousText));
+		element.classList.add('label-collapsing');
+		store.add(toDisposable(() => element.classList.remove('label-collapsing')));
+		// The label has to reach zero width, or it still displaces the resting icon.
+		const labelSpan = [...element.children].find((child): child is HTMLElement =>
+			dom.isHTMLElement(child) && !child.classList.contains('codicon'));
+		labelSpan?.animate([{ maxWidth: `${labelSpan.scrollWidth}px` }, { maxWidth: '0px' }], TAB_RESIZE_ANIMATION);
+		animation.finished.then(() => store.dispose(), () => { });
+		return store;
 	}
 
 	hide(): void {

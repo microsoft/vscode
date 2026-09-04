@@ -446,6 +446,8 @@
 	align-items: center;
 	min-width: 0;
 	height: var(--vscode-spacing-size280);
+	/* The row's own bottom margin would centre this half a margin above the search button. */
+	margin: var(--vscode-spacing-sizeNone);
 	padding: var(--vscode-spacing-sizeNone);
 	border: none;
 }
@@ -724,6 +726,14 @@
 	align-self: baseline;
 }
 
+/* A filled pill reads as a box, so it centres with the icon and chevron. Sharing a
+ * baseline would leave it a pixel low, since its type is smaller than the model name's. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge {
+	align-self: center;
+}
+
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-unavailable .description {
 	flex: 0 0 auto;
 	margin-left: auto;
@@ -762,16 +772,18 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* These colours are authored for squigglies, so they fall below 4.5:1 as small text on
+ * their own tint. The tone stays in the fill and the label takes the regular foreground. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo .action-item-badge {
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	color: var(--vscode-charts-green, var(--vscode-textLink-foreground));
-	background: color-mix(in srgb, var(--vscode-charts-green, var(--vscode-textLink-foreground)) 14%, transparent);
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-charts-green, var(--vscode-textLink-foreground)) 22%, transparent);
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning .action-item-badge {
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	color: var(--vscode-editorWarning-foreground);
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, transparent);
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
 }
 
 .chat-model-picker-auto-row {
