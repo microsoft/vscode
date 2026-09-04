@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { JSONPath, parse } from '../../../../base/common/json.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
-import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -21,6 +21,8 @@ import { IJSONEditingService, IJSONValue } from '../../configuration/common/json
 import { ResourceMap } from '../../../../base/common/map.js';
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
+export const EXTENSIONS_CONFIG_JSONC = '.vscode/extensions.jsonc';
+const EXTENSIONS_CONFIG_CANDIDATE_PATHS = [EXTENSIONS_CONFIG, EXTENSIONS_CONFIG_JSONC] as const;
 
 export interface IExtensionsConfigContent {
 	recommendations?: string[];
@@ -61,7 +63,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		this._register(fileService.onDidFilesChange(e => {
 			const workspace = workspaceContextService.getWorkspace();
 			if ((workspace.configuration && e.affects(workspace.configuration))
-				|| workspace.folders.some(folder => e.affects(folder.toResource(EXTENSIONS_CONFIG)))
+				|| workspace.folders.some(folder => this.getExtensionsConfigResourceCandidates(folder).some(resource => e.affects(resource)))
 			) {
 				this._onDidChangeExtensionsConfigs.fire();
 			}
@@ -162,7 +164,8 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		}
 
 		if (values.length) {
-			return this.jsonEditingService.write(workspaceFolder.toResource(EXTENSIONS_CONFIG), values, true);
+			const target = await this.resolveExtensionsConfigWriteResource(workspaceFolder);
+			return this.jsonEditingService.write(target, values, true);
 		}
 	}
 
@@ -215,7 +218,8 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 			}
 		}
 		if (values.length) {
-			return this.jsonEditingService.write(workspaceFolder.toResource(EXTENSIONS_CONFIG), values, true);
+			const target = await this.resolveExtensionsConfigWriteResource(workspaceFolder);
+			return this.jsonEditingService.write(target, values, true);
 		}
 	}
 
@@ -285,12 +289,39 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	}
 
 	private async resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent> {
-		try {
-			const content = await this.fileService.readFile(workspaceFolder.toResource(EXTENSIONS_CONFIG));
-			const extensionsConfigContent = <IExtensionsConfigContent>parse(content.value.toString());
-			return this.parseExtensionConfig(extensionsConfigContent);
-		} catch (e) { /* ignore */ }
+		for (const resource of this.getExtensionsConfigResourceCandidates(workspaceFolder)) {
+			try {
+				const content = await this.fileService.readFile(resource);
+				const extensionsConfigContent = <IExtensionsConfigContent>parse(content.value.toString());
+				return this.parseExtensionConfig(extensionsConfigContent);
+			} catch (error) {
+				if (this.shouldFallbackToAlternative(error)) {
+					continue;
+				}
+				break;
+			}
+		}
 		return {};
+	}
+
+	private getExtensionsConfigResourceCandidates(workspaceFolder: IWorkspaceFolder): URI[] {
+		return EXTENSIONS_CONFIG_CANDIDATE_PATHS.map(path => workspaceFolder.toResource(path));
+	}
+
+	private async resolveExtensionsConfigWriteResource(workspaceFolder: IWorkspaceFolder): Promise<URI> {
+		const [jsonResource, jsoncResource] = this.getExtensionsConfigResourceCandidates(workspaceFolder);
+		if (await this.fileService.exists(jsonResource)) {
+			return jsonResource;
+		}
+		if (await this.fileService.exists(jsoncResource)) {
+			return jsoncResource;
+		}
+		return jsonResource;
+	}
+
+	private shouldFallbackToAlternative(error: unknown): boolean {
+		const fileOperationResult = (error as FileOperationError)?.fileOperationResult;
+		return fileOperationResult === FileOperationResult.FILE_NOT_FOUND || fileOperationResult === FileOperationResult.FILE_NOT_DIRECTORY;
 	}
 
 	private parseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent): IExtensionsConfigContent {
