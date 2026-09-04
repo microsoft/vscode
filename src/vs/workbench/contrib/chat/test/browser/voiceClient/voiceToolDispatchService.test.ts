@@ -82,6 +82,9 @@ suite('VoiceToolDispatchService - session actions', () => {
 		};
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
+			override getSession(resource: URI): IChatModel | undefined {
+				return options.chatModels?.find(model => model.sessionResource.toString() === resource.toString());
+			}
 		};
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
