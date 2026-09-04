@@ -197,6 +197,8 @@ export interface IMakeChatRequestOptions {
 	useWebSocket?: boolean;
 	/** Disable Responses API stateful marker reuse, preventing previous_response_id-based history slicing. */
 	ignoreStatefulMarker?: boolean;
+	/** Opaque hashes of unavailable historical image sources that must not be replayed. */
+	unavailableHistoryImageSourceHashes?: readonly string[];
 	/** Indicates whether the request's mode instructions changed from the previous turn. */
 	modeChanged?: boolean;
 	/** Streaming callback for each response part. */

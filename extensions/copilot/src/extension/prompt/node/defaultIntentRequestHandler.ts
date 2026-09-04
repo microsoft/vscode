@@ -51,7 +51,7 @@ import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ToolCallCancelledError } from '../../tools/common/toolsService';
 import { IToolGrouping, IToolGroupingService } from '../../tools/common/virtualTools/virtualToolTypes';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
-import { Conversation, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
+import { Conversation, getUnavailableHistoryImageSourceHashes, getUniqueReferences, GlobalContextMessageMetadata, IResultMetadata, RenderedUserMessageMetadata, RequestDebugInformation, ResponseStreamParticipant, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../common/intents';
 import { isToolCallLimitCancellation, ISwitchToAutoOnRateLimitConfirmation } from '../common/specialRequestTypes';
 import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry';
@@ -163,6 +163,7 @@ export class DefaultIntentRequestHandler {
 				toolCallRounds: resultDetails.toolCallRounds,
 				toolCallResults: this._collectRelevantToolCallResults(resultDetails.toolCallRounds, resultDetails.toolCallResults),
 				resolvedModel: resultDetails.response.type === ChatFetchResponseType.Success ? resultDetails.response.resolvedModel : undefined,
+				...(resultDetails.response.unavailableHistoryImageSourceHashes?.length ? { unavailableHistoryImageSourceHashes: resultDetails.response.unavailableHistoryImageSourceHashes } : {}),
 			};
 			mixin(chatResult, { metadata: metadataFragment }, true);
 			const baseModelTelemetry = createTelemetryWithId();
@@ -614,6 +615,7 @@ interface IDefaultToolLoopOptions extends IToolCallingLoopOptions {
 class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 	public telemetry!: ChatTelemetry;
 	private toolGrouping?: IToolGrouping;
+	private readonly newlyUnavailableHistoryImageSourceHashes = new Set<string>();
 
 	constructor(
 		options: IDefaultToolLoopOptions,
@@ -708,8 +710,13 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
 		const isSubagent = !!this.options.request.subAgentInvocationId;
 		const modeChanged = this.didModeChangeSincePreviousRequest();
-		return this.options.invocation.endpoint.makeChatRequest2({
+		const unavailableHistoryImageSourceHashes = new Set(getUnavailableHistoryImageSourceHashes(this.options.conversation.turns));
+		for (const hash of this.newlyUnavailableHistoryImageSourceHashes) {
+			unavailableHistoryImageSourceHashes.add(hash);
+		}
+		const response = await this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
+			unavailableHistoryImageSourceHashes: [...unavailableHistoryImageSourceHashes],
 			modeChanged,
 			modelCapabilities: {
 				...opts.modelCapabilities,
@@ -750,6 +757,14 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,
 			enableRetryOnFilter: true
 		}, token);
+		for (const hash of response.unavailableHistoryImageSourceHashes ?? []) {
+			if (!unavailableHistoryImageSourceHashes.has(hash)) {
+				this.newlyUnavailableHistoryImageSourceHashes.add(hash);
+			}
+		}
+		return this.newlyUnavailableHistoryImageSourceHashes.size > 0
+			? { ...response, unavailableHistoryImageSourceHashes: [...this.newlyUnavailableHistoryImageSourceHashes] }
+			: response;
 	}
 
 	private didModeChangeSincePreviousRequest(): boolean {

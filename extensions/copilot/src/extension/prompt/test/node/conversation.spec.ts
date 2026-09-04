@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatResult } from 'vscode';
 import { ChatVariablesCollection } from '../../common/chatVariablesCollection';
-import { IResultMetadata, normalizeSummariesOnRounds, Turn, TurnMessage, TurnStatus } from '../../common/conversation';
+import { getUnavailableHistoryImageSourceHashes, IResultMetadata, normalizeSummariesOnRounds, Turn, TurnMessage, TurnStatus } from '../../common/conversation';
 import { ToolCallRound } from '../../common/toolCallRound';
 
 describe('Turn', () => {
@@ -155,5 +155,24 @@ describe('Turn', () => {
 			expect(turn1.rounds[0].summary).to.equal('summary');
 			expect(turn2.rounds[0].summary).to.equal(undefined);
 		});
+	});
+});
+
+describe('getUnavailableHistoryImageSourceHashes', () => {
+	it('deduplicates hashes restored from turn result metadata', () => {
+		const first = new Turn('1', { type: 'user', message: 'first' });
+		first.setResponse(TurnStatus.Success, { type: 'model', message: 'response' }, undefined, {
+			metadata: { unavailableHistoryImageSourceHashes: ['old-image', 'shared-image'] },
+		});
+		const second = new Turn('2', { type: 'user', message: 'second' });
+		second.setResponse(TurnStatus.Success, { type: 'model', message: 'response' }, undefined, {
+			metadata: { unavailableHistoryImageSourceHashes: ['shared-image', 'other-image'] },
+		});
+
+		expect(getUnavailableHistoryImageSourceHashes([first, second])).toEqual([
+			'old-image',
+			'shared-image',
+			'other-image',
+		]);
 	});
 });

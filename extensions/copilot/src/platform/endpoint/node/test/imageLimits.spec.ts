@@ -5,7 +5,7 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, it } from 'vitest';
-import { filterHistoryImages } from '../imageLimits';
+import { filterHistoryImages, getHistoryImageSourceHashes, omitHistoryImages } from '../imageLimits';
 
 const createUserImageMessage = (imageCount: number = 1): Raw.ChatMessage => ({
 	role: Raw.ChatRole.User,
@@ -142,5 +142,53 @@ describe('filterHistoryImages', () => {
 		// Total = 2 images, within limit of 2 → returned unchanged.
 		const filtered = filterHistoryImages(messages, 2);
 		expect(filtered).toBe(messages);
+	});
+});
+
+describe('omitHistoryImages', () => {
+	it('replaces every historical image while preserving current-turn images', () => {
+		const messages = [
+			createUserImageMessage(),
+			createAssistantMessage(),
+			createToolImageMessage(),
+			createUserImageMessage(2),
+		];
+
+		const filtered = omitHistoryImages(messages);
+
+		expect({
+			historyImages: countImages(filtered.slice(0, -1)),
+			currentTurnImages: countImages(filtered.slice(-1)),
+			originalImages: countImages(messages),
+		}).toEqual({
+			historyImages: 0,
+			currentTurnImages: 2,
+			originalImages: 4,
+		});
+	});
+
+	it('returns the original array when history has no images', () => {
+		const messages = [createAssistantMessage(), createUserImageMessage()];
+		expect(omitHistoryImages(messages)).toBe(messages);
+	});
+
+	it('omits only unavailable image sources', () => {
+		const messages = [
+			createUserImageMessage(),
+			createAssistantMessage(),
+			createToolImageMessage(),
+			createUserImageMessage(),
+		];
+		const unavailableHashes = new Set(getHistoryImageSourceHashes(messages.slice(0, 2).concat(messages.slice(-1))));
+
+		const filtered = omitHistoryImages(messages, unavailableHashes);
+
+		expect({
+			historyImages: countImages(filtered.slice(0, -1)),
+			currentTurnImages: countImages(filtered.slice(-1)),
+		}).toEqual({
+			historyImages: 1,
+			currentTurnImages: 1,
+		});
 	});
 });

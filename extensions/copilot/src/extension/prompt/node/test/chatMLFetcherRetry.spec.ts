@@ -20,8 +20,8 @@ import { MockCAPIClientService } from '../../../../platform/ignore/node/test/moc
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
 import { FinishedCallback } from '../../../../platform/networking/common/fetch';
 import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
-import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
+import { CAPIWebSocketErrorEvent, IChatWebSocketConnection, IChatWebSocketManager, IChatWebSocketRequestHandle, IChatWebSocketRequestOptions, NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -45,6 +45,10 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	let configurationService: InMemoryConfigurationService;
 	let cancellationTokenSource: CancellationTokenSource;
 	let endpoint: IChatEndpoint;
+	let logService: TestLogService;
+	let telemetryService: NullTelemetryService;
+	let experimentationService: NullExperimentationService;
+	let requestMessages: Raw.ChatMessage[][];
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -55,13 +59,18 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		configurationService.setConfig(ConfigKey.TeamInternal.RetryServerErrorStatusCodes, '500,502');
 		configurationService.setConfig(ConfigKey.TeamInternal.RetryNetworkErrors, true);
 
-		const logService = new TestLogService();
-		const telemetryService = new NullTelemetryService();
-		const experimentationService = new NullExperimentationService();
+		logService = new TestLogService();
+		telemetryService = new NullTelemetryService();
+		experimentationService = new NullExperimentationService();
 
-		endpoint = createMockEndpoint();
+		requestMessages = [];
+		endpoint = createMockEndpoint(messages => requestMessages.push(messages));
 
-		fetcher = new ChatMLFetcherImpl(
+		fetcher = createFetcher(new NullChatWebSocketManager());
+	});
+
+	function createFetcher(webSocketManager: IChatWebSocketManager): ChatMLFetcherImpl {
+		const result = new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			telemetryService,
 			new NullRequestLogger(),
@@ -77,15 +86,16 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			new InstantiationServiceBuilder([
 				[IFetcherService, mockFetcherService as unknown as IFetcherService],
 				[ITelemetryService, telemetryService],
+				[ILogService, logService],
 				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
 			]).seal() as unknown as IInstantiationService,
-			new NullChatWebSocketManager(),
+			webSocketManager,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 		);
 
-		// Skip delays in tests for faster execution
-		fetcher.connectivityCheckDelays = [0, 0, 0];
-	});
+		result.connectivityCheckDelays = [0, 0, 0];
+		return result;
+	}
 
 	afterEach(() => {
 		disposables.dispose();
@@ -104,6 +114,134 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	}
 
 	describe('server error retry with configured status codes', () => {
+		it('recovers a conversation by omitting inaccessible history images from later requests', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(400, 'Bad Request', {
+				code: 'vision_attachment_not_accessible',
+				message: 'The image could not be accessed.',
+			}));
+			mockFetcherService.queueResponse(createSuccessResponse('Recovered'));
+			mockFetcherService.queueResponse(createSuccessResponse('Continued'));
+			const firstOptions = createBaseOpts();
+			firstOptions.conversationId = 'conversation-1';
+			firstOptions.messages = createMessagesWithHistoryImage('Continue without the old image.');
+
+			const recovered = await fetcher.fetchMany(firstOptions, cancellationTokenSource.token);
+			const nextOptions = createBaseOpts();
+			nextOptions.conversationId = 'conversation-1';
+			nextOptions.unavailableHistoryImageSourceHashes = recovered.type === ChatFetchResponseType.Success ? recovered.unavailableHistoryImageSourceHashes : undefined;
+			nextOptions.messages = createMessagesWithOldAndNewHistoryImages('Continue again.');
+			const continued = await fetcher.fetchMany(nextOptions, cancellationTokenSource.token);
+
+			expect({
+				recovered: recovered.type,
+				continued: continued.type,
+				requestImageCounts: requestMessages.map(countMessageImages),
+				fetchCallCount: mockFetcherService.fetchCallCount,
+			}).toEqual({
+				recovered: ChatFetchResponseType.Success,
+				continued: ChatFetchResponseType.Success,
+				requestImageCounts: [1, 0, 1],
+				fetchCallCount: 3,
+			});
+		});
+
+		it('retains unavailable history hashes when the clean recovery request fails', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(400, 'Bad Request', {
+				code: 'vision_attachment_not_accessible',
+				message: 'The image could not be accessed.',
+			}));
+			mockFetcherService.queueResponse(createErrorResponse(500, 'Internal Server Error'));
+			const options = createBaseOpts();
+			options.conversationId = 'conversation-1';
+			options.messages = createMessagesWithHistoryImage('Continue without the old image.');
+
+			const result = await fetcher.fetchMany(options, cancellationTokenSource.token);
+
+			expect({
+				type: result.type,
+				hashCount: result.unavailableHistoryImageSourceHashes?.length,
+				requestImageCounts: requestMessages.map(countMessageImages),
+				fetchCallCount: mockFetcherService.fetchCallCount,
+			}).toEqual({
+				type: ChatFetchResponseType.Failed,
+				hashCount: 1,
+				requestImageCounts: [1, 0],
+				fetchCallCount: 2,
+			});
+		});
+
+		it('recovers a WebSocket conversation without replaying inaccessible history images', async () => {
+			const webSocketManager = new TestChatWebSocketManager({
+				type: 'error',
+				error: {
+					code: 'vision_attachment_not_accessible',
+					message: 'The image could not be accessed.',
+				},
+			});
+			fetcher = createFetcher(webSocketManager);
+			mockFetcherService.queueResponse(createSuccessResponse('Recovered'));
+			const options = createBaseOpts();
+			options.useWebSocket = true;
+			options.turnId = 'turn-1';
+			options.conversationId = 'conversation-1';
+			options.messages = createMessagesWithHistoryImage('Continue without the old image.');
+
+			const result = await fetcher.fetchMany(options, cancellationTokenSource.token);
+
+			expect({
+				type: result.type,
+				requestImageCounts: requestMessages.map(countMessageImages),
+				httpFetchCallCount: mockFetcherService.fetchCallCount,
+				closedConnections: webSocketManager.closedConnections,
+			}).toEqual({
+				type: ChatFetchResponseType.Success,
+				requestImageCounts: [1, 0],
+				httpFetchCallCount: 1,
+				closedConnections: [{ conversationId: 'conversation-1', connectionId: undefined }],
+			});
+		});
+
+		it('classifies an inaccessible vision attachment from WebSocket without HTTP fallback', async () => {
+			const webSocketManager = new TestChatWebSocketManager({
+				type: 'error',
+				error: {
+					code: 'vision_attachment_not_accessible',
+					message: 'The image could not be accessed.',
+				},
+			});
+			fetcher = createFetcher(webSocketManager);
+			mockFetcherService.queueResponse(createSuccessResponse('{}'));
+			mockFetcherService.queueResponse(createErrorResponse(400, 'Bad Request', {
+				code: 'vision_attachment_not_accessible',
+				message: 'The image could not be accessed.',
+			}));
+			const options = createBaseOpts();
+			options.useWebSocket = true;
+			options.turnId = 'turn-1';
+			options.conversationId = 'conversation-1';
+
+			const result = await fetcher.fetchMany(options, cancellationTokenSource.token);
+
+			expect({ type: result.type, httpFetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.BadRequest,
+				httpFetchCallCount: 0,
+			});
+		});
+
+		it('classifies an inaccessible vision attachment as a bad request without retrying', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(400, 'Bad Request', {
+				code: 'vision_attachment_not_accessible',
+				message: 'The image could not be accessed.',
+			}));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({ type: result.type, fetchCallCount: mockFetcherService.fetchCallCount }).toEqual({
+				type: ChatFetchResponseType.BadRequest,
+				fetchCallCount: 1,
+			});
+		});
+
 		it('retries on 500 status code when configured', async () => {
 			// Order: 1) initial fetch → 500, 2) connectivity check → 200, 3) retry → success
 			mockFetcherService.queueResponse(createErrorResponse(500, 'Internal Server Error'));
@@ -363,6 +501,52 @@ describe('ChatMLFetcherImpl retry logic', () => {
 
 // --- Test Helpers ---
 
+class TestChatWebSocketManager implements IChatWebSocketManager {
+	declare readonly _serviceBrand: undefined;
+	readonly closedConnections: { conversationId: string; connectionId: string | undefined }[] = [];
+
+	constructor(private readonly event: CAPIWebSocketErrorEvent) { }
+
+	getOrCreateConnection(): IChatWebSocketConnection {
+		return new TestChatWebSocketConnection(this.event);
+	}
+
+	hasActiveConnection(): boolean { return false; }
+	getStatefulMarker(): string | undefined { return undefined; }
+	getSummarizedAtRoundId(): string | undefined { return undefined; }
+	closeConnection(conversationId: string, connectionId?: string): void {
+		this.closedConnections.push({ conversationId, connectionId });
+	}
+	closeAll(): void { }
+}
+
+class TestChatWebSocketConnection implements IChatWebSocketConnection {
+	readonly isOpen = true;
+	readonly responseHeaders = new FakeHeaders();
+	readonly responseStatusCode = 101;
+	readonly responseStatusText = 'Switching Protocols';
+	readonly gitHubRequestId = 'test-websocket-request-id';
+	readonly statefulMarker = undefined;
+
+	constructor(private readonly event: CAPIWebSocketErrorEvent) { }
+
+	connect(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	sendRequest(_body: IEndpointBody, _options: IChatWebSocketRequestOptions, _token: CancellationToken): IChatWebSocketRequestHandle {
+		return {
+			onEvent: Event.None,
+			onCAPIError: Event.None,
+			onError: Event.None,
+			firstEvent: Promise.resolve(this.event),
+			done: Promise.resolve(),
+		};
+	}
+
+	dispose(): void { }
+}
+
 /**
  * Mock fetcher service that queues responses for testing retry logic.
  */
@@ -473,7 +657,7 @@ function createMockInteractionService(): IInteractionService {
 	} as unknown as IInteractionService;
 }
 
-function createMockEndpoint(): IChatEndpoint {
+function createMockEndpoint(onMessages: (messages: Raw.ChatMessage[]) => void = () => { }): IChatEndpoint {
 	return {
 		url: 'https://api.github.com/copilot/chat/completions',
 		urlOrRequestMetadata: 'https://api.github.com/copilot/chat/completions',
@@ -488,11 +672,14 @@ function createMockEndpoint(): IChatEndpoint {
 		isFallback: false,
 		policy: 'enabled',
 		getHeaders: async () => ({}),
-		createRequestBody: () => ({
-			model: 'test-model',
-			messages: [],
-			stream: true
-		}),
+		createRequestBody: (options: Parameters<IChatEndpoint['createRequestBody']>[0]) => {
+			onMessages(options.messages);
+			return {
+				model: 'test-model',
+				messages: options.messages,
+				stream: true
+			};
+		},
 		acquireTokenizer: () => ({
 			countMessagesTokens: async () => 100,
 			countTokens: async () => 100,
@@ -533,6 +720,40 @@ function createMockEndpoint(): IChatEndpoint {
 			throw new Error('Not implemented');
 		},
 	} as unknown as IChatEndpoint;
+}
+
+function createHistoryImageMessage(text: string, source: string): Raw.ChatMessage {
+	return {
+		role: Raw.ChatRole.User,
+		content: [
+			{ type: Raw.ChatCompletionContentPartKind.Text, text },
+			{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: source } },
+		],
+	};
+}
+
+function createMessagesWithHistoryImage(currentText: string): Raw.ChatMessage[] {
+	return [
+		createHistoryImageMessage('Describe this image.', 'https://example.test/unavailable-image'),
+		{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Description.' }] },
+		{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: currentText }] },
+	];
+}
+
+function createMessagesWithOldAndNewHistoryImages(currentText: string): Raw.ChatMessage[] {
+	return [
+		createHistoryImageMessage('Describe the old image.', 'https://example.test/unavailable-image'),
+		{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Old description.' }] },
+		createHistoryImageMessage('Describe the new image.', 'https://example.test/available-image'),
+		{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'New description.' }] },
+		{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: currentText }] },
+	];
+}
+
+function countMessageImages(messages: Raw.ChatMessage[]): number {
+	return messages.reduce((count, message) => count + (Array.isArray(message.content)
+		? message.content.filter(part => part.type === Raw.ChatCompletionContentPartKind.Image).length
+		: 0), 0);
 }
 
 function createMockChatQuotaService(): IChatQuotaService {
@@ -582,12 +803,12 @@ function createSuccessResponse(content: string): Response {
 	);
 }
 
-function createErrorResponse(status: number, statusText: string): Response {
+function createErrorResponse(status: number, statusText: string, error: { code: string; message: string } = { code: 'error', message: statusText }): Response {
 	return Response.fromText(
 		status,
 		statusText,
 		new FakeHeaders(),
-		JSON.stringify({ error: { message: statusText } }),
+		JSON.stringify({ error }),
 		'node-fetch'
 	);
 }
