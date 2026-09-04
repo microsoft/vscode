@@ -540,3 +540,19 @@ pre.frontmatter {
 	background: transparent;
 	padding: 0;
 }
+
+/* Task list */
+.contains-task-list {
+	padding-left: 1.5em;
+	list-style-type: none;
+}
+
+/* Intentionally redundant: `disabled` prevents form submission; `pointer-events: none`
+   prevents hover/click cursors in the webview even if a future refactor drops `disabled`.
+   Both are needed for a reliably read-only preview. */
+.task-list-item-checkbox {
+	margin: 0 0.2em 0.25em -1.4em;
+	vertical-align: middle;
+	pointer-events: none;
+}
+
