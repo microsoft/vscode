@@ -24,6 +24,7 @@ import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -698,11 +699,11 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 	return service;
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean }) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
-	const sourceChat = buildDefaultChatUri(session);
+	const sourceChat = options?.sourceIsToolChat ? buildSubagentChatUri(session, 'source-tool') : buildDefaultChatUri(session);
 	const sideChat = buildChatUri(session, 'side');
 	stateManager.createSession({
 		resource: session,
@@ -712,6 +713,12 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 	});
+	if (options?.sourceIsToolChat) {
+		stateManager.addChat(session, sourceChat, {
+			title: 'Source Tool',
+			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'source-tool' },
+		});
+	}
 	stateManager.addChat(session, sideChat, {
 		title: 'Side Chat',
 		origin: {
@@ -1549,7 +1556,11 @@ suite('AgentHostChatContributions', () => {
 
 	test('skips rejected session flags while persisting config values', async () => {
 		const contributions = createBuiltInContributions(disposables);
-		const config = { mode: 'plan', autoApprove: 'default' };
+		const config = {
+			mode: 'plan',
+			autoApprove: 'default',
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+		};
 		contributions.stateManager.setSessionConfig(contributions.session, {
 			schema: { type: 'object', properties: {} },
 			values: config,
@@ -1566,7 +1577,7 @@ suite('AgentHostChatContributions', () => {
 		}, {
 			isRead: undefined,
 			isArchived: undefined,
-			configValues: JSON.stringify(config),
+			configValues: JSON.stringify({ mode: 'plan', autoApprove: 'default' }),
 		});
 	});
 
@@ -1813,6 +1824,60 @@ suite('AgentHostChatContributions', () => {
 			firstMessage: injectSideChatContext('side question', undefined, undefined, 'MOONVALE99'),
 			laterMessage: 'follow up',
 		});
+	});
+
+	test('includes source transcript for a completed tool-origin side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables, undefined, 'selected text', { sourceIsToolChat: true });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'source question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-turn',
+			duration: 1,
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question', 'selected text'));
+	});
+
+	test('keeps completed turns before an active tool-origin side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables, undefined, undefined, { sourceIsToolChat: true });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'completed-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'completed question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'completed-turn',
+			duration: 1,
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:01.000Z',
+			message: { text: 'active question', origin: { kind: MessageKind.User } },
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\ncompleted question\n\n---\n\nUser request:\nactive question'));
 	});
 
 	test('includes source transcript for an active side-chat source turn', async () => {

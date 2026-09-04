@@ -10,13 +10,14 @@ import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../ba
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri, buildTurnChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import {
 	buildDefaultChatUri,
 	ChangesetStatus,
 	FileEditKind,
+	readSessionEhcliLastMigratedTurn,
 	ResponsePartKind,
 	StateComponents,
 	ToolCallStatus,
@@ -31,7 +32,7 @@ import {
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesProvider, IChatResponseFileEdit } from '../../chatResponseFileChangesService.js';
 
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
 const REQUEST_CACHE_CAPACITY = 1000;
@@ -40,7 +41,14 @@ const REQUEST_CACHE_CAPACITY = 1000;
  * Where a turn's diffs came from, for tracing. `retained` means every source
  * was momentarily empty and the previous result was kept instead.
  */
-type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'retained';
+type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'branchFallback' | 'retained';
+
+interface IResponseFileEdits {
+	readonly diffs: readonly IChatResponseFileEdit[];
+	readonly hasValidEdits: boolean;
+}
+
+const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false };
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -60,6 +68,36 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 		edits.push(...(toolCall.edits?.items ?? []));
 	}
 	return edits;
+}
+
+/** Maps one Agent Host changeset file into the diff shape used by chat editors. */
+export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+	const normalized = normalizeFileEdit(file.edit);
+	if (!normalized) {
+		return undefined;
+	}
+
+	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
+	const originalURI = normalized.beforeContentUri
+		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority)
+		: modifiedURI;
+	const modifiedSnapshotURI = normalized.afterContentUri
+		? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority)
+		: undefined;
+
+	return {
+		originalURI,
+		modifiedURI,
+		modifiedSnapshotURI,
+		isCreated: normalized.kind === FileEditKind.Create,
+		isDeleted: normalized.kind === FileEditKind.Delete,
+		added: file.edit.diff?.added ?? 0,
+		removed: file.edit.diff?.removed ?? 0,
+		quitEarly: false,
+		identical: false,
+		isFinal: true,
+		isBusy: false,
+	};
 }
 
 /**
@@ -121,7 +159,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
-			obs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+			const fileEdits = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+			obs = derived(reader => fileEdits.read(reader).diffs);
 			this._perRequestFileEdits.set(key, obs);
 		}
 		return obs;
@@ -148,6 +187,13 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);
 		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+		// Migrated legacy Copilot CLI sessions have no per-turn checkpoints, so
+		// their turn changeset is always empty even when the session committed
+		// real work on its branch. Fall back to the session-wide branch changeset
+		// (the same source the Agents window shows) so those changes surface in
+		// the chat editor too. Strictly scoped to adopted sessions' latest turn,
+		// so native sessions and earlier turns are completely unaffected (#333642).
+		const branchFallbackObs = this._createBranchFallbackDiffsObservable(backendSession, requestId);
 
 		let lastSource: TurnDiffSource | undefined;
 		const select = (source: TurnDiffSource, diffs: readonly IEditSessionEntryDiff[], status?: ChangesetStatus): readonly IEditSessionEntryDiff[] => {
@@ -163,30 +209,85 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// before anything has been shown.
 		return derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const retained = lastValue ?? [];
-			if (!turnChangesetUriObs.read(reader)) {
-				return select('unsupported', retained);
-			}
 
-			const changesetState = changesetStateObs.read(reader).read(reader);
+			const turnUri = turnChangesetUriObs.read(reader);
+			const changesetState = turnUri ? changesetStateObs.read(reader).read(reader) : undefined;
 			const changeset = changesetState instanceof Error ? undefined : changesetState;
 			const changesetDiffs = changeset?.files
-				.map(file => this._changesetFileToEntryDiff(file))
+				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
 				.filter(isDefined);
+			// A non-empty per-turn changeset is always authoritative (e.g. a turn
+			// added after migration, which does have checkpoints), so it takes
+			// precedence over the branch fallback.
 			if (changesetDiffs?.length) {
 				return select('changeset', changesetDiffs, changeset?.status);
 			}
-			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
-				return select('authoritativeEmpty', [], changeset.status);
+
+			// The per-turn sources produced nothing. For a migrated session's
+			// latest turn the session-wide branch changeset carries the committed
+			// work; `branchFallbackObs` is empty for every non-adopted case, so the
+			// remaining branches below stay byte-for-byte identical for native
+			// sessions.
+			const branchDiffs = branchFallbackObs.read(reader);
+			if (branchDiffs.length) {
+				return select('branchFallback', branchDiffs, changeset?.status);
 			}
 
-			const responseDiffs = responseFileEditsObs.read(reader);
-			return responseDiffs.length
-				? select('response', responseDiffs, changeset?.status)
+			if (!turnUri) {
+				return select('unsupported', retained);
+			}
+			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
+				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset.status);
+			}
+
+			const responseFileEdits = responseFileEditsObs.read(reader);
+			return responseFileEdits.hasValidEdits
+				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset?.status)
 				: select('retained', retained, changeset?.status);
 		});
 	}
 
-	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IChatResponseFileEdit[]> {
+	/**
+	 * The session-wide branch changeset, exposed as a per-turn fallback but only
+	 * for the specific turn recorded as an adopted legacy Copilot CLI session's
+	 * final migrated turn. That turn has no per-turn checkpoint, so without this
+	 * its committed-on-branch work never appears in the chat editor (#333642).
+	 * Every other case — native sessions, earlier turns, and any turn added after
+	 * adoption (which has its own real per-turn changeset) — yields an empty list,
+	 * so this never alters the changes shown for those turns.
+	 */
+	private _createBranchFallbackDiffsObservable(backendSession: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
+
+		const branchChangesetUriObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
+			const sessionState = sessionStateObs.read(reader).read(reader);
+			if (!sessionState || sessionState instanceof Error) {
+				return undefined;
+			}
+			// Gate on the durable migration boundary rather than "latest turn": a
+			// post-adoption no-op turn is also an authoritatively-empty latest turn,
+			// and must show its own (empty) changes, not the historical aggregate.
+			if (readSessionEhcliLastMigratedTurn(sessionState._meta) !== requestId) {
+				return undefined;
+			}
+			return URI.parse(buildBranchChangesetUri(backendSession.toString()));
+		});
+
+		const branchChangesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, branchChangesetUriObs);
+
+		return derived(reader => {
+			if (!branchChangesetUriObs.read(reader)) {
+				return [];
+			}
+			const state = branchChangesetStateObs.read(reader).read(reader);
+			const changeset = state instanceof Error ? undefined : state;
+			return changeset?.files
+				.map(file => agentHostChangesetFileToEntryDiff(file, this._connectionAuthority))
+				.filter(isDefined) ?? [];
+		});
+	}
+
+	private _createFileEditDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<IResponseFileEdits> {
 		const sessionStateObs = this._subscribe<SessionState>(StateComponents.Session, constObservable(backendSession));
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 
@@ -238,7 +339,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					return this._responsePartsToEntryDiffs(turn.responseParts, workspaceRoots);
 				}
 			}
-			return [];
+			return EMPTY_RESPONSE_FILE_EDITS;
 		});
 	}
 
@@ -260,8 +361,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		});
 	}
 
-	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IChatResponseFileEdit[] {
+	private _responsePartsToEntryDiffs(responseParts: readonly ResponsePart[], workspaceRoots: readonly URI[]): IResponseFileEdits {
 		const byUri = new Map<string, IChatResponseFileEdit>();
+		let hasValidEdits = false;
 		for (const responsePart of responseParts) {
 			if (responsePart.kind !== ResponsePartKind.ToolCall) {
 				continue;
@@ -271,27 +373,35 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				if (!diff) {
 					continue;
 				}
+				hasValidEdits = true;
 				const key = getComparisonKey(diff.modifiedURI);
 				const existing = byUri.get(key);
 				if (existing) {
 					existing.added += diff.added;
 					existing.removed += diff.removed;
+					existing.modifiedURI = diff.modifiedURI;
+					existing.modifiedSnapshotURI = diff.modifiedSnapshotURI;
+					existing.isDeleted = diff.isDeleted;
+					// A file created and then deleted within the turn has no net diff to present.
+					if (existing.isCreated && existing.isDeleted) {
+						byUri.delete(key);
+					}
 				} else {
 					byUri.set(key, diff);
 				}
 			}
 		}
-		return [...byUri.values()];
+		return { diffs: [...byUri.values()], hasValidEdits };
 	}
 
 	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {
 		const normalized = normalizeFileEdit(fileEdit);
-		if (!normalized || !normalized.afterUri) {
+		if (!normalized) {
 			return undefined;
 		}
-		const afterUri = normalized.afterUri;
+		const resource = normalized.resource;
 
-		const modifiedURI = toAgentHostUri(afterUri, this._connectionAuthority);
+		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
 			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority);
@@ -303,52 +413,16 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			originalURI,
 			modifiedURI,
 			modifiedSnapshotURI,
+			isCreated: normalized.kind === FileEditKind.Create,
+			isDeleted: normalized.kind === FileEditKind.Delete,
 			added: fileEdit.diff?.added ?? 0,
 			removed: fileEdit.diff?.removed ?? 0,
 			quitEarly: false,
 			identical: false,
 			isFinal: true,
 			isBusy: false,
-			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(afterUri, root)),
+			isOutsideWorkspace: !workspaceRoots.some(root => isEqualOrParent(resource, root)),
 		};
 	}
 
-	private _changesetFileToEntryDiff(file: ChangesetFile): IEditSessionEntryDiff | undefined {
-		const normalized = normalizeFileEdit(file.edit);
-		if (!normalized) {
-			return undefined;
-		}
-
-		const modifiedURI = toAgentHostUri(normalized.resource, this._connectionAuthority);
-		// For creates there is no before-content; fall back to the modified URI
-		// so the entry still resolves. The collapsed summary uses the
-		// server-provided counts below, so its +/- numbers stay correct
-		// regardless; only an explicitly-opened diff of a created file shows no
-		// delta.
-		const originalURI = normalized.beforeContentUri
-			? toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority)
-			: modifiedURI;
-
-		// The frozen after-turn snapshot, when the changeset provides one. Lets
-		// consumers show this turn's diff (before-snapshot -> after-snapshot)
-		// rather than before-snapshot -> live file (which includes later turns).
-		// Distinct from the checkpoint-ref readability fix (#323932): that made
-		// these blobs readable; this line decides *which* snapshot to diff against.
-		const modifiedSnapshotURI = normalized.afterContentUri
-			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority)
-			: undefined;
-
-		return {
-			originalURI,
-			modifiedURI,
-			modifiedSnapshotURI,
-			isDeleted: normalized.kind === FileEditKind.Delete,
-			added: file.edit.diff?.added ?? 0,
-			removed: file.edit.diff?.removed ?? 0,
-			quitEarly: false,
-			identical: false,
-			isFinal: true,
-			isBusy: false,
-		};
-	}
 }

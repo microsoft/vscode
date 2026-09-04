@@ -18,6 +18,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
+	MessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
@@ -37,7 +38,7 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
-	type AutomationCatalogState,
+	type AutomationState,
 	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
@@ -76,7 +77,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type AutomationCatalogState, type AutomationRunState,
+	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
 	type SessionModelInfo,
 	type SessionState,
@@ -249,18 +250,23 @@ export interface UsageInfoMeta {
 
 /**
  * Singleton channel containing the host-owned automation catalogue.
- *
- * The `catalog` authority is appended so the URI round-trips through
- * `.toString()`. Without an authority, `ahp-automations://` serializes back to
- * `ahp-automations:` and no longer matches. Comparing catalogue channels as
- * URIs everywhere (ResourceMap/isEqual) is the intended followup. See
- * https://github.com/microsoft/vscode/pull/331796#discussion_r3857160917.
  */
-export const AUTOMATION_CATALOG_URI = 'ahp-automations://catalog';
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
 
-/** Returns whether `uri` identifies the singleton automation catalogue channel. */
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
 export function isAhpAutomationCatalogChannel(uri: string): boolean {
-	return uri === AUTOMATION_CATALOG_URI;
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
 }
 
 /** Returns whether `uri` identifies one automation-run channel. */
@@ -274,17 +280,27 @@ export function isAhpAutomationRunChannel(uri: string): boolean {
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
 
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean } {
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean } {
 	const meta = message._meta;
+	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
 	return {
-		hiddenFromTranscript: meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true,
+		hiddenFromTranscript,
+		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
 	};
 }
 
 export function isMessageHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).hiddenFromTranscript
-		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
+	return readMessageMeta(message).hiddenFromTranscript;
+}
+
+/** Whether only the message's request row is hidden while its response remains visible. */
+export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
+	return readMessageMeta(message).requestHiddenFromTranscript;
 }
 
 export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
@@ -299,6 +315,48 @@ export function withMessageHiddenFromTranscript(message: Message, hidden: boolea
 			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
 		},
 	};
+}
+
+/** Marks only the message's request row as hidden while preserving its response. */
+export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
+	if (!hidden || isMessageHiddenFromTranscript(message)) {
+		return message;
+	}
+	return {
+		...message,
+		text: message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
+		_meta: {
+			...message._meta,
+			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
+/**
+ * Whether `turn` is a hidden system notification the host appended purely to
+ * carry a message (e.g. an Agent Merge status change). It never reaches the
+ * provider and never captures a checkpoint, so it can never own file changes
+ * and must be skipped when resolving a "last turn" for per-turn changes.
+ *
+ * A *visible* system notification (a background-agent completion, an Agent
+ * Merge repair prompt) is a real turn and is deliberately not matched.
+ */
+export function isHostNoticeTurn(turn: { readonly message: Message }): boolean {
+	return turn.message.origin.kind === MessageKind.SystemNotification
+		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message));
+}
+
+/** Returns the last turn id that can own file changes, or `undefined` if there is none. */
+export function lastAttributableTurnId(turns: readonly { readonly id: string; readonly message: Message }[] | undefined): string | undefined {
+	if (!turns) {
+		return undefined;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (!isHostNoticeTurn(turns[i])) {
+			return turns[i].id;
+		}
+	}
+	return undefined;
 }
 
 /** Whole-turn token consumption attributed to a single model. */
@@ -1068,7 +1126,7 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
-	[StateComponents.AutomationCatalog]: AutomationCatalogState;
+	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
@@ -1604,6 +1662,10 @@ export interface ISessionGitHubState {
 	readonly initialPullRequestUrls?: readonly string[];
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
 	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
@@ -1658,10 +1720,15 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 		pullRequestUrl,
 		...(gitHubState?.pullRequestUrls ?? [])
 	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
 
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
 	};
 }
 
@@ -1794,6 +1861,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1816,6 +1885,10 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
+	if (raw['pullRequestState'] === 'open' || raw['pullRequestState'] === 'closed' || raw['pullRequestState'] === 'merged') {
+		result.pullRequestState = raw['pullRequestState'];
+	}
+	if (typeof raw['pullRequestStateUrl'] === 'string') { result.pullRequestStateUrl = raw['pullRequestStateUrl']; }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
@@ -2040,6 +2113,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
 }
 
 /**

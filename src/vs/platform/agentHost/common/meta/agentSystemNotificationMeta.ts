@@ -5,10 +5,20 @@
 
 export const enum AgentSystemNotificationKind {
 	WorktreeCreationFailure = 'worktreeCreationFailure',
+	/** An automatic approval review did not finish before its deadline. */
+	AutomaticApprovalReviewTimedOut = 'automaticApprovalReviewTimedOut',
+	/** An automatic approval review stopped before reaching a decision. */
+	AutomaticApprovalReviewAborted = 'automaticApprovalReviewAborted',
+	/** Automatic approval review denials triggered the turn circuit breaker. */
+	AutomaticApprovalReviewInterrupted = 'automaticApprovalReviewInterrupted',
 	/** Agent Merge started monitoring the session's branch. */
 	AgentMergeEnabled = 'agentMergeEnabled',
+	/** Effective Agent Merge behavior changed while monitoring. */
+	AgentMergeConfigurationChanged = 'agentMergeConfigurationChanged',
 	/** Agent Merge stopped monitoring the session, usually on its own. */
 	AgentMergeDisabled = 'agentMergeDisabled',
+	/** Agent Merge merged the pull request it was monitoring. */
+	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
 }
 
 export const enum AgentSystemNotificationSeverity {
@@ -17,8 +27,13 @@ export const enum AgentSystemNotificationSeverity {
 
 const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.WorktreeCreationFailure,
+	AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut,
+	AgentSystemNotificationKind.AutomaticApprovalReviewAborted,
+	AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted,
 	AgentSystemNotificationKind.AgentMergeEnabled,
+	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
+	AgentSystemNotificationKind.AgentMergePullRequestMerged,
 ]);
 
 interface IHasSystemNotificationMeta {

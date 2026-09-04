@@ -19,7 +19,6 @@ export const Menus = {
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
 	TitleBarAccessibility: new MenuId('SessionsTitleBarAccessibility'),
-	TitleBarUpdate: new MenuId('SessionsTitleBarUpdate'),
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
@@ -63,16 +62,17 @@ export const Menus = {
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
-	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
-
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
-	 * related actions and takes over the button when it applies.
+	 * related actions, takes over the button when it applies, and uses its first
+	 * entry as the primary invocation.
 	 */
 	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
-	/** Agent Merge's own entries, opened as a context menu from its button. */
+	/** Agent Merge entries whose first visible action is invoked by its primary button. */
 	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Per-session Agent Merge configuration. */
+	ChangesAgentMergeConfigure: new MenuId('SessionsChangesAgentMergeConfigure'),
 	/** Choices for when Agent Merge may merge the pull request. */
 	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
 

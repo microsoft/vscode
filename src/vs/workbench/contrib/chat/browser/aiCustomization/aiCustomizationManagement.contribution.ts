@@ -20,6 +20,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -55,6 +56,7 @@ import {
 	AICustomizationManagementOpenEditorTarget,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
+	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
 	resolveAICustomizationManagementOpenEditorTarget,
@@ -222,6 +224,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const editorService = accessor.get(IEditorService);
 		const source = extractSource(context);
 
@@ -291,6 +296,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const fileService = accessor.get(IFileService);
 		const dialogService = accessor.get(IDialogService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -419,6 +427,9 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		if (!hasReadableCustomizationContent(extractURI(context))) {
+			return;
+		}
 		const clipboardService = accessor.get(IClipboardService);
 		const uri = extractURI(context);
 		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
@@ -665,53 +676,55 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Context menu: Disable (shown when builtin item is enabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
-	group: '5_toggle',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+for (const menuId of [AICustomizationManagementItemMenuId, AICustomizationManagementSyntheticItemMenuId]) {
+	// Context menu: Disable (shown when builtin item is enabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable") },
+		group: '5_toggle',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Context menu: Enable (shown when builtin item is disabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
-	group: '5_toggle',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Context menu: Enable (shown when builtin item is disabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable") },
+		group: '5_toggle',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Inline hover: Disable (shown when builtin item is enabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Inline hover: Disable (shown when builtin item is enabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: DISABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('disable', "Disable"), icon: Codicon.eyeClosed },
+		group: 'inline',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, false),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
 
-// Inline hover: Enable (shown when builtin item is disabled)
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
-	group: 'inline',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
-		ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
-	),
-});
+	// Inline hover: Enable (shown when builtin item is disabled)
+	MenuRegistry.appendMenuItem(menuId, {
+		command: { id: ENABLE_AI_CUSTOMIZATION_MGMT_ITEM_ID, title: localize('enable', "Enable"), icon: Codicon.eye },
+		group: 'inline',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_DISABLED_KEY, true),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AICustomizationSources.builtin),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill),
+		),
+	});
+}
 
 //#endregion
 
@@ -802,7 +815,10 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				}
 
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				input.setTargetLabel(harnessService.getActiveDescriptor().label);
+				input.setTargetLabels(
+					harnessService.getActiveDescriptor().label,
+					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+				);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);

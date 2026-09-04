@@ -11,11 +11,13 @@ import { buildAgentMergePrompt, IAgentMergePromptSummary, parseAgentMergePrompt 
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatAgentMergeContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { renderChatWidget } from './chatWidget.fixture.js';
 
 // ============================================================================
 // Sample data
@@ -108,6 +110,7 @@ const markdownThreads: AgentMergePromptContext['reviewThreads'] = [
 ];
 
 const failedChecks = ['Compile / Compile (ubuntu-latest)', 'Linux Unit Tests (Electron)'];
+const fixtureTimestamp = new Date().setHours(15, 33, 0, 0);
 
 function createContext(overrides?: Partial<AgentMergePromptContext>): AgentMergePromptContext {
 	return {
@@ -147,8 +150,8 @@ interface IRenderAgentMergeOptions {
 	readonly summary: IAgentMergePromptSummary;
 	/** Expands the widget by clicking its header, the way a user would. */
 	readonly expanded?: boolean;
-	/** Also expands the nested agent-message disclosure. */
-	readonly agentMessageExpanded?: boolean;
+	/** Shows the agent message instead of the merge details. */
+	readonly agentMessageVisible?: boolean;
 	/** Review thread ids the session mirrored into agent feedback. */
 	readonly mirroredThreadIds?: readonly string[];
 }
@@ -156,6 +159,7 @@ interface IRenderAgentMergeOptions {
 function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtureContext, options: IRenderAgentMergeOptions): void {
 	container.style.width = '640px';
 	container.style.padding = '8px';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 
 	// The widget only looks up mirrors where the Agents window registered the
 	// feedback commands, so a fixture with mirrors registers them for real; the
@@ -178,6 +182,9 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(ICommandService, commandService);
 		},
@@ -189,14 +196,14 @@ function renderAgentMerge({ container, disposableStore, theme }: ComponentFixtur
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	const markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
-	const part = disposableStore.add(instantiationService.createInstance(ChatAgentMergeContentPart, options.summary, sessionResource, markdownRenderer));
+	const part = disposableStore.add(instantiationService.createInstance(ChatAgentMergeContentPart, options.summary, sessionResource, markdownRenderer, fixtureTimestamp));
 	container.appendChild(part.domNode);
 
-	if (options.expanded || options.agentMessageExpanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header')?.click();
+	if (options.expanded) {
+		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-header-disclosure')?.click();
 	}
-	if (options.agentMessageExpanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-header')?.click();
+	if (options.agentMessageVisible) {
+		part.domNode.querySelector<HTMLElement>('.chat-agent-merge-message-toggle')?.click();
 	}
 }
 
@@ -221,6 +228,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	FailingChecks: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
 		render: (ctx) => renderAgentMerge(ctx, {
 			summary: createSummary(['fixCI'], { failedChecks }),
 		}),
@@ -270,7 +278,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderAgentMerge(ctx, {
 			summary: createSummary(['addressReviews', 'fixCI'], { reviewThreads: reviewThreads.slice(0, 1), failedChecks }),
-			agentMessageExpanded: true,
+			agentMessageVisible: true,
 		}),
 	}),
 
@@ -296,6 +304,36 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			summary: createSummary(['addressReviews'], { reviewThreads }),
 			expanded: true,
 			mirroredThreadIds: [reviewThreads[0].id, reviewThreads[2].id],
+		}),
+	}),
+
+	InChat: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderChatWidget(ctx, {
+			width: 720,
+			height: 600,
+			inputVisible: false,
+			messages: [
+				{
+					user: 'Polish the Agent Merge widget',
+					assistant: [{
+						kind: 'markdown',
+						text: 'I updated the widget to make its status easier to scan and keep secondary controls quiet until they are needed.',
+					}],
+				},
+				{
+					user: buildAgentMergePrompt(['addressReviews', 'fixCI'], createContext({
+						reviewThreads: reviewThreads.slice(0, 1),
+						failedChecks,
+					})),
+					isSystemInitiated: true,
+					timestamp: fixtureTimestamp,
+					assistant: [{
+						kind: 'markdown',
+						text: 'I addressed the review feedback and fixed the failing checks. The branch is ready for another review.',
+					}],
+				},
+			],
 		}),
 	}),
 });

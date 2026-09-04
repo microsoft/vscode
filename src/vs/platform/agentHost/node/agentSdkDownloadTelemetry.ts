@@ -5,6 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import type { IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 
 // #region Failure classification
@@ -66,7 +67,7 @@ export function classifyAgentSdkDownloadFailure(error: string | undefined): Agen
 
 // #region Telemetry
 
-interface IAgentSdkDownloadEvent {
+interface IAgentSdkDownloadEvent extends IAgentHostCopilotSkuTelemetry {
 	packageId: string;
 	phase: string;
 	failureReason: string;
@@ -76,7 +77,7 @@ interface IAgentSdkDownloadEvent {
 	totalBytes: number;
 }
 
-type AgentSdkDownloadClassification = {
+type AgentSdkDownloadClassification = IAgentHostCopilotSkuClassification & {
 	packageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which agent SDK was being fetched, e.g. claude or codex.' };
 	phase: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the download started, completed, or failed.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Coarse bucket for a failed download (cancelled, network, filesystem, extract, notConfigured, unsupportedTarget, unknown). Empty unless the phase is failed.' };

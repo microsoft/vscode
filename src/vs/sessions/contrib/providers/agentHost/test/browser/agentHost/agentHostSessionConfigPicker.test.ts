@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -13,9 +15,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -23,16 +27,22 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
+import { IView } from '../../../../../../../workbench/common/views.js';
+import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
+import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
+import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
+import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace } from '../../../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 
 const SESSION_ID = 'local-agent-host:s1';
+const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
 function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main'): ISessionWorkspace {
 	const root = URI.file('/repo');
@@ -81,7 +91,7 @@ function makeRepoConfig(branchValue?: string, isolation: 'folder' | 'worktree' =
 }
 
 /** A config whose Branch property is resolved dynamically (no static `enum`), as the real branch picker is. */
-function makeDynamicBranchConfig(branchValue: string): ResolveSessionConfigResult {
+function makeDynamicBranchConfig(branchValue: string, isolation: 'folder' | 'worktree' = 'worktree'): ResolveSessionConfigResult {
 	return {
 		schema: {
 			type: 'object',
@@ -97,7 +107,7 @@ function makeDynamicBranchConfig(branchValue: string): ResolveSessionConfigResul
 				},
 			},
 		},
-		values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: branchValue },
+		values: { [SessionConfigKey.Isolation]: isolation, [SessionConfigKey.Branch]: branchValue },
 	} as ResolveSessionConfigResult;
 }
 
@@ -122,30 +132,47 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'getSessionConfigCompletions' | 'isDevContainerAvailable' | 'isDevContainerEnabled' | 'setDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerAvailable' | 'isDevContainerEnabled' | 'setDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
 	readonly resolving = observableValue<boolean>('resolving', false);
 	isNew = true;
 	setSessionConfigValueCalls = 0;
+	readonly setSessionConfigValueArguments: { sessionId: string; property: string; value: unknown }[] = [];
 	devContainerEnabled = false;
 	devContainerAvailable = true;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
 
-	constructor(private readonly _emitter: Emitter<string>) {
+	constructor(
+		private readonly _emitter: Emitter<string>,
+		private readonly _onSetSessionConfigValue?: (value: unknown) => void,
+	) {
 		this.onDidChangeSessionConfig = _emitter.event;
 	}
 
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
-	async setSessionConfigValue(): Promise<void> { this.setSessionConfigValueCalls++; }
+	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		this.setSessionConfigValueCalls++;
+		this.setSessionConfigValueArguments.push({ sessionId, property, value });
+		this._onSetSessionConfigValue?.(value);
+		this.config = {
+			...this.config,
+			values: { ...this.config.values, [property]: value },
+		};
+		this._emitter.fire(sessionId);
+	}
+	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
 	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
 	isDevContainerAvailable(): boolean { return this.devContainerAvailable; }
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
-	setDevContainerEnabled(_sessionId: string, enabled: boolean): void { this.devContainerEnabled = enabled; }
+	setDevContainerEnabled(_sessionId: string, enabled: boolean): void {
+		this.devContainerEnabled = enabled;
+		this._emitter.fire(SESSION_ID);
+	}
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -158,6 +185,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 	protected override _shouldRenderProperty(_property: string, _schema: SessionConfigPropertySchema, _isNewSession: boolean): boolean {
 		return true;
+	}
+
+	setSessionConfigValueForTest(provider: FakeProvider, property: string, value: unknown): Promise<void> {
+		return this._setSessionConfigValue(provider as unknown as IAgentHostSessionsProvider, SESSION_ID, property, value);
 	}
 
 	renderTriggerForTest(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown, isReadOnly: boolean): void {
@@ -195,17 +226,23 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
+	readonly events: string[] = [];
 }
 
-function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>) {
+function setupServices(
+	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
+	options?: { devContainerWorktreeEnabled?: boolean },
+	onCheckout?: () => Promise<void>,
+) {
 	const emitter = store.add(new Emitter<string>());
-	const provider = new FakeProvider(emitter);
+	const branchSelectionEvents: string[] = [];
+	const provider = new FakeProvider(emitter, value => branchSelectionEvents.push(`set:${String(value)}`));
 	const actionWidget = new CapturingActionWidgetHolder();
 
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
-		hide: () => { },
+		hide: () => actionWidget.events.push('hide'),
 		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>) => {
 			actionWidget.items = items;
 			actionWidget.delegate = delegate;
@@ -213,15 +250,34 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IConfigurationService, new (class extends mock<IConfigurationService>() { })());
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({
+		[DevContainerWorktreeEnabledSettingId]: options?.devContainerWorktreeEnabled ?? false,
+	}));
 	instantiationService.stub(IDialogService, new (class extends mock<IDialogService>() { })());
 	instantiationService.stub(IStorageService, new (class extends mock<IStorageService>() { })());
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
 		override readonly onDidChangeContext = Event.None;
 	})());
-	instantiationService.stub(IWorkbenchLayoutService, new (class extends mock<IWorkbenchLayoutService>() {
+	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
 		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
 		override readonly mainContainer = document.createElement('div');
+		override readonly isSinglePaneLayoutEnabled = true;
+		override suppressEditorPartAutoVisibility() {
+			actionWidget.events.push('suppressEditorPartAutoVisibility');
+			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
+		}
+	})());
+	instantiationService.stub(ISessionChangesService, new (class extends mock<ISessionChangesService>() {
+		override async openChangesEditor(sessionResource: URI): Promise<undefined> {
+			actionWidget.events.push(`openChangesEditor:${sessionResource.toString()}`);
+			return undefined;
+		}
+	})());
+	instantiationService.stub(IViewsService, new (class extends mock<IViewsService>() {
+		override async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
+			actionWidget.events.push(`openView:${id}:${focus}`);
+			return null;
+		}
 	})());
 	instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -233,12 +289,31 @@ function setupServices(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeake
 
 	const workspaceObs = observableValue<ISessionWorkspace | undefined>('workspace', makeWorkspace(undefined));
 	const workspace: IObservable<ISessionWorkspace | undefined> = workspaceObs;
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', {
-		providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-		sessionId: SESSION_ID,
-		workspace,
-	} as IActiveSession);
-	return { instantiationService, provider, sessionObs, workspaceObs, actionWidget };
+	const checkoutInvocations: { operationId: string; _meta: Record<string, unknown> | undefined }[] = [];
+	const uncommittedChangeset = new class extends mock<ISessionChangeset>() {
+		override readonly id = UNCOMMITTED_CHANGES_CHANGESET_ID;
+		override readonly operations = constObservable([{
+			id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+			label: 'Checkout',
+			scopes: [SessionChangesetOperationScope.Changeset],
+			status: SessionChangesetOperationStatus.Idle,
+		}]);
+		override async invokeOperation(operationId: string, _target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
+			checkoutInvocations.push({ operationId, _meta });
+			branchSelectionEvents.push('checkout');
+			await onCheckout?.();
+		}
+	}();
+	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
+	const activeSession = new class extends mock<IActiveSession>() {
+		override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
+		override readonly sessionId = SESSION_ID;
+		override readonly resource = SESSION_RESOURCE;
+		override readonly workspace = workspace;
+		override readonly changesets = changesetsObs;
+	}();
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	return { instantiationService, provider, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -252,6 +327,33 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		let focusCalls = 0;
+		trigger.focus = () => focusCalls++;
+
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+		const pointerFocusCalls = focusCalls;
+
+		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate!.onHide();
+
+		assert.deepStrictEqual({
+			pointerFocusCalls,
+			keyboardFocusCalls: focusCalls,
+		}, {
+			pointerFocusCalls: 1,
+			keyboardFocusCalls: 2,
+		});
+	});
 
 	test('places mode immediately before approvals in secondary toolbars', () => {
 		const summarize = (menu: MenuId, ids: readonly string[]) => MenuRegistry.getMenuItems(menu)
@@ -295,7 +397,13 @@ suite('Agent Host Session Config Picker', () => {
 	test('picker action view items expose responsive compact state', () => {
 		let pickerAnchor: HTMLElement | undefined;
 		const item = store.add(new PickerActionViewItem({
-			render: () => { },
+			render: container => {
+				const trigger = document.createElement('a');
+				trigger.classList.add('action-label');
+				trigger.tabIndex = 0;
+				container.appendChild(trigger);
+				return trigger;
+			},
 			showPicker: anchor => {
 				pickerAnchor = anchor;
 				return true;
@@ -303,24 +411,76 @@ suite('Agent Host Session Config Picker', () => {
 			dispose: () => { },
 		}));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 		const overflowAnchor = document.createElement('button');
 		item.render(container);
+		item.setFocusable(true);
+		item.focus();
 		const expanded = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
 		};
 
 		item.setCompact(true);
+		item.setFocusable(true);
+		item.focus();
 		item.show(overflowAnchor);
 		const compact = {
 			compact: item.isCompact(),
 			className: container.classList.contains('compact-picker'),
 			usesOverflowAnchor: pickerAnchor === overflowAnchor,
+			wrapperTabIndex: container.tabIndex,
+			tabbableDescendants: container.querySelectorAll('[tabindex="0"]').length,
+			triggerFocused: item.isFocused(),
 		};
 
 		assert.deepStrictEqual({ expanded, compact }, {
 			expanded: { compact: false, className: false },
-			compact: { compact: true, className: true, usesOverflowAnchor: true },
+			compact: {
+				compact: true,
+				className: true,
+				usesOverflowAnchor: true,
+				wrapperTabIndex: -1,
+				tabbableDescendants: 1,
+				triggerFocused: true,
+			},
+		});
+	});
+
+	test('picker action view items delegate focus to nested controls', () => {
+		let pickerContainer: HTMLElement | undefined;
+		const item = store.add(new PickerActionViewItem({
+			render: container => {
+				pickerContainer = document.createElement('div');
+				container.appendChild(pickerContainer);
+			},
+			dispose: () => { },
+		}));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		item.render(container);
+
+		item.setFocusable(true);
+		const focusTarget = document.createElement('button');
+		focusTarget.tabIndex = 0;
+		pickerContainer?.appendChild(focusTarget);
+		item.focus();
+		const focused = {
+			wrapperTabIndex: container.tabIndex,
+			focusedInnerControl: document.activeElement === focusTarget,
+			itemFocused: item.isFocused(),
+		};
+		item.blur();
+
+		assert.deepStrictEqual({ focused, focusedAfterBlur: document.activeElement === focusTarget }, {
+			focused: {
+				wrapperTabIndex: -1,
+				focusedInnerControl: true,
+				itemFocused: true,
+			},
+			focusedAfterBlur: false,
 		});
 	});
 
@@ -400,6 +560,7 @@ suite('Agent Host Session Config Picker', () => {
 			checked: item.item?.checked,
 			detail: item.detail,
 			ariaDescription: item.ariaDescription,
+			toolbarActions: item.toolbarActions?.map(action => ({ id: action.id, label: action.label })),
 		}));
 
 		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
@@ -412,13 +573,19 @@ suite('Agent Host Session Config Picker', () => {
 			ariaDescription: singularItem?.ariaDescription,
 		};
 
+		services.workspaceObs.set(makeWorkspace(0, 'dev'), undefined);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
+			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const cleanToolbarActions = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions;
+
 		services.provider.completions = [{ value: 'main', label: 'main' }];
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
 			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		await new Promise(resolve => setTimeout(resolve));
 		const singleResultKinds = services.actionWidget.items.map(item => item.kind);
 
-		assert.deepStrictEqual({ plural, singular, singleResultKinds }, {
+		assert.deepStrictEqual({ plural, singular, cleanToolbarActions, singleResultKinds }, {
 			plural: [
 				{
 					kind: ActionListItemKind.Action,
@@ -427,6 +594,7 @@ suite('Agent Host Session Config Picker', () => {
 					checked: true,
 					detail: undefined,
 					ariaDescription: undefined,
+					toolbarActions: undefined,
 				},
 				{
 					kind: ActionListItemKind.Separator,
@@ -435,6 +603,7 @@ suite('Agent Host Session Config Picker', () => {
 					checked: undefined,
 					detail: undefined,
 					ariaDescription: undefined,
+					toolbarActions: undefined,
 				},
 				{
 					kind: ActionListItemKind.Action,
@@ -443,14 +612,295 @@ suite('Agent Host Session Config Picker', () => {
 					checked: false,
 					detail: '2 uncommitted files',
 					ariaDescription: '2 uncommitted files',
+					toolbarActions: [{
+						id: 'sessions.agentHost.showBranchChanges',
+						label: 'Show Changes',
+					}],
 				},
 			],
 			singular: {
 				detail: '1 uncommitted file',
 				ariaDescription: '1 uncommitted file',
 			},
+			cleanToolbarActions: undefined,
 			singleResultKinds: [ActionListItemKind.Action],
 		});
+	});
+
+	test('folder sessions populate the branch picker and invoke Checkout when a branch is selected', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'dev', label: 'dev' },
+		];
+		const { container } = renderPicker(store, services);
+
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label');
+		trigger?.click();
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate?.onSelect({ value: 'dev', label: 'dev' });
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			hasInteractiveTrigger: !!trigger,
+			ariaReadOnly: trigger?.getAttribute('aria-readonly'),
+			items: services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			setConfigArguments: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+			branchSelectionEvents: services.branchSelectionEvents,
+		}, {
+			hasInteractiveTrigger: true,
+			ariaReadOnly: null,
+			items: ['main', 'dev'],
+			setConfigArguments: [{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'dev' }],
+			checkoutInvocations: [{
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'dev' },
+			}],
+			branchSelectionEvents: ['set:dev', 'checkout'],
+		});
+	});
+
+	test('folder branch picker stays read-only until Checkout capability hydrates', () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.changesetsObs.set(undefined, undefined);
+		const { container } = renderPicker(store, services);
+
+		const before = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+		services.changesetsObs.set([services.uncommittedChangeset], undefined);
+		const after = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+
+		assert.deepStrictEqual({
+			before: {
+				tagName: before?.tagName,
+				ariaReadOnly: before?.getAttribute('aria-readonly'),
+			},
+			after: {
+				tagName: after?.tagName,
+				role: after?.getAttribute('role'),
+			},
+		}, {
+			before: {
+				tagName: 'SPAN',
+				ariaReadOnly: 'true',
+			},
+			after: {
+				tagName: 'A',
+				role: 'button',
+			},
+		});
+	});
+
+	test('failed folder branch checkout restores the previous configuration value', async () => {
+		const services = setupServices(store, {}, async () => {
+			throw new Error('Checkout failed');
+		});
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'featureA', label: 'featureA' },
+		];
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		services.actionWidget.delegate?.onSelect({ value: 'featureA', label: 'featureA' });
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			branch: services.provider.config.values[SessionConfigKey.Branch],
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+			branchSelectionEvents: services.branchSelectionEvents,
+		}, {
+			branch: 'main',
+			configUpdates: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
+			],
+			checkoutInvocations: [{
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'featureA' },
+			}],
+			branchSelectionEvents: ['set:featureA', 'checkout', 'set:main'],
+		});
+	});
+
+	test('serializes repeated folder branch checkouts with their selected treeish', async () => {
+		const firstCheckoutStarted = new DeferredPromise<void>();
+		const releaseFirstCheckout = new DeferredPromise<void>();
+		const secondCheckoutStarted = new DeferredPromise<void>();
+		let checkoutCount = 0;
+		const services = setupServices(store, {}, async () => {
+			checkoutCount++;
+			if (checkoutCount === 1) {
+				firstCheckoutStarted.complete();
+				await releaseFirstCheckout.p;
+			} else {
+				secondCheckoutStarted.complete();
+			}
+		});
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'featureA', label: 'featureA' },
+		];
+		const { container } = renderPicker(store, services);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!;
+		trigger.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		services.actionWidget.delegate?.onSelect({ value: 'featureA', label: 'featureA' });
+		await firstCheckoutStarted.p;
+		services.actionWidget.delegate?.onSelect({ value: 'main', label: 'main' });
+		await new Promise(resolve => setTimeout(resolve));
+		assert.deepStrictEqual({
+			label: branchLabel(container),
+			branch: services.provider.config.values[SessionConfigKey.Branch],
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+		}, {
+			label: 'featureA',
+			branch: 'featureA',
+			configUpdates: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
+			],
+			checkoutInvocations: [{
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'featureA' },
+			}],
+		});
+
+		releaseFirstCheckout.complete();
+		await secondCheckoutStarted.p;
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+		}, {
+			configUpdates: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
+			],
+			checkoutInvocations: [{
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'featureA' },
+			}, {
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'main' },
+			}],
+		});
+		assert.deepStrictEqual(services.branchSelectionEvents, ['set:featureA', 'checkout', 'set:main', 'checkout']);
+	});
+
+	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+
+		await Promise.all([
+			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),
+			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Isolation, 'folder'),
+			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureB'),
+		]);
+
+		assert.deepStrictEqual({
+			values: services.provider.config.values,
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			checkoutInvocations: services.checkoutInvocations,
+		}, {
+			values: {
+				[SessionConfigKey.Isolation]: 'folder',
+				[SessionConfigKey.Branch]: 'featureB',
+			},
+			configUpdates: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'folder' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureB' },
+			],
+			checkoutInvocations: [{
+				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				_meta: { treeish: 'featureB' },
+			}],
+		});
+	});
+
+	test('rolls back failed queued checkouts to the last checked-out branch', async () => {
+		const firstCheckoutStarted = new DeferredPromise<void>();
+		const releaseFirstCheckout = new DeferredPromise<void>();
+		const secondCheckoutStarted = new DeferredPromise<void>();
+		let checkoutCount = 0;
+		const services = setupServices(store, {}, async () => {
+			checkoutCount++;
+			if (checkoutCount === 1) {
+				firstCheckoutStarted.complete();
+				await releaseFirstCheckout.p;
+				throw new Error('First Checkout failed');
+			}
+			secondCheckoutStarted.complete();
+			throw new Error('Second Checkout failed');
+		});
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'featureA', label: 'featureA' },
+			{ value: 'featureB', label: 'featureB' },
+		];
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+
+		services.actionWidget.delegate?.onSelect({ value: 'featureA', label: 'featureA' });
+		await firstCheckoutStarted.p;
+		services.actionWidget.delegate?.onSelect({ value: 'featureB', label: 'featureB' });
+		await new Promise(resolve => setTimeout(resolve));
+		assert.strictEqual(branchLabel(container), 'featureA');
+
+		releaseFirstCheckout.complete();
+		await secondCheckoutStarted.p;
+		await new Promise(resolve => setTimeout(resolve));
+
+		assert.deepStrictEqual({
+			branch: services.provider.config.values[SessionConfigKey.Branch],
+			configUpdates: services.provider.setSessionConfigValueArguments,
+			branchSelectionEvents: services.branchSelectionEvents,
+		}, {
+			branch: 'main',
+			configUpdates: [
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureB' },
+				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
+			],
+			branchSelectionEvents: ['set:featureA', 'checkout', 'set:main', 'set:featureB', 'checkout', 'set:main'],
+		});
+	});
+
+	test('dirty branch action selects the Changes tab before focusing the Changes view', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = [
+			{ value: 'main', label: 'main' },
+			{ value: 'dev', label: 'dev' },
+		];
+		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
+		const { container } = renderPicker(store, services);
+
+		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const action = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions?.[0];
+		await action?.run();
+
+		assert.deepStrictEqual(services.actionWidget.events, [
+			'hide',
+			'suppressEditorPartAutoVisibility',
+			`openChangesEditor:${SESSION_RESOURCE.toString()}`,
+			'releaseEditorPartAutoVisibility',
+			`openView:${CHANGES_VIEW_ID}:true`,
+		]);
 	});
 
 	test('a picker recreated on a session switch still renders the provider-seeded chips (disabled) while resolving', () => {
@@ -489,7 +939,7 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	test('renders Dev Container before the Worktree and Branch controls and updates the draft', () => {
-		const services = setupServices(store);
+		const services = setupServices(store, { devContainerWorktreeEnabled: true });
 		const { provider } = services;
 		const { container } = renderPicker(store, services);
 
@@ -510,6 +960,53 @@ suite('Agent Host Session Config Picker', () => {
 			worktreeImmediatelyPrecedesBranch: true,
 			devContainerChecked: 'true',
 			devContainerEnabled: true,
+			setSessionConfigValueCalls: 0,
+		});
+	});
+
+	test('disables Dev Container while New Worktree is selected when the combination is disabled', () => {
+		const services = setupServices(store);
+		const { provider } = services;
+		const { container } = renderPicker(store, services);
+		const devContainer = devContainerSlot(container)!;
+
+		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			devContainerDisabled: devContainer.classList.contains('disabled'),
+			devContainerAriaDisabled: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			devContainerEnabled: provider.devContainerEnabled,
+			worktreeDisabled: isolationSlot(container)!.classList.contains('disabled'),
+		}, {
+			devContainerDisabled: true,
+			devContainerAriaDisabled: 'true',
+			devContainerEnabled: false,
+			worktreeDisabled: false,
+		});
+	});
+
+	test('disables New Worktree while Dev Container is selected when the combination is disabled', () => {
+		const services = setupServices(store);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		const { provider } = services;
+		const { container } = renderPicker(store, services);
+		const devContainer = devContainerSlot(container)!;
+
+		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const worktree = isolationSlot(container)!;
+		worktree.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
+			devContainerDisabled: devContainer.classList.contains('disabled'),
+			worktreeDisabled: worktree.classList.contains('disabled'),
+			worktreeAriaDisabled: worktree.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
+		}, {
+			devContainerChecked: 'true',
+			devContainerDisabled: false,
+			worktreeDisabled: true,
+			worktreeAriaDisabled: 'true',
 			setSessionConfigValueCalls: 0,
 		});
 	});

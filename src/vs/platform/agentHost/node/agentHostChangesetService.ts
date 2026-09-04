@@ -30,6 +30,7 @@ import {
 	type URI as ProtocolURI,
 	readSessionGitState,
 	isDefaultChatUri,
+	lastAttributableTurnId,
 	SessionLifecycle,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -705,6 +706,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/**
 	 * The single-folder per-turn diff: prefer the checkpoint-ref git diff of the
 	 * primary working directory, else fall back to the SDK-tracked aggregator.
+	 *
+	 * Every path that can return an empty list is logged — an empty per-turn
+	 * changeset is otherwise indistinguishable from a turn that changed nothing.
 	 */
 	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
@@ -719,12 +723,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				if (fromRefDiffs) {
 					return fromRefDiffs;
 				}
+				this._logService.warn(`[AgentHostChangesetService] Turn ${session}/${turnId}: git diff ${pair.parent}..${pair.current} produced no result; falling back to tracked file edits, which cannot see terminal-tool edits`);
+			} else {
+				this._logService.warn(`[AgentHostChangesetService] Turn ${session}/${turnId}: no working directory resolved; falling back to tracked file edits, which cannot see terminal-tool edits`);
 			}
-		} else if (pair && pair.parent === pair.current) {
+		} else if (pair) {
 			// A no-op turn checkpoint reuses the parent ref (so per-turn
 			// diff is empty by construction) — short-circuit to an empty
 			// list instead of asking git for the (empty) diff.
+			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: end-of-turn tree matches the turn-start tree (${pair.current}); reporting no changes`);
 			return [];
+		} else {
+			// Expected for a non-git folder; otherwise checkpoint capture failed.
+			this._logService.debug(`[AgentHostChangesetService] Turn ${session}/${turnId}: no checkpoint pair; falling back to tracked file edits, which cannot see terminal-tool edits`);
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
 		return computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId);
@@ -988,7 +999,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			orderedSources.push(nonGitDiffs);
 		}
 		const evaluation = evaluateMultiRootDiffSources(orderedSources);
-		if (evaluation.outcome === 'failed') {
+		if (evaluation.outcome !== 'complete') {
 			// No source produced diffs (total failure or no sources at all).
 			// Preserve the previously cached summary instead of clobbering it
 			// with a spurious zero aggregate.
@@ -1469,8 +1480,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * the session's shared working tree. For single-chat sessions this is the
 	 * default chat's last turn. For multi-chat sessions it is the last turn of
 	 * the most-recently-modified chat (peer-chat turn checkpoints are stored
-	 * under the session URI keyed by their turn id). Returns `undefined` when
-	 * no chat has any turns.
+	 * under the session URI keyed by their turn id). Host notice turns are
+	 * skipped — they capture no checkpoint, so picking one would drop the
+	 * session changeset off its git fast path.
 	 */
 	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
 		const sessionState = this._stateManager.getSessionState(session);
@@ -1480,7 +1492,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		const chats = sessionState.chats ?? [];
 		if (chats.length <= 1) {
-			return sessionState.turns.at(-1)?.id;
+			return lastAttributableTurnId(sessionState.turns);
 		}
 
 		let bestTurnId: string | undefined;
@@ -1489,7 +1501,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const turns = isDefaultChatUri(chat.resource)
 				? sessionState.turns
 				: this._stateManager.getChatState(chat.resource)?.turns;
-			const lastTurnId = turns?.at(-1)?.id;
+			const lastTurnId = lastAttributableTurnId(turns);
 			if (lastTurnId && chat.modifiedAt >= bestModifiedAt) {
 				bestModifiedAt = chat.modifiedAt;
 				bestTurnId = lastTurnId;

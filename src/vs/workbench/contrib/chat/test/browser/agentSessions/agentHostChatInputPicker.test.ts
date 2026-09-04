@@ -4,18 +4,67 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getAgentHostSandboxSettingId, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
+import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
+
+suite('AgentHostChatInputPicker - compact layout', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the Copilot harness picker height stable and centers its compact icon', () => {
+		const session = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const actionBar = dom.append(session, dom.$('.monaco-action-bar'));
+		const actionsContainer = dom.append(actionBar, dom.$('.actions-container'));
+		actionsContainer.style.display = 'flex';
+		const item = dom.append(actionsContainer, dom.$('.action-item.agent-host-chat-input-picker-host'));
+		const slot = dom.append(item, dom.$('.agent-host-chat-input-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
+		const icon = dom.append(label, renderIcon(Codicon.rocketCompact));
+		dom.append(label, dom.$('span.agent-host-chat-input-picker-label', undefined, 'Autopilot'));
+
+		const expandedHeight = item.getBoundingClientRect().height;
+		item.classList.add('compact-picker');
+		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			expandedHeight,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: {
+				width: iconBounds.width,
+				height: iconBounds.height,
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
+		}, {
+			expandedHeight: 22,
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
+		});
+	});
+});
 
 suite('AgentHostChatInputPicker - action mapping', () => {
 
@@ -87,23 +136,25 @@ suite('AgentHostChatInputPicker - trigger labels', () => {
 		enumLabels: ['Default permissions', 'Assisted permissions', 'Allow all', 'Autopilot'],
 	} as SessionConfigPropertySchema;
 
-	test('appends the sandbox state to every selected permission mode', () => {
+	test('uses an icon-ready label while preserving the sandbox state for accessibility', () => {
 		assert.deepStrictEqual({
-			default: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Default, true),
-			assisted: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, true),
-			allowAll: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.AutoApprove, true),
-			autopilot: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Autopilot, true),
+			default: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Default),
+			assisted: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted),
+			allowAll: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.AutoApprove),
+			autopilot: getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Autopilot),
+			accessible: getConfigPickerAccessibleTriggerLabel('Default permissions', true),
 		}, {
-			default: 'Default permissions (sandboxed)',
-			assisted: 'Assisted permissions (sandboxed)',
-			allowAll: 'Allow all (sandboxed)',
-			autopilot: 'Autopilot (sandboxed)',
+			default: 'Default permissions',
+			assisted: 'Assisted permissions',
+			allowAll: 'Allow all',
+			autopilot: 'Autopilot',
+			accessible: 'Default permissions (sandboxed)',
 		});
 	});
 
-	test('leaves the selected permission label unchanged when sandboxing is disabled', () => {
+	test('leaves the accessible permission label unchanged when sandboxing is disabled', () => {
 		assert.strictEqual(
-			getConfigPickerTriggerLabel(permissionsSchema, ChatPermissionLevel.Assisted, false),
+			getConfigPickerAccessibleTriggerLabel('Assisted permissions', false),
 			'Assisted permissions'
 		);
 	});
@@ -172,10 +223,13 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 		} as SessionConfigPropertySchema;
 
 		test('explains the selected approval level on the trigger hover', () => {
-			assert.strictEqual(
-				getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false),
-				'Copilot runs all tools without asking for approval.'
-			);
+			assert.deepStrictEqual({
+				unsandboxed: getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false),
+				sandboxed: getConfigPickerTriggerHover(SessionConfigKey.AutoApprove, approvalsSchema, 'autoApprove', false, true),
+			}, {
+				unsandboxed: 'Copilot runs all tools without asking for approval.',
+				sandboxed: 'Copilot runs all tools without asking for approval. Terminal commands are sandboxed.',
+			});
 		});
 
 		test('explains approval choices on item hover', () => {
