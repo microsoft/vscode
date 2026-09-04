@@ -29,6 +29,16 @@ function asRemoteSource(raw: RemoteSourceResponse): RemoteSource {
 	};
 }
 
+function scoreRepoMatch(remoteSource: RemoteSource, query: string): number {
+	const fullName = remoteSource.name.replace(/^\$\(github\) /, '').toLowerCase();
+	const repoName = fullName.split('/').pop() ?? fullName;
+	const q = query.toLowerCase();
+	if (repoName === q || fullName === q) { return 3; }
+	if (repoName.startsWith(q) || fullName.startsWith(q)) { return 2; }
+	if (repoName.includes(q) || fullName.includes(q)) { return 1; }
+	return 0;
+}
+
 export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 	readonly name = 'GitHub';
@@ -49,15 +59,21 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			}
 		}
 
-		const all = await Promise.all([
-			this.getQueryRemoteSources(octokit, query),
+		const [userResults, queryResults] = await Promise.all([
 			this.getUserRemoteSources(octokit, query),
+			this.getQueryRemoteSources(octokit, query),
 		]);
 
+		// User-owned repos are inserted first so they always rank above public
+		// search results. Duplicate entries from the search API are skipped.
 		const map = new Map<string, RemoteSource>();
 
-		for (const group of all) {
-			for (const remoteSource of group) {
+		for (const remoteSource of userResults) {
+			map.set(remoteSource.name, remoteSource);
+		}
+
+		for (const remoteSource of queryResults) {
+			if (!map.has(remoteSource.name)) {
 				map.set(remoteSource.name, remoteSource);
 			}
 		}
@@ -71,9 +87,12 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			const username = user.data.login;
 			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
+			return this.userReposCache;
 		}
 
-		return this.userReposCache;
+		return this.userReposCache
+			.filter(r => scoreRepoMatch(r, query) > 0)
+			.sort((a, b) => scoreRepoMatch(b, query) - scoreRepoMatch(a, query));
 	}
 
 	private async getQueryRemoteSources(octokit: Octokit, query?: string): Promise<RemoteSource[]> {
