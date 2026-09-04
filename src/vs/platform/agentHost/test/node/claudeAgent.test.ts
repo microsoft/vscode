@@ -60,7 +60,7 @@ import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata,
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostNativeOTelConfig, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
@@ -1064,12 +1064,18 @@ const ALL_MODELS: readonly CCAModel[] = [
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
+	readonly traceContextRequests: Array<{ conversationId: string; sessionUri: string }> = [];
+	nativeTelemetryConfig: IAgentHostNativeOTelConfig | undefined;
+	traceContext: IAgentHostTraceContext | undefined;
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	getSessionTraceContext(): undefined { return undefined; }
+	async getNativeSdkTelemetryConfig(): Promise<IAgentHostNativeOTelConfig | undefined> { return this.nativeTelemetryConfig; }
+	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined {
+		this.traceContextRequests.push({ conversationId, sessionUri });
+		return this.traceContext;
+	}
 	releaseSessionTraceContext(): void { }
-	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
-	getCurrentTraceContext(): undefined { return undefined; }
+	withTraceContext<T>(_context: IAgentHostTraceContext | undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext(): IAgentHostTraceContext | undefined { return this.traceContext; }
 	getSpansDbPath(): undefined { return undefined; }
 	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
 		this.titleChanges.push({ conversationId, sessionUri, title });
@@ -3554,7 +3560,7 @@ suite('ClaudeAgent', () => {
 		// across both turns, (b) `warm.query()` is bound exactly once,
 		// (c) both deferreds resolve on their respective `result` SDK
 		// messages, (d) both prompts traverse the prompt iterable.
-		const { agent, sdk } = createTestContext(disposables);
+		const { agent, sdk, otelService } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -3605,6 +3611,7 @@ suite('ClaudeAgent', () => {
 			queryCallsAfterTurn2: sdk.warmQueries[0]?.queryCallCount,
 			warmQueryCount: sdk.warmQueries.length,
 			drainedPromptCount: sdk.warmQueries[0]?.produced?.drainedPrompts.length,
+			traceContextRequests: otelService.traceContextRequests.length,
 		}, {
 			startupCallsAfterTurn1: 1,
 			startupCallsAfterTurn2: 1,
@@ -3612,6 +3619,61 @@ suite('ClaudeAgent', () => {
 			queryCallsAfterTurn2: 1,
 			warmQueryCount: 1,
 			drainedPromptCount: 2,
+			traceContextRequests: 3,
+		});
+	});
+
+	test('rotated trace context rebuilds the Claude subprocess before the next turn', async () => {
+		const { agent, sdk, otelService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const initialTraceparent = '00-11111111111111111111111111111111-2222222222222222-01';
+		const rotatedTraceparent = '00-11111111111111111111111111111111-3333333333333333-01';
+		otelService.nativeTelemetryConfig = {
+			traces: { endpoint: 'http://127.0.0.1:4318/v1/traces', protocol: 'http/json' },
+			captureContent: false,
+			resourceAttributes: {},
+		};
+		otelService.traceContext = {
+			traceId: '11111111111111111111111111111111',
+			spanId: '2222222222222222',
+			traceparent: initialTraceparent,
+		};
+
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		assert.strictEqual(sdk.startupCallCount, 1);
+
+		otelService.traceContext = {
+			traceId: '11111111111111111111111111111111',
+			spanId: '3333333333333333',
+			traceparent: rotatedTraceparent,
+		};
+		sdk.queryAdvance = undefined;
+		advance.complete();
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			warmQueryCount: sdk.warmQueries.length,
+			firstTraceparent: sdk.capturedStartupOptions[0]?.env?.TRACEPARENT,
+			secondTraceparent: sdk.capturedStartupOptions[1]?.env?.TRACEPARENT,
+			traceContextRequests: otelService.traceContextRequests.length,
+			secondPromptCount: sdk.warmQueries[1]?.produced?.drainedPrompts.length,
+		}, {
+			startupCount: 2,
+			warmQueryCount: 2,
+			firstTraceparent: initialTraceparent,
+			secondTraceparent: rotatedTraceparent,
+			traceContextRequests: 4,
+			secondPromptCount: 1,
 		});
 	});
 
