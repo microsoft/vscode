@@ -482,14 +482,6 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
-		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available and, when supported, a No workspace option."),
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
 			description: nls.localize('chat.saveBeforeSend', "Controls whether all dirty editors except untitled editors are saved before sending a chat message."),
@@ -966,11 +958,6 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			minimum: 0,
 			default: 10000,
-		},
-		[ChatConfiguration.PasteGitHubLinksAsReferences]: {
-			markdownDescription: nls.localize('chat.pasteGitHubLinksAsReferences', "Controls whether pasted GitHub issue and pull request URLs are shown as compact clickable references in the chat input."),
-			type: 'boolean',
-			default: true,
 		},
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
