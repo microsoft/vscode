@@ -44,7 +44,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { NO_WORKSPACE_OPTION_SETTING } from '../../../chat/common/constants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -546,7 +546,7 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		let activeSession;
-		if (accessor.get(IConfigurationService).getValue<boolean>(NO_WORKSPACE_OPTION_SETTING)) {
+		if (accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
 				sessionsService.unsetNewSession();
 				sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();

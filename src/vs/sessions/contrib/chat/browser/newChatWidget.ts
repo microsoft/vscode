@@ -55,7 +55,7 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { NO_WORKSPACE_OPTION_SETTING } from '../common/constants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 // #region --- New Chat Widget ---
 
@@ -152,8 +152,8 @@ export class NewChatWidget extends Disposable {
 		});
 		this._useConsolidatedRemoteWorkspaces = observableFromEvent(
 			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NO_WORKSPACE_OPTION_SETTING)),
-			() => this.configurationService.getValue<boolean>(NO_WORKSPACE_OPTION_SETTING),
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
+			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);

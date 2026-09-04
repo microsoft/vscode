@@ -25,7 +25,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
 import { createTestSession } from './sessionsListTestUtils.js';
-import { NO_WORKSPACE_OPTION_SETTING } from '../../../chat/common/constants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 suite('Sessions - Actions', () => {
 
@@ -136,7 +136,7 @@ suite('Sessions - Actions', () => {
 			let focusedSessionId: string | undefined;
 
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[NO_WORKSPACE_OPTION_SETTING]: consolidatedRemoteWorkspaces,
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: consolidatedRemoteWorkspaces,
 			}));
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override isQuickChatTargetAvailable(): boolean {

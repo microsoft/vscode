@@ -48,7 +48,7 @@ import { NewSessionWorkspacePreselectionSource } from './newSessionComposerServi
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { NO_WORKSPACE_OPTION_SETTING } from '../common/constants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -1252,7 +1252,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
-		return this.configurationService.getValue<boolean>(NO_WORKSPACE_OPTION_SETTING);
+		return this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 	}
 
 	private _getTabGroup(group: string | undefined): string | undefined {

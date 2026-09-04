@@ -35,7 +35,7 @@ import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../..
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
-import { NO_WORKSPACE_OPTION_SETTING } from '../../common/constants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -3051,7 +3051,7 @@ function createTestablePicker(
 	instantiationService.stub(IOutputService, {});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService({
 		[RemoteAgentHostsEnabledSettingId]: remoteAgentHostsEnabled,
-		[NO_WORKSPACE_OPTION_SETTING]: consolidatedRemoteWorkspaces,
+		[UNIFIED_WORKSPACE_PICKER_SETTING]: consolidatedRemoteWorkspaces,
 	}));
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IFileDialogService, {});

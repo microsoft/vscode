@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const NEW_SESSION_ACTION_ID = 'workbench.action.sessions.newChat';
-export const NO_WORKSPACE_OPTION_SETTING = 'sessions.chat.noWorkspaceOption.enabled';
+export const UNIFIED_WORKSPACE_PICKER_SETTING = 'sessions.chat.unifiedWorkspacePicker.enabled';
