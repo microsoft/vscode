@@ -73,6 +73,13 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
 }
 
+/* The edit input takes the place of the request bubble, so it needs the same opaque base under the translucent bubble tint. */
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-input-part.editing .chat-input-container,
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-request.editing .interactive-input-part .chat-input-container {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
