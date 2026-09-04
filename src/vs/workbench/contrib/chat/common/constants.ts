@@ -94,6 +94,7 @@ export enum ChatConfiguration {
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	SubagentsDefaultToAuto = 'chat.subagents.defaultToAuto',
 	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
+	SubagentsShowCreditUsage = 'chat.subagents.showCreditUsage',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',

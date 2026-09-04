@@ -2450,6 +2450,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.subagents.useRichRendering', "Controls whether subagents in chat editors use a rich presentation that opens each subagent in its own editor instead of rendering its full activity inline in the parent chat."),
 			default: true,
 		},
+		[ChatConfiguration.SubagentsShowCreditUsage]: {
+			type: 'boolean',
+			description: nls.localize('chat.subagents.showCreditUsage', "Controls whether AI credit usage is shown next to the duration for subagents."),
+			default: false,
+		},
 		[ChatConfiguration.TerminalAgentHostEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.terminal.agentHost.enabled', "Controls whether Terminal Chat is backed by the Agent Host instead of the extension host. Applied on startup."),
