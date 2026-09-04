@@ -5,7 +5,7 @@
 
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { getErrorMessage } from '../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
@@ -110,7 +110,11 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 			});
 			return result;
 		} catch (error) {
-			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			if (isCancellationError(error)) {
+				this.logService.trace(`${prefix} - cancelled`, options.type);
+			} else {
+				this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			}
 			throw error;
 		}
 	}

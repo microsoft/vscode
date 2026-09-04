@@ -10,7 +10,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -272,6 +272,9 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		try {
 			result = await this._apiService.listSessions(token);
 		} catch (error) {
+			if (token.isCancellationRequested || isCancellationError(error) || !this._isEnabled()) {
+				return;
+			}
 			result = { kind: 'failed', reason: error instanceof Error ? error.message : String(error) };
 		}
 		if (result.kind === 'failed') {
