@@ -27,7 +27,7 @@ import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntyped
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, getSessionTypeSelectionTelemetry, isNewChatSessionTypeUsable } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, getSessionTypeSelectionTelemetry, ISessionTypeSelectionTelemetry, isNewChatSessionTypeUsable, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -131,17 +131,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override copy(): EditorInput {
-		const resource = this.getNewResourceForCopy();
-		const selectionTelemetry = getDefaultNewChatSessionTypeAndReasonFromServices(
-			this.configurationService,
-			this.chatSessionsService,
-			this.storageService,
-			this.workspaceContextService.getWorkspace(),
-			this.agentHostEnablementService.enabled.get(),
-			{ currentSessionType: getChatSessionType(resource) },
-			this.agentHostEnablementService.managedSandboxEnforced.get()
-		).selectionTelemetry;
-		return this.instantiationService.createInstance(ChatEditorInput, resource, { sessionTypeSelectionTelemetry: { ...selectionTelemetry, reason: 'currentSession' } });
+		return this.instantiationService.createInstance(ChatEditorInput, this.getNewResourceForCopy(), { sessionTypeSelectionTelemetry: this.getSessionTypeSelectionTelemetry('currentSession') });
+	}
+
+	private getSessionTypeSelectionTelemetry(reason: SessionTypeSelectionReason): ISessionTypeSelectionTelemetry {
+		return getSessionTypeSelectionTelemetry(this.configurationService, reason, this.agentHostEnablementService.managedSandboxEnforced.get());
 	}
 
 	/**
@@ -290,7 +284,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.logService.warn(`[ChatEditorInput] Falling back to a local chat session because ${this._sessionResource.toString()} could not be acquired`);
 				const reason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(this._sessionResource), false);
 				const sessionTypeSelectionTelemetry = reason
-					? { ...(this.options.sessionTypeSelectionTelemetry ?? getSessionTypeSelectionTelemetry(this.configurationService, reason, this.agentHostEnablementService.managedSandboxEnforced.get())), reason }
+					? { ...(this.options.sessionTypeSelectionTelemetry ?? this.getSessionTypeSelectionTelemetry(reason)), reason }
 					: undefined;
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback', sessionTypeSelectionTelemetry });
 			}
@@ -320,8 +314,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		} else if (!this.options.target) {
 			if (this.options.explicitSessionType === localChatSessionType) {
-				const selectionTelemetry = this.options.sessionTypeSelectionTelemetry
-					?? getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), { explicitOverride: localChatSessionType }, this.agentHostEnablementService.managedSandboxEnforced.get()).selectionTelemetry;
+				const selectionTelemetry = this.options.sessionTypeSelectionTelemetry ?? this.getSessionTypeSelectionTelemetry('explicitOverride');
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveExplicitLocal', sessionTypeSelectionTelemetry: selectionTelemetry });
 			} else {
 				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
