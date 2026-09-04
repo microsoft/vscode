@@ -282,15 +282,18 @@ const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscrip
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
 const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
 const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
+const MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY = 'vscode.chat.systemInitiatedLabel';
 
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean } {
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean; readonly systemInitiatedLabel: string | undefined } {
 	const meta = message._meta;
+	const systemInitiatedLabel = meta?.[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY];
 	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
 		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
 	return {
 		hiddenFromTranscript,
 		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
 			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
+		systemInitiatedLabel: typeof systemInitiatedLabel === 'string' ? systemInitiatedLabel : undefined,
 	};
 }
 
@@ -301,6 +304,10 @@ export function isMessageHiddenFromTranscript(message: Message): boolean {
 /** Whether only the message's request row is hidden while its response remains visible. */
 export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
 	return readMessageMeta(message).requestHiddenFromTranscript;
+}
+
+export function readMessageSystemInitiatedLabel(message: Message): string | undefined {
+	return readMessageMeta(message).systemInitiatedLabel;
 }
 
 export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
@@ -328,6 +335,16 @@ export function withMessageRequestHiddenFromTranscript(message: Message, hidden:
 		_meta: {
 			...message._meta,
 			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
+export function withMessageSystemInitiatedLabel(message: Message, label: string): Message {
+	return {
+		...message,
+		_meta: {
+			...message._meta,
+			[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY]: label,
 		},
 	};
 }
@@ -1994,6 +2011,9 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  * on resume) and never persist it themselves.
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
+export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
 
 /**
  * Session-database metadata key recording whether a session is archived. Written by

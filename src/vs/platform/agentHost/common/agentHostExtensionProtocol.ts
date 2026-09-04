@@ -15,6 +15,7 @@ export const DeleteAgentHostDetachedWorktreeExtensionMethod = 'vscode/deleteAgen
 export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconcileAgentHostDetachedWorktrees';
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
+export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -90,5 +91,17 @@ export interface IAgentHostExtensionCommandMap {
 		params: { resource: string; position: number };
 		/** `data` is base64; at most `AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES` decoded bytes. */
 		result: { data: string; eof: boolean };
+	};
+}
+
+export interface IAgentHostWorkspaceTrustRequest {
+	readonly workspace: string;
+	readonly trustedParent?: string;
+}
+
+export interface IAgentHostExtensionServerCommandMap {
+	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
+		params: IAgentHostWorkspaceTrustRequest;
+		result: { trusted: boolean };
 	};
 }

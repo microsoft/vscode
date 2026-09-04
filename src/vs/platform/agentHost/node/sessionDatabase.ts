@@ -736,6 +736,17 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
+	deleteMetadata(keys: readonly string[]): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			if (keys.length === 0) {
+				return;
+			}
+			const db = await this._ensureDb();
+			const placeholders = keys.map(() => '?').join(',');
+			await dbRun(db, `DELETE FROM session_metadata WHERE key IN (${placeholders})`, [...keys]);
+		}));
+	}
+
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
 		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();

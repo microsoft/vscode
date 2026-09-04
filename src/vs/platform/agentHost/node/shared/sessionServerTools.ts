@@ -5,7 +5,8 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
@@ -36,7 +37,7 @@ const maxCreatedChats = 25;
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
 export type CreateSessionRelationship = typeof createSessionRelationshipValues[number];
 
@@ -85,6 +86,21 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 const getCurrentSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {},
+};
+
+const setWorkspaceInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		workspaceFolder: {
+			type: 'string',
+			description: 'Absolute local folder path or file URI to set as the current session\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
+		},
+		isolation: {
+			type: 'boolean',
+			description: 'Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool.',
+		},
+	},
+	required: ['workspaceFolder', 'isolation'],
 };
 
 const renameChatInputSchema: ToolDefinition['inputSchema'] = {
@@ -146,6 +162,13 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).',
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
+	},
+	{
+		name: SessionServerToolName.SetWorkspace,
+		title: 'Set Workspace',
+		description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+		inputSchema: setWorkspaceInputSchema,
+		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.CreateSession,
@@ -211,9 +234,10 @@ export type IResolvedCreateSessionArgs = {
 	readonly model?: IAgentModelInfo;
 };
 
-/** Minimal dependency surface needed by the session server-tool group. */
-export interface ISessionServerToolAccessor {
+/** AgentService-owned operations used by the session server-tool group. */
+export interface IAgentServiceSessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
+	readonly canConvertWorkspace: (session: URI) => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
@@ -230,6 +254,11 @@ export interface ISessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+}
+
+/** Complete dependency surface needed by the session server-tool group. */
+export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
+	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => void;
 }
 
 export interface IRenameTitleResult {
@@ -309,6 +338,13 @@ function getRequiredString(value: unknown, field: string, toolName: string): str
 	return value;
 }
 
+function getRequiredBoolean(value: unknown, field: string, toolName: string): boolean {
+	if (typeof value !== 'boolean') {
+		throw new Error(`Invalid ${toolName} input: ${field} must be a boolean.`);
+	}
+	return value;
+}
+
 function getOptionalString(value: unknown, field: string, toolName: string): string | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -377,6 +413,20 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/** Validates and resolves the workspace requested by `set_workspace`. */
+export function getSetWorkspaceArgs(rawArgs: unknown): { readonly workspaceFolder: URI; readonly isolation: boolean } {
+	const args = (rawArgs ?? {}) as { readonly workspaceFolder?: unknown; readonly isolation?: unknown };
+	const input = getRequiredString(args.workspaceFolder, 'workspaceFolder', SessionServerToolName.SetWorkspace);
+	const workspaceFolder = parseWorkspaceUri(input);
+	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file || !workspaceFolder.path.startsWith('/') || workspaceFolder.query || workspaceFolder.fragment) {
+		throw new Error(`Invalid ${SessionServerToolName.SetWorkspace} input: workspaceFolder must be an absolute local path or file URI.`);
+	}
+	return {
+		workspaceFolder,
+		isolation: getRequiredBoolean(args.isolation, 'isolation', SessionServerToolName.SetWorkspace),
+	};
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
@@ -1329,6 +1379,18 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 	return `Deleted session ${session.toString()}. Reply with one short sentence confirming the session was deleted.`;
 }
 
+/** Requests setting the workspace in place after the tool's active turn completes. */
+export function applySetWorkspaceTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, chat: URI, turnId: string | undefined): string {
+	if (!turnId) {
+		throw new Error(`${SessionServerToolName.SetWorkspace} must run from an active chat turn.`);
+	}
+	const { workspaceFolder, isolation } = getSetWorkspaceArgs(rawArgs);
+	accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation);
+	return isolation
+		? `An isolated worktree will be created from ${workspaceFolder.toString()} and set as the workspace after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the isolated workspace.`
+		: `Workspace will be set to ${workspaceFolder.toString()} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.`;
+}
+
 function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
 		case SessionServerToolName.ListSessions:
@@ -1382,6 +1444,29 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 				displayName: localize('toolName.getCurrentSession', "Get Current Session"),
 				invocationMessage: localize('toolInvoke.getCurrentSession', "Get current session"),
 			};
+		case SessionServerToolName.SetWorkspace:
+			{
+				const input = args as { readonly workspaceFolder?: unknown; readonly isolation?: unknown } | undefined;
+				const workspaceFolder = typeof input?.workspaceFolder === 'string'
+					? input.workspaceFolder
+					: localize('toolConfirm.setWorkspace.selectedWorkspace', "the selected workspace");
+				const workspaceName = typeof input?.workspaceFolder === 'string'
+					? basename(parseWorkspaceUri(input.workspaceFolder) ?? URI.file(input.workspaceFolder)) || workspaceFolder
+					: workspaceFolder;
+				const confirmationMessage = input?.isolation === true
+					? localize('toolConfirm.setWorkspace.isolated', "Continue this session in {0} with changes isolated from the existing folder?", workspaceFolder)
+					: input?.isolation === false
+						? localize('toolConfirm.setWorkspace.direct', "Continue this session in {0} and make changes directly in that folder?", workspaceFolder)
+						: localize('toolConfirm.setWorkspace.generic', "Continue this session in {0}?", workspaceFolder);
+				return {
+					displayName: localize('toolName.setWorkspace', "Set Workspace"),
+					invocationMessage: localize('toolInvoke.setWorkspace', "Setting workspace"),
+					pastTenseMessage: localize('toolComplete.setWorkspace', "Scheduled workspace change"),
+					confirmationTitle: localize('toolConfirm.setWorkspace.title', "Continue in {0}?", workspaceName),
+					confirmationMessage,
+					hideConfirmationInput: true,
+				};
+			}
 		case SessionServerToolName.DeleteSession:
 			return {
 				displayName: localize('toolName.deleteSession', "Delete Session"),
@@ -1414,6 +1499,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		isEnabled(toolName: string): boolean {
 			return toolName !== SessionServerToolName.RenameChat || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
 		},
+		isEnabledForSession(toolName: string, sessionUri: ProtocolURI): boolean {
+			return toolName !== SessionServerToolName.SetWorkspace || accessor?.canConvertWorkspace(URI.parse(sessionUri)) === true;
+		},
 		canRequireConfirmation(toolName: string): boolean {
 			return sessionToolRequiresConfirmation(toolName);
 		},
@@ -1436,6 +1524,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						const metadata = await accessor.getSession(currentSession);
 						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
 					}
+				case SessionServerToolName.SetWorkspace: {
+					return applySetWorkspaceTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+				}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs);
 					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {

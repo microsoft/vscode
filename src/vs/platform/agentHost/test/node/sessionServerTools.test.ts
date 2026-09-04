@@ -22,6 +22,7 @@ import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/ag
 import {
 	applyCreateChatTool,
 	applyCreateSessionTool,
+	applySetWorkspaceTool,
 	applyDeleteSessionTool,
 	applyRenameChatTool,
 	applySendMessageTool,
@@ -30,6 +31,7 @@ import {
 	getCreateChatArgs,
 	getCreateSessionArgs,
 	getDeleteSessionArgs,
+	getSetWorkspaceArgs,
 	getRenameChatArgs,
 	getSendMessageArgs,
 	getSessionContextArgs,
@@ -63,6 +65,7 @@ suite('SessionServerTools', () => {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
 			isActiveAgentTitleGenerationEnabled: overrides?.isActiveAgentTitleGenerationEnabled ?? (() => true),
+			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
@@ -76,6 +79,7 @@ suite('SessionServerTools', () => {
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
+			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => { }),
 		};
 	}
 
@@ -92,12 +96,13 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.CreateChat), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SetWorkspace), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.SendMessage), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.DeleteSession), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(SessionServerToolName.RenameChat), false);
@@ -119,6 +124,29 @@ suite('SessionServerTools', () => {
 			},
 			required: ['relationship', 'prompt', 'title'],
 		});
+		const setWorkspaceDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.SetWorkspace);
+		assert.deepStrictEqual({
+			title: setWorkspaceDefinition?.title,
+			description: setWorkspaceDefinition?.description,
+			inputSchema: setWorkspaceDefinition?.inputSchema,
+		}, {
+			title: 'Set Workspace',
+			description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					workspaceFolder: {
+						type: 'string',
+						description: 'Absolute local folder path or file URI to set as the current session\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
+					},
+					isolation: {
+						type: 'boolean',
+						description: 'Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool.',
+					},
+				},
+				required: ['workspaceFolder', 'isolation'],
+			},
+		});
 		assert.strictEqual(sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.ListSessions)?.inputSchema?.properties?.label, undefined);
 		const renameDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat);
 		assert.deepStrictEqual([{ name: renameDefinition?.name, required: renameDefinition?.inputSchema?.required }], [
@@ -130,6 +158,48 @@ suite('SessionServerTools', () => {
 		const renameDescription = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.RenameChat)?.description;
 		assert.ok(renameDescription?.includes('Renaming the default chat also names its owning session'));
 		assert.ok(renameDescription?.includes('peer-chat titles remain independent'));
+	});
+
+	test('set_workspace accepts only exact local workspace folders', () => {
+		assert.deepStrictEqual({
+			absolutePath: getSetWorkspaceArgs({ workspaceFolder: '/workspace/app', isolation: false }),
+			fileUri: getSetWorkspaceArgs({ workspaceFolder: 'file:///workspace/other', isolation: true }),
+		}, {
+			absolutePath: { workspaceFolder: URI.parse('file:///workspace/app'), isolation: false },
+			fileUri: { workspaceFolder: URI.parse('file:///workspace/other'), isolation: true },
+		});
+		assert.throws(() => getSetWorkspaceArgs({ workspaceFolder: 'workspace/app', isolation: false }), /absolute local path or file URI/);
+		assert.throws(() => getSetWorkspaceArgs({ workspaceFolder: 'vscode-remote://ssh-remote+host/workspace/app', isolation: false }), /absolute local path or file URI/);
+		assert.throws(() => getSetWorkspaceArgs({ workspaceFolder: '/workspace/app' }), /isolation must be a boolean/);
+	});
+
+	test('set_workspace requests an update for the current chat and active turn', () => {
+		const requests: { chat: string; turnId: string; workspaceFolder: string; isolation: boolean }[] = [];
+		const chat = URI.parse(buildDefaultChatUri('copilot:/s1'));
+		const accessor = createAccessor({
+			requestSessionWorkspaceUpdate: (targetChat, turnId, workspaceFolder, isolation) => requests.push({
+				chat: targetChat.toString(),
+				turnId,
+				workspaceFolder: workspaceFolder.toString(),
+				isolation,
+			}),
+		});
+
+		const result = applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: true }, chat, 'turn-1');
+
+		assert.deepStrictEqual({
+			requests,
+			result,
+		}, {
+			requests: [{
+				chat: chat.toString(),
+				turnId: 'turn-1',
+				workspaceFolder: 'file:///workspace/app',
+				isolation: true,
+			}],
+			result: 'An isolated worktree will be created from file:///workspace/app and set as the workspace after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the isolated workspace.',
+		});
+		assert.throws(() => applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: false }, chat, undefined), /must run from an active chat turn/);
 	});
 
 	test('ephemeral sessions advertise no default session-management tools', () => {
@@ -199,6 +269,7 @@ suite('SessionServerTools', () => {
 			disabledTools: [
 				SessionServerToolName.ListSessions,
 				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.SetWorkspace,
 				SessionServerToolName.CreateSession,
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
@@ -236,6 +307,70 @@ suite('SessionServerTools', () => {
 		stateManager.dispose();
 	});
 
+	test('set_workspace is not advertised or executable when the provider cannot change working directory', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'claude:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'claude',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ canConvertWorkspace: () => false })),
+		]);
+
+		host.advertise(session);
+		const advertisedTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+
+		await assert.rejects(
+			async () => host.executeTool(buildDefaultChatUri(session), SessionServerToolName.SetWorkspace, { workspaceFolder: '/workspace', isolation: false }),
+			/Server tool "set_workspace" is disabled/,
+		);
+		assert.deepStrictEqual({
+			advertisedTools,
+			restoredTools: host.getDefinitionsForSession(session).map(tool => tool.name),
+		}, {
+			advertisedTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+			restoredTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+		});
+		stateManager.dispose();
+	});
+
+	test('set_workspace is removed when the session can no longer be converted', async () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let canConvertWorkspace = true;
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ canConvertWorkspace: () => canConvertWorkspace })),
+		]);
+
+		host.advertise(session);
+		canConvertWorkspace = false;
+		host.advertise(session);
+
+		await assert.rejects(
+			async () => host.executeTool(buildDefaultChatUri(session), SessionServerToolName.SetWorkspace, { workspaceFolder: '/workspace', isolation: false }),
+			/Server tool "set_workspace" is disabled/,
+		);
+		assert.ok(!stateManager.getSessionState(session)?.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace));
+		stateManager.dispose();
+	});
+
 	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
 		let sessionToolsEnabled = false;
 		let dynamicToolsEnabled = false;
@@ -252,6 +387,7 @@ suite('SessionServerTools', () => {
 		const dynamicGroup: IServerToolGroup = {
 			definitions: [{ name: 'dynamic_tool', description: 'Dynamic tool.', inputSchema: { type: 'object', properties: {} } }],
 			isEnabled: () => dynamicToolsEnabled,
+			isEnabledForSession: () => true,
 			execute: () => '',
 		};
 		const host = new AgentServerToolHost(stateManager, [
@@ -274,6 +410,7 @@ suite('SessionServerTools', () => {
 			enabledTools: [
 				SessionServerToolName.ListSessions,
 				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.SetWorkspace,
 				SessionServerToolName.CreateSession,
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
@@ -283,6 +420,7 @@ suite('SessionServerTools', () => {
 			disabledTools: [
 				SessionServerToolName.ListSessions,
 				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.SetWorkspace,
 				SessionServerToolName.CreateSession,
 				SessionServerToolName.SendMessage,
 				SessionServerToolName.GetSessionContext,
