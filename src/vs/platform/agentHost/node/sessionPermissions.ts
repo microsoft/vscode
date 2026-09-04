@@ -176,12 +176,6 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 	}
 }
 
-/** Returns whether effective platform configuration auto-approves every permission request for the session. */
-export function isAutoApproveBypassEnabled(configService: IAgentConfigurationService, sessionKey: ProtocolURI): boolean {
-	return configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true
-		|| (configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') === 'autoApprove';
-}
-
 /**
  * Single entry point for all tool-call approval logic in the agent host.
  *
