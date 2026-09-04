@@ -236,14 +236,14 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const charOffsets: number[] = [];
 	const spanStartOffsets: number[] = [0];
 	const visibleColumns: number[] = [];
-	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 	let spanOpen = true;
 
 	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		let fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange && fixedWidthRange.startOffset === charIndex;
-		const isFullWidthCharacter = fullwidthCharacterWidth !== undefined && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
+		const charCode = lineContent.charCodeAt(charIndex);
+		const isFullWidthCharacter = fullwidthCharacterWidth !== undefined && strings.isFullWidthCharacter(charCode);
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
@@ -289,23 +289,16 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			spanStartOffsets.push(charOffset);
 		}
 
-		let producedCharacters: number;
-		let charWidth: number;
+		charOffsets[charIndex] = charOffset;
+		visibleColumns[charIndex] = visibleColumn;
+		let producedCharacters = 1;
+		let charWidth = 1;
 		if (isFullWidthCharacter) {
-			charOffsets[charIndex] = charOffset;
-			visibleColumns[charIndex] = visibleColumn;
-			sb.appendCharCode(lineContent.charCodeAt(charIndex));
-			producedCharacters = 1;
+			sb.appendCharCode(charCode);
 			charWidth = 2;
 			sb.appendString('</span>');
 			spanOpen = false;
 		} else {
-			charOffsets[charIndex] = charOffset;
-			visibleColumns[charIndex] = visibleColumn;
-			const charCode = nextCharCode;
-			nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
-			producedCharacters = 1;
-			charWidth = 1;
 			switch (charCode) {
 				case CharCode.Tab:
 					producedCharacters = (tabSize - (visibleColumn % tabSize));
@@ -320,7 +313,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 					break;
 
 				case CharCode.Space:
-					if (nextCharCode === CharCode.Space) {
+					// `charCodeAt` past the end of the line yields `NaN`, which is not a space either.
+					if (lineContent.charCodeAt(charIndex + 1) === CharCode.Space) {
 						sb.appendCharCode(0xA0); // &nbsp;
 					} else {
 						sb.appendASCIICharCode(CharCode.Space);
