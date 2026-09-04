@@ -13,7 +13,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
-import { NewSessionActionViewItemContribution, SessionConversationActionsContribution } from './sessionsActions.js';
+import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
@@ -82,6 +82,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT,
 			},
 			description: localize('sessions.automations.newBadgeStyle', "Controls the visual style of the Automations first-use badge."),
+		},
+		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['default', 'lightweight', 'lightweightWithKeybindingBackground'],
+			default: 'default',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: NEW_SESSION_BUTTON_STYLE_TREATMENT,
+			},
+			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
 		},
 	},
 });
