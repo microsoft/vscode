@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from './agentSdkDownloader.js';
 
@@ -59,7 +59,7 @@ export class AgentSdkSetupChannel extends Disposable {
 				return;
 			}
 			if (progress.phase === 'started') {
-				this._enableAutoDownload();
+				this._recordDownloadConsent();
 				this._downloadFailed = false;
 				this._lazyDownloadInFlight = true;
 				this.publishWith(false);
@@ -80,7 +80,7 @@ export class AgentSdkSetupChannel extends Disposable {
 			? 'downloading'
 			: sdkIsLocal
 				? 'ready'
-				: this._isAutoDownloadEnabled() && !this._downloadFailed ? 'downloadOnUse' : 'notDownloaded';
+			: this._hasDownloadConsent() && !this._downloadFailed ? 'downloadOnUse' : 'notDownloaded';
 		const info: Omit<IAgentSdkSetupInfo, 'agent'> = { ...this._agent.setupInfo, download };
 		this._configurationService.publishRootTransientValues?.({ [agentSdkSetupStatusKey(this._agent.id)]: info });
 	}
@@ -88,7 +88,7 @@ export class AgentSdkSetupChannel extends Disposable {
 	private _handleRequest(): void {
 		const values = this._configurationService.getRootConfigValues?.() ?? {};
 		if (this._takeRequest(values, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY)) {
-			this._enableAutoDownload();
+			this._recordDownloadConsent();
 			void this._download();
 		}
 		if (this._takeRequest(values, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY)) {
@@ -111,30 +111,17 @@ export class AgentSdkSetupChannel extends Disposable {
 	}
 
 	private async _initialize(): Promise<void> {
-		const sdkIsLocal = await this._agent.isSdkLocal();
-		// Existing cache directories migrate the former workbench-owned consent.
-		if (!this._isAutoDownloadEnabled() && await this._downloader.hasSdkDownloadHistory(this._agent.sdkPackage)) {
-			this._enableAutoDownload();
-		}
-		this.publishWith(sdkIsLocal);
+		this.publishWith(await this._agent.isSdkLocal());
 	}
 
-	private _isAutoDownloadEnabled(): boolean {
-		return this._readAutoDownloadPackages().includes(this._agent.sdkPackage.id);
+	private _hasDownloadConsent(): boolean {
+		return this._downloader.hasDownloadConsent(this._agent.sdkPackage);
 	}
 
-	private _enableAutoDownload(): void {
-		const current = this._readAutoDownloadPackages();
-		if (!current.includes(this._agent.sdkPackage.id)) {
-			this._configurationService.updateRootConfig({
-				[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: [...current, this._agent.sdkPackage.id],
-			});
-		}
-	}
-
-	private _readAutoDownloadPackages(): readonly string[] {
-		const value = this._configurationService.getRootConfigValues?.()[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY];
-		return Array.isArray(value) ? value.filter(packageId => typeof packageId === 'string') : [];
+	private _recordDownloadConsent(): void {
+		void this._downloader.recordDownloadConsent(this._agent.sdkPackage).catch(error => {
+			this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: failed to persist agent SDK download consent`);
+		});
 	}
 
 	/** Download requested explicitly through the setup UI. */

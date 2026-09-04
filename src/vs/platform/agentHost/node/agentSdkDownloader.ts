@@ -23,6 +23,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IRequestContext } from '../../../base/parts/request/common/request.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { reportAgentSdkDownload } from './agentSdkDownloadTelemetry.js';
 
 // #region Per-package strategy
@@ -164,8 +165,11 @@ export interface IAgentSdkDownloader {
 	 */
 	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress>;
 
-	/** Whether this host has previously created a cache for the package. */
-	hasSdkDownloadHistory(pkg: IAgentSdkPackage): Promise<boolean>;
+	/** Whether the user has accepted future download-on-use for this package. */
+	hasDownloadConsent(pkg: IAgentSdkPackage): boolean;
+
+	/** Persist that the user accepted future download-on-use for this package. */
+	recordDownloadConsent(pkg: IAgentSdkPackage): Promise<void>;
 
 	/**
 	 * Keep download progress visible for a user-initiated flow that does not
@@ -220,6 +224,7 @@ export interface IAgentSdkDownloader {
 
 /** How long a `loadSdkRoot` failure latches before we try again. */
 const LOAD_FAILURE_NEGATIVE_CACHE_MS = 30_000;
+const AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY = 'agentSdkDownloadConsent';
 
 /**
  * Minimum gap between download-progress samples. A 70-95MB tarball over a fast
@@ -279,6 +284,7 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 	) {
 		super();
 	}
@@ -290,13 +296,20 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
 	}
 
-	hasSdkDownloadHistory(pkg: IAgentSdkPackage): Promise<boolean> {
-		return this._fileService.exists(URI.file(path.join(
-			this._environmentService.userDataPath,
-			'agent-host',
-			'sdk-cache',
-			pkg.id,
-		)));
+	hasDownloadConsent(pkg: IAgentSdkPackage): boolean {
+		return this._readDownloadConsents().includes(pkg.id);
+	}
+
+	async recordDownloadConsent(pkg: IAgentSdkPackage): Promise<void> {
+		const consented = this._readDownloadConsents();
+		if (!consented.includes(pkg.id)) {
+			await this._storageService.setAndFlush(AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY, [...consented, pkg.id]);
+		}
+	}
+
+	private _readDownloadConsents(): readonly string[] {
+		const stored = this._storageService.get<unknown>(AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY);
+		return Array.isArray(stored) ? stored.filter(packageId => typeof packageId === 'string') : [];
 	}
 
 	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable {

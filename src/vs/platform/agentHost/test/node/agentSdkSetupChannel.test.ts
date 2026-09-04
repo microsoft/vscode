@@ -10,7 +10,7 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agentSdkSetupStatusKey, type AgentSdkDownloadStatus } from '../../common/agentSdkSetup.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, agentSdkSetupStatusKey, type AgentSdkDownloadStatus } from '../../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentSdkSetupChannel, type IAgentSdkSetupChannelAgent } from '../../node/agentSdkSetupChannel.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
@@ -70,8 +70,7 @@ suite('AgentSdkSetupChannel', () => {
 
 	function createChannel(options: {
 		configuration?: TestConfigurationService;
-		autoDownload?: boolean;
-		hasDownloadHistory?: boolean;
+		downloadConsent?: boolean;
 		downloadSdk?: () => Promise<void>;
 	} = {}): {
 		channel: AgentSdkSetupChannel;
@@ -79,19 +78,19 @@ suite('AgentSdkSetupChannel', () => {
 		downloads: Emitter<IAgentSdkDownloadProgress>;
 		lookedAgain: string[];
 		downloadCalls: () => number;
+		downloadConsents: () => readonly string[];
 		progressInterests: string[];
 	} {
 		const configuration = options.configuration ?? store.add(new TestConfigurationService());
-		if (options.autoDownload) {
-			configuration.updateRootConfig({ [AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: ['claude'] });
-		}
 		const downloads = store.add(new Emitter<IAgentSdkDownloadProgress>());
 		const lookedAgain: string[] = [];
+		const downloadConsents = new Set(options.downloadConsent ? ['claude'] : []);
 		const progressInterests: string[] = [];
 		let downloadCalls = 0;
 		const downloader = new class extends mock<IAgentSdkDownloader>() {
 			override readonly onDidDownloadProgress = downloads.event;
-			override hasSdkDownloadHistory = async () => options.hasDownloadHistory ?? false;
+			override hasDownloadConsent = (pkg: IAgentSdkPackage) => downloadConsents.has(pkg.id);
+			override recordDownloadConsent = async (pkg: IAgentSdkPackage) => { downloadConsents.add(pkg.id); };
 			override acquireDownloadProgressInterest = () => {
 				progressInterests.push('claude');
 				return toDisposable(() => { });
@@ -110,11 +109,11 @@ suite('AgentSdkSetupChannel', () => {
 			refreshModels: async () => { lookedAgain.push('models'); },
 		};
 		const channel = store.add(new AgentSdkSetupChannel(agent, configuration, downloader, new NullLogService()));
-		return { channel, configuration, downloads, lookedAgain, downloadCalls: () => downloadCalls, progressInterests };
+		return { channel, configuration, downloads, lookedAgain, downloadCalls: () => downloadCalls, downloadConsents: () => [...downloadConsents], progressInterests };
 	}
 
 	test('a first-turn download replaces the offer with downloading and then ready', async () => {
-		const { configuration, downloads, lookedAgain } = createChannel();
+		const { configuration, downloads, lookedAgain, downloadConsents } = createChannel();
 		await timeout(0);
 
 		downloads.fire(progress('started'));
@@ -124,46 +123,46 @@ suite('AgentSdkSetupChannel', () => {
 		assert.deepStrictEqual({
 			statuses: configuration.statuses,
 			lookedAgain,
-			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloadConsents: downloadConsents(),
 		}, {
 			statuses: ['notDownloaded', 'downloading', 'ready'],
 			lookedAgain: ['discovery', 'models'],
-			autoDownload: ['claude'],
+			downloadConsents: ['claude'],
 		});
 	});
 
 	test('a failed first-turn download returns to the offer', async () => {
-		const { configuration, downloads } = createChannel();
+		const { configuration, downloads, downloadConsents } = createChannel();
 		await timeout(0);
 		downloads.fire(progress('started'));
 		downloads.fire(progress('failed'));
 
 		assert.deepStrictEqual({
 			statuses: configuration.statuses,
-			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloadConsents: downloadConsents(),
 		}, {
 			statuses: ['notDownloaded', 'downloading', 'notDownloaded'],
-			autoDownload: ['claude'],
+			downloadConsents: ['claude'],
 		});
 	});
 
 	test('another agent download does not change this agent status', async () => {
-		const { configuration, downloads } = createChannel();
+		const { configuration, downloads, downloadConsents } = createChannel();
 		await timeout(0);
 
 		downloads.fire(progress('started', 'codex'));
 
 		assert.deepStrictEqual({
 			statuses: configuration.statuses,
-			autoDownload: configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloadConsents: downloadConsents(),
 		}, {
 			statuses: ['notDownloaded'],
-			autoDownload: undefined,
+			downloadConsents: [],
 		});
 	});
 
 	test('standing consent waits for SDK use instead of downloading on host startup', async () => {
-		const ctx = createChannel({ autoDownload: true });
+		const ctx = createChannel({ downloadConsent: true });
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -179,21 +178,6 @@ suite('AgentSdkSetupChannel', () => {
 		});
 	});
 
-	test('existing cache history migrates consent without downloading the new version', async () => {
-		const ctx = createChannel({ hasDownloadHistory: true });
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			autoDownload: ctx.configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
-			downloads: ctx.downloadCalls(),
-			statuses: ctx.configuration.statuses,
-		}, {
-			autoDownload: ['claude'],
-			downloads: 0,
-			statuses: ['downloadOnUse'],
-		});
-	});
-
 	test('an explicit request records host consent and surfaces progress', async () => {
 		const ctx = createChannel();
 		await timeout(0);
@@ -204,12 +188,12 @@ suite('AgentSdkSetupChannel', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			autoDownload: ctx.configuration.values[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY],
+			downloadConsents: ctx.downloadConsents(),
 			downloads: ctx.downloadCalls(),
 			progressInterests: ctx.progressInterests,
 			statuses: ctx.configuration.statuses,
 		}, {
-			autoDownload: ['claude'],
+			downloadConsents: ['claude'],
 			downloads: 1,
 			progressInterests: ['claude'],
 			statuses: ['notDownloaded', 'downloading', 'ready'],

@@ -10,7 +10,6 @@ import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type Chat
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
-import { AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY } from './agentSdkSetup.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
@@ -758,13 +757,6 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
 	[SessionConfigKey.Permissions]: permissionsProperty,
-	[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: schemaProperty<string[]>({
-		type: 'array',
-		title: localize('agentHost.config.agentSdkAutoDownload.title', "Automatic Agent SDK Downloads"),
-		description: localize('agentHost.config.agentSdkAutoDownload.description', "Agent SDK packages this Agent Host may download automatically when they are next used."),
-		items: { type: 'string', title: localize('agentHost.config.agentSdkAutoDownload.item.title', "Agent SDK Package") },
-		default: [],
-	}),
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.disableRepoInfoTelemetry.title', "Disable Repository Information Telemetry"),

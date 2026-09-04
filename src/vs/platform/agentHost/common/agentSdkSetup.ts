@@ -17,7 +17,6 @@ import type { RootState } from './state/protocol/state.js';
 const AGENT_SDK_SETUP_STATUS_KEY_PREFIX = 'vscode.agentSdkSetup.status.';
 
 export const AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY = 'vscode.agentSdkSetup.downloadRequest';
-export const AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY = 'agentSdkAutoDownload';
 
 /**
  * Ask an agent to look again at a setup the user completed outside the app
