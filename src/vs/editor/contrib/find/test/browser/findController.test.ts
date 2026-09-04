@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import * as platform from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,6 +16,12 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
+import { FindWidget } from '../../browser/findWidget.js';
+import { IContextViewProvider } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -547,7 +554,7 @@ suite('FindController', () => {
 
 suite('FindController query options persistence', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const serviceCollection = new ServiceCollection();
 	const storageService = new InMemoryStorageService();
@@ -714,6 +721,106 @@ suite('FindController query options persistence', () => {
 			// Clearing the scope must be honored
 			findState.change({ searchScope: null }, false);
 			assert.strictEqual(findState.searchScope, null);
+		});
+	});
+
+	test('issue #237774: Focusing the find inputs must not shrink an active search scope to the current match', async () => {
+		const localServices = new ServiceCollection();
+		localServices.set(IStorageService, store.add(new InMemoryStorageService()));
+		localServices.set(IHoverService, {
+			_serviceBrand: undefined,
+			showDelayedHover: () => undefined,
+			setupDelayedHover: () => ({ dispose: () => { } }),
+			setupDelayedHoverAtMouse: () => ({ dispose: () => { } }),
+			showInstantHover: () => undefined,
+			hideHover: () => { },
+			showAndFocusLastHover: () => { },
+			setupManagedHover: () => ({ dispose: () => { }, show: () => { }, hide: () => { }, update: () => { } }),
+			showManagedHover: () => { },
+		});
+		await withAsyncTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: localServices, find: { autoFindInSelection: 'multiline', globalFindClipboard: false } }, async (editor, _viewModel, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+
+			// The widget is not part of TestFindController: construct it directly
+			// like FindController._createFindWidget does.
+			const widgetHolder = dom.$('.find-widget-test-holder');
+			document.body.appendChild(widgetHolder);
+			const contextViewProvider: IContextViewProvider = {
+				showContextView: (delegate) => {
+					const disposables = new DisposableStore();
+					const rendered = delegate.render(widgetHolder);
+					if (rendered) {
+						disposables.add(rendered);
+					}
+					return disposables;
+				},
+				hideContextView: () => { },
+				layout: () => { },
+			};
+			const widget = new FindWidget(
+				editor,
+				findController,
+				findState,
+				contextViewProvider,
+				instantiationService.get(IKeybindingService),
+				instantiationService.get(IContextKeyService),
+				instantiationService.get(IHoverService),
+				undefined,
+				undefined,
+				instantiationService.get(IConfigurationService),
+				instantiationService.get(IAccessibilityService)
+			);
+			widgetHolder.appendChild(widget.getDomNode());
+
+			// FocusTracker clears its internal focus state in a setTimeout(0)
+			// after a blur, so blur, yield a macrotask, and only then focus:
+			// focusing an input the tracker still considers focused is a no-op.
+			const focusFindInputForReal = async () => {
+				(document.activeElement as HTMLElement | null)?.blur();
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+				widget.focusFindInput();
+			};
+			const focusReplaceInputForReal = async () => {
+				(document.activeElement as HTMLElement | null)?.blur();
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+				widget.focusReplaceInput();
+			};
+
+			try {
+				const originalScope = [new Selection(1, 1, 3, 1)];
+				findState.change({ isRevealed: true, isReplaceRevealed: true, searchScope: originalScope }, false);
+				assert.deepStrictEqual(findState.searchScope, originalScope);
+
+				// Simulate navigating to a match: the editor selection becomes the
+				// current match, a single line inside the original scope.
+				const currentMatch = new Selection(2, 5, 2, 6);
+				editor.setSelection(currentMatch);
+				findState.changeMatchInfo(1, 14, currentMatch);
+
+				const toggleSelectionFind = widget['_toggleSelectionFind'] as unknown as { checked: boolean };
+				toggleSelectionFind.checked = true;
+
+				// Focusing either find input runs _updateSearchScope: the current
+				// match must be filtered out and the multiline scope must survive.
+				await focusFindInputForReal();
+				assert.deepStrictEqual(findState.searchScope, originalScope, 'find input focus must keep the active search scope');
+
+				await focusReplaceInputForReal();
+				assert.deepStrictEqual(findState.searchScope, originalScope, 'replace input focus must keep the active search scope');
+
+				// The scope must still follow a genuinely new multi-cursor selection.
+				editor.setSelections([new Selection(2, 1, 3, 5)]);
+				await focusFindInputForReal();
+				assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 5)], 'find input focus must apply a changed selection as the new scope');
+			} finally {
+				widget.dispose();
+				widgetHolder.remove();
+			}
 		});
 	});
 

@@ -859,9 +859,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (this._toggleSelectionFind.checked) {
-			const selections = this._codeEditor.getSelections();
-
-			selections.map(selection => {
+			const selections = this._codeEditor.getSelections().map(selection => {
 				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
 					selection = selection.setEndPosition(
 						selection.endLineNumber - 1,
@@ -875,7 +873,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					}
 				}
 				return null;
-			}).filter(element => !!element);
+			}).filter((element): element is Selection => !!element);
 
 			if (selections.length) {
 				this._state.change({ searchScope: selections as Range[] }, true);

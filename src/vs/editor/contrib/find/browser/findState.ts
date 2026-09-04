@@ -15,6 +15,11 @@ function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
 	if (!a || !b || a.length !== b.length) {
 		return false;
 	}
+	// Fast path: the ranges usually arrive in the same order they were stored in.
+	if (a.every((rangeA, i) => Range.equalsRange(rangeA, b[i]))) {
+		return true;
+	}
+	// Fallback: order-insensitive comparison that still counts duplicates.
 	const matched = new Array<boolean>(b.length).fill(false);
 	return a.every(rangeA => {
 		const index = b.findIndex((rangeB, i) => !matched[i] && Range.equalsRange(rangeA, rangeB));
