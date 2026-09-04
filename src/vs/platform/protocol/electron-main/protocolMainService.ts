@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session } from 'electron';
+import { net, session } from 'electron';
+import { pathToFileURL } from 'url';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
@@ -16,8 +17,6 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { ILogService } from '../../log/common/log.js';
 import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-
-type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
@@ -50,15 +49,15 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		const { defaultSession } = session;
 
 		// Register vscode-file:// handler
-		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
+		defaultSession.protocol.handle(Schemas.vscodeFileResource, request => this.handleResourceRequest(request));
 
 		// Block any file:// access
-		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback));
+		defaultSession.protocol.handle(Schemas.file, request => this.handleFileRequest(request));
 
 		// Cleanup
 		this._register(toDisposable(() => {
-			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
-			defaultSession.protocol.uninterceptProtocol(Schemas.file);
+			defaultSession.protocol.unhandle(Schemas.vscodeFileResource);
+			defaultSession.protocol.unhandle(Schemas.file);
 		}));
 	}
 
@@ -79,19 +78,19 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region file://
 
-	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+	private handleFileRequest(request: GlobalRequest): GlobalResponse {
 		const uri = URI.parse(request.url);
 
 		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
 
-		return callback({ error: -3 /* ABORTED */ });
+		return Response.error();
 	}
 
 	//#endregion
 
 	//#region vscode-file://
 
-	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
+	private async handleResourceRequest(request: GlobalRequest): Promise<GlobalResponse> {
 		const path = this.requestToNormalizedFilePath(request);
 		const pathBasename = basename(path);
 
@@ -125,21 +124,41 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path, headers });
+			return this.createFileResponse(request, path, headers);
 		}
 
 		// then check by validExtensions
 		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path, headers });
+			return this.createFileResponse(request, path, headers);
 		}
 
 		// finally block to load the resource
 		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
-		return callback({ error: -3 /* ABORTED */ });
+		return Response.error();
 	}
 
-	private requestToNormalizedFilePath(request: Electron.ProtocolRequest): string {
+	private async createFileResponse(request: GlobalRequest, path: string, headers: Record<string, string> | undefined): Promise<GlobalResponse> {
+		try {
+			const response = await net.fetch(pathToFileURL(path).toString(), {
+				method: request.method,
+				headers: request.headers,
+				bypassCustomProtocolHandlers: true
+			});
+			if (headers) {
+				for (const [name, value] of Object.entries(headers)) {
+					response.headers.set(name, value);
+				}
+			}
+
+			return response;
+		} catch (error) {
+			this.logService.error(`${Schemas.vscodeFileResource}: Failed to load resource ${path}`, error);
+			return Response.error();
+		}
+	}
+
+	private requestToNormalizedFilePath(request: GlobalRequest): string {
 
 		// 1.) Use `URI.parse()` util from us to convert the raw
 		//     URL into our URI.
