@@ -220,6 +220,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override addRecentWorkspace(): void { }
 				override removeRecentWorkspace(): void { }
 				override clearCheckedWorkspace(): void { }
+				override isNoWorkspaceChecked(): boolean { return false; }
+				override checkNoWorkspace(): void { }
 			}());
 			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

@@ -10,7 +10,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -89,7 +89,6 @@ export class NewChatWidget extends Disposable {
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
-	private readonly _workspacePickerQuickChatSessionId = observableValue<string | undefined>(this, undefined);
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -150,15 +149,15 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			return session?.isQuickChat?.read(reader) ?? false;
 		});
-		this._isWorkspacePickerQuickChat = derived(this, reader => {
-			const session = this._session.read(reader);
-			return !!session?.isQuickChat?.read(reader) && session.sessionId === this._workspacePickerQuickChatSessionId.read(reader);
-		});
 		this._useConsolidatedRemoteWorkspaces = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.ConsolidatedRemoteWorkspaces)),
 			() => this.configurationService.getValue<boolean>(ChatConfiguration.ConsolidatedRemoteWorkspaces),
 		);
+		this._isWorkspacePickerQuickChat = derived(this, reader => {
+			const session = this._session.read(reader);
+			return this._useConsolidatedRemoteWorkspaces.read(reader) && !!session?.isQuickChat?.read(reader);
+		});
 
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
@@ -500,11 +499,8 @@ export class NewChatWidget extends Disposable {
 		// from a new-session draft when navigating back from another session).
 		this._seedWorkspaceDraft();
 
-		// Re-seed the workspace draft when the composer swaps out of quick-chat
-		// mode (e.g. Cmd+N discards a quick chat, leaving the reused composer
-		// session-less): without an active session the session-type picker has no
-		// folder types and hides itself, so restore the last folder to match a
-		// freshly-opened new-session composer.
+		// Re-seed the selected target when the composer swaps out of quick-chat
+		// mode without another active draft.
 		if (!isWeb) {
 			let wasQuickChat = this._isQuickChatComposer.get();
 			this._register(autorun(reader => {
@@ -539,7 +535,12 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _seedWorkspaceDraft(): void {
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
-		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
+		if (this._syncWorkspacePickerFromActiveSession()) {
+			return;
+		}
+		if (this._workspacePicker.isNoWorkspaceSelected()) {
+			this.selectNoWorkspace();
+		} else if (restoredFolderUri) {
 			void this._createNewSession(restoredFolderUri);
 		}
 	}
@@ -725,16 +726,15 @@ export class NewChatWidget extends Disposable {
 		return this._isQuickChatComposer.get() ? undefined : this._workspacePicker.selectedFolderUri;
 	}
 
-	private _selectNoWorkspace(): void {
+	selectNoWorkspace(): void {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
-		this._openQuickChat(undefined, true);
+		this._workspacePicker.selectNoWorkspace();
+		this._openQuickChat();
 	}
 
-	private _openQuickChat(options?: ICreateNewSessionOptions, keepWorkspacePickerVisible = this._isWorkspacePickerQuickChat.get()): IActiveSession | undefined {
-		const session = this.sessionsService.openQuickChat(options);
-		this._workspacePickerQuickChatSessionId.set(keepWorkspacePickerVisible ? session?.sessionId : undefined, undefined);
-		return session;
+	private _openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
+		return this.sessionsService.openQuickChat(options);
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
@@ -747,7 +747,7 @@ export class NewChatWidget extends Disposable {
 		return {
 			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
 			isSelected: isWorkspacePickerQuickChat,
-			select: () => this._selectNoWorkspace(),
+			select: () => this.selectNoWorkspace(),
 		};
 	}
 

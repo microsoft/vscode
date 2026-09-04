@@ -90,6 +90,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	selectNoWorkspace(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Prefill the input with the given text. The default implementation is
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)

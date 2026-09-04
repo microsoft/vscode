@@ -1113,15 +1113,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		// A quick-chat draft must not be restored into the workspace new-session
-		// composer (symmetric to the New Quick Chat gesture): discard it and show
-		// a fresh workspace composer instead.
-		if (newSession?.isQuickChat?.get()) {
-			this.sessionsManagementService.discardNewSession(newSession);
-			this._activate(undefined);
-			return { session: undefined, trustDeclined: false };
-		}
-
 		this._activate(newSession ?? undefined);
 		return { session: newSession ?? undefined, trustDeclined: false };
 	}

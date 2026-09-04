@@ -1040,6 +1040,22 @@ export class WorkspacePicker extends Disposable {
 		this._onDidSelectWorkspace.fire(undefined);
 	}
 
+	isNoWorkspaceSelected(): boolean {
+		return !!this._getNoWorkspaceOption() && this.recentWorkspacesService.isNoWorkspaceChecked();
+	}
+
+	selectNoWorkspace(): void {
+		this._selectionGeneration++;
+		this._sessionRestoreGeneration++;
+		this._hidePicker();
+		this._userHasPicked = true;
+		this._connectionStatusWatch.clear();
+		this._applySelection(undefined);
+		this.recentWorkspacesService.checkNoWorkspace();
+		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
+	}
+
 	/**
 	 * Clears the selection if it matches the given URI.
 	 */
@@ -1700,6 +1716,10 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreSelectedWorkspace(): IRestoredWorkspaceSelection | undefined {
+		if (this.isNoWorkspaceSelected()) {
+			return undefined;
+		}
+
 		// Try the checked entry first
 		const checked = this._restoreCheckedWorkspace();
 		if (checked && this._canRestoreProviderWorkspace(checked.providerId)) {
@@ -1815,7 +1835,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _canRestoreWorkspace(): boolean {
-		return this.options.canRestoreWorkspace?.() ?? true;
+		return !this.isNoWorkspaceSelected() && (this.options.canRestoreWorkspace?.() ?? true);
 	}
 
 	/**
