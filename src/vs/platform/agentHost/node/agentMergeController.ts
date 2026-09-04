@@ -27,6 +27,7 @@ import { AuthRequiredReason } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, needsSessionGitStateRefresh, parseRequiredSessionUriFromChatUri, readSessionGitHubState, readSessionGitState, SessionLifecycle, TurnState } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentMergeTurnContext } from './agentMergeTools.js';
 
@@ -47,7 +48,6 @@ export interface IAgentMergeControllerOptions {
 	 * is client-visible only; it must never become part of the agent's context.
 	 */
 	readonly postNotice: (session: string, kind: AgentSystemNotificationKind, content: string) => void;
-	readonly getAutonomousSessionConfig: (session: string, config: Readonly<Record<string, unknown>>) => Record<string, unknown> | undefined;
 }
 
 /** The configuration a session was last told about, and the overrides it was resolved from. */
@@ -119,6 +119,7 @@ export class AgentMergeController extends Disposable {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -329,7 +330,7 @@ export class AgentMergeController extends Disposable {
 	private _reconcileInjectedConfiguration(session: string, agentMerge: AgentMergeSessionState): void {
 		const values = this._configurationService.getSessionConfigValues(session) ?? {};
 		const injected = agentMerge.injectedConfiguration;
-		const applied = this._options.getAutonomousSessionConfig(session, values) ?? {};
+		const applied = this._providerService.getProviderForSession(session)?.getAutonomousSessionConfig?.(values) ?? {};
 		if (!injected && Object.keys(applied).length === 0) {
 			this._logService.debug(`[AgentMergeController] Provider did not select autonomous session configuration: session=${session}`);
 			return;

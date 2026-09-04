@@ -167,9 +167,9 @@ Production and targeted graph tests still resolve the real implementations.
 
 ### `AgentServiceCallbackAdapter`
 
-**Why it exists:** callback-dependent services are constructed before
-`AgentService`, while session restore, server-tool operations, and changeset
-eviction are still owned by `AgentService`.
+**Why it exists:** `AgentSideEffects` and changeset retention are constructed
+before `AgentService`, while first-send preparation, chat attachment hydration,
+and changeset eviction are still owned by `AgentService`.
 
 Cross-cutting turn behavior now belongs in `IAgentHostChatContributions`; do not
 add callbacks for behavior expressible through its lifecycle hooks.
@@ -177,12 +177,11 @@ add callbacks for behavior expressible through its lifecycle hooks.
 **Do not extend it by default:** a new callback usually means another
 responsibility should move to a narrower owning service.
 
-**Exit condition:** extract session operations/restoration, server-tool
-ownership, turn dispatch, and changeset eviction so consumers inject those
-owners directly. Contributions reduce the cross-cutting behavior that those
-services must own, but the remaining callback queries and commands need service
-owners rather than contribution hooks. Then delete the adapter and binder
-contract.
+**Exit condition:** extract first-send preparation, chat attachment hydration,
+and changeset eviction so consumers inject those owners directly. Contributions
+reduce the cross-cutting behavior that those services must own, but the remaining
+callback queries and commands need service owners rather than contribution
+hooks. Then delete the adapter and binder contract.
 
 ### Post-DI service registrations
 
@@ -194,9 +193,10 @@ callbacks or objects.
 **Do not add another post-DI registration.** Ordinary services belong in the
 descriptor lists or the pre-DI foundation.
 
-**Exit condition:** the server-tool, session, and turn-dispatch extractions
-remove the callback cycles. Register the remaining services before constructing
-`InstantiationService`, with `IAgentService` as a descriptor.
+**Exit condition:** the turn-preparation, chat-restoration, and changeset
+retention extractions remove the callback cycles. Register the remaining
+services before constructing `InstantiationService`, with `IAgentService` as a
+descriptor.
 
 ### Chat contribution host bridge
 
