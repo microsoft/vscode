@@ -530,9 +530,158 @@
 		};
 
 		/**
+		 * Image that the context menu was last opened on.
+		 *
+		 * We track this so that `Copy` in the context menu copies the image itself instead of the
+		 * text selection, which is normally empty when right clicking an image.
+		 *
+		 * @type {WeakRef<HTMLImageElement> | undefined}
+		 */
+		let contextMenuImage = undefined;
+
+		/**
+		 * @param {EventTarget | null} target
+		 */
+		function setContextMenuImage(target) {
+			/** @type {any} */
+			const node = target;
+			// The element belongs to the inner frame's realm so we can't use `instanceof` here
+			contextMenuImage = node?.tagName?.toLowerCase() === 'img' ? new WeakRef(node) : undefined;
+		}
+
+		/**
+		 * Try to copy the image that the context menu was opened on.
+		 *
+		 * @param {Document} contentDocument
+		 * @return {boolean} `true` if we started copying an image.
+		 */
+		function tryCopyContextMenuImage(contentDocument) {
+			const image = contextMenuImage?.deref();
+			if (!image || !image.isConnected || image.ownerDocument !== contentDocument) {
+				return false;
+			}
+
+			// If the user has actually selected something, copy that instead
+			const selection = contentDocument.getSelection();
+			if (selection && !selection.isCollapsed) {
+				return false;
+			}
+
+			copyImageToClipboard(image);
+			return true;
+		}
+
+		/**
+		 * @param {HTMLImageElement} image
+		 */
+		async function copyImageToClipboard(image) {
+			try {
+				// Encode before waiting on focus so that decoding and re-fetching the image
+				// does not eat into the time we are willing to wait for focus.
+				const blob = await encodeImageAsPng(image);
+
+				// `navigator.clipboard.write` throws unless the document is focused. Depending on how the
+				// context menu is rendered, focus may still be on its way back to us at this point.
+				// Give it a moment, but still try the write if it never arrives.
+				await waitForDocumentFocus();
+
+				await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+			} catch (e) {
+				console.error('Could not copy image to clipboard', e);
+			}
+		}
+
+		/**
+		 * @param {number} timeout
+		 * @return {Promise<boolean>} `true` if the document is focused.
+		 */
+		function waitForDocumentFocus(timeout = 1000) {
+			if (document.hasFocus()) {
+				return Promise.resolve(true);
+			}
+
+			return new Promise(resolve => {
+				/** @type {number} */
+				let poll;
+				/** @type {number} */
+				let timer;
+				const onFocus = () => done(true);
+
+				/** @param {boolean} focused */
+				function done(focused) {
+					clearInterval(poll);
+					clearTimeout(timer);
+					window.removeEventListener('focus', onFocus);
+					resolve(focused);
+				}
+
+				window.addEventListener('focus', onFocus);
+				// Poll in addition to listening for the event: focus may be regained between us
+				// checking for it above and getting the listener installed.
+				poll = setInterval(() => {
+					if (document.hasFocus()) {
+						done(true);
+					}
+				}, 20);
+				timer = setTimeout(() => done(document.hasFocus()), timeout);
+			});
+		}
+
+		/**
+		 * @param {HTMLImageElement} image
+		 * @return {Promise<Blob>}
+		 */
+		async function encodeImageAsPng(image) {
+			try {
+				return await drawImageToPngBlob(image, image.naturalWidth, image.naturalHeight);
+			} catch (e) {
+				// Reading the pixels back fails if the image came from a cross origin source that
+				// tainted the canvas. Re-request it using cors so that we may read it.
+				const response = await fetch(image.currentSrc, { mode: 'cors' });
+				const bitmap = await createImageBitmap(await response.blob());
+				try {
+					return await drawImageToPngBlob(bitmap, bitmap.width, bitmap.height);
+				} finally {
+					bitmap.close();
+				}
+			}
+		}
+
+		/**
+		 * @param {CanvasImageSource} source
+		 * @param {number} width
+		 * @param {number} height
+		 * @return {Promise<Blob>}
+		 */
+		function drawImageToPngBlob(source, width, height) {
+			if (!width || !height) {
+				throw new Error('Image has no size');
+			}
+
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			assertIsDefined(canvas.getContext('2d')).drawImage(source, 0, 0);
+
+			return new Promise((resolve, reject) => {
+				canvas.toBlob(blob => {
+					if (blob) {
+						resolve(blob);
+					} else {
+						reject(new Error('Could not encode image as png'));
+					}
+				}, 'image/png');
+			});
+		}
+
+		/**
 		 * @param {MouseEvent} event
 		 */
 		const handleInnerClick = (event) => {
+			// The context menu no longer applies once the user clicks elsewhere.
+			// Note that right clicks do not fire `click` so this doesn't clobber the image we just tracked.
+			contextMenuImage = undefined;
+
 			if (!event.isTrusted || !event?.view?.document) {
 				return;
 			}
@@ -588,6 +737,9 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
+			// Keyboard copy should always act on the selection, not on the last context menu target
+			contextMenuImage = undefined;
+
 			// If the keypress would trigger a browser event, such as copy or paste,
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
@@ -1177,6 +1329,8 @@
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
 					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('contextmenu', e => {
+						setContextMenuImage(e.target);
+
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
 							return;
@@ -1263,7 +1417,13 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+
+				const contentDocument = assertIsDefined(target.contentDocument);
+				if (data === 'copy' && tryCopyContextMenuImage(contentDocument)) {
+					return;
+				}
+
+				contentDocument.execCommand(data);
 			});
 
 			/** @type {string | undefined} */
