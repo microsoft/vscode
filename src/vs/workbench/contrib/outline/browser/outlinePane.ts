@@ -312,6 +312,11 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		this._editorControlDisposables.add(tree.onDidOpen(async e => {
 			const myId = ++idPool;
 			const isDoubleClick = e.browserEvent?.type === 'dblclick';
+			// when `workbench.list.openMode` is `doubleClick`, a double click is the
+			// primary way to open an entry and should jump to the symbol (not select
+			// its full range), matching the single-click behavior in the default mode.
+			const openOnSingleClick = this.configurationService.getValue('workbench.list.openMode') !== 'doubleClick';
+			const selectSymbolRange = isDoubleClick && openOnSingleClick;
 			if (!isDoubleClick) {
 				// workaround for https://github.com/microsoft/vscode/issues/206424
 				await timeout(150);
@@ -319,7 +324,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 					return;
 				}
 			}
-			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, isDoubleClick);
+			await newOutline.reveal(e.element, e.editorOptions, e.sideBySide, selectSymbolRange);
 		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
