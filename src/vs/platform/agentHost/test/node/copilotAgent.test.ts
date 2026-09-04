@@ -41,7 +41,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -1216,6 +1216,81 @@ suite('CopilotAgent', () => {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
 			result: [GITHUB_MCP_SERVER_NAME],
 		});
+	});
+
+	test('routes MCP authentication to sessions while they initialize', async () => {
+		const agent = createTestAgent(disposables);
+		const initializationStarted = new DeferredPromise<void>();
+		const finishInitialization = new DeferredPromise<void>();
+		const requests: AuthenticateParams[] = [];
+		const initializingSession = {
+			resolveMcpAuthentication: async (params: AuthenticateParams) => {
+				requests.push(params);
+				return true;
+			},
+		} as CopilotAgentSession;
+		const testAgent = agent as unknown as {
+			_withInitializingSession<T>(session: CopilotAgentSession, operation: () => Promise<T>): Promise<T>;
+		};
+		const initialization = testAgent._withInitializingSession(initializingSession, async () => {
+			initializationStarted.complete();
+			await finishInitialization.p;
+		});
+
+		try {
+			await initializationStarted.p;
+			const params: AuthenticateParams = {
+				resource: 'https://mcp.example.com',
+				scopes: ['read'],
+				token: 'mcp-token',
+			};
+			const duringInitialization = await agent.handleAuthenticationToken(params);
+			finishInitialization.complete();
+			await initialization;
+			const afterInitialization = await agent.handleAuthenticationToken(params);
+
+			assert.deepStrictEqual({ duringInitialization, afterInitialization, requests }, {
+				duringInitialization: true,
+				afterInitialization: false,
+				requests: [params],
+			});
+		} finally {
+			finishInitialization.complete();
+			await initialization;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('disposes initialization-blocked sessions during shutdown', async () => {
+		const agent = createTestAgent(disposables);
+		const initializationStarted = new DeferredPromise<void>();
+		const finishInitialization = new DeferredPromise<void>();
+		let disposeCalls = 0;
+		const initializingSession = {
+			dispose: () => {
+				disposeCalls++;
+				finishInitialization.complete();
+			},
+		} as CopilotAgentSession;
+		const testAgent = agent as unknown as {
+			_withInitializingSession<T>(session: CopilotAgentSession, operation: () => Promise<T>): Promise<T>;
+		};
+		const initialization = testAgent._withInitializingSession(initializingSession, async () => {
+			initializationStarted.complete();
+			await finishInitialization.p;
+		});
+
+		try {
+			await initializationStarted.p;
+			await agent.shutdown();
+			await initialization;
+
+			assert.strictEqual(disposeCalls, 1);
+		} finally {
+			finishInitialization.complete();
+			await initialization;
+			await disposeAgent(agent);
+		}
 	});
 
 	test('selects provider-native autonomous session config and respects policy', async () => {
