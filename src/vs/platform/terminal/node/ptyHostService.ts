@@ -6,14 +6,14 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
-import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService, ILoggerService, LogLevel } from '../../log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { RequestStore } from '../common/requestStore.js';
-import { HeartbeatConstants, IHeartbeatService, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
+import { HeartbeatConstants, IHeartbeatService, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, ptyServiceEvents, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
 import { registerTerminalPlatformConfiguration } from '../common/terminalPlatformConfiguration.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../common/terminalProcess.js';
 import { IPtyHostConnection, IPtyHostStarter } from './ptyHost.js';
@@ -429,4 +429,18 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
 		this._resolveVariablesRequestStore.acceptReply(requestId, resolved);
 	}
+}
+
+/**
+ * The channel a window reaches the {@link PtyHostService} of the main process over,
+ * {@link TerminalIpcChannels.LocalPty}.
+ *
+ * The window consumes every `IPtyService` event over a direct message port to the pty host
+ * ({@link TerminalIpcChannels.PtyHostWindow}), never over this channel, so buffering them here for a client
+ * that never comes only retains: `onProcessData` carries raw terminal output and grows by hundreds of MBs an
+ * hour. The `IPtyHostController` events are left buffered, those do have a client on this channel.
+ * See https://github.com/microsoft/vscode/issues/328885
+ */
+export function createLocalPtyChannel<TContext>(service: IPtyHostService, disposables: DisposableStore): IServerChannel<TContext> {
+	return ProxyChannel.fromService<TContext>(service, disposables, { unbufferedEvents: ptyServiceEvents });
 }
