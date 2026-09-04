@@ -42,7 +42,7 @@ import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
@@ -226,6 +226,7 @@ export class ClaudeAgentSession extends Disposable {
 	private _mcpDiscovery: SessionMcpDiscovery | undefined;
 	private _mcpLaunchEnablementRevision = 0;
 	private _appliedMcpLaunchEnablementRevision = 0;
+	private _materializedTraceContext: IAgentHostTraceContext | undefined;
 
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
@@ -684,6 +685,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		this._materializedTraceContext = traceContext;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
 				return;
@@ -743,6 +745,7 @@ export class ClaudeAgentSession extends Disposable {
 				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+				const rebuildTraceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
 				const rebuildOptions = await buildOptions(
 					{
 						sessionId: this.sessionId,
@@ -761,7 +764,7 @@ export class ClaudeAgentSession extends Disposable {
 						plugins: rebuildPlugins,
 						agent: rebuildAgentName,
 						telemetry,
-						traceContext,
+						traceContext: rebuildTraceContext,
 						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
 						onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input),
 					},
@@ -783,6 +786,7 @@ export class ClaudeAgentSession extends Disposable {
 				// send retries.
 				this._transportKind = rebuildTransport.kind;
 				this._materializedTransport = rebuildTransport;
+				this._materializedTraceContext = rebuildTraceContext;
 				if (this._pendingSwitchTransport) {
 					// Only a rebuild that actually consumed a pushed switch transport
 					// resolves the pending switch. An ordinary/SDK-recover rebuild that
@@ -1057,12 +1061,16 @@ export class ClaudeAgentSession extends Disposable {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, resource.toString());
+		const traceContextChanged = traceContext?.traceparent !== this._materializedTraceContext?.traceparent
+			|| traceContext?.tracestate !== this._materializedTraceContext?.tracestate;
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
 			|| this._pendingResumeSessionAt !== undefined
 			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch) {
+			|| this._pendingTransportSwitch
+			|| traceContextChanged) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._inheritedPermissionMode, this._permissionModeFallback));
