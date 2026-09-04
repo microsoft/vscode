@@ -50,6 +50,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -59,6 +60,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }

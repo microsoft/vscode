@@ -81,6 +81,8 @@ interface INewChatWidgetFixtureOptions {
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
 	readonly withAttachedContext?: boolean;
+	readonly withBackground?: boolean;
+	readonly withControlPickers?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
@@ -147,6 +149,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
 		withAttachedContext = false,
+		withBackground = false,
+		withControlPickers = false,
 		withAutoModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
@@ -330,7 +334,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(container, dom.$('.session-view.is-active'));
+	const sessionsPart = withBackground ? dom.append(container, dom.$('.part.sessionspart.has-chat-background')) : container;
+	if (withBackground) {
+		sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
+	}
+	const chatView = withBackground ? dom.append(sessionsPart, dom.$('.chat-view')) : sessionsPart;
+	const sessionView = dom.append(chatView, dom.$('.session-view.is-active'));
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
 	sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
@@ -338,6 +347,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
+
+	if (withControlPickers) {
+		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.plan', title: 'Plan' }, group: 'navigation', order: 0 });
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.allowAll', title: 'Allow All' }, group: 'navigation', order: 10 });
+	}
 
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
@@ -411,9 +426,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left above the chat input. Customize is aligned separately to the right edge of the input, with a yellow migration indicator and no chevron.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 3 }),
 	}),
+	NewSessionBackgroundControls: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withBackground: true, withControlPickers: true }),
+	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action without clipping.'],
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action vertically centered without clipping.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
 	}),
 	NewSessionCompactAutoModel: defineComponentFixture({

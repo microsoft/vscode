@@ -118,11 +118,13 @@ export interface ChatInputFixtureOptions {
 	readonly notification?: IChatInputNotification;
 	/** Stands the pet on the input, wired the way `ChatWidget` wires it. */
 	readonly pet?: boolean;
+	/** Overrides the secondary picker labels for visual states such as Plan / Allow All. */
+	readonly secondaryPickerLabels?: readonly [target: string, permission: string];
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, voiceControl, notification, pet = false } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
@@ -205,8 +207,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		menuService.addItem(MenuId.ChatExecute, { command: { id: 'fixture.voiceControl', title: 'Voice', icon: voiceControlRenderings[voiceControl].icon }, group: 'navigation', order: 2 });
 	}
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact }, group: 'navigation', order: 4 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	if (agentHostSessionConfig) {
+	const hasCustomSecondaryPickerLabels = fixtureOptions.secondaryPickerLabels !== undefined;
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: hasCustomSecondaryPickerLabels ? 'fixture.secondaryTarget' : 'workbench.action.chat.openSessionTargetPicker', title: secondaryPickerLabels[0] }, group: 'navigation', order: 0 });
+	if (hasCustomSecondaryPickerLabels) {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'fixture.secondaryPermission', title: secondaryPickerLabels[1] }, group: 'navigation', order: 10 });
+	} else if (agentHostSessionConfig) {
 		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostModePickerAction.ID, title: 'Agent Mode' }, group: 'navigation', order: 0.7 });
 		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostAutoApprovePickerAction.ID, title: 'Auto-Approve' }, group: 'navigation', order: 0.8 });
 	} else {
