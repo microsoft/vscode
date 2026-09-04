@@ -12,6 +12,8 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
@@ -23,6 +25,8 @@ suite('DecorationAddon', () => {
 	let xterm: RawXtermTerminal;
 	let hoverDisposed: boolean;
 	let removedEventListeners: string[];
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+	let themeService: TestThemeService;
 
 	setup(async () => {
 		hoverDisposed = false;
@@ -64,7 +68,7 @@ suite('DecorationAddon', () => {
 			}
 		}
 
-		const instantiationService = workbenchInstantiationService({
+		instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: {},
 				workbench: {
@@ -79,6 +83,9 @@ suite('DecorationAddon', () => {
 				}
 			})
 		}, store);
+		themeService = new TestThemeService();
+		store.add(themeService._onThemeChange);
+		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IHoverService, {
 			setupDelayedHover: () => ({ dispose: () => hoverDisposed = true })
 		} as unknown as IHoverService);
@@ -90,8 +97,16 @@ suite('DecorationAddon', () => {
 		}));
 		const capabilities = store.add(new TerminalCapabilityStore());
 		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));
-		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities));
+		decorationAddon = store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities, true));
 		xterm.loadAddon(decorationAddon);
+	});
+
+	test('should not register global service listeners when disabled', () => {
+		const initialThemeListenerCount = Reflect.get(themeService._onThemeChange, '_size');
+		const capabilities = store.add(new TerminalCapabilityStore());
+		store.add(instantiationService.createInstance(DecorationAddon, undefined, capabilities, false));
+
+		strictEqual(Reflect.get(themeService._onThemeChange, '_size'), initialThemeListenerCount);
 	});
 
 	suite('registerDecoration', () => {

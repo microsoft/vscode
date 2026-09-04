@@ -54,6 +54,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	constructor(
 		private readonly _resource: URI | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
+		registerGlobalServiceListeners: boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -70,20 +71,33 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
-				this.refreshLayouts();
-			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
-				this._refreshStyles(true);
-			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
-				this._updateDecorationVisibility();
-			}
-		}));
-		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
+		if (registerGlobalServiceListeners) {
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
+					this.refreshLayouts();
+				} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
+					this.refreshStyles();
+				} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+					this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
+					this._updateDecorationVisibility();
+				}
+			}));
+			this._register(this._themeService.onDidColorThemeChange(() => this.refreshStyles()));
+		}
 		this._updateDecorationVisibility();
 		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
 		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
+	}
+
+	refreshConfiguration(): void {
+		this.refreshLayouts();
+		this.refreshStyles();
+		this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
+		this._updateDecorationVisibility();
+	}
+
+	refreshStyles(): void {
+		this._refreshStyles(true);
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {
