@@ -102,37 +102,55 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
 		}
 
-		const currentMigration = await this.computeMcpServerMigration(sessionResource, CancellationToken.None, roots);
-		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
+		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
+		if (!scope) {
 			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
 		}
 
-		const currentCandidates = new Map(currentMigration.candidates.map(candidate => [getMcpServerCustomizationMigrationCandidateKey(candidate), candidate]));
-		const eligibleCandidates: IMcpServerCustomizationMigrationCandidate[] = [];
-		const failures: IMcpServerCustomizationMigrationFailure[] = [];
-		for (const requested of requestedCandidates) {
-			const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
-			if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)) {
-				failures.push(this.noLongerEligible(requested));
-			} else {
-				eligibleCandidates.push(current);
+		try {
+			await scope.whenResolved();
+			if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
+				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
 			}
-		}
 
-		this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
-		const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
-			isContextCurrent: () => this.isExecutionContextCurrent(sessionResource, roots, contextGeneration),
-		});
-		const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
-		for (const failure of combined.failures) {
-			if (failure.error) {
-				this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
-			} else {
-				this.logService.warn(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`);
+			const supportSnapshot = scope.support.get();
+			const plan = await this.mcpServerMigration.createPlan(supportSnapshot, roots);
+			const isExecutionCurrent = (): boolean => this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)
+				&& scope.isResolved.get()
+				&& scope.support.get() === supportSnapshot;
+			if (!isExecutionCurrent()) {
+				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
 			}
+
+			const currentCandidates = new Map(plan.candidates.map(candidate => [getMcpServerCustomizationMigrationCandidateKey(candidate), candidate]));
+			const eligibleCandidates: IMcpServerCustomizationMigrationCandidate[] = [];
+			const failures: IMcpServerCustomizationMigrationFailure[] = [];
+			for (const requested of requestedCandidates) {
+				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
+				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)) {
+					failures.push(this.noLongerEligible(requested));
+				} else {
+					eligibleCandidates.push(current);
+				}
+			}
+
+			this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
+			const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
+				isContextCurrent: isExecutionCurrent,
+			});
+			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
+			for (const failure of combined.failures) {
+				if (failure.error) {
+					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
+				} else {
+					this.logService.warn(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`);
+				}
+			}
+			this.logService.info(`[MCP Customization Migration] Finished: migrated=${combined.migratedCount}, failed=${combined.failures.length}`);
+			return combined;
+		} finally {
+			scope.dispose();
 		}
-		this.logService.info(`[MCP Customization Migration] Finished: migrated=${combined.migratedCount}, failed=${combined.failures.length}`);
-		return combined;
 	}
 
 	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {

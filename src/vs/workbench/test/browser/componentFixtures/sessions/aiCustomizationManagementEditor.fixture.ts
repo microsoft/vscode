@@ -39,6 +39,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -55,6 +56,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
@@ -166,7 +168,8 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
-		override getWorkingDirectories() { return []; }
+		override getWorkingDirectories() { return ['file:///workspace']; }
+		override getVerifiedWorkingDirectories() { return ['file:///workspace']; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }
@@ -758,6 +761,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
+	const migrationFileService = new class extends mock<IFileService>() {
+		override async readFile(resource: URI) {
+			return createFixtureFileContentStat(resource, fileContents.get(resource) ?? '');
+		}
+	};
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -835,9 +843,45 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				promptsService,
 				harnessService,
 				new class extends mock<IAgentHostActiveClientService>() {
-					override acquireMcpServerSupportScope() { return undefined; }
+					override acquireMcpServerSupportScope() {
+						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers) {
+							return undefined;
+						}
+						const support: IAgentHostMcpServerSupportSnapshot = {
+							servers: [{
+								id: 'mcp.config.ws0.remote-browser',
+								name: 'Remote Browser',
+								collectionId: 'mcp.config.ws0',
+								source: {
+									group: undefined,
+									kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+									label: 'Workspace',
+									collectionUri: URI.file('/workspace/.vscode/mcp.json'),
+									definitionLocation: undefined,
+									remoteAuthority: null,
+									extensionId: undefined,
+									pluginUri: undefined,
+								},
+								enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+								applicability: AgentHostMcpServerApplicability.Applicable,
+								delivery: AgentHostMcpServerDelivery.ClientForwarded,
+								compatibility: { kind: 'supported' },
+								projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com' },
+							}],
+							discoveryComplete: true,
+							coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+						};
+						return {
+							support: constObservable(support),
+							isResolved: constObservable(true),
+							whenResolved: () => Promise.resolve(),
+							dispose: () => { },
+						};
+					}
 				}(),
 				agentHostCustomizationService,
+				migrationFileService,
+				new NullLogService(),
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -2004,6 +2048,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.UserData,
+		}),
+	}),
+
+	McpMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.McpServers,
 		}),
 	}),
 

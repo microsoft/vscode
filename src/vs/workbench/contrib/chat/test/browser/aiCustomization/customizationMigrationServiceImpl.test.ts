@@ -10,11 +10,12 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -39,6 +40,20 @@ class TestPromptsService extends MockPromptsService {
 	override async listPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]> {
 		this.requestedTypes.push(type);
 		return this.files.filter(file => file.type === type);
+	}
+}
+
+class SupportChangingFileSystemProvider extends InMemoryFileSystemProvider {
+	targetUri: URI | undefined;
+	afterTargetWrite: (() => void) | undefined;
+
+	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+		await super.writeFile(resource, content, options);
+		if (this.targetUri && isEqual(resource, this.targetUri)) {
+			const afterTargetWrite = this.afterTargetWrite;
+			this.afterTargetWrite = undefined;
+			afterTargetWrite?.();
+		}
 	}
 }
 
@@ -334,9 +349,10 @@ suite('CustomizationMigrationService', () => {
 			override acquireMcpServerSupportScope() { return undefined; }
 		}();
 		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
 			override getWorkingDirectories() { return []; }
 		}();
-		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService()));
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
@@ -400,10 +416,13 @@ suite('CustomizationMigrationService', () => {
 	test('computes migratable MCP candidates and revalidates requested candidates', async () => {
 		const root = URI.file('/workspace');
 		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = store.add(new FileService(new NullLogService()));
-		const fileProvider = store.add(new InMemoryFileSystemProvider());
+		const fileProvider = store.add(new SupportChangingFileSystemProvider());
 		store.add(fileService.registerProvider(Schemas.file, fileProvider));
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{}}'));
+		fileProvider.targetUri = targetUri;
 		const activeSessionResource = observableValue('activeSessionResource', URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
 		const activeHarness = observableValue('activeHarness', SessionType.AgentHostCopilot);
 		const harnessService = new class extends TestCustomizationHarnessService {
@@ -434,6 +453,7 @@ suite('CustomizationMigrationService', () => {
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		};
+		const supportedSnapshot = snapshot;
 		const snapshotObservable = observableValue('snapshot', snapshot);
 		const activeClientService = {
 			acquireMcpServerSupportScope: () => ({
@@ -460,6 +480,19 @@ suite('CustomizationMigrationService', () => {
 		};
 		snapshotObservable.set(snapshot, undefined);
 		const result = await service.migrateMcpServers(activeSessionResource.get(), migration.candidates);
+		snapshot = supportedSnapshot;
+		snapshotObservable.set(snapshot, undefined);
+		fileProvider.afterTargetWrite = () => {
+			snapshot = {
+				...supportedSnapshot,
+				servers: supportedSnapshot.servers.map(server => ({
+					...server,
+					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace },
+				})),
+			};
+			snapshotObservable.set(snapshot, undefined);
+		};
+		const changedDuringWriteResult = await service.migrateMcpServers(activeSessionResource.get(), migration.candidates);
 
 		assert.deepStrictEqual({
 			candidates: migration.candidates.map(candidate => ({
@@ -476,13 +509,23 @@ suite('CustomizationMigrationService', () => {
 				migratedCount: result.migratedCount,
 				failures: result.failures.map(failure => failure.reason),
 			},
+			changedDuringWriteResult: {
+				migratedCount: changedDuringWriteResult.migratedCount,
+				failures: changedDuringWriteResult.failures.map(failure => failure.reason),
+			},
 			source: (await fileService.readFile(sourceUri)).value.toString(),
+			target: (await fileService.readFile(targetUri)).value.toString(),
 		}, {
 			candidates: [{ name: 'server', source: '/workspace/.vscode/mcp.json', target: '/workspace/.mcp.json' }],
-			hint: 'Found 1 workspace MCP server that can be migrated for Copilot.',
+			hint: {
+				message: 'Found 1 workspace MCP server that can be migrated for Copilot.',
+				target: CustomizationMigrationHintTarget.FileMigrations,
+			},
 			unverifiedResult: { migratedCount: 0, failures: ['noLongerEligible'] },
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
+			changedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },
 			source: '{"servers":{"server":{"command":"node"}}}',
+			target: '{"mcpServers":{}}',
 		});
 	});
 
