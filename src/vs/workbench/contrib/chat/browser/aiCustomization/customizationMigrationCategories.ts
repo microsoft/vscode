@@ -59,8 +59,8 @@ export interface ICustomizationMigrationCategory {
 	readonly migrationType: CustomizationMigrationType;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
-	/** Optional experimental setting gating this migration. */
-	readonly enablementSetting?: ChatConfiguration;
+	/** Experimental setting gating this migration. Each category is enabled independently. */
+	readonly enablementSetting: ChatConfiguration;
 	/** Settings that must differ from their defaults for this migration to apply. */
 	readonly configurationSettingIds?: readonly string[];
 	readonly shortcutLabel: string;
@@ -538,6 +538,7 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.McpServers,
 	migrationType: CustomizationMigrationType.McpServers,
+	enablementSetting: ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled,
 	shortcutLabel: localize('mcpMigrationShortcutLabel', "Migrate MCP Servers"),
 	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move supported workspace MCP servers to root .mcp.json files"),
 	cardLabel: localize('mcpMigrationCardLabel', "Migrate MCP Servers"),

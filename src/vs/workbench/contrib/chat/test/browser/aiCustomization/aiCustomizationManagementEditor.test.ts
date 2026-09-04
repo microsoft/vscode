@@ -862,7 +862,9 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('renders MCP migration candidates without file actions', () => {
-		const editor = createTestEditor();
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
 			id: 'mcp.config.ws0.server',
@@ -922,7 +924,9 @@ suite('aiCustomizationManagementEditor', () => {
 	});
 
 	test('confirms and executes selected MCP migration candidates', async () => {
-		const editor = createTestEditor();
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
 			id: 'mcp.config.ws0.server',

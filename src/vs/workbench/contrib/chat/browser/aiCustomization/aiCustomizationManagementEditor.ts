@@ -929,7 +929,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			// Candidates are only collected for enabled categories, so enabling one must re-scan.
 			if (CUSTOMIZATION_MIGRATION_CATEGORIES.some(category =>
-				(category.enablementSetting && e.affectsConfiguration(category.enablementSetting))
+				e.affectsConfiguration(category.enablementSetting)
 				|| category.configurationSettingIds?.some(settingId => e.affectsConfiguration(settingId))
 			)) {
 				void this.refreshCustomizationMigrationInfo();
@@ -2354,7 +2354,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isMigrationCategoryEnabled(category: ICustomizationMigrationCategory): boolean {
-		if (category.enablementSetting && this.configurationService.getValue<boolean>(category.enablementSetting) !== true) {
+		if (this.configurationService.getValue<boolean>(category.enablementSetting) !== true) {
 			return false;
 		}
 		const modifiedSettingIds = category.getModifiedSettingIds?.(this.configurationService);
