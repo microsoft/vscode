@@ -94,6 +94,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
+	async deleteMetadata(keys: readonly string[]): Promise<void> {
+		for (const key of keys) {
+			this._metadata.delete(key);
+		}
+	}
+
 	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
 		if (this._metadata.has(key)) {
 			return false;

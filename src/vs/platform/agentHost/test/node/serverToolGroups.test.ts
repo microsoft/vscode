@@ -69,6 +69,33 @@ suite('serverToolGroups display', () => {
 		});
 	});
 
+	test('set_workspace resolves to outcome-oriented confirmation display', () => {
+		const confirmation = (isolation: boolean) => {
+			const display = getServerToolDisplay('set_workspace', { workspaceFolder: '/workspace/app', isolation });
+			return {
+				title: display?.confirmationTitle,
+				message: text(display?.confirmationMessage),
+				hideInput: display?.hideConfirmationInput,
+			};
+		};
+
+		assert.deepStrictEqual({
+			direct: confirmation(false),
+			isolated: confirmation(true),
+		}, {
+			direct: {
+				title: 'Continue in app?',
+				message: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				hideInput: true,
+			},
+			isolated: {
+				title: 'Continue in app?',
+				message: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				hideInput: true,
+			},
+		});
+	});
+
 	test('fast tools omit a duplicate completion message', () => {
 		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);

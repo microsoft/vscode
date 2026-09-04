@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -128,7 +128,11 @@ export class MockAgent implements IAgent {
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
 
-	constructor(readonly id: AgentProvider = 'mock') {
+	constructor(
+		readonly id: AgentProvider = 'mock',
+		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
+		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
+	) {
 		queueMicrotask(() => {
 			void this.listExternalChats().then(chats => {
 				if (chats) {
@@ -143,7 +147,11 @@ export class MockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: { multipleChats: { fork: true } } };
+		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, capabilities: this._capabilities };
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error(`Agent '${this.id}' does not support changing the working directory of an existing session.`);
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -494,6 +502,7 @@ export class ScriptedMockAgent implements IAgent {
 	private readonly _discoveredChatsEmitter = new Emitter<readonly IAgentDiscoveredChat[]>();
 	readonly onDidDiscoverChats = this._discoveredChatsEmitter.event;
 	readonly id: AgentProvider = 'mock';
+	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
 	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -552,6 +561,10 @@ export class ScriptedMockAgent implements IAgent {
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error('The scripted mock agent does not support changing the working directory of an existing session.');
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
