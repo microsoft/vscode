@@ -142,12 +142,13 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				const isCreated = activeSession?.isCreated.read(reader);
 				// Submitting a draft must not pop the side pane open, mirroring the
 				// single-session rule below: submit preserves whatever the user had
-				// while composing. Only switching to an already-created session reveals.
+				// while composing. Per LAYOUT_CONTROLLER.md section 3.3 a submit is either the
+				// same session flipping to created, or the provider replacing the draft
+				// with a committed session — the latter is detected by the draft we were
+				// tracking having become created (read untracked, it is a stale object).
 				const isSubmit = previousIsCreated === false
 					&& isCreated === true
-					&& previousSession !== undefined
-					&& activeSession !== undefined
-					&& (previousSession === activeSession || isEqual(previousSession.resource, activeSession.resource));
+					&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
 				if (!isSubmit && activeSession && !isQuickChat && workspace && isCreated === true) {
 					this._ctx.withSessionLayoutRestore(() => this._reveal(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
 				}
