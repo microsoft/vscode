@@ -23,7 +23,7 @@ import { IEditorsChangeEvent, IEditorService } from '../../../services/editor/co
 import { ITextFileEditorModelManager, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { TestEditorInput } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadEditorTabs } from '../../browser/mainThreadEditorTabs.js';
-import { MainThreadEditorTabsShape } from '../../common/extHost.protocol.js';
+import { MainThreadEditorTabsShape, TabModelOperationKind } from '../../common/extHost.protocol.js';
 import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
@@ -240,15 +240,23 @@ suite('MainThreadEditorTabs', () => {
 			override isPinned() { return true; }
 			override isActive(editor: EditorInput) { return editor === activeEditor; }
 		}();
+		const otherGroupEditors: EditorInput[] = [];
+		const otherGroup = new class extends mock<IEditorGroup>() {
+			override readonly id = 2;
+			override get editors() { return otherGroupEditors; }
+			override isSticky() { return false; }
+			override isPinned() { return true; }
+			override isActive() { return false; }
+		}();
 		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly whenReady = Promise.resolve();
 			override readonly activeModalEditorPart = undefined;
-			override get groups(): readonly IEditorGroup[] { return [group]; }
-			override getGroups(): readonly IEditorGroup[] { return [group]; }
+			override get groups(): readonly IEditorGroup[] { return [group, otherGroup]; }
+			override getGroups(): readonly IEditorGroup[] { return [group, otherGroup]; }
 			override get activeGroup(): IEditorGroup { return group; }
-			override getGroup(): IEditorGroup | undefined { return group; }
+			override getGroup(id: number): IEditorGroup | undefined { return id === group.id ? group : id === otherGroup.id ? otherGroup : undefined; }
 		}();
 		const editorChanges = disposables.add(new Emitter<IEditorsChangeEvent>());
 		const editorService = new class extends mock<IEditorService>() {
@@ -258,7 +266,15 @@ suite('MainThreadEditorTabs', () => {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() { })
 		);
-		disposables.add(new MainThreadEditorTabs(
+		let tabUpdateCount = 0;
+		const acceptTabOperation = extHostEditorTabs.$acceptTabOperation.bind(extHostEditorTabs);
+		extHostEditorTabs.$acceptTabOperation = operation => {
+			if (operation.kind === TabModelOperationKind.TAB_UPDATE) {
+				tabUpdateCount++;
+			}
+			acceptTabOperation(operation);
+		};
+		const mainThreadEditorTabs = disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol(extHostEditorTabs),
 			editorGroupsService,
 			new TestConfigurationService(),
@@ -301,5 +317,30 @@ suite('MainThreadEditorTabs', () => {
 			afterActivatingOther: other.getName(),
 			afterLabelChange: other.getName(),
 		});
+
+		otherGroupEditors.push(multiDiffInput);
+		editorChanges.fire({
+			groupId: otherGroup.id,
+			event: { kind: GroupModelChangeKind.EDITOR_OPEN, editor: multiDiffInput, editorIndex: 0 }
+		});
+		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 2);
+
+		editors.splice(1, 1);
+		editorChanges.fire({
+			groupId: group.id,
+			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 1 }
+		});
+		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 1);
+
+		tabUpdateCount = 0;
+		resources.set([], undefined);
+		assert.strictEqual(tabUpdateCount, 1);
+
+		otherGroupEditors.splice(0, 1);
+		editorChanges.fire({
+			groupId: otherGroup.id,
+			event: { kind: GroupModelChangeKind.EDITOR_CLOSE, editor: multiDiffInput, editorIndex: 0 }
+		});
+		assert.strictEqual(mainThreadEditorTabs['_multiDiffEditorInputListeners'].size, 0);
 	});
 });
