@@ -251,6 +251,7 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -258,9 +259,10 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	padding: 2px 2px 2px 8px;
-	justify-content: flex-start;
+	padding: 0;
+	justify-content: center;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {
@@ -313,6 +315,17 @@
 	white-space: nowrap;
 	min-width: 30px;
 	overflow: visible;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus {
+	outline: none;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .action-label:focus-visible,
+.monaco-workbench .new-chat-bottom-container .sessions-chat-picker-slot > .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .sessions-chat-config-toolbar .action-label:hover {

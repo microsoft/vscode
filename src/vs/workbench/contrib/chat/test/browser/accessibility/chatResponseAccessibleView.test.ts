@@ -7,18 +7,48 @@ import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import type { IResponse } from '../../../common/model/chatModel.js';
+import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('omits the hidden workspace-continuation request text while preserving transition and provider response text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'systemNotification',
+						content: new MarkdownString('Now working in vscode'),
+						presentation: 'workspaceTransition',
+						accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Provider continued work') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+			},
+			{
+				partIndex: 1,
+				text: 'Provider continued work',
+			},
+		]);
+	});
 
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -27,7 +28,7 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -48,7 +49,7 @@ import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuth
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatOriginKind, getErrorResponsePart, getInlineToolInput, getToolSubagentContent, getTurnError, isChatReadOnly, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readMessageSystemInitiatedLabel, readSessionWorkspaceless, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -62,6 +63,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import {
 	AgentHostCompletionReferenceKind,
 	ChatTranscriptContextAttachmentDisplayKind,
@@ -102,6 +104,7 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agent
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
+import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
@@ -313,7 +316,9 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 
 interface IStartServerRequestOptions {
 	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
 	readonly isHidden?: boolean;
+	readonly isRequestHidden?: boolean;
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
 	readonly resume?: boolean;
@@ -802,7 +807,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
+			systemInitiatedLabel: options?.systemInitiatedLabel,
 			isHidden: options?.isHidden,
+			isRequestHidden: options?.isRequestHidden,
 			timestamp: options?.timestamp,
 			isTerminalRequest: options?.isTerminalRequest,
 			resume: options?.resume,
@@ -1078,6 +1085,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * lives exactly as long as that session's {@link _sessionSubscriptions} entry.
 	 */
 	private readonly _workingDirectoryRegistrations = this._register(new DisposableMap<string>());
+	private readonly _shellInitRegistrations = this._register(new DisposableMap<string>());
 
 	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
@@ -1134,6 +1142,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostSessionWorkingDirectorySynchronizer private readonly _workingDirectorySynchronizer: IAgentHostSessionWorkingDirectorySynchronizer,
+		@IAgentHostShellInitSynchronizer private readonly _shellInitSynchronizer: IAgentHostShellInitSynchronizer,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
@@ -1514,6 +1523,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								modelId: lookup.toLanguageModelId(activeRawModelId),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
 								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
+								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
 								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.provider),
 							});
@@ -2413,7 +2424,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
+					systemInitiatedLabel: readMessageSystemInitiatedLabel(activeTurn.message),
 					isHidden: isMessageHiddenFromTranscript(activeTurn.message),
+					isRequestHidden: isMessageRequestHiddenFromTranscript(activeTurn.message),
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 					resume: resumedTurn,
@@ -2966,6 +2979,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		// Synchronous, so the turn dispatched next observes the current script.
+		this._shellInitSynchronizer.reconcile(session);
 		if (request.acceptedConfirmationData?.some(isResumeTurnConfirmationData)) {
 			return this._handleResumedTurn(session, request, progress, cancellationToken);
 		}
@@ -3357,6 +3372,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						if (responseParts$.get().indexOf(initial) >= (opts.initialResponsePartCount ?? 0) && opts.subAgentInvocationId === undefined) {
 							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
 							if (progress) {
+								if (progress.kind === 'systemNotification' && progress.presentation === 'workspaceTransition' && progress.accessibilityLabel) {
+									status(progress.accessibilityLabel);
+								}
 								opts.sink([progress]);
 							}
 						}
@@ -6067,17 +6085,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				continue;
 			}
 			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
+			let forwardEntry = true;
 			if (key) {
 				if (existingKeys.has(key)) {
-					continue;
+					forwardEntry = false;
+				} else {
+					existingKeys.add(key);
 				}
-				existingKeys.add(key);
 			}
-			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
-			if (!Array.isArray(attachment) && attachment) {
-				attachments.push(attachment);
+			if (forwardEntry) {
+				const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+				if (!Array.isArray(attachment) && attachment) {
+					attachments.push(attachment);
+				}
 			}
+			// The source may already be explicit context, but its output is a separate resource.
+			this._appendNotebookCellOutputAttachment(attachments, entry, existingKeys);
 		}
+	}
+
+	/** Add the stored outputs for an active notebook cell as a virtual JSON document. */
+	private _appendNotebookCellOutputAttachment(attachments: MessageAttachment[], entry: IChatRequestVariableEntry, existingKeys: Set<string>): void {
+		const value = entry.value;
+		const uri = isLocation(value) ? value.uri : (value instanceof URI ? value : undefined);
+		const cell = uri ? CellUri.parse(uri) : undefined;
+		if (!cell) {
+			return;
+		}
+		const outputUri = CellUri.generateCellPropertyUri(cell.notebook, cell.handle, Schemas.vscodeNotebookCellOutput);
+		const outputKey = this._attachmentDedupeKey(outputUri.toString());
+		if (existingKeys.has(outputKey)) {
+			return;
+		}
+		existingKeys.add(outputKey);
+		attachments.push({
+			type: MessageAttachmentKind.Resource,
+			uri: outputUri.toString(),
+			label: `${entry.name} output.json`,
+			displayKind: 'document',
+		});
 	}
 
 	/** Dedupe identity for a file/implicit entry: rebased URI, suffixed with the range for a selection. */
@@ -6597,6 +6643,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 			ref = undefined;
 		}
 		if (!ref) {
@@ -6608,6 +6655,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				connection: this._config.connection,
 				subscription: ref.object,
 			}));
+			if (this._config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY) {
+				this._shellInitRegistrations.set(sessionUri, this._shellInitSynchronizer.register(URI.parse(sessionUri), ref.object));
+			}
 		}
 		return ref.object;
 	}
@@ -6670,6 +6720,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._sessionSubscriptions.delete(sessionUri);
 			ref.dispose();
 			this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
+			this._shellInitRegistrations.deleteAndDispose(sessionUri);
 		}
 		const chatRef = this._defaultChatSubscriptions.get(sessionUri);
 		if (chatRef) {

@@ -19,7 +19,7 @@ import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -44,12 +44,14 @@ import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
-import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
-import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
@@ -75,6 +77,12 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
+const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTransaction = {
+	prepare: async () => { },
+	rollback: async () => { },
+	reconcile: async () => { },
+};
+
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
 /**
@@ -97,11 +105,24 @@ class MockCopilotSession {
 	gitHubCredentialUpdateError: Error | undefined;
 	readonly collectLogsCalls: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0][] = [];
 	readonly collectLogsResults: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>[] = [];
+	readonly workingDirectorySetCalls: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0][] = [];
+	readonly workingDirectorySetResults: Awaited<ReturnType<CopilotSession['rpc']['metadata']['setWorkingDirectory']>>[] = [];
+	readonly workingDirectorySetErrors: Array<Error | undefined> = [];
+	workingDirectorySetGate: Promise<void> | undefined;
+	onWorkingDirectorySet: (() => void) | undefined;
+	readonly workingDirectoryOptionUpdateCalls: string[] = [];
+	readonly workingDirectoryOptionUpdateErrors: Array<Error | undefined> = [];
+	workingDirectoryOptionUpdateSuccess = true;
+	onWorkingDirectoryOptionUpdate: (() => void) | undefined;
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
+	shellInitScriptUpdateSuccess = true;
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
+	modelGate: Promise<void> | undefined;
+	agentSelectGate: Promise<void> | undefined;
+	agentDeselectGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
@@ -260,7 +281,7 @@ class MockCopilotSession {
 		this.abortCalls++;
 		await this.abortGate;
 	}
-	async setModel() { }
+	async setModel() { await this.modelGate; }
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() {
 		this.disconnectCalls++;
@@ -272,6 +293,10 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		agent: {
+			select: async () => { await this.agentSelectGate; },
+			deselect: async () => { await this.agentDeselectGate; },
+		},
 		sendMessages: async (request: unknown) => {
 			this.sendMessagesRequests.push(request);
 			if (this.sendMessagesError) {
@@ -290,6 +315,19 @@ class MockCopilotSession {
 				return destination.kind === 'directory'
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
 					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
+			},
+		},
+		metadata: {
+			setWorkingDirectory: async (params: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0]) => {
+				this.operationLog.push('metadata.setWorkingDirectory');
+				this.workingDirectorySetCalls.push(params);
+				this.onWorkingDirectorySet?.();
+				await this.workingDirectorySetGate;
+				const error = this.workingDirectorySetErrors.shift();
+				if (error) {
+					throw error;
+				}
+				return this.workingDirectorySetResults.shift() ?? { workingDirectory: params.workingDirectory };
 			},
 		},
 		mode: {
@@ -434,13 +472,28 @@ class MockCopilotSession {
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
 		options: {
-			update: async (params: { sandboxConfig?: unknown; isExperimentalMode?: boolean }) => {
+			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
 				}
 				if (params.isExperimentalMode !== undefined) {
 					this.experimentalModeUpdates.push(params.isExperimentalMode);
+				}
+				if (params.shell !== undefined) {
+					this.operationLog.push('options.update:shell');
+					this.shellInitScriptUpdates.push(params.shell.initScripts);
+					return { success: this.shellInitScriptUpdateSuccess };
+				}
+				if (params.workingDirectory !== undefined) {
+					this.operationLog.push('options.update:workingDirectory');
+					this.workingDirectoryOptionUpdateCalls.push(params.workingDirectory);
+					this.onWorkingDirectoryOptionUpdate?.();
+					const error = this.workingDirectoryOptionUpdateErrors.shift();
+					if (error) {
+						throw error;
+					}
+					return { success: this.workingDirectoryOptionUpdateSuccess };
 				}
 				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
 			},
@@ -472,6 +525,7 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly shellInitScriptUpdates: unknown[] = [];
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
@@ -608,6 +662,7 @@ function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallI
 
 type ISessionInternalsForTest = {
 	_onDidSessionProgress: { fire(event: AgentSignal): void };
+	_agentMergeTurn: boolean;
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
@@ -685,6 +740,22 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 	}
 }
 
+function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapshot {
+	return {
+		tools: [],
+		plugins: pluginDirectories.map(pluginDir => ({
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			agents: [],
+			skills: [],
+			instructions: [],
+			pluginDir,
+		})),
+		mcpServers: {},
+	};
+}
+
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
 	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
@@ -698,15 +769,24 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	telemetryService?: ITelemetryService;
 	captureRuntime?: { current?: ICopilotSessionRuntime };
 	workingDirectory?: URI;
+	customizationDirectory?: URI;
+	shellManager?: ShellManager;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
 	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	shellInitWriteFailures?: number;
+	fileAtomicWrite?: boolean;
+	shellInitWriteGate?: Promise<void>;
+	onShellInitWrite?: () => void;
+	/** Values visible only through `getEffectiveValue`, as if inherited from root or a parent session. */
+	inheritedConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
+	controlPlaneRpcTimeoutMs?: number;
 	sessionCustomizations?: () => readonly Customization[];
 	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
 	initialSessionMeta?: Record<string, unknown>;
@@ -735,6 +815,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
+	realpath?: (path: string) => Promise<string>;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -742,6 +823,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
+	storedFileContents: ReadonlyMap<string, string>;
+	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
 	setConfigValue: (key: string, value: unknown) => void;
@@ -791,7 +874,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
-		shellManager: undefined,
+		shellManager: options?.shellManager,
 		githubToken: options?.githubToken,
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
@@ -840,6 +923,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotApiService.restrictedTelemetryContextError = options?.restrictedTelemetryContextError;
 	services.set(ICopilotApiService, copilotApiService);
 	const storedFileContents = new Map(Object.entries(options?.fileContents ?? {}));
+	const fileWriteOptions = new Map<string, IWriteFileOptions | undefined>();
+	let shellInitWriteFailures = options?.shellInitWriteFailures ?? 0;
 	services.set(IFileService, {
 		_serviceBrand: undefined,
 		readFile: async (resource: URI) => {
@@ -849,15 +934,38 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(storedFileContents.get(resource.toString()) ?? storedFileContents.get(resource.fsPath) ?? '') };
 		},
 		exists: async (resource: URI) => storedFileContents.has(resource.toString()) || storedFileContents.has(resource.fsPath),
-		writeFile: async (resource: URI, content: VSBuffer) => {
+		hasCapability: (resource: URI, capability: FileSystemProviderCapabilities) =>
+			options?.fileAtomicWrite === true &&
+			capability === FileSystemProviderCapabilities.FileAtomicWrite &&
+			resource.path.includes('/agentHost/shellInit/'),
+		writeFile: async (resource: URI, content: VSBuffer, writeOptions?: IWriteFileOptions) => {
+			fileWriteOptions.set(resource.fsPath, writeOptions);
+			if (resource.path.includes('/agentHost/shellInit/')) {
+				options?.onShellInitWrite?.();
+				await options?.shellInitWriteGate;
+				if (shellInitWriteFailures > 0) {
+					shellInitWriteFailures--;
+					throw new Error('write failed');
+				}
+			}
 			storedFileContents.set(resource.toString(), content.toString());
 			return { resource } as Awaited<ReturnType<IFileService['writeFile']>>;
 		},
-		del: async (resource: URI) => {
-			storedFileContents.delete(resource.toString());
-			storedFileContents.delete(resource.fsPath);
+		del: async (resource: URI, delOptions?: { recursive?: boolean }) => {
+			if (resource.path.includes('/agentHost/shellInit/')) {
+				mockSession.operationLog.push('file.delete:shellInit');
+			}
+			const matches = [...storedFileContents.keys()].filter(key => key.startsWith(resource.toString()) || key.startsWith(resource.fsPath));
+			// Like the disk provider, a non-recursive delete removes only an
+			// empty directory and fails while descendants remain.
+			if (!delOptions?.recursive && matches.some(key => key !== resource.toString() && key !== resource.fsPath)) {
+				throw new Error('ENOTEMPTY: directory not empty');
+			}
+			for (const key of matches) {
+				storedFileContents.delete(key);
+			}
 		},
-	} as Partial<IFileService> as IFileService);
+	} as unknown as IFileService);
 	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
@@ -876,9 +984,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read. Gated on `sessionUri` (the owning
 		// session/configuration scope) so tests can catch a caller that
 		// mistakenly reads with a peer chat's own resource URI instead.
-		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? configValues[key] : undefined) as IAgentConfigurationService['getEffectiveValue'],
+		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectories: () => undefined,
-		getSessionConfigValues: () => undefined,
+		// Own values only, like the real service; `inheritedConfigValues` is
+		// visible through `getEffectiveValue` alone so tests can prove a
+		// consumer does not fall through to root or parent config.
+		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
@@ -959,6 +1070,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
+		userDataPath: '/mock-userdata',
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
@@ -977,7 +1089,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
 			launchPlan,
-			shellManager: undefined,
+			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
 			activeClientToolSet: options?.activeClientToolSet,
 			// The owning session's last host-published customization snapshot
@@ -985,11 +1097,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			// through this accessor instead of shared host state.
 			hostCustomizations: () => options?.sessionCustomizations?.() ?? [],
 			workingDirectory: options?.workingDirectory,
+			customizationDirectory: options?.customizationDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
+			realpath: options?.realpath,
+			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 		},
 	));
 
@@ -1011,6 +1126,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		signals,
 		waitForSignal,
 		terminalManager,
+		storedFileContents,
+		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
 		setConfigValue: (key, value) => { configValues[key] = value; },
@@ -1037,6 +1154,42 @@ function expectedSnapshotReadonlyNote(paths: string[]): string {
 	return 'The following attached files are read-only snapshots of content the user shared '
 		+ '(pasted text, an unsaved editor, or a diff view) and must not be edited:\n'
 		+ paths.map(path => `- ${path}`).join('\n');
+}
+
+/**
+ * Session-scoped shell init root granted read access while a script is active.
+ * Scripts land in an instance-scoped subdirectory beneath it.
+ */
+const TEST_SHELL_INIT_DIRECTORY = URI.file('/mock-userdata/agentHost/shellInit/test-session-1');
+const TEST_SHELL_INIT_DIR = TEST_SHELL_INIT_DIRECTORY.fsPath;
+
+function createTestShellManager(disposables: DisposableStore, workingDirectory: URI, preflightError?: Error, setErrors: Array<Error | undefined> = []): {
+	readonly shellManager: ShellManager;
+	readonly preflightCalls: () => number;
+	readonly setCalls: readonly URI[];
+} {
+	const associationEmitter = disposables.add(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
+	const setCalls: URI[] = [];
+	let preflightCalls = 0;
+	const shellManager = {
+		onDidAssociateTerminal: associationEmitter.event,
+		assertCanSetWorkingDirectory: () => {
+			preflightCalls++;
+			if (preflightError) {
+				throw preflightError;
+			}
+		},
+		setWorkingDirectory: (directory: URI) => {
+			const error = setErrors.shift();
+			if (error) {
+				throw error;
+			}
+			setCalls.push(directory);
+		},
+		get workingDirectory() { return setCalls.at(-1) ?? workingDirectory; },
+		dispose: () => { },
+	} as unknown as ShellManager;
+	return { shellManager, preflightCalls: () => preflightCalls, setCalls };
 }
 
 suite('CopilotAgentSession', () => {
@@ -1071,6 +1224,25 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('times out non-settling SDK control-plane RPCs', async () => {
+		const neverSettles = new Promise<void>(() => { });
+		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+		mockSession.modelGate = neverSettles;
+		mockSession.agentSelectGate = neverSettles;
+		mockSession.agentDeselectGate = neverSettles;
+
+		const results = await Promise.allSettled([
+			session.setModel('test-model'),
+			session.setAgent('test-agent'),
+			session.setAgent(),
+		]);
+
+		assert.deepStrictEqual(results.map(result => result.status === 'rejected' ? (result.reason as Error).message : 'fulfilled'), [
+			'[Copilot:test-session-1] session.setModel timed out after 1ms',
+			'[Copilot:test-session-1] rpc.agent.select timed out after 1ms',
+			'[Copilot:test-session-1] rpc.agent.deselect timed out after 1ms',
+		]);
+	});
 	test('updates GitHub credentials through the SDK session RPC', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		await session.initializeSession();
@@ -1083,7 +1255,374 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('collects SDK debug logs without process logs', async () => {
+	test('changes the SDK and shell working directory without replacing the session', async () => {
+		const originalWorkingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next/../next');
+		const shell = createTestShellManager(disposables, originalWorkingDirectory);
+		const { session, mockSession } = await createAgentSession(disposables, {
+			workingDirectory: originalWorkingDirectory,
+			customizationDirectory: URI.file('/workspace/customizations'),
+			shellManager: shell.shellManager,
+		});
+		const sessionId = session.sessionId;
+		mockSession.workingDirectorySetResults.push({ workingDirectory: '/workspace/next' });
+
+		await session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction);
+
+		assert.deepStrictEqual({
+			sessionId: session.sessionId,
+			workingDirectory: session.workingDirectory?.toString(),
+			customizationDirectory: session.customizationDirectory?.toString(),
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			runtimeOptionCalls: mockSession.workingDirectoryOptionUpdateCalls,
+			shellPreflightCalls: shell.preflightCalls(),
+			shellSetCalls: shell.setCalls.map(uri => uri.toString()),
+		}, {
+			sessionId,
+			workingDirectory: nextWorkingDirectory.toString(),
+			customizationDirectory: nextWorkingDirectory.toString(),
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			runtimeOptionCalls: [URI.file('/workspace/next').fsPath],
+			shellPreflightCalls: 1,
+			shellSetCalls: [nextWorkingDirectory.toString()],
+		});
+	});
+
+	test('leaves local working-directory state unchanged when the SDK rejects the change', async () => {
+		const originalWorkingDirectory = URI.file('/workspace/original');
+		const customizationDirectory = URI.file('/workspace/customizations');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const shell = createTestShellManager(disposables, originalWorkingDirectory);
+		const { session, mockSession } = await createAgentSession(disposables, {
+			workingDirectory: originalWorkingDirectory,
+			customizationDirectory,
+			shellManager: shell.shellManager,
+		});
+		mockSession.workingDirectorySetErrors.push(new Error('SDK rejected cwd'));
+
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /SDK rejected cwd/);
+
+		assert.deepStrictEqual({
+			workingDirectory: session.workingDirectory?.toString(),
+			customizationDirectory: session.customizationDirectory?.toString(),
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			runtimeOptionCalls: mockSession.workingDirectoryOptionUpdateCalls,
+			shellSetCalls: shell.setCalls,
+		}, {
+			workingDirectory: originalWorkingDirectory.toString(),
+			customizationDirectory: customizationDirectory.toString(),
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			runtimeOptionCalls: [],
+			shellSetCalls: [],
+		});
+	});
+
+	test('rejects active-turn and shell-busy working-directory changes before the SDK RPC', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const workspaceless = await createAgentSession(disposables);
+		await assert.rejects(() => workspaceless.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /without an existing working directory/);
+
+		const active = await createAgentSession(disposables, { workingDirectory });
+		active.session.resetTurnState('turn-1');
+		await assert.rejects(() => active.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /while a turn is active/);
+
+		const busyShell = createTestShellManager(disposables, workingDirectory, new Error('shell is busy'));
+		const busy = await createAgentSession(disposables, { workingDirectory, shellManager: busyShell.shellManager });
+		await assert.rejects(() => busy.session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction), /shell is busy/);
+
+		assert.deepStrictEqual({
+			workspacelessRpcCalls: workspaceless.mockSession.workingDirectorySetCalls,
+			activeRpcCalls: active.mockSession.workingDirectorySetCalls,
+			busyRpcCalls: busy.mockSession.workingDirectorySetCalls,
+			busyPreflightCalls: busyShell.preflightCalls(),
+		}, {
+			workspacelessRpcCalls: [],
+			activeRpcCalls: [],
+			busyRpcCalls: [],
+			busyPreflightCalls: 1,
+		});
+	});
+
+	test('reserves the idle session while a working-directory change is in flight', async () => {
+		const gate = new DeferredPromise<void>();
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+		mockSession.workingDirectorySetGate = gate.p;
+
+		const mutation = session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction);
+		await assert.rejects(() => session.setWorkingDirectory(URI.file('/workspace/other'), noOpWorkingDirectoryChangeTransaction), /another working directory change is in progress/);
+		await assert.rejects(() => session.send('hello', undefined, 'turn-direct'), /working directory is changing/);
+		gate.complete();
+		await mutation;
+
+		assert.deepStrictEqual({
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			sendRequests: mockSession.sendRequests,
+			hasActiveTurn: session.hasActiveTurn,
+		}, {
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			sendRequests: [],
+			hasActiveTurn: false,
+		});
+	});
+
+	test('prepares before the single SDK mutation and keeps host sends reserved', async () => {
+		const prepareStarted = new DeferredPromise<void>();
+		const prepareGate = new DeferredPromise<void>();
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+		const operationLog: string[] = [];
+		mockSession.onWorkingDirectorySet = () => operationLog.push('metadata.setWorkingDirectory');
+		mockSession.onWorkingDirectoryOptionUpdate = () => operationLog.push('options.update:workingDirectory');
+
+		const mutation = session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => {
+				operationLog.push('prepare');
+				prepareStarted.complete();
+				await prepareGate.p;
+			},
+			rollback: async () => { operationLog.push('rollback'); },
+			reconcile: async () => { operationLog.push('reconcile'); },
+		});
+		await prepareStarted.p;
+		await assert.rejects(() => session.send('hello', undefined, 'turn-direct'), /working directory is changing/);
+		assert.deepStrictEqual(mockSession.workingDirectorySetCalls, []);
+		prepareGate.complete();
+		await mutation;
+
+		assert.deepStrictEqual({
+			workingDirectory: session.workingDirectory?.toString(),
+			operationLog,
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			workingDirectory: nextWorkingDirectory.toString(),
+			operationLog: ['prepare', 'metadata.setWorkingDirectory', 'options.update:workingDirectory'],
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			sendRequests: [],
+		});
+	});
+
+	test('rolls back preparation without calling the SDK when preparation fails', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+		const calls: string[] = [];
+
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => { calls.push('prepare'); throw new Error('prepare failed'); },
+			rollback: async () => { calls.push('rollback'); },
+			reconcile: async () => { calls.push('reconcile'); },
+		}), /prepare failed/);
+
+		assert.deepStrictEqual({
+			calls,
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			workingDirectory: session.workingDirectory?.toString(),
+		}, {
+			calls: ['prepare', 'rollback'],
+			rpcCalls: [],
+			workingDirectory: workingDirectory.toString(),
+		});
+	});
+
+	test('preserves preparation and rollback failures without calling the SDK', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+
+		await assert.rejects(() => session.setWorkingDirectory(URI.file('/workspace/next'), {
+			prepare: async () => { throw new Error('prepare failed'); },
+			rollback: async () => { throw new Error('rollback failed'); },
+			reconcile: async () => { },
+		}), /preparation failed.*prepare failed.*failed to roll back.*rollback failed/);
+
+		assert.deepStrictEqual(mockSession.workingDirectorySetCalls, []);
+	});
+
+	test('keeps an SDK-started turn visible and reverts before the SDK mutation', async () => {
+		const prepareStarted = new DeferredPromise<void>();
+		const prepareGate = new DeferredPromise<void>();
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession, signals } = await createAgentSession(disposables, { workingDirectory });
+		const calls: string[] = [];
+
+		const mutation = session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => {
+				calls.push('prepare');
+				prepareStarted.complete();
+				await prepareGate.p;
+			},
+			rollback: async () => { calls.push('rollback'); },
+			reconcile: async () => { calls.push('reconcile'); },
+		});
+		await prepareStarted.p;
+		mockSession.fire('system.notification', {
+			content: '<system_notification>\nShell command completed\n</system_notification>',
+			kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
+		} as SessionEventPayload<'system.notification'>['data']);
+		prepareGate.complete();
+		await assert.rejects(mutation, /while a turn is active/);
+
+		const turnStarted = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted);
+		assert.ok(turnStarted);
+		assert.deepStrictEqual({
+			calls,
+			currentTurnId: session.currentTurnId,
+			turnStartedId: turnStarted.turnId,
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			workingDirectory: session.workingDirectory?.toString(),
+		}, {
+			calls: ['prepare', 'rollback'],
+			currentTurnId: turnStarted.turnId,
+			turnStartedId: turnStarted.turnId,
+			rpcCalls: [],
+			workingDirectory: workingDirectory.toString(),
+		});
+	});
+
+	test('rolls back prepared provider state when the single SDK mutation rejects', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+		mockSession.workingDirectorySetErrors.push(new Error('SDK rejected cwd'));
+		const calls: string[] = [];
+
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => { calls.push('prepare'); },
+			rollback: async () => { calls.push('rollback'); },
+			reconcile: async () => { calls.push('reconcile'); },
+		}), /SDK rejected cwd/);
+
+		assert.deepStrictEqual({
+			calls,
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			workingDirectory: session.workingDirectory?.toString(),
+		}, {
+			calls: ['prepare', 'rollback'],
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			workingDirectory: workingDirectory.toString(),
+		});
+	});
+
+	test('preserves SDK rejection and rollback failures', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory });
+		mockSession.workingDirectorySetErrors.push(new Error('SDK rejected cwd'));
+
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => { },
+			rollback: async () => { throw new Error('rollback failed'); },
+			reconcile: async () => { },
+		}), /SDK working directory.*SDK rejected cwd.*failed to roll back.*rollback failed/);
+
+		assert.deepStrictEqual(mockSession.workingDirectorySetCalls, [{ workingDirectory: nextWorkingDirectory.fsPath }]);
+	});
+
+	test('adopts and reconciles a mismatched authoritative SDK working directory', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const actualWorkingDirectory = URI.file('/workspace/actual');
+		const shell = createTestShellManager(disposables, workingDirectory);
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory, shellManager: shell.shellManager });
+		mockSession.workingDirectorySetResults.push({ workingDirectory: '/workspace/actual/../actual' });
+		const reconcileCalls: URI[] = [];
+		const reconcileStarted = new DeferredPromise<void>();
+		const reconcileGate = new DeferredPromise<void>();
+
+		const mutation = session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => { },
+			rollback: async () => { },
+			reconcile: async authoritativeWorkingDirectory => {
+				reconcileCalls.push(authoritativeWorkingDirectory);
+				reconcileStarted.complete();
+				await reconcileGate.p;
+			},
+		});
+		await reconcileStarted.p;
+		await assert.rejects(() => session.send('hello', undefined, 'turn-direct'), /working directory is changing/);
+		reconcileGate.complete();
+		await assert.rejects(mutation, /returned working directory.*actual.*instead of.*next/);
+
+		assert.deepStrictEqual({
+			workingDirectory: session.workingDirectory?.toString(),
+			customizationDirectory: session.customizationDirectory?.toString(),
+			reconcileCalls: reconcileCalls.map(uri => uri.toString()),
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			runtimeOptionCalls: mockSession.workingDirectoryOptionUpdateCalls,
+			shellSetCalls: shell.setCalls.map(uri => uri.toString()),
+			sendRequests: mockSession.sendRequests,
+		}, {
+			workingDirectory: actualWorkingDirectory.toString(),
+			customizationDirectory: actualWorkingDirectory.toString(),
+			reconcileCalls: [actualWorkingDirectory.toString()],
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			runtimeOptionCalls: [actualWorkingDirectory.fsPath],
+			shellSetCalls: [actualWorkingDirectory.toString()],
+			sendRequests: [],
+		});
+	});
+
+	test('preserves mismatch, runtime, local, and reconciliation failures while adopting SDK state', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const actualWorkingDirectory = URI.file('/workspace/actual');
+		const shell = createTestShellManager(disposables, workingDirectory, undefined, [new Error('shell alignment failed')]);
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory, shellManager: shell.shellManager });
+		mockSession.workingDirectorySetResults.push({ workingDirectory: actualWorkingDirectory.fsPath });
+		mockSession.workingDirectoryOptionUpdateErrors.push(new Error('runtime alignment failed'));
+
+		await assert.rejects(() => session.setWorkingDirectory(nextWorkingDirectory, {
+			prepare: async () => { },
+			rollback: async () => { },
+			reconcile: async () => { throw new Error('reconciliation failed'); },
+		}), /returned working directory.*actual.*runtime alignment failed.*failed to align.*shell alignment failed.*failed to reconcile.*reconciliation failed/);
+
+		assert.deepStrictEqual({
+			workingDirectory: session.workingDirectory?.toString(),
+			customizationDirectory: session.customizationDirectory?.toString(),
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			runtimeOptionCalls: mockSession.workingDirectoryOptionUpdateCalls,
+		}, {
+			workingDirectory: actualWorkingDirectory.toString(),
+			customizationDirectory: actualWorkingDirectory.toString(),
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			runtimeOptionCalls: [actualWorkingDirectory.fsPath],
+		});
+	});
+
+	test('reports runtime alignment failure after adopting the requested SDK working directory', async () => {
+		const workingDirectory = URI.file('/workspace/original');
+		const nextWorkingDirectory = URI.file('/workspace/next');
+		const shell = createTestShellManager(disposables, workingDirectory);
+		const { session, mockSession } = await createAgentSession(disposables, { workingDirectory, shellManager: shell.shellManager });
+		mockSession.workingDirectoryOptionUpdateSuccess = false;
+
+		await assert.rejects(
+			() => session.setWorkingDirectory(nextWorkingDirectory, noOpWorkingDirectoryChangeTransaction),
+			/runtime alignment failed.*SDK rejected the runtime working directory update/i
+		);
+
+		assert.deepStrictEqual({
+			workingDirectory: session.workingDirectory?.toString(),
+			customizationDirectory: session.customizationDirectory?.toString(),
+			rpcCalls: mockSession.workingDirectorySetCalls,
+			runtimeOptionCalls: mockSession.workingDirectoryOptionUpdateCalls,
+			shellSetCalls: shell.setCalls.map(uri => uri.toString()),
+		}, {
+			workingDirectory: nextWorkingDirectory.toString(),
+			customizationDirectory: nextWorkingDirectory.toString(),
+			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
+			runtimeOptionCalls: [nextWorkingDirectory.fsPath],
+			shellSetCalls: [nextWorkingDirectory.toString()],
+		});
+	});
+
+	test('collects SDK debug logs with process logs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const outputDirectory = URI.file('/tmp/agent-host-debug');
 
@@ -1097,10 +1636,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: false, shellLogs: true },
+				include: { events: true, processLogs: true, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: false, shellLogs: false },
+				include: { events: false, processLogs: true, shellLogs: false },
 			}],
 		});
 	});
@@ -4014,6 +4553,174 @@ suite('CopilotAgentSession', () => {
 
 	suite('permission handling', () => {
 
+		test('auto-approves reads within applied plugin directories', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path),
+			});
+			const pluginResources = [
+				'rules/typescript.instructions.md',
+				'agents/reviewer.agent.md',
+				'skills/review/SKILL.md',
+				'skills/review/scripts/check.js',
+				'hooks/hooks.json',
+				'.mcp.json',
+			];
+
+			const results = await Promise.all(pluginResources.map((path, index) => runtime.handlePermissionRequest({
+				kind: 'read',
+				path: URI.joinPath(pluginDir, path).fsPath,
+				toolCallId: `tc-plugin-read-${index}`,
+			})));
+
+			assert.deepStrictEqual({
+				results: results.map(result => result.kind),
+				signalCount: signals.length,
+			}, {
+				results: pluginResources.map(() => 'approve-once'),
+				signalCount: 0,
+			});
+		});
+
+		test('does not auto-approve non-read or elevated access within applied plugin directories', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const logicallyOutsidePath = URI.file('/outside/mapped-inside.md').fsPath;
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path === logicallyOutsidePath ? URI.joinPath(pluginDir, 'mapped-inside.md').fsPath : path),
+			});
+			const requests: TestPermissionRequest[] = [
+				{ kind: 'read', path: '/plugins/inactive/rules/typescript.instructions.md', toolCallId: 'tc-plugin-outside' },
+				{ kind: 'read', path: '/plugins/active-evil/rules/typescript.instructions.md', toolCallId: 'tc-plugin-prefix-sibling' },
+				{ kind: 'read', path: logicallyOutsidePath, toolCallId: 'tc-plugin-logically-outside' },
+				{ kind: 'read', path: `${pluginDir.fsPath}${sep}link${sep}..${sep}secret`, toolCallId: 'tc-plugin-parent-traversal' },
+				{ kind: 'write', fileName: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-write' },
+				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-managed', managedApprovalRequired: true },
+				{ kind: 'read', path: URI.joinPath(pluginDir, 'rules/typescript.instructions.md').fsPath, toolCallId: 'tc-plugin-bypass', requestSandboxBypass: true },
+			];
+
+			for (const request of requests) {
+				const resultPromise = runtime.handlePermissionRequest(request);
+				await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === request.toolCallId);
+				assert.ok(request.toolCallId && session.respondToPermissionRequest(request.toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual(
+				signals.filter((signal): signal is IAgentToolPendingConfirmationSignal => signal.kind === 'pending_confirmation').map(signal => signal.state.toolCallId),
+				requests.map(request => request.toolCallId),
+			);
+		});
+
+		test('does not auto-approve applied plugin reads that cannot be canonically contained', async () => {
+			const pluginDir = URI.file('/plugins/active');
+			const logService = new CapturingLogService();
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				logService,
+				realpath: path => {
+					if (path.endsWith('escape.md')) {
+						return Promise.resolve(URI.file('/plugins/active-evil/secret.md').fsPath);
+					}
+					if (path.endsWith('unresolvable.md')) {
+						return Promise.reject(new Error('realpath failed'));
+					}
+					return Promise.resolve(path);
+				},
+			});
+			const paths = [
+				URI.joinPath(pluginDir, 'skills/review/escape.md').fsPath,
+				URI.joinPath(pluginDir, 'skills/review/unresolvable.md').fsPath,
+			];
+
+			for (const [index, path] of paths.entries()) {
+				const toolCallId = `tc-plugin-canonical-${index}`;
+				const resultPromise = runtime.handlePermissionRequest({ kind: 'read', path, toolCallId });
+				await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId);
+				assert.ok(session.respondToPermissionRequest(toolCallId, true));
+				assert.strictEqual((await resultPromise).kind, 'approve-once');
+			}
+
+			assert.deepStrictEqual({
+				pendingToolCallIds: signals.filter((signal): signal is IAgentToolPendingConfirmationSignal => signal.kind === 'pending_confirmation').map(signal => signal.state.toolCallId),
+				warnings: logService.warnings.map(warning => warning.message).filter(message => message.includes('Could not verify plugin resource containment')),
+			}, {
+				pendingToolCallIds: ['tc-plugin-canonical-0', 'tc-plugin-canonical-1'],
+				warnings: [`[Copilot:test-session-1] Could not verify plugin resource containment: ${paths[1]}`],
+			});
+		});
+
+		test('auto-approves reads when an applied plugin root is a symlink', async () => {
+			const pluginDir = URI.file('/plugins/active-link');
+			const canonicalPluginDir = URI.file('/canonical/active');
+			const pluginResource = URI.joinPath(pluginDir, 'skills/review/SKILL.md');
+			const canonicalPluginResource = URI.joinPath(canonicalPluginDir, 'skills/review/SKILL.md');
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(pluginDir),
+				realpath: path => Promise.resolve(path === pluginDir.fsPath ? canonicalPluginDir.fsPath : path === pluginResource.fsPath ? canonicalPluginResource.fsPath : path),
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: pluginResource.fsPath,
+				toolCallId: 'tc-plugin-symlink-root',
+			});
+
+			assert.deepStrictEqual({
+				result: result.kind,
+				signalCount: signals.length,
+			}, {
+				result: 'approve-once',
+				signalCount: 0,
+			});
+		});
+
+		test('checks applied plugin directories in parallel and stops after the first match', async () => {
+			const nonMatchingPluginDir = URI.file('/plugins/inactive');
+			const outerPluginDir = URI.file('/plugins');
+			const nestedPluginDir = URI.file('/plugins/active');
+			const unresolvedOuterRealpath = new DeferredPromise<string>();
+			const matchingNestedRealpath = new DeferredPromise<string>();
+			const realpathCalls: string[] = [];
+			const { runtime, signals } = await createAgentSession(disposables, {
+				clientSnapshot: createPluginSnapshot(nonMatchingPluginDir, outerPluginDir, nestedPluginDir),
+				realpath: path => {
+					realpathCalls.push(path);
+					if (path === outerPluginDir.fsPath) {
+						return unresolvedOuterRealpath.p;
+					}
+					if (path === nestedPluginDir.fsPath) {
+						return matchingNestedRealpath.p;
+					}
+					return Promise.resolve(path);
+				},
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'read',
+				path: URI.joinPath(nestedPluginDir, 'skills/review/SKILL.md').fsPath,
+				toolCallId: 'tc-plugin-parallel',
+			});
+			await timeout(0);
+			matchingNestedRealpath.complete(nestedPluginDir.fsPath);
+			const result = await resultPromise;
+
+			assert.deepStrictEqual({
+				result: result.kind,
+				startedNonMatchingProbe: !realpathCalls.includes(nonMatchingPluginDir.fsPath),
+				startedOuterProbe: realpathCalls.includes(outerPluginDir.fsPath),
+				startedNestedProbe: realpathCalls.includes(nestedPluginDir.fsPath),
+				signalCount: signals.length,
+			}, {
+				result: 'approve-once',
+				startedNonMatchingProbe: true,
+				startedOuterProbe: true,
+				startedNestedProbe: true,
+				signalCount: 0,
+			});
+		});
+
 		test('read permission fires tool_ready (deferred to side effects)', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 			const resultPromise = runtime.handlePermissionRequest({
@@ -5943,6 +6650,37 @@ Use the attached image as context.
 			}, {
 				active: false,
 				actions: [],
+			});
+		});
+
+		test('late aborted idle completes a running replacement turn without cancelling it', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.abortGate = abortGate.p;
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			abortGate.complete();
+			await abortPromise;
+			session.resetTurnState('turn-2');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'replacement-message',
+				content: 'Replacement response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				abortCalls: mockSession.abortCalls,
+				actions: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete).map(action => action.type),
+			}, {
+				active: false,
+				abortCalls: 1,
+				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
 			});
 		});
 
@@ -9169,6 +9907,35 @@ Use the attached image as context.
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPreToolUse: tool=edit');
 		});
 
+		test('denies GitHub fallback tools during Agent Merge turns', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });
+			(session as unknown as ISessionInternalsForTest)._agentMergeTurn = true;
+
+			const result = await capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'bash',
+				toolArgs: { command: 'gh pr review --approve' },
+			});
+
+			assert.deepStrictEqual(result, {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Agent Merge must use its dedicated GitHub tools for CI details, review-thread mutations, and workflow reruns. Stop this turn instead of using another GitHub tool or the GitHub CLI.',
+				additionalContext: 'Agent Merge must use its dedicated GitHub tools for CI details, review-thread mutations, and workflow reruns. Stop this turn instead of using another GitHub tool or the GitHub CLI.',
+			});
+
+			const mcpResult = await capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'github-mcp-server-pull_request_review_write',
+				toolArgs: { method: 'resolve_review_thread' },
+			});
+			assert.strictEqual(mcpResult?.permissionDecision, 'deny');
+		});
+
 		test('logs and rethrows onPostToolUse failures', async () => {
 			const logService = new CapturingLogService();
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
@@ -11701,7 +12468,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('MCP auth request publishes authRequired state and resolves with authenticate token', async () => {
+		test('MCP auth request prioritizes a static client secret when publishing authRequired state', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { githubToken: 'existing-token' });
 
 			const authPromise = runtime.handleMcpAuthRequest({
@@ -11712,7 +12479,7 @@ Use the attached image as context.
 				staticClientConfig: {
 					clientId: 'configured-client-id',
 					clientSecret: 'configured-client-secret',
-					publicClient: false,
+					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://api.githubcopilot.com/mcp',
@@ -11765,7 +12532,6 @@ Use the attached image as context.
 				reason: 'initial',
 				staticClientConfig: {
 					clientId: 'public-client-id',
-					publicClient: true,
 				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://mcp.example.com',
@@ -12266,6 +13032,346 @@ Use the attached image as context.
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
+		});
+	});
+	suite('shell init scripts', () => {
+
+		const initScript = { shell: 'bash', script: 'activate' } satisfies IShellInitScript;
+
+		/** The workbench forwards its setting into root config; the host applies nothing without it. */
+		function createEnabledSession(options?: Parameters<typeof createAgentSession>[1]) {
+			return createAgentSession(disposables, {
+				...options,
+				rootValues: { [CopilotCliConfigKey.EnableShellInitScript]: true, ...options?.rootValues },
+			});
+		}
+
+		test('grants sandbox access before initial SDK registration', async () => {
+			const { mockSession } = await createEnabledSession({
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+			});
+
+			assert.ok(
+				mockSession.operationLog.indexOf('options.update:sandbox') < mockSession.operationLog.indexOf('options.update:shell'),
+				JSON.stringify(mockSession.operationLog),
+			);
+		});
+
+		test('does not apply a session script while the host flag is off', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The host honors the forwarded setting regardless of the session value.
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+			}, {
+				registered: [],
+				materialized: false,
+			});
+		});
+
+		test('unregisters when the host flag turns off', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('unregisters when the host flag turns off even if the session value became malformed', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The off state is decided before the payload is validated.
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript, { ...initScript, script: 'second' }]);
+			setRootValue(CopilotCliConfigKey.EnableShellInitScript, false);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('unregisters when the custom terminal tool replaces the SDK shell mid-session', async () => {
+			const { session, mockSession, setConfigValue, setRootValue, fireRootConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			setRootValue(CopilotCliConfigKey.EnableCustomTerminalTool, true);
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1, 0]);
+		});
+
+		test('ignores a script that only exists in inherited config', async () => {
+			// Root and parent-session values must never reach the shell.
+			const { session, mockSession, storedFileContents } = await createEnabledSession({
+				inheritedConfigValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+			});
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+			}, {
+				registered: [],
+				materialized: false,
+			});
+		});
+
+		test('does not register a shell init script when the sandbox update fails', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
+			mockSession.sandboxConfigUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// Best-effort: the turn still runs, just without the script. The file
+			// is written before the grant, so only registration is withheld.
+			assert.deepStrictEqual({
+				registered: mockSession.shellInitScriptUpdates,
+				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
+				sends: mockSession.sendRequests.length,
+			}, {
+				registered: [],
+				materialized: true,
+				sends: 1,
+			});
+		});
+
+		test('retries materialization after a write failure', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession({ shellInitWriteFailures: 1 });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
+
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
+		});
+
+		test('uses atomic writes when the file provider supports them', async () => {
+			const { mockSession, fileWriteOptions } = await createEnabledSession({
+				configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] },
+				fileAtomicWrite: true,
+			});
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+
+			assert.deepStrictEqual(scriptPath ? fileWriteOptions.get(scriptPath)?.atomic : undefined, { postfix: '.vsctmp' });
+		});
+
+		test('materializes, registers, rewrites in place, and clears', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(scriptPath?.startsWith(TEST_SHELL_INIT_DIR) && scriptPath.endsWith('init.sh'), String(scriptPath));
+
+			await session.send('go', undefined, 'turn-2', 'interactive');
+			assert.strictEqual(mockSession.shellInitScriptUpdates.length, 1);
+
+			// Changed content is rewritten at the registered path. The runtime
+			// re-reads the file before each command, so no RPC is needed.
+			setConfigValue(SessionConfigKey.ShellInitScripts, [{ ...initScript, script: 'changed' }]);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: [{ ...initScript, script: 'changed' }] });
+			await timeout(0);
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates.length,
+				content: storedFileContents.get(URI.file(scriptPath).toString()),
+			}, {
+				updates: 1,
+				content: 'changed',
+			});
+
+			// Clearing unregisters but keeps the file until dispose, so a command
+			// already holding the path can still source it.
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
+			await session.send('go', undefined, 'turn-3', 'interactive');
+			assert.deepStrictEqual({
+				updates: mockSession.shellInitScriptUpdates,
+				retained: storedFileContents.has(URI.file(scriptPath).toString()),
+			}, {
+				updates: [[{ shell: 'bash', path: scriptPath }], []],
+				retained: true,
+			});
+
+			session.dispose();
+			await timeout(0);
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
+		});
+
+		test('keeps the last valid registration when config becomes malformed', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const registered = mockSession.shellInitScriptUpdates.at(-1);
+
+			const malformed = [initScript, { ...initScript, script: 'second' }];
+			setConfigValue(SessionConfigKey.ShellInitScripts, malformed);
+			fireSessionConfigChange({ [SessionConfigKey.ShellInitScripts]: malformed });
+			await timeout(0);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, [registered]);
+		});
+
+		test('each instance owns a distinct directory so a stale cleanup cannot delete a successor script', async () => {
+			// dispose() queues the deletion without awaiting it; a resumed
+			// replacement for the same SDK session may register its script first.
+			const first = await createEnabledSession();
+			const second = await createEnabledSession();
+			first.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			second.setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await first.session.send('go', undefined, 'turn-1', 'interactive');
+			await second.session.send('go', undefined, 'turn-1', 'interactive');
+
+			const firstPath = (first.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			const secondPath = (second.mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)?.[0]?.path;
+			assert.ok(firstPath && secondPath && firstPath !== secondPath, `${firstPath} vs ${secondPath}`);
+		});
+
+		test('does nothing when the custom terminal tool replaces the SDK shell', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession({
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
+		});
+
+		test('removes its own script on dispose and leaves a successor instance script intact', async () => {
+			const successorScript = '/mock-userdata/agentHost/shellInit/test-session-1/successor-instance/init.sh';
+			const { session, storedFileContents, setConfigValue } = await createEnabledSession({
+				fileContents: { [successorScript]: 'successor' },
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			assert.strictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/') && key.endsWith('.sh')).length, 2);
+
+			// The session-directory prune must not take the successor's script
+			// with it; only this instance's directory may be removed.
+			session.dispose();
+			await timeout(0);
+			assert.deepStrictEqual([...storedFileContents.keys()].filter(key => key.includes('/test-session-1/')), [successorScript]);
+		});
+
+		test('does not grant shell init directory read access when no script is configured', async () => {
+			const { session, mockSession, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(!sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR));
+		});
+
+		test('grants the shell init directory read access while a script is configured', async () => {
+			const { session, mockSession, setConfigValue, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			// The SDK fails silently when an init script is outside the sandbox
+			// read policy, so the per-turn policy must include this directory.
+			const sandboxConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined;
+			assert.ok(
+				sandboxConfig?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR),
+				JSON.stringify(sandboxConfig?.userPolicy?.filesystem),
+			);
+		});
+
+		test('unregisters on clear and keeps the file and sandbox grant until dispose', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue, setRootValue } = await createEnabledSession();
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On });
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			const scriptPath = (mockSession.shellInitScriptUpdates.at(-1) as Array<{ path: string }>)[0].path;
+
+			mockSession.operationLog.length = 0;
+			setConfigValue(SessionConfigKey.ShellInitScripts, []);
+			await session.send('go', undefined, 'turn-2', 'interactive');
+
+			// A command that already captured the path can still read the file.
+			assert.deepStrictEqual({
+				operations: mockSession.operationLog.filter(operation => operation === 'options.update:shell' || operation === 'file.delete:shellInit'),
+				hasGrant: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths?.includes(TEST_SHELL_INIT_DIR) ?? false,
+				retainedContent: storedFileContents.get(URI.file(scriptPath).toString()),
+			}, {
+				operations: ['options.update:shell'],
+				hasGrant: true,
+				retainedContent: initScript.script,
+			});
+		});
+
+		test('does not delete shell init files on dispose when none were materialized', async () => {
+			const { session, mockSession } = await createEnabledSession();
+
+			session.dispose();
+			await timeout(0);
+
+			assert.ok(!mockSession.operationLog.includes('file.delete:shellInit'));
+		});
+
+		test('deletes a shell init script materialized while disposal waits for an in-flight update', async () => {
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const { session, storedFileContents, setConfigValue } = await createEnabledSession({
+				shellInitWriteGate: writeGate.p,
+				onShellInitWrite: () => writeStarted.complete(),
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			const send = session.send('go', undefined, 'turn-1', 'interactive');
+			await writeStarted.p;
+
+			session.dispose();
+			writeGate.complete();
+			await send;
+			await timeout(0);
+
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
+		});
+
+		test('a failed registration is logged without aborting the turn', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession();
+			mockSession.shellInitScriptUpdateSuccess = false;
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual({
+				abortCalls: mockSession.abortCalls,
+				sends: mockSession.sendRequests.length,
+			}, {
+				abortCalls: 0,
+				sends: 1,
+			});
+		});
+
+		test('removes the script on dispose even when disconnect fails', async () => {
+			const { session, mockSession, storedFileContents, setConfigValue } = await createEnabledSession();
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+			await session.send('go', undefined, 'turn-1', 'interactive');
+			mockSession.disconnectError = new Error('disconnect failed');
+
+			session.dispose();
+			await timeout(0);
+
+			assert.ok(![...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')));
 		});
 	});
 });

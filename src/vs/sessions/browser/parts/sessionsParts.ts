@@ -77,6 +77,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		return this._mainPart.getSessionView(sessionId);
 	}
 
+	getFocusedSessionView(): SessionView | undefined {
+		return this._mainPart.getFocusedSessionView();
+	}
+
 	getProgressIndicator(): IProgressIndicator {
 		return this._mainPart.getProgressIndicator();
 	}

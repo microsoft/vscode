@@ -134,6 +134,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		_serviceBrand: undefined,
 		enabled: constObservable(true),
 		managedSandboxEnforced,
+		managedSandboxAllowsBypass: constObservable(false),
 	});
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
@@ -256,16 +257,16 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			current: delegate.currentPermissionLevel.get(),
 			metadata: delegate.availableLevels.map(level => {
 				const baseMeta = getPermissionLevelMeta(level);
-				const { label, detail, hover } = delegate.getPermissionLevelMeta(level, baseMeta);
-				return { label, detail, hover };
+				const { label, detail, hover, icon } = delegate.getPermissionLevelMeta(level, baseMeta);
+				return { label, detail, hover, icon: icon.id };
 			}),
 			available: delegate.availableLevels,
 		}, {
 			current: ChatPermissionLevel.Assisted,
 			metadata: [
-				{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined },
-				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
-				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
+				{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined, icon: 'key' },
+				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.', icon: 'sparkle' },
+				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined, icon: 'warning' },
 			],
 			available: [
 				ChatPermissionLevel.Default,

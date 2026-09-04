@@ -9,11 +9,12 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
+import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readMessageSystemInitiatedLabel, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -25,7 +26,7 @@ import { SessionServerToolName } from '../../../../../../platform/agentHost/comm
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
@@ -74,6 +75,10 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 
 function isRenameChatTool(toolCall: ToolCallState): boolean {
 	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+}
+
+function isSetWorkspaceTool(toolCall: ToolCallState): boolean {
+	return toolCall.toolName === SessionServerToolName.SetWorkspace || toolCall.toolName.endsWith(`__${SessionServerToolName.SetWorkspace}`);
 }
 
 function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
@@ -483,12 +488,36 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
-		// Agent Merge reports a state change rather than a completed step, so the
-		// default check would misdescribe both of these.
+		case AgentSystemNotificationKind.WorkspaceTransition:
+			if (!meta.workspaceName || !meta.workspaceKind) {
+				return { kind: 'systemNotification', content: markdown };
+			}
+			return {
+				kind: 'systemNotification',
+				content: markdown,
+				icon: meta.workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact,
+				presentation: 'workspaceTransition',
+				workspaceName: meta.workspaceName,
+				accessibilityLabel: meta.workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree
+					? localize('agentHost.workspaceTransition.worktree', "Workspace changed. This session is now working in {0} using an isolated worktree.", meta.workspaceName)
+					: localize('agentHost.workspaceTransition.folder', "Workspace changed. This session is now working directly in {0}.", meta.workspaceName),
+			};
+		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, collapsible: true };
+		case AgentSystemNotificationKind.AutomaticApprovalReviewInterrupted:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning };
+		// Agent Merge state changes use icons that describe the transition rather
+		// than the default completed-step check.
 		case AgentSystemNotificationKind.AgentMergeEnabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, collapsible: true, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergeConfigurationChanged:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.settingsGear, collapsible: true, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergeDisabled:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
@@ -928,8 +957,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			...(turn.startedAt !== undefined && Number.isFinite(Date.parse(turn.startedAt)) ? { timestamp: Date.parse(turn.startedAt) } : {}),
 			variableData,
 			...(isMessageHiddenFromTranscript(turn.message) ? { isHidden: true } : {}),
+			...(isMessageRequestHiddenFromTranscript(turn.message) ? { isRequestHidden: true } : {}),
 			...(isSystemInitiated ? {
 				isSystemInitiated: true,
+				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
@@ -1494,14 +1525,15 @@ function getTerminalLanguage(tc: ToolCallState) {
  *
  * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
  *    tool already set up as terminal stays terminal across snapshots.
- * 2. `getToolKind(tc) === 'terminal'` with a command available — the
- *    always-available `_meta.toolKind` flag set by the event mapper for
- *    built-in `bash`/`powershell` SDK tools that never emit a
- *    {@link ToolResultContentType.Terminal} content block. We only render the
- *    terminal pill once we actually have the command (`getTerminalInput`):
- *    rendering a terminal pill with an empty command line looks broken, so
- *    until the command arrives we fall back to the generic tool widget
- *    (the `invocationMessage`).
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — either the
+ *    `_meta.toolKind` flag set by the event mapper for built-in
+ *    `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block, or a command
+ *    permission request from a remote host that does not set that flag. We
+ *    only render the terminal pill once we actually have the command
+ *    (`getTerminalInput`): rendering a terminal pill with an empty command
+ *    line looks broken, so until the command arrives we fall back to the
+ *    generic tool widget (the `invocationMessage`).
  * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
  *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
  *    URIs).
@@ -1559,6 +1591,10 @@ function buildTerminalToolSpecificData(
 		...existing,
 		kind: 'terminal',
 		commandLine,
+		// Read-only for the same reason as a generic confirmation input: this
+		// adapter never returns an edited command to the host, so an editable
+		// field would collect a change and then run what the agent proposed.
+		editable: false,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
 		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,
@@ -1582,7 +1618,12 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		for (const block of tc.content ?? []) {
 			switch (block.type) {
 				case ToolResultContentType.Text:
-					output.push({ type: 'embed', value: block.text, isText: true, mimeType: 'text/plain' });
+					output.push({
+						type: 'embed',
+						value: block.text,
+						isText: true,
+						mimeType: block.text.trimStart().startsWith('{') ? 'application/json' : Mimes.text,
+					});
 					break;
 				case ToolResultContentType.EmbeddedResource:
 					output.push({ type: 'embed', value: block.data, mimeType: block.contentType });
@@ -2331,12 +2372,16 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else {
+		} else if (!isSetWorkspaceTool(tc)) {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
 				let rawInput: unknown;
 				try { rawInput = JSON.parse(toolInput); } catch { rawInput = { input: toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput };
+				// Read-only regardless of `tc.editable`: approving with an edited input means
+				// sending it back as `chat/toolCallConfirmed.editedToolInput`, which this adapter
+				// does not do, so an editable field would collect a change and then run the
+				// command the agent originally proposed.
+				toolSpecificData = { kind: 'input', rawInput, editable: false };
 			}
 		}
 
@@ -2473,7 +2518,9 @@ export function toolCallStateToStreamingInvocation(tc: ToolCallState, subAgentIn
 	} else if (isRenameChatTool(tc)) {
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
-	if (sessionResource && isSubagentTool(tc)) {
+	if (getToolKind(tc) === 'search') {
+		invocation.toolSpecificData = { kind: 'search' };
+	} else if (sessionResource && isSubagentTool(tc)) {
 		invocation.toolSpecificData = toolCallStateToInvocation(tc, subAgentInvocationId, sessionResource, connectionAuthority ?? '', mcpServerAuthority).toolSpecificData;
 	}
 	return invocation;

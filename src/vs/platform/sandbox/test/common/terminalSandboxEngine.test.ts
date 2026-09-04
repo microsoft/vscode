@@ -179,6 +179,7 @@ suite('TerminalSandboxEngine', () => {
 		fileService = new MockFileService();
 
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxAllowNetwork, false);
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 
 		instantiationService.stub(IFileService, fileService);

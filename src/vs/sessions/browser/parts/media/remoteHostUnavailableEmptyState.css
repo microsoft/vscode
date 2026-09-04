@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.remote-host-unavailable-empty-state {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size160);
+	color: var(--session-view-foreground);
+	text-align: center;
+}
+
+.remote-host-unavailable-empty-state.hidden,
+.remote-host-unavailable-empty-state-progress.hidden,
+.remote-host-unavailable-empty-state-action.hidden,
+.remote-host-unavailable-empty-state-auto-connect.hidden {
+	display: none;
+}
+
+.remote-host-unavailable-empty-state-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.remote-host-unavailable-empty-state-icon .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.remote-host-unavailable-empty-state-title {
+	max-width: var(--session-view-centered-content-max-width);
+	margin: 0;
+	color: var(--session-view-foreground);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+}
+
+.remote-host-unavailable-empty-state-description,
+.remote-host-unavailable-empty-state-progress {
+	max-width: var(--session-view-centered-content-max-width);
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.4;
+}
+
+.remote-host-unavailable-empty-state-action {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.remote-host-unavailable-empty-state-auto-connect {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.remote-host-unavailable-empty-state-auto-connect-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	cursor: pointer;
+}
+
+.remote-host-unavailable-empty-state-auto-connect-label {
+	cursor: pointer;
+}
+
+.chat-group-view-content.remote-host-unavailable > .chat-view {
+	visibility: hidden;
+	pointer-events: none;
+}

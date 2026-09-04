@@ -888,6 +888,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
+	updateSettings(): never { throw new Error('FakeQuery: updateSettings not modeled'); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
 	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
@@ -1304,8 +1305,17 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0 },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+		);
+	});
+
+	test('setWorkingDirectory rejects because Claude does not advertise workspace conversion', async () => {
+		const { agent } = createTestContext(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('claude:/chat'), URI.parse('claude:/session'), URI.file('/workspace')),
+			/Claude does not support changing the working directory/,
 		);
 	});
 
@@ -6879,6 +6889,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			name: 'viewUnreviewedComments',
 			description: 'View unreviewed comments',
 			inputSchema: { type: 'object', properties: {} },
+		}, {
+			name: 'set_workspace',
+			description: 'Set workspace',
+			inputSchema: { type: 'object', properties: {} },
 		}];
 		readonly toolNames = this.definitions.map(definition => definition.name);
 		confirmationRequiredForSession = false;
@@ -6992,6 +7006,40 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: {} },
 			pendingConfirmations: 0,
+		});
+	});
+
+	test('set_workspace uses a plain-language confirmation without raw input', async () => {
+		const host = new FakeServerToolHost();
+		host.confirmationRequiredForSession = true;
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { workspaceFolder: '/workspace/app', isolation: true };
+		const resultPromise = canUseTool('mcp__host__set_workspace', input, makeOptions('tu_set_workspace'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_set_workspace', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			confirmation: confirmation?.kind === 'pending_confirmation' ? {
+				displayName: confirmation.state.displayName,
+				invocationMessage: confirmation.state.invocationMessage,
+				toolInput: confirmation.state.toolInput,
+				confirmationTitle: confirmation.state.confirmationTitle,
+				permissionKind: confirmation.permissionKind,
+			} : undefined,
+		}, {
+			result: { behavior: 'allow', updatedInput: input },
+			confirmation: {
+				displayName: 'Set Workspace',
+				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				toolInput: undefined,
+				confirmationTitle: 'Continue in app?',
+				permissionKind: 'mcp',
+			},
 		});
 	});
 
@@ -7761,14 +7809,14 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
+	test('Options carries enableFileCheckpointing and host hooks', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
 		// must be on (a startup option, not user-bypassable). File-edit
 		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop; the only SDK hook
-		// adds transient host context to a submitted prompt.
+		// `_observeUserMessage` in the message-pump loop; SDK hooks add
+		// transient host context and enforce Agent Merge tool restrictions.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
@@ -7779,7 +7827,7 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hookNames: ['UserPromptSubmit'],
+			hookNames: ['PreToolUse', 'UserPromptSubmit'],
 			userPromptSubmitHooks: 1,
 		});
 	});
