@@ -8,7 +8,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -76,7 +76,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource })),
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource, status: AgentSessionStatus.InProgress, timing: {} })),
 				} as IAgentSessionsModel;
 			}
 		};
@@ -137,7 +137,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: [{ isArchived: () => false, label: 'Alpha', resource }],
+					sessions: [{ isArchived: () => false, label: 'Alpha', resource, timing: {} }],
 				} as IAgentSessionsModel;
 			}
 		};
