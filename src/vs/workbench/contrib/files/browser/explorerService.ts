@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from '../common/files.js';
@@ -28,6 +28,7 @@ import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -46,6 +47,10 @@ export class ExplorerService implements IExplorerService {
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
 	private revealExcludeMatcher: ResourceGlobMatcher;
+
+	private readonly _onDidChangeItemDecorations = this.disposables.add(new Emitter<URI[]>());
+	readonly onDidChangeItemDecorations = this._onDidChangeItemDecorations.event;
+	private readonly symbolicLinkUris = new ResourceSet();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -70,33 +75,35 @@ export class ExplorerService implements IExplorerService {
 			const events = this.fileChangeEvents;
 			this.fileChangeEvents = [];
 
-			// Filter to the ones we care
-			const types = [FileChangeType.DELETED];
-			if (this.config.sortOrder === SortOrder.Modified) {
-				types.push(FileChangeType.UPDATED);
-			}
-
 			let shouldRefresh = false;
 			// For DELETED and UPDATED events go through the explorer model and check if any of the items got affected
-			this.roots.forEach(r => {
-				if (this.view && !shouldRefresh) {
-					shouldRefresh = doesFileEventAffect(r, this.view, events, types);
+			for (const r of this.roots) {
+				if (shouldRefresh) {
+					break;
 				}
-			});
+				if (this.view) {
+					shouldRefresh = await doesFileEventAffect(r, this.view, events, this.config.sortOrder, this.fileService);
+				}
+			}
 			// For ADDED events we need to go through all the events and check if the explorer is already aware of some of them
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
-			events.forEach(e => {
-				if (!shouldRefresh) {
-					for (const resource of e.rawAdded) {
-						const parent = this.model.findClosest(dirname(resource));
-						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-						if (parent && !parent.getChild(basename(resource))) {
+			for (const e of events) {
+				if (shouldRefresh) {
+					break;
+				}
+				for (const resource of e.rawAdded) {
+					const parent = this.model.findClosest(dirname(resource));
+					if (parent) {
+						const child = parent.getChild(basename(resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource,
+						// or the child is involved in a symbolic link state change (e.g., ln -sf) - we need to refresh
+						if (!child || (await hasSymbolicLinkChanged(child, this.fileService))) {
 							shouldRefresh = true;
 							break;
 						}
 					}
 				}
-			});
+			}
 
 			if (shouldRefresh) {
 				await this.refresh(false);
@@ -358,6 +365,32 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
+	checkSymbolicLinkDecorations(items: ExplorerItem[]): void {
+		const changedDecorationUris = items
+			.filter(item => this.updateSymbolicLinkState(item))
+			.map(item => item.resource);
+
+		if (changedDecorationUris.length > 0) {
+			this._onDidChangeItemDecorations.fire(changedDecorationUris);
+		}
+	}
+
+	private updateSymbolicLinkState(item: ExplorerItem): boolean {
+		const wasSymbolicLink = this.symbolicLinkUris.has(item.resource);
+		const isSymbolicLink = item.isSymbolicLink;
+
+		if (wasSymbolicLink !== isSymbolicLink) {
+			if (isSymbolicLink) {
+				this.symbolicLinkUris.add(item.resource);
+			} else {
+				this.symbolicLinkUris.delete(item.resource);
+			}
+			return true;
+		}
+
+		return false;
+	}
+
 	// File events
 
 	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
@@ -521,14 +554,24 @@ export class ExplorerService implements IExplorerService {
 	}
 }
 
-function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
+async function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], sortOrder: SortOrder | undefined, fileService: IFileService): Promise<boolean> {
 	for (const [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
-			if (events.some(e => e.contains(child.resource, ...types))) {
+			if (events.some(e => e.contains(child.resource, FileChangeType.DELETED))) {
 				return true;
 			}
+
+			if (events.some(e => e.contains(child.resource, FileChangeType.UPDATED))) {
+				if (sortOrder === SortOrder.Modified) {
+					return true;
+				}
+				if (await hasSymbolicLinkChanged(child, fileService)) {
+					return true;
+				}
+			}
+
 			if (child.isDirectory && child.isDirectoryResolved) {
-				if (doesFileEventAffect(child, view, events, types)) {
+				if (await doesFileEventAffect(child, view, events, sortOrder, fileService)) {
 					return true;
 				}
 			}
@@ -536,6 +579,15 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 	}
 
 	return false;
+}
+
+async function hasSymbolicLinkChanged(child: ExplorerItem, fileService: IFileService): Promise<boolean> {
+	try {
+		const stat = await fileService.stat(child.resource);
+		return stat.isSymbolicLink !== child.isSymbolicLink;
+	} catch {
+		return false;
+	}
 }
 
 function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
