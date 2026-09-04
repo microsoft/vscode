@@ -80,7 +80,7 @@ MenuRegistry.appendMenuItem(MenuId.AuxiliaryBarTitle, {
 		icon: closeIcon
 	},
 	group: 'navigation',
-	order: 2,
+	order: 1,
 	when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 });
 
@@ -275,7 +275,7 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 			}
 		});
 	}
