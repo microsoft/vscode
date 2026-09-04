@@ -12,12 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
-function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
-	return { uri, type, storage } as IPromptPath;
+function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, source?: PromptFileSource): IPromptPath {
+	return { uri, type, storage, source } as IPromptPath;
 }
 
 function makePromptsService(
@@ -79,6 +79,30 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
 			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
 			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
+		]);
+	});
+
+	test('includes configured local and personal locations without syncing default locations', async () => {
+		const defaultWorkspaceAgent = URI.file('/workspace/.github/agents/default.agent.md');
+		const configuredWorkspaceAgent = URI.file('/workspace/custom/agents/configured.agent.md');
+		const defaultPersonalSkill = URI.file('/home/user/.copilot/skills/default/SKILL.md');
+		const configuredPersonalSkill = URI.file('/home/user/custom/skills/configured/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.local}`, [
+				makePromptPath(defaultWorkspaceAgent, PromptsType.agent, PromptsStorage.local, PromptFileSource.GitHubWorkspace),
+				makePromptPath(configuredWorkspaceAgent, PromptsType.agent, PromptsStorage.local, PromptFileSource.ConfigWorkspace),
+			]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [
+				makePromptPath(defaultPersonalSkill, PromptsType.skill, PromptsStorage.user, PromptFileSource.CopilotPersonal),
+				makePromptPath(configuredPersonalSkill, PromptsType.skill, PromptsStorage.user, PromptFileSource.ConfigPersonal),
+			]],
+		]));
+
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
+
+		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), source: item.source })), [
+			{ uri: configuredWorkspaceAgent.toString(), source: AICustomizationSources.local },
+			{ uri: configuredPersonalSkill.toString(), source: AICustomizationSources.user },
 		]);
 	});
 
