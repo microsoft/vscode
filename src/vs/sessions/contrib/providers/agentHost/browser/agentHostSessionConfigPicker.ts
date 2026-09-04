@@ -61,13 +61,15 @@ import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPicker
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { checkoutOperationMeta } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
+import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -664,27 +666,60 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				throw new Error('Branch checkout is not available for this session.');
 			}
 
-			const confirmedValue = provider.getSessionConfig(sessionId)?.values[property];
-			try {
+			const checkedOut = await this._invokeCheckoutOperation(changeset, treeish);
+			if (checkedOut) {
 				await provider.setSessionConfigValue(sessionId, property, value);
-				await changeset.invokeOperation(
-					AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
-					undefined,
-					checkoutOperationMeta(treeish),
-				);
-			} catch (checkoutError) {
-				if (provider.getSessionConfig(sessionId)?.values[property] === value) {
-					try {
-						await provider.setSessionConfigValue(sessionId, property, confirmedValue);
-					} catch (rollbackError) {
-						throw new AggregateError([checkoutError, rollbackError], 'Checkout failed and the branch configuration could not be restored.');
-					}
-				}
-				throw checkoutError;
 			}
 		});
 		provider.trackSessionConfigOperation(sessionId, configOperation);
 		await configOperation;
+	}
+
+	private async _invokeCheckoutOperation(changeset: ISessionChangeset, treeish: string): Promise<boolean> {
+		let errorMessage: string | undefined;
+		try {
+			await changeset.invokeOperation(
+				AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				undefined,
+				checkoutOperationMeta(treeish),
+			);
+
+			return true;
+		} catch (error) {
+			if (!(error instanceof ProtocolError) || !isCheckoutOperationDirtyWorkingTreeErrorData(error.data)) {
+				throw error;
+			}
+
+			errorMessage = error instanceof Error ? error.message : String(error);
+		}
+
+		const { result } = await this._dialogService.prompt<CheckoutOperationPreAction>({
+			type: 'warning',
+			message: localize('agentHostSessionConfigPicker.checkoutDirty', "Your local changes would be overwritten when checking out '{0}'.", treeish),
+			detail: new MarkdownString(errorMessage),
+			buttons: [
+				{
+					label: localize('agentHostSessionConfigPicker.checkoutStash', "Stash & Checkout"),
+					run: () => CheckoutOperationPreAction.Stash,
+				},
+				{
+					label: localize('agentHostSessionConfigPicker.checkoutCommit', "Commit & Checkout"),
+					run: () => CheckoutOperationPreAction.Commit,
+				},
+			],
+			cancelButton: true,
+		});
+		if (!result) {
+			return false;
+		}
+
+		await changeset.invokeOperation(
+			AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+			undefined,
+			checkoutOperationMeta(treeish, result),
+		);
+
+		return true;
 	}
 
 	protected _requiresBranchCheckout(provider: IAgentHostSessionsProvider, sessionId: string, property: string): boolean {

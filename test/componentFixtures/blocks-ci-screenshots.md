@@ -303,6 +303,24 @@
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/0154b8cd8302a62959c0a067e02aadc24d27a54d85891dd19fb9e9b4d99362f2)
 
+#### sessions/sessionsList/SessionsList_LightweightNewButton/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d8f12a4790516fe09f20ccff0012b2422bac95e48c7f3360af36c254b31b57dc)
+
+#### sessions/sessionsList/SessionsList_LightweightNewButton/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/50c9d63b886aa15e5aab690fca127c675b135ac76c12a36afa65cc40200e985b)
+
+#### sessions/sessionsList/SessionsList_LightweightNewButton/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/27750194694cd6b4941e11c7752732c04f934269141b93ad9bbd6131217ace45)
+
+#### sessions/sessionsList/SessionsList_LightweightNewButtonWithKeybindingBackground/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9d8a57cfaff4101c600dd6bb8464d48973ecd0751b4470664ec7fb2d6553b008)
+
+#### sessions/sessionsList/SessionsList_LightweightNewButtonWithKeybindingBackground/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4ada330a003107db5221c84f4662aff80f1f4b541877e80420c0cf22918bf5b2)
+
+#### sessions/sessionsList/SessionsList_LightweightNewButtonWithKeybindingBackground/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/54f5cf2d72ea720ff9c6f07388c686f91f7541abff62ef516b321588260da824)
+
 #### sessions/sessionsList/SessionsList_NarrowHoverToolbar/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8af0c707c9c8e321ac7c8fd792b3c242a0d394cdaf68c3fe1c61804095395030)
 

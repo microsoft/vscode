@@ -47,8 +47,10 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.c
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-	await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined, source });
+	await nativeHostService.openAgentsWindow({
+		folderUri: workspaceContextService.getWorkspace().folders[0]?.uri,
+		source,
+	});
 }
 
 function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource } {

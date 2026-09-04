@@ -77,8 +77,8 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHost
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { getConfiguredSessionMode, getModelTelemetryContext, getTurnTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostTurnService } from './agentHostTurnService.js';
 import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
-import { startTurn } from './agentHostTurnStarter.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
@@ -238,6 +238,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@IAgentHostToolCallTracker private readonly _toolCallTracker: AgentHostToolCallTracker,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
@@ -1350,32 +1351,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
-				const turnStopWatch = StopWatch.create(false);
-				const started = this._instantiationService.invokeFunction(startTurn, {
-					session: sessionChannel,
-					chat: channel,
-					turnChannel: channel,
-					turnId: action.turnId,
-					message: action.message,
-					source: 'direct',
-					clientId,
-					clientContext,
-					turnStopWatch,
-				});
-				if (!started) {
-					break;
-				}
-				void this._sendTurnMessage({
-					agent: started.agent,
-					sessionChannel,
-					turnChannel: channel,
-					chat: channel,
-					message: action.message,
-					turnId: action.turnId,
-					senderClientId: clientId,
-					clientContext,
-					turnStopWatch,
-				});
+				this._turnService.handleTurnStarted(channel, action, clientId, clientContext);
 				break;
 			}
 			case ActionType.ChatTurnResume: {
