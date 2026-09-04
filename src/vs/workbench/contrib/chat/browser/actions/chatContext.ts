@@ -42,6 +42,7 @@ import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
@@ -53,13 +54,15 @@ interface IGitHubContextSelection {
 }
 
 interface IGitHubRepositoryQuickPickItem extends IQuickPickItem {
-	readonly repoId: string;
+	readonly repoId?: string;
+	readonly folderUri?: URI;
 }
 
 interface IGitHubRepositoryPick {
 	readonly label: string;
 	readonly description?: string;
-	readonly repoId: string;
+	readonly repoId?: string;
+	readonly folderUri?: URI;
 }
 
 /**
@@ -148,18 +151,19 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const repositories = await this.getRepositoryPicks();
-		let repoId: string | undefined;
+		let repository: IGitHubRepositoryPick | undefined;
 
 		if (repositories.length === 1) {
-			repoId = repositories[0].repoId;
+			repository = repositories[0];
 		} else if (repositories.length > 1) {
-			repoId = await this.pickRepository(repositories);
+			repository = await this.pickRepository(repositories);
 		}
 
-		if (repositories.length > 1 && !repoId) {
+		if (repositories.length > 1 && !repository) {
 			return undefined;
 		}
 
+		const repoId = repository?.repoId ?? await this.getRepositoryId(repository?.folderUri);
 		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repoId);
 		if (!selection) {
 			return undefined;
@@ -177,29 +181,32 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		};
 	}
 
-	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<string | undefined> {
-		const repository = await this.quickInputService.pick(
-			repositories.map(({ label, description, repoId }): IGitHubRepositoryQuickPickItem => ({ label, description, repoId })),
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
+		return this.quickInputService.pick(
+			repositories,
 			{ placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository") }
 		);
-		return repository?.repoId;
 	}
 
 	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
 		const knownRepositories = Array.from(this.gitService.repositories);
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 		if (workspaceFolders.length > 1) {
-			const workspaceRepositories = await Promise.all(workspaceFolders.map(folder => this.gitService.openRepository(folder.uri)));
-			return workspaceRepositories.flatMap((repository, index) => {
-				if (!repository) {
-					return [];
-				}
-				const info = getGitHubRemoteInfo(repository.state.get());
-				return info ? [{
-					label: workspaceFolders[index].name,
+			const workspaceRepositories = await Promise.all(workspaceFolders.map(folder =>
+				knownRepositories.find(repository => isEqual(repository.rootUri, folder.uri))
+				?? this.gitService.openRepository(folder.uri)
+			));
+			return workspaceFolders.map((folder, index): IGitHubRepositoryPick => {
+				const info = workspaceRepositories[index] && getGitHubRemoteInfo(workspaceRepositories[index].state.get());
+				return info ? {
+					label: folder.name,
 					description: `${info.owner}/${info.repo}`,
 					repoId: `${info.owner}/${info.repo}`,
-				}] : [];
+					folderUri: folder.uri,
+				} : {
+					label: folder.name,
+					folderUri: folder.uri,
+				};
 			});
 		}
 
@@ -216,6 +223,16 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		return Array.from(repositoryIds)
 			.sort()
 			.map(repoId => ({ label: repoId, repoId }));
+	}
+
+	private async getRepositoryId(folderUri: URI | undefined): Promise<string | undefined> {
+		if (!folderUri) {
+			return undefined;
+		}
+		const repository = Array.from(this.gitService.repositories).find(repository => isEqual(repository.rootUri, folderUri))
+			?? await this.gitService.openRepository(folderUri);
+		const info = repository && getGitHubRemoteInfo(repository.state.get());
+		return info ? `${info.owner}/${info.repo}` : undefined;
 	}
 }
 

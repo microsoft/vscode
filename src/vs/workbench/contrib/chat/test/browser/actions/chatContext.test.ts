@@ -85,12 +85,12 @@ class TestCommandService extends mock<ICommandService>() {
 }
 
 class TestGitHubContextValuePick extends GitHubContextValuePick {
-	repositoryPicks: readonly { readonly label: string; readonly description?: string; readonly repoId: string }[] | undefined;
+	repositoryPicks: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[] | undefined;
 	selectedRepository: string | undefined;
 
-	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId: string }[]): Promise<string | undefined> {
+	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[]): Promise<{ readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI } | undefined> {
 		this.repositoryPicks = repositories;
-		return this.selectedRepository;
+		return repositories.find(repository => repository.repoId === this.selectedRepository);
 	}
 }
 
@@ -224,8 +224,8 @@ suite('ChatContext', () => {
 			commandRepoId: commandService.command?.repoId,
 		}, {
 			repositoryPicks: [
-				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
-				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript' },
+				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
+				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript', folderUri: repositories[1].rootUri },
 			],
 			commandRepoId: 'microsoft/vscode',
 		});
@@ -252,8 +252,33 @@ suite('ChatContext', () => {
 		await pick.asAttachment();
 
 		assert.deepStrictEqual(pick.repositoryPicks, [
-			{ label: 'Client', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
-			{ label: 'Server', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
+			{ label: 'Client', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
+			{ label: 'Server', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[1].rootUri },
+		]);
+	});
+
+	test('selects a folder before opening GitHub context when repository metadata is incomplete', async () => {
+		const commandService = new TestCommandService();
+		const repositoryRoot = URI.file('/workspace/vscode');
+		const docsRoot = URI.file('/workspace/docs');
+		const pick = new TestGitHubContextValuePick(
+			'pullRequest',
+			new WorkspaceLoadingGitService([
+				repository('https://github.com/microsoft/vscode.git', repositoryRoot),
+			]),
+			new class extends mock<IQuickInputService>() { }(),
+			commandService,
+			workspaceContextService([
+				{ uri: repositoryRoot, name: 'VS Code' },
+				{ uri: docsRoot, name: 'Docs' },
+			]),
+		);
+
+		await pick.asAttachment();
+
+		assert.deepStrictEqual(pick.repositoryPicks, [
+			{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositoryRoot },
+			{ label: 'Docs', folderUri: docsRoot },
 		]);
 	});
 
