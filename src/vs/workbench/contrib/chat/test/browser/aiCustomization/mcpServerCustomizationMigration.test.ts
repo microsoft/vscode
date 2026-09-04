@@ -133,6 +133,10 @@ suite('McpServerCustomizationMigration', () => {
 		return fileService;
 	}
 
+	function createMigrator(fileService: FileService): McpServerCustomizationMigrator {
+		return new McpServerCustomizationMigrator(fileService, new NullLogService());
+	}
+
 	function candidate(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' }): IMcpServerCustomizationMigrationCandidate {
 		return {
 			type: CustomizationMigrationType.McpServers,
@@ -195,7 +199,7 @@ suite('McpServerCustomizationMigration', () => {
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 		};
 
-		const plan = await new McpServerCustomizationMigrator(fileService).createPlan(snapshot, [root]);
+		const plan = await createMigrator(fileService).createPlan(snapshot, [root]);
 
 		assert.deepStrictEqual({
 			candidates: plan.candidates.map(item => item.name),
@@ -226,7 +230,7 @@ suite('McpServerCustomizationMigration', () => {
 		}`));
 		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"existing":{"type":"stdio","command":"existing"}}}'));
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'selected')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'selected')]);
 		const source = (await fileService.readFile(sourceUri)).value.toString();
 
 		assert.deepStrictEqual({
@@ -250,7 +254,7 @@ suite('McpServerCustomizationMigration', () => {
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"equivalent":{"command":"node","args":[]},"conflict":{"command":"node"}}}'));
 		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"equivalent":{"type":"stdio","command":"node"},"conflict":{"type":"stdio","command":"other"}}}'));
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([
+		const result = await createMigrator(fileService).migrate([
 			candidate(root, 'equivalent'),
 			candidate(root, 'conflict'),
 		]);
@@ -272,12 +276,12 @@ suite('McpServerCustomizationMigration', () => {
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"changed"}}}'));
-		let result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		let result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), [McpServerCustomizationMigrationFailureReason.SourceChanged]);
 
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":[]}'));
-		result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), [McpServerCustomizationMigrationFailureReason.InvalidTarget]);
 		assert.deepStrictEqual(parse((await fileService.readFile(sourceUri)).value.toString()), { servers: { server: { command: 'node' } } });
 	});
@@ -293,7 +297,7 @@ suite('McpServerCustomizationMigration', () => {
 			"existing": { "command": "existing" },
 		}`));
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 		const target = (await fileService.readFile(targetUri)).value.toString();
 
 		assert.deepStrictEqual({
@@ -320,7 +324,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.sourceUri = sourceUri;
 		provider.failSourceWrite = true;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => failure.reason),
@@ -344,7 +348,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.sourceUri = sourceUri;
 		provider.failAfterSourceWrite = true;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => failure.reason),
@@ -369,7 +373,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.concurrentSourceContent = '{"servers":{"server":{"command":"changed"},"concurrent":{"command":"other"}}}';
 		provider.changeSourceBeforeFailure = true;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => failure.reason),
@@ -395,7 +399,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.resource = sourceUri;
 		provider.concurrentContent = concurrentSource;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			sameSize: originalSource.length === concurrentSource.length,
@@ -423,7 +427,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.resource = targetUri;
 		provider.concurrentContent = concurrentTarget;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			sameSize: originalTarget.length === concurrentTarget.length,
@@ -449,7 +453,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.resource = targetUri;
 		provider.failAtStat = 2;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => [failure.reason, failure.error?.message]),
@@ -473,7 +477,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.targetUri = targetUri;
 		provider.changeTargetBeforeSourceWrite = true;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => failure.reason),
@@ -498,7 +502,7 @@ suite('McpServerCustomizationMigration', () => {
 		provider.originalSourceContent = originalSourceContent;
 		provider.restoreSourceAfterWrite = true;
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')]);
 
 		assert.deepStrictEqual({
 			failures: result.failures.map(failure => failure.reason),
@@ -518,7 +522,7 @@ suite('McpServerCustomizationMigration', () => {
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
 
-		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')], {
+		const result = await createMigrator(fileService).migrate([candidate(root, 'server')], {
 			isContextCurrent: () => false,
 		});
 

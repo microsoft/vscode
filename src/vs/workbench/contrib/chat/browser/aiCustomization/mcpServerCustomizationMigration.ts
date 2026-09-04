@@ -14,10 +14,13 @@ import { basename, dirname, getComparisonKey, isEqual } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+
+const LOG_PREFIX = '[MCP Customization Migration]';
 
 export interface IMcpServerCustomizationMigrationPlan {
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
@@ -48,12 +51,16 @@ interface IMcpServerCustomizationMigrationExecutionOptions {
  * Plans eligible MCP server moves and executes guarded source-to-target transactions.
  */
 export class McpServerCustomizationMigrator {
-	constructor(private readonly fileService: IFileService) { }
+	constructor(
+		private readonly fileService: IFileService,
+		private readonly logService: ILogService,
+	) { }
 
 	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[]): Promise<IMcpServerCustomizationMigrationPlan> {
 		const candidates: IMcpServerCustomizationMigrationCandidate[] = [];
 		const exclusions: IMcpServerCustomizationMigrationFailure[] = [];
 		const sourceServers = new ResourceMap<Promise<Record<string, unknown> | undefined>>();
+		this.logService.trace(`${LOG_PREFIX} Planning: servers=${snapshot.servers.length}, roots=${roots.length}, discoveryComplete=${snapshot.discoveryComplete}`);
 
 		for (const server of snapshot.servers) {
 			const sourceUri = server.source.collectionUri;
@@ -64,6 +71,7 @@ export class McpServerCustomizationMigrator {
 
 			const targetUri = URI.joinPath(root, '.mcp.json');
 			const excluded = (reason: McpServerCustomizationMigrationFailureReason, error?: Error): void => {
+				this.logService.trace(`${LOG_PREFIX} Excluded '${server.name}' from ${sourceUri.toString()}: reason=${reason}`);
 				exclusions.push({
 					id: server.id,
 					name: server.name,
@@ -129,6 +137,7 @@ export class McpServerCustomizationMigrator {
 			});
 		}
 
+		this.logService.trace(`${LOG_PREFIX} Planned: candidates=${candidates.length}, exclusions=${exclusions.length}`);
 		return { candidates, exclusions };
 	}
 
@@ -136,7 +145,7 @@ export class McpServerCustomizationMigrator {
 		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 		options: IMcpServerCustomizationMigrationExecutionOptions = {},
 	): Promise<IMcpServerCustomizationMigrationResult> {
-		return executeMigration(candidates, this.fileService, options);
+		return executeMigration(candidates, this.fileService, this.logService, options);
 	}
 
 	private async readMcpServers(resource: URI): Promise<Record<string, unknown> | undefined> {
@@ -165,12 +174,14 @@ export class McpServerCustomizationMigrator {
 async function executeMigration(
 	candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 	fileService: IFileService,
+	logService: ILogService,
 	options: IMcpServerCustomizationMigrationExecutionOptions,
 ): Promise<IMcpServerCustomizationMigrationResult> {
 	const groups = new Map<string, IMcpServerMigrationGroup>();
 	const failures: IMcpServerCustomizationMigrationFailure[] = [];
 	for (const candidate of candidates) {
 		if (!isStrictSourceTargetPair(candidate.sourceUri, candidate.targetUri)) {
+			logService.trace(`${LOG_PREFIX} Rejected '${candidate.name}': ${candidate.sourceUri.toString()} to ${candidate.targetUri.toString()} is not a strict .vscode/mcp.json to .mcp.json pair.`);
 			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.InconsistentTarget));
 			continue;
 		}
@@ -183,19 +194,22 @@ async function executeMigration(
 		group.candidates.push(candidate);
 		groups.set(key, group);
 	}
+	logService.trace(`${LOG_PREFIX} Executing: candidates=${candidates.length}, groups=${groups.size}, rejected=${failures.length}`);
 
 	let migratedCount = 0;
 	for (const group of groups.values()) {
 		if (options.isContextCurrent?.() === false) {
+			logService.trace(`${LOG_PREFIX} Skipping ${group.sourceUri.toString()}: execution context changed before the group started.`);
 			failures.push(...group.candidates.map(candidate => createFailure(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible)));
 			continue;
 		}
 		try {
-			const result = await migrateGroup(group, fileService, options);
+			const result = await migrateGroup(group, fileService, logService, options);
 			migratedCount += result.migratedCount;
 			failures.push(...result.failures);
 		} catch (error) {
 			const migrationError = toMigrationError(error);
+			logService.trace(`${LOG_PREFIX} Group ${group.sourceUri.toString()} failed: reason=${migrationError.reason}`);
 			failures.push(...group.candidates.map(candidate => createFailure(candidate, migrationError.reason, migrationError)));
 		}
 	}
@@ -206,8 +220,10 @@ async function executeMigration(
 async function migrateGroup(
 	group: IMcpServerMigrationGroup,
 	fileService: IFileService,
+	logService: ILogService,
 	options: IMcpServerCustomizationMigrationExecutionOptions,
 ): Promise<IMcpServerCustomizationMigrationResult> {
+	logService.trace(`${LOG_PREFIX} Migrating ${group.candidates.length} server(s) from ${group.sourceUri.toString()} to ${group.targetUri.toString()}.`);
 	let source: IJsonDocument;
 	try {
 		source = await readSourceDocument(group.sourceUri, fileService);
@@ -232,42 +248,49 @@ async function migrateGroup(
 		throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.InvalidTarget, toError(error));
 	}
 	const targetServers = getTargetServers(target);
+	logService.trace(`${LOG_PREFIX} Target ${group.targetUri.toString()}: exists=${target.exists}, wrapped=${target.wrapped}`);
 	const candidatesToMigrate: IMcpServerCustomizationMigrationCandidate[] = [];
 	const failures: IMcpServerCustomizationMigrationFailure[] = [];
+	const reject = (candidate: IMcpServerCustomizationMigrationCandidate, reason: McpServerCustomizationMigrationFailureReason): void => {
+		logService.trace(`${LOG_PREFIX} Rejected '${candidate.name}' before writing: reason=${reason}`);
+		failures.push(createFailure(candidate, reason));
+	};
 
 	for (const candidate of group.candidates) {
 		if (!isConfigurationRepresentable(candidate.projectedConfiguration)) {
-			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration));
+			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;
 		}
 		if (!Object.hasOwn(sourceServers, candidate.name)) {
-			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible));
+			reject(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible);
 			continue;
 		}
 		const sourceConfiguration = canonicalizeSourceConfiguration(sourceServers[candidate.name]);
 		const migrationConfiguration = canonicalizeConfiguration(candidate.projectedConfiguration);
 		if (!sourceConfiguration) {
-			failures.push(createFailure(candidate, normalizeMcpServerConfiguration(sourceServers[candidate.name])
+			reject(candidate, normalizeMcpServerConfiguration(sourceServers[candidate.name])
 				? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
-				: McpServerCustomizationMigrationFailureReason.InvalidSource));
+				: McpServerCustomizationMigrationFailureReason.InvalidSource);
 			continue;
 		}
 		if (!equals(sourceConfiguration, migrationConfiguration)) {
-			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged));
+			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
 		}
 		const targetConfiguration = canonicalizeSourceConfiguration(targetServers[candidate.name]);
 		if (Object.hasOwn(targetServers, candidate.name) && (!targetConfiguration || !equals(targetConfiguration, migrationConfiguration))) {
-			failures.push(createFailure(candidate, McpServerCustomizationMigrationFailureReason.TargetConflict));
+			reject(candidate, McpServerCustomizationMigrationFailureReason.TargetConflict);
 			continue;
 		}
 		candidatesToMigrate.push(candidate);
 	}
 
 	if (candidatesToMigrate.length === 0) {
+		logService.trace(`${LOG_PREFIX} Nothing left to migrate from ${group.sourceUri.toString()}.`);
 		return { migratedCount: 0, failures };
 	}
 	if (options.isContextCurrent?.() === false) {
+		logService.trace(`${LOG_PREFIX} Aborting ${group.sourceUri.toString()} before any write: execution context changed.`);
 		return {
 			migratedCount: 0,
 			failures: [...failures, ...candidatesToMigrate.map(candidate => createFailure(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible))],
@@ -293,6 +316,7 @@ async function migrateGroup(
 
 	let writtenTarget: IFileStatWithMetadata | undefined;
 	if (targetChanged) {
+		logService.trace(`${LOG_PREFIX} Writing target ${group.targetUri.toString()}.`);
 		try {
 			writtenTarget = await writeDocument(group.targetUri, targetContent, target, fileService);
 		} catch (error) {
@@ -303,9 +327,12 @@ async function migrateGroup(
 				toError(error),
 			);
 		}
+	} else {
+		logService.trace(`${LOG_PREFIX} Target ${group.targetUri.toString()} already contains every selected entry.`);
 	}
 
 	if (options.isContextCurrent?.() === false) {
+		logService.trace(`${LOG_PREFIX} Aborting ${group.sourceUri.toString()} after the target write: execution context changed.`);
 		if (writtenTarget) {
 			await rollbackTarget(group.targetUri, target, writtenTarget, targetContent, fileService);
 		}
@@ -316,11 +343,13 @@ async function migrateGroup(
 	}
 
 	let writtenSource: IFileStatWithMetadata;
+	logService.trace(`${LOG_PREFIX} Removing ${candidatesToMigrate.length} migrated entr${candidatesToMigrate.length === 1 ? 'y' : 'ies'} from ${group.sourceUri.toString()}.`);
 	try {
 		writtenSource = await writeDocument(group.sourceUri, sourceContent, source, fileService);
 	} catch (error) {
 		const sourceChangedBeforeWrite = error instanceof McpServerDocumentChangedError;
 		if (!sourceChangedBeforeWrite) {
+			logService.trace(`${LOG_PREFIX} Source write failed; restoring ${group.sourceUri.toString()}.`);
 			try {
 				await restoreSourceAfterFailedWrite(group.sourceUri, source, sourceContent, fileService);
 			} catch (restoreError) {
@@ -328,6 +357,7 @@ async function migrateGroup(
 			}
 		}
 		if (writtenTarget) {
+			logService.trace(`${LOG_PREFIX} Rolling back target ${group.targetUri.toString()}.`);
 			try {
 				await rollbackTarget(group.targetUri, target, writtenTarget, targetContent, fileService);
 			} catch (rollbackError) {
@@ -345,6 +375,7 @@ async function migrateGroup(
 	try {
 		await verifyMigration(group, candidatesToMigrate, fileService);
 	} catch (verificationError) {
+		logService.trace(`${LOG_PREFIX} Verification failed for ${group.sourceUri.toString()}; rolling both files back.`);
 		const rollbackErrors: Error[] = [];
 		let sourceRestored = false;
 		try {
@@ -369,6 +400,7 @@ async function migrateGroup(
 		throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.TargetChanged, toError(verificationError));
 	}
 
+	logService.trace(`${LOG_PREFIX} Verified ${candidatesToMigrate.length} migrated server(s) from ${group.sourceUri.toString()}.`);
 	return { migratedCount: candidatesToMigrate.length, failures };
 }
 

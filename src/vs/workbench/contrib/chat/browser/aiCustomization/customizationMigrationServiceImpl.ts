@@ -38,7 +38,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService);
+		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService);
 		this._register(autorun(reader => {
 			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			this.updateActiveContext(sessionResource);
