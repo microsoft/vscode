@@ -881,6 +881,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
+	private _abortingTurn: CopilotTurn | undefined;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
@@ -3243,6 +3244,8 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		const abortingTurn = this._currentTurn.value;
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
+		const abortTarget = abortingTurn ?? resumingTurn;
+		this._abortingTurn = abortTarget;
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
@@ -3251,6 +3254,9 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._wrapper.session.abort();
 		} catch (error) {
+			if (this._abortingTurn === abortTarget) {
+				this._abortingTurn = undefined;
+			}
 			this._resetAbortToken();
 			throw error;
 		}
@@ -5310,6 +5316,8 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const abortingTurn = this._abortingTurn;
+			this._abortingTurn = undefined;
 			if (e.data.aborted) {
 				this._resetAbortToken();
 			}
@@ -5333,7 +5341,7 @@ export class CopilotAgentSession extends Disposable {
 			//    drop it before the provider starts.
 			//  - any other pending turn is a queued message started after the
 			//    abort; leave it open for its own non-abort idle.
-			if (e.data.aborted) {
+			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
@@ -5347,6 +5355,13 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} turn ${turn.id} open`);
 				}
 				return;
+			}
+			if (e.data.aborted && !turn.isRunning) {
+				this._logService.trace(`[Copilot:${sessionId}] Idle from abort; leaving ${turn.state} replacement turn ${turn.id} open`);
+				return;
+			}
+			if (e.data.aborted) {
+				this._logService.trace(`[Copilot:${sessionId}] Idle from abort reached running replacement turn ${turn.id}; completing replacement`);
 			}
 			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);

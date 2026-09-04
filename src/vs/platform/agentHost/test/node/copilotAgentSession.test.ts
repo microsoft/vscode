@@ -6653,6 +6653,37 @@ Use the attached image as context.
 			});
 		});
 
+		test('late aborted idle completes a running replacement turn without cancelling it', async () => {
+			const abortGate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.abortGate = abortGate.p;
+
+			const abortPromise = session.abort();
+			await timeout(0);
+			abortGate.complete();
+			await abortPromise;
+			session.resetTurnState('turn-2');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'replacement-message',
+				content: 'Replacement response',
+				toolRequests: [],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				abortCalls: mockSession.abortCalls,
+				actions: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart || action.type === ActionType.ChatTurnComplete).map(action => action.type),
+			}, {
+				active: false,
+				abortCalls: 1,
+				actions: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+			});
+		});
+
 		test('quarantines late cancelled events until the next provider turn starts', async () => {
 			const abortGate = new DeferredPromise<void>();
 			const logService = new CapturingLogService();

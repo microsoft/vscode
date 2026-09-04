@@ -23,6 +23,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -840,6 +841,12 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	readonly fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
+}
+
+class TestDiskFileSystemProvider extends DiskFileSystemProvider {
+	override watch(): IDisposable {
+		return Disposable.None;
+	}
 }
 
 class ResumePathCopilotAgent extends CopilotAgent {
@@ -3534,7 +3541,7 @@ suite('CopilotAgent', () => {
 			database.dispose();
 
 			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 			await fileService.createFolder(URI.joinPath(previous, '.github', 'skills', 'previous-skill'));
 			await fileService.createFolder(URI.joinPath(next, '.github', 'skills', 'workspace-skill'));
 			await fileService.createFolder(URI.joinPath(next, '.github', 'instructions'));
