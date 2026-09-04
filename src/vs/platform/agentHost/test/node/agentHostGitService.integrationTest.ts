@@ -27,6 +27,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -609,6 +610,32 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'dev');
 	});
 
+	(hasGit ? test : test.skip)('checkout identifies local changes that would be overwritten', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'main');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'dev'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'tracked.txt'), 'dev');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'change tracked'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'tracked.txt'), 'local');
+
+		await assert.rejects(
+			svc!.checkout(URI.file(dir), 'dev'),
+			error => error instanceof CheckoutBlockedByLocalChangesError,
+		);
+
+		assert.deepStrictEqual({
+			branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			content: await fs.readFile(join(dir, 'tracked.txt'), 'utf8'),
+		}, {
+			branch: 'main',
+			content: 'local',
+		});
+	});
+
 	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
 		const dir = initRepo();
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
@@ -662,6 +689,56 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			status: '',
 			lastMessage: 'commit all changes',
 			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('createStash stashes tracked, staged and untracked changes', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.createStash(URI.file(dir), { message: 'stash all changes', includeUntracked: true });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const stash = cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const stashedFiles = cp.execFileSync('git', ['stash', 'show', '--name-only', '--include-untracked', 'stash@{0}'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, stash, stashedFiles }, {
+			status: '',
+			stash: 'On main: stash all changes',
+			stashedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('createStash can stash only staged changes', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.createStash(URI.file(dir), { message: 'staged changes', staged: true });
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trimEnd().split(/\r?\n/g).sort();
+		const stash = cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const stashedFiles = cp.execFileSync('git', ['stash', 'show', '--name-only', 'stash@{0}'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, stash, stashedFiles }, {
+			status: [' M tracked.txt', '?? untracked.txt'],
+			stash: 'On main: staged changes',
+			stashedFiles: ['staged.txt'],
 		});
 	});
 

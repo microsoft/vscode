@@ -359,6 +359,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		createBranch: async () => { },
 		checkout: async () => { },
 		hasUncommittedChanges: async () => false,
+		createStash: async () => { },
 		commitAll: async () => { },
 		mergeBranch: async () => '',
 		restore: async () => { },
