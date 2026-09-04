@@ -10,13 +10,14 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/agent.js';
-import { schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isMessageHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withSessionWorkspaceless, type ErrorInfo, type Message } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import type { IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
 import { NullAgentHostWorktreeIsolation, type IIsolationConfigContribution, type IResolveIsolationConfigRequest, type IResolveWorkingDirectoryRequest, type ISessionWorktree } from '../../node/shared/worktreeIsolation.js';
@@ -111,6 +112,7 @@ suite('SessionWorkspaceConversionService', () => {
 	) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
 		const agent = new MockAgent('copilot', { multipleChats: { fork: true } }, { workspaceConversion: true });
 		disposables.add({ dispose: () => agent.dispose() });
@@ -167,7 +169,7 @@ suite('SessionWorkspaceConversionService', () => {
 				refreshedServerTools.push(targetSession);
 			}
 		}();
-		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, clientConnections, turnService, serverToolHost, logService));
+		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService));
 		const session = URI.parse('copilot:/workspace-less');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -181,7 +183,14 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
-		return { service, stateManager, database, agent, session, chat, scratch, continuations, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools };
+		return { service, stateManager, configurationService, database, agent, session, chat, scratch, continuations, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools };
+	}
+
+	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
+		harness.stateManager.setSessionConfig(harness.session.toString(), {
+			schema: platformSessionSchema.toProtocol(),
+			values,
+		});
 	}
 
 	function startTurn(stateManager: AgentHostStateManager, chat: URI, turnId = 'turn-1'): void {
@@ -418,6 +427,74 @@ suite('SessionWorkspaceConversionService', () => {
 			},
 			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
 		});
+	});
+
+	test('does not request workspace trust in Allow All mode', async () => {
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => false);
+		const workspaceFolder = URI.file('/workspace/project');
+		harness.agent.setWorkingDirectory = async () => { };
+		setSessionConfig(harness, { [SessionConfigKey.AutoApprove]: 'autoApprove' });
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspaceFolder, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		assert.deepStrictEqual({
+			trustRequests: harness.trustRequests,
+			workingDirectories: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+		}, {
+			trustRequests: [],
+			workingDirectories: [workspaceFolder.toString()],
+		});
+	});
+
+	test('does not request workspace, repository, or worktree trust when global auto-approve is enabled', async () => {
+		const workspaceFolder = URI.file('/workspace/project/packages/app');
+		const repository = URI.file('/workspace/project');
+		const worktreeIsolation = new TestWorktreeIsolation(URI.file('/workspace/project.worktrees/implement-feature'), repository);
+		const harness = createHarness(worktreeIsolation, async () => false);
+		harness.agent.setWorkingDirectory = async () => { };
+		harness.configurationService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspaceFolder, true, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		assert.deepStrictEqual({
+			trustRequests: harness.trustRequests,
+			createdWorktrees: worktreeIsolation.createdWorktrees,
+			workingDirectories: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+		}, {
+			trustRequests: [],
+			createdWorktrees: [worktreeIsolation.worktree],
+			workingDirectories: [worktreeIsolation.worktree.toString()],
+		});
+	});
+
+	test('still requests workspace trust outside Allow All mode', async () => {
+		const trustRequests: ReturnType<typeof createHarness>['trustRequests'][] = [];
+		for (const values of [
+			{ [SessionConfigKey.AutoApprove]: 'default' },
+			{ [SessionConfigKey.AutoApprove]: 'assisted' },
+			{ [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'autopilot' },
+		]) {
+			const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => false);
+			setSessionConfig(harness, values);
+			startTurn(harness.stateManager, harness.chat);
+			harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+			completeTurn(harness.stateManager, harness.chat);
+
+			await updateSessionWorkspace(harness);
+			trustRequests.push(harness.trustRequests);
+		}
+
+		assert.deepStrictEqual(trustRequests, [
+			[{ clientId: 'client-1', workspace: 'file:///workspace/project' }],
+			[{ clientId: 'client-1', workspace: 'file:///workspace/project' }],
+			[{ clientId: 'client-1', workspace: 'file:///workspace/project' }],
+		]);
 	});
 
 	test('keeps the session workspace-less when workspace trust is declined', async () => {

@@ -19,8 +19,10 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withMessageSystemInitiatedLabel, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
+import { isAutoApproveBypassEnabled } from '../../sessionPermissions.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 
@@ -70,6 +72,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostServerToolService private readonly _serverToolHost: IAgentHostServerToolService,
@@ -143,8 +146,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (!provider?.agentHostCapabilities.workspaceConversion) {
 			throw new Error(`Provider does not support changing the working directory: ${AgentSession.provider(session) ?? '(unknown)'}`);
 		}
-		await this._requireWorkspaceTrust(initiatingClientId, workspaceFolder);
-		const resolvedWorkspace = await this._resolveWorkspace(session, chat, workspaceFolder, isolation, initiatingClientId, prompt, state.config?.values);
+		const workspaceTrustRequired = !isAutoApproveBypassEnabled(this._configurationService, session.toString());
+		await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, workspaceFolder);
+		const resolvedWorkspace = await this._resolveWorkspace(session, chat, workspaceFolder, isolation, workspaceTrustRequired, initiatingClientId, prompt, state.config?.values);
 		let authoritativeWorkingDirectory = resolvedWorkspace.workingDirectory;
 		let providerAlignmentError: AgentWorkingDirectoryChangedError | undefined;
 		try {
@@ -162,7 +166,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 		if (!isEqual(authoritativeWorkingDirectory, resolvedWorkspace.workingDirectory)) {
 			try {
-				await this._requireWorkspaceTrust(initiatingClientId, authoritativeWorkingDirectory);
+				await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, authoritativeWorkingDirectory);
 			} catch (error) {
 				const finalizationErrors = [error];
 				const disposal = await this._disposeUnsafeProviderChat(provider, chat, session);
@@ -271,7 +275,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		return authoritativeWorkingDirectory;
 	}
 
-	private async _requireWorkspaceTrust(clientId: string, workspace: URI, trustedParent?: URI): Promise<void> {
+	private async _requireWorkspaceTrust(required: boolean, clientId: string, workspace: URI, trustedParent?: URI): Promise<void> {
+		if (!required) {
+			return;
+		}
 		const trusted = await this._clientConnections.requestWorkspaceTrust(clientId, {
 			workspace: workspace.toString(),
 			...(trustedParent ? { trustedParent: trustedParent.toString() } : {}),
@@ -317,6 +324,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		chat: URI,
 		workspaceFolder: URI,
 		isolation: boolean,
+		workspaceTrustRequired: boolean,
 		initiatingClientId: string,
 		prompt: string | undefined,
 		currentConfig: Record<string, unknown> | undefined,
@@ -355,9 +363,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			prompt,
 			onWillCreate: async metadata => {
 				if (!isEqual(metadata.repositoryRoot, workspaceFolder)) {
-					await this._requireWorkspaceTrust(initiatingClientId, metadata.repositoryRoot);
+					await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, metadata.repositoryRoot);
 				}
-				await this._requireWorkspaceTrust(initiatingClientId, metadata.worktreePath, metadata.repositoryRoot);
+				await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, metadata.worktreePath, metadata.repositoryRoot);
 			},
 		});
 		if (!workingDirectory || isEqual(workingDirectory, workspaceFolder)) {
