@@ -10,6 +10,9 @@ import { DisposableStore, type IDisposable } from '../../../../../../base/common
 import type { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { detectsCommonPromptPattern, type IPromptDetectionResult } from '../tools/promptDetection.js';
+
+export { detectsCommonPromptPattern, type IPromptDetectionResult } from '../tools/promptDetection.js';
 
 export interface ITerminalExecuteStrategy extends IDisposable {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -45,63 +48,6 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 	store.add(onData(() => scheduler.schedule()));
 	scheduler.schedule();
 	return deferred.p.finally(() => store.dispose());
-}
-
-export interface IPromptDetectionResult {
-	/**
-	 * Whether a prompt was detected.
-	 */
-	detected: boolean;
-	/**
-	 * The reason for logging.
-	 */
-	reason?: string;
-}
-
-/**
- * Detects if the given text content appears to end with a common prompt pattern.
- */
-export function detectsCommonPromptPattern(cursorLine: string): IPromptDetectionResult {
-	if (cursorLine.trim().length === 0) {
-		return { detected: false, reason: 'Content is empty or contains only whitespace' };
-	}
-
-	// PowerShell prompt: PS C:\> or similar patterns
-	if (/PS\s+[A-Z]:\\.*>\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `PowerShell prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Command Prompt: C:\path>
-	if (/^[A-Z]:\\.*>\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Command Prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Bash-style prompts ending with $
-	if (/\$\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Bash-style prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Root prompts ending with #
-	if (/#\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Root prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Python REPL prompt
-	if (/^>>>\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Python REPL prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Custom prompts ending with the starship character (\u276f)
-	if (/\u276f\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Starship prompt pattern detected: "${cursorLine}"` };
-	}
-
-	// Generic prompts ending with common prompt characters
-	if (/[>%]\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Generic prompt pattern detected: "${cursorLine}"` };
-	}
-
-	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
 }
 
 /**

@@ -7,12 +7,14 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../../../nls.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
+import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsLikelyInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage } from '../promptDetection.js';
 import { IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
 import { ITerminalLogService } from '../../../../../../../platform/terminal/common/terminal.js';
+
+export { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsLikelyInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage } from '../promptDetection.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -650,172 +652,4 @@ export function matchTerminalPromptOption(options: readonly string[], suggestedO
 	}
 
 	return { option: undefined, index: -1 };
-}
-
-/**
- * High-confidence patterns that reliably indicate the terminal is waiting for
- * input. These are safe to use as a fast-path in `_waitForIdle` to skip normal
- * idle detection, because they are specific enough to avoid false positives on
- * normal command output (build logs, headers, etc.).
- */
-export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
-	return [
-		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
-		// in whitespace.  Uses [^\[]* to match each label (everything up to the next bracket),
-		// ensuring linear-time matching with no nested quantifiers that could cause ReDoS.
-		/\s*(?:\[[^\]]\][^\[]*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
-		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
-		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
-		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.
-		// "Continue? (y/n)" or "Overwrite: [yes/no]"
-		/[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i,
-		// Confirmation prompts ending with (y) followed by trailing space, e.g. "Ok to proceed? (y) "
-		// The trailing space indicates the cursor is positioned after the prompt awaiting input, as
-		// opposed to normal command output that happens to contain "(y)" followed by a newline.
-		/\(y\) +$/i,
-		// Prompt with parenthesized default value e.g. "package name: (test) " or "version: (1.0.0) ".
-		// REQUIRES at least one space between the colon and the opening paren (`\s+`, not `\s*`)
-		// so this rule does not match git-aware shell prompts like
-		// allow-any-unicode-next-line
-		//   "➜  myrepo git:(main) "                    (oh-my-zsh / robbyrussell)
-		//   "[user@host ~/myrepo (main)]$ "
-		// where the colon abuts the paren with no separator. npm-init / yarn-init style
-		// prompts always render at least one space after the colon, so this stays specific
-		// without dropping the intended matches.
-		/:\s+\([^)]*\) +$/,
-		// Line contains (END) which is common in pagers
-		/\(END\)$/,
-		// Password prompt. Requires a trailing colon (e.g. "Password:", "[sudo] password for user:")
-		// and tolerates zero or more trailing spaces — xterm's `translateToString(trimRight=true)`
-		// strips trailing whitespace from non-wrapped buffer lines, so a real `Password: ` prompt
-		// is captured from the buffer as `Password:` with no trailing space.
-		/password(?: for [^:]+)?:\s*$/i,
-		// "Press a key" or "Press any key"
-		/press a(?:ny)? key/i,
-		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with
-		// '? ' at the start of the line and end with a distinctive chevron character
-		// followed by optional trailing whitespace where the cursor is awaiting input.
-		// Anchoring the '?' to the start of the line (after optional whitespace/ANSI
-		// escapes) avoids false positives from normal output that contains both a '?'
-		// allow-any-unicode-next-line
-		// and a chevron (e.g. "What happened? ›").
-		// Examples:
-		//   "? Do you want to install jsdom? <chevron>"  (prompts)
-		//   "? Pick a color <chevron> "                  (enquirer)
-		// allow-any-unicode-next-line
-		/^(?:\s|\x1b\[[0-9;]*m)*\?.*[›❯▸▶]\s*$/,
-	].some(e => e.test(cursorLine));
-}
-
-/**
- * Strict input-required detection. Returns true only for patterns that are
- * specific enough to avoid false positives on normal command output (build
- * logs, status lines, error messages). Safe to call from any code path,
- * including unconditionally on the last line of a finished command.
- *
- * For the broader heuristics (bare `:` / `?` with trailing space), use
- * {@link detectsLikelyInputRequiredPattern} — but only from a call site that
- * has independent evidence the command is still running and consuming stdin
- * (e.g. `execution.isActive() === true`). Those broad patterns cannot
- * reliably distinguish a real prompt like `Enter your name: ` from log
- * output like `Last Command: ` on a single line.
- */
-export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return detectsHighConfidenceInputPattern(cursorLine);
-}
-
-/**
- * Strict patterns plus broader heuristics (bare `:` and `?` with trailing
- * space). These broad patterns may produce false positives on normal command
- * output that happens to end with those characters (e.g. `Last Command: `,
- * `[INFO] Starting: `, `find: /tmp/x: No such file: `). They are
- * syntactically indistinguishable from real prompts like `Enter your name: `
- * on a single cursor line.
- *
- * Therefore this function is only safe to call when the caller has
- * independent evidence that the terminal is currently consuming stdin —
- * specifically, `execution.isActive() === true` at a moment when the output
- * stream has been quiet (idle) for several poll intervals. `_waitForIdle`
- * applies that gate; new call sites should preserve it.
- *
- * For unconditional checks (e.g. on the last line of a finished command),
- * use {@link detectsInputRequiredPattern} instead.
- */
-export function detectsLikelyInputRequiredPattern(cursorLine: string): boolean {
-	if (detectsHighConfidenceInputPattern(cursorLine)) {
-		return true;
-	}
-	return [
-		// Line ends with ':' followed by at least one space. The trailing space indicates a
-		// waiting prompt (cursor positioned after the colon). A bare ':\n' at end of buffer is
-		// usually non-prompt output (e.g. a header or log line) and must not match.
-		// NOTE: This is a broad pattern — only use when the caller has independent evidence
-		// (e.g. `isActive === true`) that the command is still consuming stdin. On a finished
-		// command, log output like `Last Command: ` is indistinguishable from a real prompt.
-		/: +$/,
-		// Line ends with '?' followed by at least one space (optionally followed by a
-		// parenthesized hint like "Continue? (yes/no) "). Requiring trailing space avoids
-		// matching arbitrary command output where a line happens to end with '?'.
-		// NOTE: This is a broad pattern — same caller-side guard required as above.
-		/\? *(?:\([a-z\s]+\))? +$/i,
-	].some(e => e.test(cursorLine));
-}
-
-export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
-	return [
-		/press [h?]\s*(?:\+\s*enter)?\s*to (?:show|open|display|get|see)\s*(?:available )?(?:help|commands|options)/i,
-		/press h\s*(?:or\s*\?)?\s*(?:\+\s*enter)?\s*for (?:help|commands|options)/i,
-		/press \?\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:help|commands|options|list)/i,
-		/type\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i,
-		/hit\s*[h?]\s*(?:\+\s*enter)?\s*(?:for|to see|to show)\s*(?:help|commands|options)/i,
-		/press o\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:open|launch)(?:\s*(?:the )?(?:app|application|browser)|\s+in\s+(?:the\s+)?browser)?/i,
-		/press r\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:restart|reload|refresh)(?:\s*(?:the )?(?:server|dev server|service))?/i,
-		/press q\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:quit|exit|stop)(?:\s*(?:the )?(?:server|app|process))?/i,
-		/press u\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:show|print|display)\s*(?:the )?(?:server )?urls?/i
-	].some(e => e.test(cursorLine));
-}
-
-/**
- * Localized task finish messages from VS Code's terminalTaskSystem.
- * These are the same strings used when tasks complete.
- */
-const taskFinishMessages = [
-	// "Terminal will be reused by tasks, press any key to close it."
-	localize('closeTerminal', "Terminal will be reused by tasks, press any key to close it."),
-	localize('reuseTerminal', "Terminal will be reused by tasks, press any key to close it."),
-	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
-	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
-	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
-	// Punctuation variant: "The terminal will be reused by tasks. Press any key to close."
-	localize('reuseTerminal.pressClose', "The terminal will be reused by tasks. Press any key to close."),
-];
-
-const normalizedTaskFinishMessages = taskFinishMessages.map(msg =>
-	msg.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase()
-);
-
-/**
- * Detects VS Code's specific task completion messages like:
- * - "Press any key to close the terminal."
- * - "Terminal will be reused by tasks, press any key to close it."
- * These appear when a task finishes and should be ignored if the task is done.
- * Note: These messages may be prefixed with " * " by VS Code and may have line wrapping
- * that can split words across lines (e.g., "t\no" instead of "to").
- */
-export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
-	// Be tolerant to whitespace, punctuation, and line wrapping that can split words mid-word.
-	const compact = cursorLine.replace(/[\s.,:;!?"'`()[\]{}<>\-_/\\]+/g, '').toLowerCase();
-	return normalizedTaskFinishMessages.some(msg => compact.includes(msg));
-}
-
-/**
- * Detects generic "press any key" prompts from scripts (not VS Code task messages).
- * These should prompt the user to interact with the terminal.
- */
-export function detectsGenericPressAnyKeyPattern(cursorLine: string): boolean {
-	// Match "press any key" but exclude VS Code task-specific messages
-	if (detectsVSCodeTaskFinishMessage(cursorLine)) {
-		return false;
-	}
-	return /press a(?:ny)? key/i.test(cursorLine);
 }
