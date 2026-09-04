@@ -101,17 +101,23 @@ const agentMergeActionLabels: Record<AgentMergeRepairAction, string> = {
 
 const agentMergeRepairActions = Object.keys(agentMergeActionLabels) as readonly AgentMergeRepairAction[];
 
-/** Labels for the merge choice, short enough to read inside the submenu title. */
+/**
+ * Labels for the merge choice, short enough to read inside the submenu title.
+ *
+ * The session-scoped menu says On and Off rather than the `always` and `never`
+ * the setting stores: those values read as absolutes, which they only are for
+ * the defaults that apply across every session.
+ */
 const agentMergeMergePullRequestLabels: Record<AgentMergeMergePullRequest, string> = {
-	always: localize('agentMerge.merge.always', "Always"),
+	always: localize('agentMerge.merge.always', "On"),
 	ifUnchanged: localize('agentMerge.merge.ifUnchanged', "Only if Agent Merge Made No Changes"),
-	never: localize('agentMerge.merge.never', "Never"),
+	never: localize('agentMerge.merge.never', "Off"),
 };
 
 const agentMergeMergePullRequestDescriptions: Record<AgentMergeMergePullRequest, string> = {
 	always: localize('agentMerge.merge.always.description', "Merge the pull request whenever it is ready."),
-	ifUnchanged: localize('agentMerge.merge.ifUnchanged.description', "Merge the pull request only while Agent Merge has not changed it. Once a repair turn lands a commit this switches itself to Never."),
-	never: localize('agentMerge.merge.never.description', "Never merge the pull request automatically."),
+	ifUnchanged: localize('agentMerge.merge.ifUnchanged.description', "Merge the pull request only while Agent Merge has not changed it. Once a repair turn lands a commit this switches itself off."),
+	never: localize('agentMerge.merge.never.description', "Do not merge the pull request automatically."),
 };
 
 /**

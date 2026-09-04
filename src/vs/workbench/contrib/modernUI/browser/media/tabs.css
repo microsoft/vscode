@@ -46,6 +46,7 @@
 	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-action-hover-background);
 	--modern-ui-editor-tab-action-active-hover-background: var(--vscode-modernEditorTab-activeHoverActionBackground);
 	--modern-ui-editor-tab-action-unfocused-active-hover-background: var(--modern-ui-editor-tab-action-active-hover-background);
+	--modern-ui-editor-tabs-border: transparent;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
@@ -188,9 +189,26 @@
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
 .modern-ui-tabs .part.editor .tabs-and-actions-container {
-	--tabs-border-bottom-color: transparent !important;
+	--tabs-border-bottom-color: var(--modern-ui-editor-tabs-border) !important;
 	align-items: center;
 	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size20);
+}
+
+.modern-ui-tabs .part.editor .title:not(.two-tab-bars) > .tabs-and-actions-container::after,
+.modern-ui-tabs .part.editor .title.two-tab-bars > .tabs-and-actions-container:not(:first-child)::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 9;
+	pointer-events: none;
+	width: 100%;
+	height: var(--vscode-strokeThickness);
+	background-color: var(--tabs-border-bottom-color);
+}
+
+.modern-ui-tabs .part.editor .title.two-tab-bars > .tabs-and-actions-container:first-child.tabs-border-bottom::after {
+	display: none;
 }
 
 /* In two-tab-bars mode the border-block-width rules below own every vertical gutter, so the

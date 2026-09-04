@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -115,6 +116,7 @@ import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createCh
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -9528,6 +9530,61 @@ suite('AgentHostChatContribution', () => {
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
 				{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
+			]);
+		}));
+
+		test('active notebook cell implicit context includes its stored output for Codex sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, { provider: 'codex' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/codex-implicit-notebook-cell' });
+			const notebookUri = URI.file('/workspace/notebook.ipynb');
+			const cellUri = CellUri.generate(notebookUri, 7);
+			const outputUri = CellUri.generateCellPropertyUri(notebookUri, 7, Schemas.vscodeNotebookCellOutput);
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'notebook.ipynb • Cell 1', isSelection: false, uri: cellUri, value: cellUri },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what is the cell output?',
+				sessionResource,
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: cellUri.toString(), label: 'notebook.ipynb • Cell 1', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: outputUri.toString(), label: 'notebook.ipynb • Cell 1 output.json', displayKind: 'document' },
+			]);
+		}));
+
+		test('active notebook cell output is forwarded when its source is already attached explicitly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, { provider: 'codex' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/codex-implicit-notebook-cell-dedup' });
+			const notebookUri = URI.file('/workspace/notebook.ipynb');
+			const cellUri = CellUri.generate(notebookUri, 7);
+			const outputUri = CellUri.generateCellPropertyUri(notebookUri, 7, Schemas.vscodeNotebookCellOutput);
+			chatWidgetService.setWidgetForSession(sessionResource, [
+				{ kind: 'implicit', id: 'vscode.implicit.file', name: 'notebook.ipynb • Cell 1', isSelection: false, uri: cellUri, value: cellUri },
+			]);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'what is the cell output?',
+				sessionResource,
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-cell', name: 'notebook.ipynb • Cell 1', value: cellUri }),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: cellUri.toString(), label: 'notebook.ipynb • Cell 1', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: outputUri.toString(), label: 'notebook.ipynb • Cell 1 output.json', displayKind: 'document' },
 			]);
 		}));
 

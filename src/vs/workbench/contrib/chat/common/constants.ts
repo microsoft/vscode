@@ -92,6 +92,7 @@ export enum ChatConfiguration {
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
+	SubagentsDefaultToAuto = 'chat.subagents.defaultToAuto',
 	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',

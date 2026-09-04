@@ -6,32 +6,51 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import TS from './typescript';
 const ts = TS();
 
-import type { LineRange, Range, Region } from './protocol';
+import { Region, type LineRange, type Range, type RegionResult } from './protocol';
 import tss from './typescripts';
 
 type StructuralEntity = { kind: string; name?: string; rangeNode: tt.Node | [tt.Node, tt.Node]; includeJsDoc?: boolean; continueWith?: tt.Node };
 
+type ScopeInfo = {
+	regions: Region[];
+	path: number[];
+};
+
 export class RegionContextProvider {
 
-	public getRegions(sourceFile: tt.SourceFile, ranges: readonly Range[], requested?: LineRange | undefined): Region[] | undefined {
+	public getRegions(sourceFile: tt.SourceFile, ranges: readonly Range[], requested?: LineRange | undefined): RegionResult | undefined {
 		if (ranges.length === 0) {
 			return undefined;
 		}
 
 		if (ranges.length === 1) {
-			return this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
+			const scope = this.findEnclosingScopes(sourceFile, ranges[0].start.line, ranges[0].start.character, requested);
+			return scope === undefined ? undefined : {
+				regions: scope.regions,
+				paths: { smallest: scope.path }
+			};
 		}
 
+		let smallest: { path: number[]; region: Region } | undefined;
+		let largest: { path: number[]; region: Region } | undefined;
 		const containersList: Region[][] = [];
 		for (const range of ranges) {
-			const containers = this.findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
-			if (containers !== undefined && containers.length > 0) {
-				containersList.push(containers.reverse());
+			const scope = this.findEnclosingScopes(sourceFile, range.start.line, range.start.character, requested);
+			if (scope !== undefined && scope.regions.length > 0) {
+				const { regions, path } = scope;
+				const region = regions[0];
+				if (smallest === undefined || Region.getSpan(region) < Region.getSpan(smallest.region)) {
+					smallest = { region, path };
+				}
+				if (largest === undefined || Region.getSpan(region) > Region.getSpan(largest.region)) {
+					largest = { region, path };
+				}
+				containersList.push(regions.reverse());
 			}
 		}
 		if (containersList.length === 0) {
 			return undefined;
-		}
+	}
 
 		const longestContainers = containersList.reduce((longest, containers) => containers.length > longest.length ? containers : longest);
 		const commonContainers = longestContainers.slice();
@@ -69,10 +88,13 @@ export class RegionContextProvider {
 			}
 		}
 
-		return commonContainers.reverse();
+		return {
+			regions: commonContainers.reverse(),
+			paths: { smallest: smallest?.path ?? [], largest: largest?.path }
+		};
 	}
 
-	private findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: number, requested?: LineRange | undefined): Region[] | undefined {
+	private findEnclosingScopes(sourceFile: tt.SourceFile, line: number, column: number, requested?: LineRange | undefined): ScopeInfo | undefined {
 		const position = sourceFile.getPositionOfLineAndCharacter(line, column);
 		const tokenInfo = tss.getRelevantTokens(sourceFile, position);
 		const node = tokenInfo.touching ?? tokenInfo.token;
@@ -108,7 +130,7 @@ export class RegionContextProvider {
 				current = continueWith ?? current;
 			}
 		}
-		return result.length > 0 ? result : undefined;
+		return result.length > 0 ? { regions: result, path: tss.StableSyntaxKinds.getPath(node) } : undefined;
 	}
 
 	private getStructuralEntity(sourceFile: tt.SourceFile, node: tt.Node, requested?: LineRange | undefined): StructuralEntity | undefined {

@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -16,6 +20,51 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
+import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
+
+suite('AgentHostChatInputPicker - compact layout', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the Copilot harness picker height stable and centers its compact icon', () => {
+		const session = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const actionBar = dom.append(session, dom.$('.monaco-action-bar'));
+		const actionsContainer = dom.append(actionBar, dom.$('.actions-container'));
+		actionsContainer.style.display = 'flex';
+		const item = dom.append(actionsContainer, dom.$('.action-item.agent-host-chat-input-picker-host'));
+		const slot = dom.append(item, dom.$('.agent-host-chat-input-picker-slot'));
+		const label = dom.append(slot, dom.$('a.action-label'));
+		const icon = dom.append(label, renderIcon(Codicon.rocketCompact));
+		dom.append(label, dom.$('span.agent-host-chat-input-picker-label', undefined, 'Autopilot'));
+
+		const expandedHeight = item.getBoundingClientRect().height;
+		item.classList.add('compact-picker');
+		const itemBounds = item.getBoundingClientRect();
+		const slotBounds = slot.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const iconBounds = icon.getBoundingClientRect();
+		assert.deepStrictEqual({
+			expandedHeight,
+			item: { width: itemBounds.width, height: itemBounds.height },
+			slot: { width: slotBounds.width, height: slotBounds.height },
+			label: { width: labelBounds.width, height: labelBounds.height },
+			icon: {
+				width: iconBounds.width,
+				height: iconBounds.height,
+				x: iconBounds.left - labelBounds.left,
+				y: iconBounds.top - labelBounds.top,
+			},
+		}, {
+			expandedHeight: 22,
+			item: { width: 22, height: 22 },
+			slot: { width: 22, height: 22 },
+			label: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
+		});
+	});
+});
 
 suite('AgentHostChatInputPicker - action mapping', () => {
 

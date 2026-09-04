@@ -38,8 +38,9 @@ function createCodexItem(type: AgentSessionProviders.Codex | AgentSessionProvide
 	};
 }
 
-function getMarkdownValue(value: string | IMarkdownString | HTMLElement | undefined): string | undefined {
-	return typeof value === 'string' ? value : value instanceof HTMLElement ? value.textContent ?? undefined : value?.value;
+function getMarkdownValue(value: string | IMarkdownString | HTMLElement | (() => HTMLElement) | undefined): string | undefined {
+	const resolved = typeof value === 'function' ? value() : value;
+	return typeof resolved === 'string' ? resolved : resolved instanceof HTMLElement ? resolved.textContent ?? undefined : resolved?.value;
 }
 
 interface IAvailabilityInputs {

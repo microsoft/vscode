@@ -62,6 +62,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import {
 	AgentHostCompletionReferenceKind,
 	ChatTranscriptContextAttachmentDisplayKind,
@@ -6077,17 +6078,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				continue;
 			}
 			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
+			let forwardEntry = true;
 			if (key) {
 				if (existingKeys.has(key)) {
-					continue;
+					forwardEntry = false;
+				} else {
+					existingKeys.add(key);
 				}
-				existingKeys.add(key);
 			}
-			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
-			if (!Array.isArray(attachment) && attachment) {
-				attachments.push(attachment);
+			if (forwardEntry) {
+				const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+				if (!Array.isArray(attachment) && attachment) {
+					attachments.push(attachment);
+				}
 			}
+			// The source may already be explicit context, but its output is a separate resource.
+			this._appendNotebookCellOutputAttachment(attachments, entry, existingKeys);
 		}
+	}
+
+	/** Add the stored outputs for an active notebook cell as a virtual JSON document. */
+	private _appendNotebookCellOutputAttachment(attachments: MessageAttachment[], entry: IChatRequestVariableEntry, existingKeys: Set<string>): void {
+		const value = entry.value;
+		const uri = isLocation(value) ? value.uri : (value instanceof URI ? value : undefined);
+		const cell = uri ? CellUri.parse(uri) : undefined;
+		if (!cell) {
+			return;
+		}
+		const outputUri = CellUri.generateCellPropertyUri(cell.notebook, cell.handle, Schemas.vscodeNotebookCellOutput);
+		const outputKey = this._attachmentDedupeKey(outputUri.toString());
+		if (existingKeys.has(outputKey)) {
+			return;
+		}
+		existingKeys.add(outputKey);
+		attachments.push({
+			type: MessageAttachmentKind.Resource,
+			uri: outputUri.toString(),
+			label: `${entry.name} output.json`,
+			displayKind: 'document',
+		});
 	}
 
 	/** Dedupe identity for a file/implicit entry: rebased URI, suffixed with the range for a selection. */

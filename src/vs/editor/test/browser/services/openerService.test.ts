@@ -13,6 +13,7 @@ import { NullCommandService } from '../../../../platform/commands/test/common/nu
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
@@ -149,6 +150,222 @@ suite('OpenerService', function () {
 		assert.strictEqual(openCount, 1);
 		await openerService.open(URI.parse('https://microsoft.com'));
 		assert.strictEqual(openCount, 2);
+	});
+
+	test('contributed external URI openers run before validators', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const resolvedUri = URI.parse('https://resolved.example.com');
+		const calls: string[] = [];
+
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				calls.push('resolve');
+				return { resolved: resolvedUri, dispose() { } };
+			}
+		}));
+		store.add(openerService.registerOpener({
+			async open() {
+				calls.push('opener');
+				return false;
+			}
+		}));
+		store.add(openerService.registerValidator({
+			shouldOpen() {
+				calls.push('validate');
+				return Promise.resolve(false);
+			}
+		}));
+		store.add(openerService.registerExternalOpener({
+			async openExternal(href, context) {
+				calls.push(`contributed:${href}:${context.sourceUri.toString()}`);
+				return true;
+			}
+		}));
+
+		const didOpen = await openerService.open(sourceUri, { openExternal: true, allowContributedOpeners: true });
+
+		assert.deepStrictEqual({
+			didOpen,
+			calls,
+		}, {
+			didOpen: true,
+			calls: [
+				'resolve',
+				`contributed:${resolvedUri.toString()}:${sourceUri.toString()}`,
+			],
+		});
+	});
+
+	test('external URI fallback validates the resolved URI', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const resolvedUri = URI.parse('https://resolved.example.com');
+		const calls: string[] = [];
+
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				calls.push('resolve');
+				return { resolved: resolvedUri, dispose() { } };
+			}
+		}));
+		store.add(openerService.registerExternalOpener({
+			async openExternal(href, context) {
+				calls.push(`contributed:${href}:${context.sourceUri.toString()}`);
+				return false;
+			}
+		}));
+		store.add(openerService.registerValidator({
+			shouldOpen(resource) {
+				calls.push(`validate:${resource.toString()}`);
+				return Promise.resolve(false);
+			}
+		}));
+		store.add(openerService.registerOpener({
+			async open() {
+				calls.push('opener');
+				return true;
+			}
+		}));
+		openerService.setDefaultExternalOpener({
+			async openExternal(href) {
+				calls.push(`default:${href}`);
+				return true;
+			}
+		});
+
+		const didOpen = await openerService.open(sourceUri, { openExternal: true, allowContributedOpeners: true });
+
+		assert.deepStrictEqual({
+			didOpen,
+			calls,
+		}, {
+			didOpen: false,
+			calls: [
+				'resolve',
+				`contributed:${resolvedUri.toString()}:${sourceUri.toString()}`,
+				`validate:${resolvedUri.toString()}`,
+			],
+		});
+	});
+
+	test('default external URI opener validates before regular openers', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const calls: string[] = [];
+
+		store.add(openerService.registerExternalOpener({
+			async openExternal() {
+				calls.push('contributed');
+				return true;
+			}
+		}));
+		store.add(openerService.registerValidator({
+			shouldOpen(resource) {
+				calls.push(`validate:${resource.toString()}`);
+				return Promise.resolve(false);
+			}
+		}));
+		store.add(openerService.registerOpener({
+			async open() {
+				calls.push('opener');
+				return true;
+			}
+		}));
+
+		const didOpen = await openerService.open(sourceUri, { openExternal: true, allowContributedOpeners: defaultExternalUriOpenerId });
+
+		assert.deepStrictEqual({
+			didOpen,
+			calls,
+		}, {
+			didOpen: false,
+			calls: [`validate:${sourceUri.toString()}`],
+		});
+	});
+
+	test('default external URI opener skips contributed openers', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const calls: string[] = [];
+
+		store.add(openerService.registerExternalOpener({
+			async openExternal() {
+				calls.push('contributed');
+				return true;
+			}
+		}));
+		store.add(openerService.registerValidator({
+			shouldOpen(resource) {
+				calls.push(`validate:${resource.toString()}`);
+				return Promise.resolve(true);
+			}
+		}));
+		store.add(openerService.registerOpener({
+			async open() {
+				calls.push('opener');
+				return false;
+			}
+		}));
+		openerService.setDefaultExternalOpener({
+			async openExternal(href) {
+				calls.push(`default:${href}`);
+				return true;
+			}
+		});
+
+		const didOpen = await openerService.open(sourceUri, { openExternal: true, allowContributedOpeners: defaultExternalUriOpenerId });
+
+		assert.deepStrictEqual({
+			didOpen,
+			calls,
+		}, {
+			didOpen: true,
+			calls: [
+				`validate:${sourceUri.toString()}`,
+				'opener',
+				`default:${sourceUri.toString()}`,
+			],
+		});
+	});
+
+	test('external URI fallback preserves strings for validation and opening', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const source = 'https://source.example.com/path?value=%2B';
+		const calls: string[] = [];
+
+		store.add(openerService.registerExternalOpener({
+			async openExternal() {
+				calls.push('contributed');
+				return false;
+			}
+		}));
+		store.add(openerService.registerValidator({
+			shouldOpen(resource) {
+				calls.push(`validate:${resource.toString()}`);
+				return Promise.resolve(true);
+			}
+		}));
+		openerService.setDefaultExternalOpener({
+			async openExternal(href) {
+				calls.push(`default:${href}`);
+				return true;
+			}
+		});
+
+		const didOpen = await openerService.open(source, { openExternal: true, allowContributedOpeners: true });
+
+		assert.deepStrictEqual({
+			didOpen,
+			calls,
+		}, {
+			didOpen: true,
+			calls: [
+				'contributed',
+				`validate:${source}`,
+				`default:${source}`,
+			],
+		});
 	});
 
 	test('links aren\'t manipulated before being passed to validator: PR #118226', async function () {

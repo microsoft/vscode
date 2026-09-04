@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
 import { TestCodeEditorService } from '../../../../../../editor/test/browser/editorTestServices.js';
 import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
@@ -19,7 +21,7 @@ import { TestThemeService } from '../../../../../../platform/theme/test/common/t
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
-import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType, dynamicVariableIconDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -237,6 +239,10 @@ suite('ChatDynamicVariableModel', () => {
 		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
 			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		}));
+		store.add(codeEditorService.registerDecorationType('test', dynamicVariableIconDecorationType, {
+			color: { id: 'chat.slashCommandForeground' },
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}));
 		const editor = store.add(createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
 		}));
@@ -277,6 +283,53 @@ suite('ChatDynamicVariableModel', () => {
 			text: 'describe #sym:example ',
 			variables: [new Range(1, 10, 1, 22)],
 		});
+	});
+
+	test('renders GitHub reference icons with the reference foreground color', () => {
+		const issueText = 'microsoft/vscode#334284';
+		const pullRequestText = 'microsoft/vscode#333953';
+		const { editor, model } = createDynamicVariableModel(`${issueText} ${pullRequestText}`);
+		let iconDecorations: readonly IDecorationOptions[] = [];
+		const setDecorationsByType = editor.setDecorationsByType.bind(editor);
+		editor.setDecorationsByType = ((description: string, key: string, options: IDecorationOptions[]) => {
+			if (key === dynamicVariableIconDecorationType) {
+				iconDecorations = options;
+			}
+			return setDecorationsByType(description, key, options);
+		}) as typeof editor.setDecorationsByType;
+
+		model.addReference(createMockVariable({
+			range: new Range(1, 1, 1, issueText.length + 1),
+			icon: Codicon.issues,
+		}));
+		model.addReference(createMockVariable({
+			id: 'var-2',
+			range: new Range(1, issueText.length + 2, 1, issueText.length + pullRequestText.length + 2),
+			icon: Codicon.gitPullRequest,
+		}));
+
+		assert.deepStrictEqual(iconDecorations.map(decoration => ({
+			range: decoration.range,
+			before: decoration.renderOptions?.before,
+		})), [{
+			range: new Range(1, 1, 1, 1),
+			before: {
+				color: { id: 'chat.slashCommandForeground' },
+				contentText: '\ueb0c',
+				fontFamily: 'codicon',
+				margin: '0 2px 0 0',
+				verticalAlign: 'middle',
+			},
+		}, {
+			range: new Range(1, issueText.length + 2, 1, issueText.length + 2),
+			before: {
+				color: { id: 'chat.slashCommandForeground' },
+				contentText: '\uea64',
+				fontFamily: 'codicon',
+				margin: '0 2px 0 0',
+				verticalAlign: 'middle',
+			},
+		}]);
 	});
 
 	test('removes a reference without deleting replacement text', () => {

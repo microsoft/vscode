@@ -1,0 +1,77 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: e2e-display-name-child
+            prompt: Return the custom child sentinel.
+            agent_type: e2e-display-name-child
+            description: Run child sentinel task
+            mode: sync
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: e2e-display-name-child
+                prompt: Return the custom child sentinel.
+                agent_type: e2e-display-name-child
+                description: Run child sentinel task
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                failed to assemble custom-agent system prompt: displayName: Required
+                tools: Expected array
+    response:
+      content: SETUP_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: e2e-display-name-child
+                prompt: Return the custom child sentinel.
+                agent_type: e2e-display-name-child
+                description: Run child sentinel task
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                failed to assemble custom-agent system prompt: displayName: Required
+                tools: Expected array
+        - role: assistant
+          content: SETUP_DONE
+        - role: user
+          content: Reply exactly "PARENT_RECOVERED".
+    response:
+      content: PARENT_RECOVERED
+      stopReason: end_turn

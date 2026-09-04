@@ -356,6 +356,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * {@link IClientRecord}.
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
+	/**
+	 * State channels a client is subscribed to but has never been given a
+	 * baseline snapshot for by THIS server process, keyed by clientId.
+	 *
+	 * `initialize` registers a state channel even when its snapshot has not
+	 * materialized yet (see {@link _addInitialSubscription}), so a client can
+	 * hold a live subscription with no state behind it. Replaying deltas onto
+	 * that void silently strands the channel on whatever the client last saw —
+	 * across a host restart that is pre-restart state, which is how an
+	 * already-finished turn can render as perpetually running. Reconnect
+	 * consults this to force a snapshot response for such channels.
+	 */
+	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
@@ -701,7 +714,45 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		if (snapshot) {
+			this._clearBaselineDebt(client.clientId, sub.uri);
+		} else {
+			this._recordBaselineDebt(client.clientId, sub.uri);
+		}
 		return snapshot;
+	}
+
+	/**
+	 * Note that `clientId` holds a subscription to `uri` with no baseline from
+	 * this process. See {@link _baselineDebt}.
+	 */
+	private _recordBaselineDebt(clientId: string, uri: string): void {
+		let debt = this._baselineDebt.get(clientId);
+		if (!debt) {
+			debt = new Set();
+			this._baselineDebt.set(clientId, debt);
+		}
+		debt.add(uri);
+	}
+
+	/** Record that `clientId` has now been given a baseline for `uri`. */
+	private _clearBaselineDebt(clientId: string, uri: string): void {
+		const debt = this._baselineDebt.get(clientId);
+		if (debt?.delete(uri) && debt.size === 0) {
+			this._baselineDebt.delete(clientId);
+		}
+	}
+
+	/** Whether any of `subscriptions` still owes `clientId` a baseline. */
+	private _hasBaselineDebt(clientId: string, subscriptions: readonly string[]): boolean {
+		const debt = this._baselineDebt.get(clientId);
+		if (!debt || debt.size === 0) {
+			return false;
+		}
+		return subscriptions.some(subscription => {
+			const classified = classifyChannel(subscription.toString());
+			return classified !== undefined && debt.has(classified.uri);
+		});
 	}
 
 	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
@@ -794,7 +845,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
-			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
+			// A global cursor only proves the client saw every ACTION; it says
+			// nothing about whether a given channel ever received state from this
+			// process to apply them to. Force snapshots while any requested
+			// channel still owes a baseline.
+			const canReplay = params.lastSeenServerSeq >= oldestBuffered
+				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
 			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 
 			client.telemetryConnectionActive = true;
@@ -883,6 +939,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!descriptor) {
 					this._logService.info(`[ProtocolServer] Reconnect: resource watch ${key} no longer parses`);
 					missing.push(sub);
+					this._clearBaselineDebt(client.clientId, classified.uri);
 					return undefined;
 				}
 				if (canReplay) {
@@ -918,6 +975,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
 				missing.push(sub);
+				// Reported as missing, so it can never be baselined. Leaving the
+				// debt would deny `canReplay` for this client's healthy channels
+				// on every future reconnect, since `missing` is not repeated on
+				// the snapshot branch and nothing else would ever clear it.
+				this._clearBaselineDebt(client.clientId, classified.uri);
 				return undefined;
 			}
 		}));
@@ -947,9 +1009,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return undefined;
 			}
 			const subscription = client.subscriptions.get(snapshot.resource.toString());
-			return subscription?.kind === ChannelKind.State
-				? this._stateManager.getSnapshot(subscription.uri)
-				: snapshot;
+			if (subscription?.kind !== ChannelKind.State) {
+				return snapshot;
+			}
+			const refreshed = this._stateManager.getSnapshot(subscription.uri);
+			if (refreshed) {
+				// Key off the subscription, not the snapshot's echoed resource,
+				// so the debt entry recorded under the same key is really cleared.
+				this._clearBaselineDebt(client.clientId, subscription.uri);
+			}
+			return refreshed;
 		});
 		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
@@ -1164,6 +1233,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._clients.set(client.clientId, previousRecord);
 				} else {
 					this._clients.delete(client.clientId);
+					this._baselineDebt.delete(client.clientId);
 				}
 			}
 		}
@@ -1331,6 +1401,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				&& record.lastSeenAt < cutoff) {
 				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
+				this._baselineDebt.delete(clientId);
 			}
 		}
 	}
@@ -1429,6 +1500,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
+				this._clearBaselineDebt(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
@@ -2027,6 +2099,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		client.subscriptions.delete(classified.uri);
+		// An unsubscribed channel owes this client nothing; a later subscribe
+		// records its own debt if it again lands without a baseline.
+		this._clearBaselineDebt(client.clientId, classified.uri);
 		if (sub.kind === ChannelKind.State) {
 			const record = this._clients.get(client.clientId);
 			if (record && this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {

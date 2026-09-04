@@ -10,6 +10,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -314,6 +315,26 @@ suite('ChangesViewService', () => {
 				selected: 'branch',
 			},
 		});
+	});
+
+	test('hides checkout from generic changeset operations', () => {
+		const changeset = createChangeset([
+			{
+				id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				label: 'Checkout',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+			{
+				id: 'create-pr',
+				label: 'Create PR',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+		]);
+		const { service } = createHarness(createSession('draft', { changesets: [changeset] }));
+
+		assert.deepStrictEqual(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id), ['create-pr']);
 	});
 
 	test('hides the Agent Host merge operation when the base branch is protected', () => {

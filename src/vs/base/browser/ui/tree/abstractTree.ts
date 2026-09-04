@@ -2354,6 +2354,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 
 export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly defaultIndent?: number; // Only recommended for compact layouts. Leave unchanged otherwise
+	readonly paddingBottom?: number;
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;

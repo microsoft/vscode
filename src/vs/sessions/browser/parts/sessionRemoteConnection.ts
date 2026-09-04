@@ -17,7 +17,13 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';
 import { ISessionReadOnlyBannerContent } from './sessionReadOnlyBanner.js';
 
-const RECONNECTING_BANNER_DELAY = 1_000;
+/**
+ * How long a host must stay unreachable before the banner appears.
+ *
+ * Sized to outlast a transport blip the protocol client heals by itself: such a
+ * reconnect preserves session state, so the user would not otherwise notice it.
+ */
+const RECONNECTING_BANNER_DELAY = 5_000;
 
 function isSameRemoteConnectionStatus(a: SessionRemoteConnectionStatus | undefined, b: SessionRemoteConnectionStatus | undefined): boolean {
 	if (!a || !b) {
@@ -76,6 +82,17 @@ export class SessionRemoteConnection extends Disposable {
 			&& this._attempt.read(reader) === undefined;
 	});
 
+	/**
+	 * When the current outage began, or `undefined` while the host is reachable.
+	 *
+	 * Recomputed eagerly so the cache cannot outlive its observers: nothing reads
+	 * the reconnecting state while the host is connected, and a derived that
+	 * stops being observed keeps its last value without ever recomputing it, so a
+	 * later outage would inherit the previous one's start time and skip the delay.
+	 *
+	 * Keyed by session only to guard future reuse: a ChatGroupView is currently
+	 * created per session, so the cache cannot outlive the session it belongs to.
+	 */
 	private readonly _reconnectingSince = derivedObservableWithCache<{ readonly session: IActiveSession; readonly since: number } | undefined>(this, (reader, last) => {
 		const session = this._session.read(reader);
 		const status = this._getEffectiveStatus(reader);
@@ -83,10 +100,8 @@ export class SessionRemoteConnection extends Disposable {
 		if (!session || status?.kind !== 'reconnecting' || attempt?.kind === 'active') {
 			return undefined;
 		}
-		// Keyed by session only to guard future reuse: a ChatGroupView is currently
-		// created per session, so the cache cannot outlive the session it belongs to.
 		return last?.session === session ? last : { session, since: Date.now() };
-	});
+	}).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _reconnectingBannerVisible = derived(this, reader => {
 		const reconnecting = this._reconnectingSince.read(reader);

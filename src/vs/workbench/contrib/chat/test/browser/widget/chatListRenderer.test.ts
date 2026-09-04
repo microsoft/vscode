@@ -23,11 +23,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
+import { getPastedChatReferenceMarkdown } from '../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
@@ -35,7 +36,7 @@ import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -46,6 +47,61 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recognizes nested compact reference content as a link target', () => {
+		const anchor = mainWindow.document.createElement('a');
+		const icon = mainWindow.document.createElement('span');
+		const label = mainWindow.document.createElement('span');
+		anchor.append(icon, label);
+
+		assert.deepStrictEqual({
+			anchor: isAnchorTarget(anchor),
+			icon: isAnchorTarget(icon),
+			label: isAnchorTarget(label),
+			plainText: isAnchorTarget(mainWindow.document.createElement('span')),
+			textNode: isAnchorTarget(mainWindow.document.createTextNode('text')),
+		}, {
+			anchor: true,
+			icon: true,
+			label: true,
+			plainText: false,
+			textNode: false,
+		});
+	});
+
+	test('renders pasted GitHub references as navigable links', () => {
+		const uri = URI.parse('https://github.com/microsoft/vscode/pull/334310');
+		const part = new ChatRequestDynamicVariablePart(
+			new OffsetRange(0, 24),
+			new Range(1, 1, 1, 25),
+			'microsoft/vscode#334310',
+			uri.toString(),
+			undefined,
+			uri,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ chatPasteLink: true },
+			true,
+			uri.toString(),
+		);
+
+		assert.deepStrictEqual({
+			pastedGitHubLink: getPastedChatReferenceMarkdown(part, uri),
+			ordinaryReference: getPastedChatReferenceMarkdown(new ChatRequestDynamicVariablePart(
+				part.range,
+				part.editorRange,
+				part.text,
+				part.id,
+				part.modelDescription,
+				part.data,
+			), uri),
+		}, {
+			pastedGitHubLink: '[microsoft/vscode#334310](https://github.com/microsoft/vscode/pull/334310)',
+			ordinaryReference: undefined,
+		});
+	});
 
 	suite('shouldScheduleInitialHeightChange', () => {
 		test('only schedules first measurement updates when needed to avoid clipping', () => {

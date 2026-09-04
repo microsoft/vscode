@@ -19,6 +19,7 @@ import { IMenuService } from '../../../../../platform/actions/common/actions.js'
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -27,12 +28,14 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -45,6 +48,8 @@ import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING } from '../../browser/automationsNewBadge.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -119,6 +124,7 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
+				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -171,6 +177,7 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
+				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -198,6 +205,106 @@ suite('Sessions - SessionsList', () => {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
 				trailingStatusIndicator: false,
+			});
+		});
+
+		test('renders the new badge only on the Automations section when templates are recycled', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}());
+			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				constObservable('outline'),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				},
+				new class extends mock<IMenuService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'automations', label: 'Automations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const automationSnapshot = {
+				text: template.newBadge.textContent,
+				display: template.newBadge.style.display,
+				ariaHidden: template.newBadge.getAttribute('aria-hidden'),
+			};
+
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'workspace:test', label: 'Test', sessions: [] },
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+
+			assert.deepStrictEqual({
+				automationSnapshot,
+				recycledDisplay: template.newBadge.style.display,
+				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
+			}, {
+				automationSnapshot: {
+					text: 'New',
+					display: 'inline-flex',
+					ariaHidden: 'true',
+				},
+				recycledDisplay: 'none',
+				recycledShortcutClass: false,
+			});
+		});
+
+		test('updates the Automations row accessible label when the new badge is dismissed', () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'outline');
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([]);
+					override readonly runs = constObservable([]);
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			const before = row?.getAttribute('aria-label');
+
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: row?.getAttribute('aria-label'),
+			}, {
+				before: 'Automations, new feature',
+				after: 'Automations',
 			});
 		});
 
@@ -234,6 +341,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
+				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -301,6 +409,7 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
+				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },

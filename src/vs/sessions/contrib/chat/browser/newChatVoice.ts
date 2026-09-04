@@ -78,6 +78,10 @@ export interface INewChatVoiceTargetService {
 	registerComposer(composer: INewChatVoiceComposer): IDisposable;
 	/** Promote `composer` to the active voice target. */
 	setActive(composer: INewChatVoiceComposer): void;
+	/** Allow the next composer replacement initiated by a voice request. */
+	beginVoiceTransition(): IDisposable;
+	/** Consume a pending voice-initiated composer replacement. */
+	consumeVoiceTransition(): boolean;
 }
 
 export class NewChatVoiceTargetService extends Disposable implements INewChatVoiceTargetService {
@@ -86,6 +90,8 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	private readonly _composers = new Set<INewChatVoiceComposer>();
 	private readonly _activeComposer = observableValue<INewChatVoiceComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined> = this._activeComposer;
+	private _voiceTransitionVersion = 0;
+	private _pendingVoiceTransition: number | undefined;
 
 	/** Session resource of the last-focused chat widget (the last-focused input). */
 	private readonly _focusedSessionResource: IObservable<URI | undefined>;
@@ -135,6 +141,24 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 		if (this._composers.has(composer)) {
 			this._activeComposer.set(composer, undefined);
 		}
+	}
+
+	beginVoiceTransition(): IDisposable {
+		const version = ++this._voiceTransitionVersion;
+		this._pendingVoiceTransition = version;
+		return toDisposable(() => {
+			if (this._pendingVoiceTransition === version) {
+				this._pendingVoiceTransition = undefined;
+			}
+		});
+	}
+
+	consumeVoiceTransition(): boolean {
+		if (this._pendingVoiceTransition === undefined) {
+			return false;
+		}
+		this._pendingVoiceTransition = undefined;
+		return true;
 	}
 }
 

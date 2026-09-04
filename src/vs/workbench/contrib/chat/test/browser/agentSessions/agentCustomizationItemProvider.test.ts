@@ -145,6 +145,59 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
+	test('classifies a directory child by its real file URI when its container is synthetic', async () => {
+		const skillUri = 'file:///workspace/.agents/skills/launch/SKILL.md';
+		const customizations: Customization[] = [{
+			type: CustomizationType.Directory,
+			id: 'codex-repository-skills',
+			uri: 'codex-skills:/repo',
+			name: 'Repository',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			children: [{
+				type: CustomizationType.Skill,
+				id: skillUri,
+				uri: skillUri,
+				name: 'launch',
+				description: 'Launch Code OSS.',
+			}],
+		}];
+
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getWorkingDirectories(): readonly string[] {
+				return ['file:///workspace'];
+			}
+			override getCustomizations(): readonly Customization[] {
+				return customizations;
+			}
+		}
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-codex:///session'), CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			type: item.type,
+			name: item.name,
+			uri: item.uri.toString(),
+			source: item.source,
+		})), [{
+			type: PromptsType.skill,
+			name: 'launch',
+			uri: skillUri,
+			source: AICustomizationSources.local,
+		}]);
+	});
+
 	test('overrides a stale enabled provider row when its built-in skill is user-disabled', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
 		const bundledSkillUri = URI.joinPath(bundleUri, 'skills', 'create-pr', 'SKILL.md');

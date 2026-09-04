@@ -95,6 +95,7 @@ export interface IWorkspacePickerOptions {
 	readonly restoreFromSessions?: boolean;
 	readonly sessionWorkspaceProviderFilter?: (providerId: string) => boolean;
 	readonly getWorkspaceGroupAction?: (group: string | undefined) => IWorkspacePickerGroupAction | undefined;
+	readonly getNoWorkspaceOption?: () => IWorkspacePickerNoWorkspaceOption | undefined;
 }
 
 export interface IWorkspacePickerGroupAction {
@@ -103,6 +104,12 @@ export interface IWorkspacePickerGroupAction {
 	readonly icon: ThemeIcon;
 	readonly commandId: string;
 	readonly hideWorkspaceItems?: boolean;
+}
+
+export interface IWorkspacePickerNoWorkspaceOption {
+	readonly description: string;
+	readonly isSelected: boolean;
+	readonly select: () => void;
 }
 
 export interface IWorkspacePickerTrigger {
@@ -654,6 +661,10 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
+	refreshPresentation(): void {
+		this._updateTriggerLabel();
+	}
+
 	/**
 	 * Subclasses may opt out of the categorical tab bar (e.g. when scoped to
 	 * a single host).
@@ -719,8 +730,8 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -782,7 +793,7 @@ export class WorkspacePicker extends Disposable {
 				const items = this._buildItems();
 				const listOptions = this._useConsolidatedRemoteWorkspaces()
 					? this._buildListOptions(items, undefined)
-					: { inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true };
+					: { className: 'sessions-new-chat-picker-list', inlineDescription: true, showGroupTitleOnFirstItem: true, hideDefaultKeybindingTooltip: true };
 				return { items, listOptions };
 			},
 			delegate,
@@ -1477,7 +1488,32 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 
-		return items;
+		const noWorkspaceOption = this._getNoWorkspaceOption();
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+			return items;
+		}
+
+		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
+			kind: ActionListItemKind.Action,
+			label: localize('workspacePicker.noWorkspace', "No workspace"),
+			description: noWorkspaceOption.description,
+			group: { title: '', icon: Codicon.commentDiscussion },
+			item: {
+				checked: noWorkspaceOption.isSelected || undefined,
+				run: () => {
+					noWorkspaceOption.select();
+					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
+				},
+			},
+		};
+		return items.length > 0
+			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]
+			: [noWorkspace];
+	}
+
+	protected _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
+		return this.options.getNoWorkspaceOption?.();
 	}
 
 	private _showRemoteHostOptionsDelayed(provider: IAgentHostSessionsProvider): void {
@@ -1502,8 +1538,9 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		if (options) {
-			const workspace = this._selectedResolved?.workspace;
 			const reflectsWorkspace = options.reflectsWorkspace === true;
+			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
+			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 			const isSelectedCategory = options.attachesContext !== true
 				&& options.group !== undefined
 				&& options.group === workspace?.group;
@@ -1530,8 +1567,10 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
-			trigger.classList.toggle('selected', (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
-			const icon = (reflectsWorkspace ? workspace?.icon : undefined)
+			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
+			const icon = noWorkspaceSelected
+				? Codicon.commentDiscussion
+				: (reflectsWorkspace ? workspace?.icon : undefined)
 				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
 			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {
 				contents.icon?.remove();
@@ -1543,7 +1582,9 @@ export class WorkspacePicker extends Disposable {
 				}
 				contents.icon.className = ThemeIcon.asClassName(icon);
 			}
-			const label = (reflectsWorkspace ? workspace?.label : undefined)
+			const label = noWorkspaceSelected
+				? localize('workspacePicker.noWorkspace', "No workspace")
+				: (reflectsWorkspace ? workspace?.label : undefined)
 				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
@@ -1574,13 +1615,18 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const workspace = this._selectedResolved?.workspace;
-		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
-		const icon = workspace ? workspace.icon : Codicon.project;
+		const noWorkspaceSelected = this._getNoWorkspaceOption()?.isSelected === true;
+		const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
+		const label = noWorkspaceSelected
+			? localize('workspacePicker.noWorkspace', "No workspace")
+			: workspace?.label ?? localize('pickWorkspace', "workspace");
+		const icon = noWorkspaceSelected ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
-		trigger.setAttribute('aria-label', workspace
-			? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
-			: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
+		trigger.setAttribute('aria-label', noWorkspaceSelected
+			? localize('workspacePicker.noWorkspaceSelectedAriaLabel', "New session with no workspace")
+			: workspace
+				? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
+				: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
 
 		contents.icon = dom.append(trigger, renderIcon(icon));
 		contents.label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
@@ -1647,7 +1693,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _isSelectedFolder(folderUri: URI | undefined): boolean {
-		if (!this._selectedFolderUri || !folderUri) {
+		if (this._getNoWorkspaceOption()?.isSelected || !this._selectedFolderUri || !folderUri) {
 			return false;
 		}
 		return this.uriIdentityService.extUri.isEqual(this._selectedFolderUri, folderUri);

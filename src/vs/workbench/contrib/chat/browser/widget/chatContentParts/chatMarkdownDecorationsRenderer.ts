@@ -9,6 +9,7 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -25,6 +26,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../common/widget/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../../../common/chatService/chatService.js';
+import { chatPasteLinkMetadataKey } from '../../../common/attachments/chatVariables.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -81,6 +83,16 @@ export interface IDecorationWidgetArgs {
 	title?: string;
 }
 
+export function getPastedChatReferenceMarkdown(part: IParsedChatRequestPart, uri: URI | undefined): string | undefined {
+	if (!(part instanceof ChatRequestDynamicVariablePart)
+		|| part._meta?.[chatPasteLinkMetadataKey] !== true
+		|| (uri?.scheme !== Schemas.http && uri?.scheme !== Schemas.https)) {
+		return undefined;
+	}
+
+	return `[${part.text}](${uri.toString(true)})`;
+}
+
 export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
 
@@ -123,6 +135,10 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
+		const pastedLink = getPastedChatReferenceMarkdown(part, uri);
+		if (pastedLink) {
+			return pastedLink;
+		}
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :

@@ -723,8 +723,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			sessionMutable: false,
 		});
 
-		// Resolve isolation first — downstream schema shapes (branch's
-		// read-only mode + enum restriction) depend on the effective value.
+		// Resolve isolation first because the branch default depends on the effective value.
 		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
 		const isolationValue = isolationProperty.validate(request.config?.[SessionConfigKey.Isolation])
 			? request.config![SessionConfigKey.Isolation] as 'folder' | 'worktree'
@@ -738,9 +737,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
-			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
-			branchValue = isolationValue === 'worktree' && typeof request.config?.[SessionConfigKey.Branch] === 'string'
+			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
 			branchProperty = schemaProperty<string>({
@@ -750,8 +748,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				enum: [branchDefault],
 				enumLabels: [branchDefault],
 				default: branchDefault,
-				enumDynamic: !branchReadOnly,
-				readOnly: branchReadOnly,
+				enumDynamic: true,
+				readOnly: false,
 				sessionMutable: false,
 			});
 

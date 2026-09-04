@@ -3164,6 +3164,65 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('selects No workspace through the consolidated picker', async () => {
+		let noWorkspaceSelected = false;
+		const picker = createTestablePicker(disposables, providersService, true, {
+			getNoWorkspaceOption: () => ({
+				description: 'Start without a backing workspace',
+				isSelected: noWorkspaceSelected,
+				select: () => noWorkspaceSelected = true,
+			}),
+		}, undefined, undefined, true);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace for the new session',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+		}]);
+
+		const before = {
+			items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
+				label: item.label,
+				description: item.description,
+				checked: item.item?.checked,
+			})),
+			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		};
+		await picker.select('No workspace');
+
+		assert.deepStrictEqual({
+			before,
+			after: {
+				items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
+					label: item.label,
+					description: item.description,
+					checked: item.item?.checked,
+				})),
+				triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+			},
+		}, {
+			before: {
+				items: [{
+					label: 'No workspace',
+					description: 'Start without a backing workspace',
+					checked: undefined,
+				}],
+				triggerLabel: 'Workspace',
+			},
+			after: {
+				items: [{
+					label: 'No workspace',
+					description: 'Start without a backing workspace',
+					checked: true,
+				}],
+				triggerLabel: 'No workspace',
+				triggerAriaLabel: 'Workspace: No workspace',
+			},
+		});
+	});
+
 	test('keeps GitHub context actions separate when groups are combined', () => {
 		providersService.setProviders([
 			createMockProvider('github', {

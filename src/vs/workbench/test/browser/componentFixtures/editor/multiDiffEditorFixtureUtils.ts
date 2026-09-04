@@ -10,6 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
@@ -128,7 +129,7 @@ export function createMultiDiffEditorFixtureWidget(instantiationService: IInstan
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-		diffEditorOptions,
+		{ variant: MultiDiffEditorVariant.Compact, diffEditorOptions },
 	);
 }
 

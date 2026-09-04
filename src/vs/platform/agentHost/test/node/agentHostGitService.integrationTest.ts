@@ -600,6 +600,15 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('checkout switches a clean working directory to an existing branch', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['branch', 'dev'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.checkout(URI.file(dir), 'dev');
+
+		assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'dev');
+	});
+
 	(hasGit ? test : test.skip)('hasUncommittedChanges flips with untracked and committed work', async () => {
 		const dir = initRepo();
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);

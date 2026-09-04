@@ -60,6 +60,40 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
+export interface ISessionsHeaderElements {
+	readonly row: HTMLElement;
+	readonly label: HTMLElement;
+	readonly actions: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar | undefined;
+}
+
+export function renderSessionsHeader(
+	parent: HTMLElement,
+	phoneLayout: boolean,
+	instantiationService: IInstantiationService,
+	contextKeyService: IContextKeyService,
+	disposables: DisposableStore,
+): ISessionsHeaderElements {
+	const row = DOM.append(parent, $('.agent-sessions-header-row'));
+	const label = DOM.append(row, $('.agent-sessions-header-label'));
+	const actions = DOM.append(row, $('.agent-sessions-header-actions'));
+	let toolbar: MenuWorkbenchToolBar | undefined;
+
+	if (!phoneLayout) {
+		label.textContent = localize('sessionsHeader', "Sessions");
+		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'sessionsView.header',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+	} else {
+		row.classList.add('phone-layout-empty');
+	}
+
+	return { row, label, actions, toolbar };
+}
+
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
@@ -156,32 +190,15 @@ export class SessionsView extends ViewPane {
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
-		// Header row: "Sessions" label (left) + compact "New" button (right)
-		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
-		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
-
-		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
-
 		// On phone, the desktop header content (label + new button + filter/find toolbar)
 		// is hidden in favor of the mobile filter chip row + the (+) button in the
 		// MobileTitlebarPart. We still create the row container because the find
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
-		if (!phoneLayout) {
-			headerLabel.textContent = localize('sessionsHeader', "Sessions");
-
-			// Header actions (visual order: New, Filter, Search). The "New" button is
-			// contributed to Menus.SidebarSessionsHeader and rendered as a compact pill
-			// by NewSessionActionViewItem.
-			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				telemetrySource: 'sessionsView.header',
-				toolbarOptions: { primaryGroup: () => true },
-			}));
-		} else {
-			headerRow.classList.add('phone-layout-empty');
-		}
+		const header = renderSessionsHeader(sessionsContent, phoneLayout, this.instantiationService, this.scopedContextKeyService, this._register(new DisposableStore()));
+		const headerRow = this.headerRow = header.row;
+		this.headerLabel = header.label;
+		this.headerActions = header.actions;
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));

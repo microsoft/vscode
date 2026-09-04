@@ -8,12 +8,13 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -241,7 +242,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; devContainerWorktreeScope?: string; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -268,6 +269,12 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IAgentHostService, overrides?.localAgentHostService ?? new class extends mock<IAgentHostService>() { }());
+	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+		registerSessionResolutionPolicy: (authority, policy) => {
+			overrides?.sessionResolutionPolicies?.push({ authority, policy });
+			return Disposable.None;
+		},
+	}));
 	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(ILabelService, overrides?.labelService ?? new MockLabelService());
 	instantiationService.stub(ILogService, new NullLogService());
@@ -297,6 +304,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 		omitHostFromWorkspaceLabel: overrides?.omitHostFromWorkspaceLabel,
 		workspaceTypeIcon: overrides?.workspaceTypeIcon,
+		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
 	};
@@ -383,6 +391,24 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [My Host]');
+	});
+
+	test('registers provider-owned session resolution policy', () => {
+		const policies: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }> = [];
+		createProvider(disposables, connection, {
+			address: 'sandbox.example',
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+			sessionResolutionPolicies: policies,
+		});
+
+		assert.deepStrictEqual(policies, [{
+			authority: agentHostAuthority('sandbox.example'),
+			policy: {
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				defaultChangesetKind: ChangesetKind.Session,
+			},
+		}]);
 	});
 
 	test('session types update when the host advertises additional agents', () => {

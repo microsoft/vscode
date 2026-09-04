@@ -103,6 +103,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
 	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
+	private _awaitingSnapshotRefresh = false;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -140,9 +141,45 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Apply an initial snapshot from the server.
 	 */
 	handleSnapshot(state: T, fromSeq: number): void {
+		this._awaitingSnapshotRefresh = false;
 		this._confirmedState = state;
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
+		this._onDidChange.fire(this.value as T);
+	}
+
+	/**
+	 * Buffer incoming envelopes until the next {@link handleSnapshot}.
+	 *
+	 * Needed when a subscription that already holds confirmed state is
+	 * re-subscribed to be reseated from a restarted host: the snapshot is
+	 * computed at some `fromSeq`, but the channel is already live, so newer
+	 * actions can reach the client before the subscribe response does.
+	 * Applying them first and then installing the older snapshot would drop
+	 * them silently — losing, say, the action that ends a turn.
+	 */
+	beginSnapshotRefresh(): void {
+		this._awaitingSnapshotRefresh = true;
+	}
+
+	/**
+	 * Abandon a refresh started by {@link beginSnapshotRefresh} when the
+	 * snapshot never arrives, applying whatever was buffered meanwhile so the
+	 * subscription does not silently lose those actions too.
+	 */
+	cancelSnapshotRefresh(): void {
+		if (!this._awaitingSnapshotRefresh) {
+			return;
+		}
+		this._awaitingSnapshotRefresh = false;
+		const buffered = this._bufferedEnvelopes;
+		if (!buffered || this._confirmedState === undefined) {
+			return;
+		}
+		this._bufferedEnvelopes = undefined;
+		for (const envelope of buffered) {
+			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
+		}
 		this._onDidChange.fire(this.value as T);
 	}
 
@@ -165,7 +202,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 		// Buffer actions that arrive before the snapshot has been applied.
 		// They're replayed in _onSnapshotApplied().
-		if (this._confirmedState === undefined) {
+		if (this._confirmedState === undefined || this._awaitingSnapshotRefresh) {
 			if (!this._bufferedEnvelopes) {
 				this._bufferedEnvelopes = [];
 			}
@@ -1177,6 +1214,20 @@ export class AgentSubscriptionManager extends Disposable {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
+	}
+
+	/**
+	 * Put a subscription into snapshot-refresh mode ahead of an explicit
+	 * re-`subscribe` that reseats it from a restarted host. See
+	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
+	 */
+	beginSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.beginSnapshotRefresh();
+	}
+
+	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
+	cancelSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
 	}
 
 	/**

@@ -539,6 +539,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A centered empty state shows the semibold title "Changes" above the secondary text "No changed files", with compact spacing and no icon.'],
 		render: ctx => renderChangesView(ctx, {
 			viewMode: ChangesViewMode.List,
 			changes: [],

@@ -5,6 +5,7 @@
 
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
 // eslint-disable-next-line no-restricted-imports
 import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
@@ -322,19 +323,59 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 		}
 
 		if (outputType === 'dom') {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_DOM_FRAGMENT: true
-			});
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_DOM_FRAGMENT: true }) as DocumentFragment;
 		} else {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_TRUSTED_TYPE: true
-			}) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_TRUSTED_TYPE: true }) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
 		}
 	} finally {
 		dompurify.removeAllHooks();
 	}
+}
+
+/** Names a replacement policy; Trusted Types rejects a name that is already taken. */
+let stalePolicyReplacementCount = 0;
+
+/** The sanitizer call this module recovers around. */
+type SanitizeCall = (untrusted: string, config: DomPurifyTypes.Config) => ReturnType<typeof dompurify.sanitize>;
+
+/**
+ * Sanitizes HTML, replacing the sanitizer's Trusted Types policy first when the policy's
+ * creating realm is gone and every call would otherwise throw. The replacement is kept
+ * for later calls, so this recovers once rather than on every call.
+ *
+ * Exported, with `sanitize` injectable, only so a test can drive the recovery: dompurify
+ * caches one policy for the lifetime of the module, so once anything has sanitized, no
+ * later stand-in policy is ever consulted. Prefer {@link sanitizeHtml}.
+ */
+export function sanitizeSurvivingStalePolicy(
+	untrusted: string,
+	config: DomPurifyTypes.Config,
+	sanitize: SanitizeCall = (html, cfg) => dompurify.sanitize(html, cfg),
+): string | DocumentFragment | TrustedHTML {
+	try {
+		return sanitize(untrusted, config);
+	} catch (error) {
+		if (!isStaleTrustedTypesPolicy(error)) {
+			throw error;
+		}
+		const replacement = createTrustedTypesPolicy(`domSanitize${stalePolicyReplacementCount++}`, {
+			createHTML: (value: string) => value,
+			createScriptURL: (value: string) => value,
+		});
+		if (!replacement) {
+			throw error;
+		}
+		// Named through dompurify's own config rather than the global `TrustedTypePolicy`.
+		// The two spell the same type, but the editor build resolves `trusted-types` twice
+		// and the branded declarations then do not unify.
+		const policy = replacement as unknown as DomPurifyTypes.Config['TRUSTED_TYPES_POLICY'];
+		return sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
+	}
+}
+
+/** Whether the failure is a Trusted Types policy whose realm is gone, rather than bad markup. */
+function isStaleTrustedTypesPolicy(error: unknown): boolean {
+	return error instanceof Error && /no longer runnable/i.test(error.message);
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];

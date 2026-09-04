@@ -253,7 +253,7 @@ export function createUnavailableModelItem(
 		group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
 		disabled: true,
 		hideIcon: false,
-		className: 'chat-model-picker-unavailable',
+		className: typeof description === 'string' ? 'chat-model-picker-unavailable' : 'chat-model-picker-unavailable has-link',
 		section,
 		hover: { content: hoverContent },
 	};

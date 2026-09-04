@@ -50,6 +50,8 @@ export interface IChatVariablesService {
 	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap;
 }
 
+export const chatPasteLinkMetadataKey = 'chatPasteLink';
+
 export interface IDynamicVariable {
 	range: IRange;
 	id: string;

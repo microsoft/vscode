@@ -31,7 +31,7 @@ import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
-import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { chatPasteLinkMetadataKey, IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
@@ -45,8 +45,6 @@ export const pastedTextArtifactDefaultMinLength = 10000;
  */
 const pastedTextArtifactMinLines = 10;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
-const chatPasteLinkMetadataKey = 'chatPasteLink';
-
 interface SerializedCopyData {
 	readonly uri: UriComponents;
 	readonly range: IRange;

@@ -46,7 +46,7 @@ import {
 	buildUncommittedChangesetUri,
 } from '../../../../common/changesetUri.js';
 import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 /** The subset of `ChangesetFile` these tests assert on. */
@@ -250,6 +250,15 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return action.files.find(file => fileHasBasename(file, basename))!;
 	}
 
+	async function waitForEmptyChangeset(channel: string): Promise<void> {
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged')
+			&& getActionEnvelope(n).channel === channel
+			&& (getActionEnvelope(n).action as IContentChangedAction).files.length === 0,
+			60_000,
+		);
+	}
+
 	async function waitForTurnComplete(sessionUri: string, turnId: string): Promise<void> {
 		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.waitForNotification(n =>
@@ -275,6 +284,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return state;
 	}
 
+	// Re-reading git state is slow on a contended CI agent.
+	const operationPollRetries = getAgentHostE2ETestTimeout(100, 300);
+
 	async function waitForOperation(channel: string, operationId: string): Promise<IObservedOperation> {
 		return retry(async () => {
 			const operation = (await changesetState(channel)).operations?.find(operation => operation.id === operationId);
@@ -282,7 +294,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				throw new Error(`Changeset ${channel} has not advertised idle operation ${operationId}`);
 			}
 			return operation;
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
 	async function waitForOperationRemoved(channel: string, operationId: string): Promise<void> {
@@ -290,7 +302,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			if ((await changesetState(channel)).operations?.some(operation => operation.id === operationId)) {
 				throw new Error(`Changeset ${channel} still advertises operation ${operationId}`);
 			}
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
 	async function invokeChangesetOperation(channel: string, operationId: string): Promise<{
@@ -620,15 +632,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git commit -q -m "ignore generated log"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-ignored');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -639,15 +646,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-create-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-create-delete');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -658,15 +660,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-edit-restore-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit-restore');
 		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -1492,7 +1489,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
 			const peerUri = buildChatUri(sessionUri, generateUuid());
-			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' });
+			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });

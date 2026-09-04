@@ -23,6 +23,7 @@ import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
+import { getMultiDiffEditorVariantConfiguration, MultiDiffEditorVariant } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -37,6 +38,28 @@ suite('MultiDiffEditorWidget', () => {
 
 	teardown(() => {
 		sinon.restore();
+	});
+
+	test('uses closed variant configurations', () => {
+		assert.deepStrictEqual({
+			standard: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Standard),
+			compact: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Compact),
+		}, {
+			standard: {
+				className: 'multiDiffEditor-standard',
+				horizontalInsets: { left: 9, right: 9 },
+				headerHeight: 40,
+				contentBottomPadding: 0,
+				headerClickToCollapse: false,
+			},
+			compact: {
+				className: 'multiDiffEditor-compact',
+				horizontalInsets: { left: 0, right: 0 },
+				headerHeight: 32,
+				contentBottomPadding: 8,
+				headerClickToCollapse: true,
+			},
+		});
 	});
 
 	test('models bottom padding as trailing scroll content', () => {
@@ -61,7 +84,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		);
 		widget.layout(new Dimension(800, 200));
 		const initialState = widget.getLayoutDebugState().get();
@@ -117,7 +140,7 @@ suite('MultiDiffEditorWidget', () => {
 			{
 				openDiffEditor: (original, modified) => openedDiff = { original, modified },
 			} satisfies IWorkbenchUIElementFactory,
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		);
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
@@ -213,7 +236,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		);
 		widget.setRenderSideBySide(true, { useInlineViewWhenSpaceIsLimited: true });
 		widget.layout(new Dimension(800, 600));
@@ -286,7 +309,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		);
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
@@ -366,7 +389,7 @@ suite('MultiDiffEditorWidget', () => {
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		);
 		widget.layout(new Dimension(800, 200));
 		const viewModel = widget.createViewModel(model);

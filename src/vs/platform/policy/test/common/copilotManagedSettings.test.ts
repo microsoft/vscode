@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -104,6 +104,20 @@ suite('Copilot managed settings projection', () => {
 
 	test('managedModelValue returns the same memoized callback (stable reference identity)', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
+	});
+
+	test('managedSettingsDisabledValue forces false only while managed settings are active', () => {
+		assert.deepStrictEqual({
+			active: managedSettingsDisabledValue({ managedSettingsActive: true }),
+			inactive: managedSettingsDisabledValue({ managedSettingsActive: false }),
+			unset: managedSettingsDisabledValue({}),
+			previewFeaturesDisabled: managedSettingsDisabledValue({ chat_preview_features_enabled: false }),
+		}, {
+			active: false,
+			inactive: undefined,
+			unset: undefined,
+			previewFeaturesDisabled: undefined,
+		});
 	});
 
 	test('forceRemoteSettingsRefresh resolves across all channels and reports the winning source', () => {

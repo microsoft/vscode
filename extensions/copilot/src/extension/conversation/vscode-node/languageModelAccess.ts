@@ -158,6 +158,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, autoTiersEnabled: boo
 
 const DICTATION_CLEANUP_NANO_ALIAS = 'copilot-dictation-cleanup-nano';
 const DICTATION_CLEANUP_LUNA_ALIAS = 'copilot-dictation-cleanup-luna';
+const DICTATION_CLEANUP_LUNA_MODEL_ID = 'gpt-5.6-luna';
 const dictationCleanupAliases: ReadonlySet<string> = new Set([DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS]);
 const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-small', 'copilot-utility', DICTATION_CLEANUP_NANO_ALIAS, DICTATION_CLEANUP_LUNA_ALIAS];
 
@@ -175,7 +176,7 @@ const utilityAliasFamilies: readonly ChatEndpointFamily[] = ['copilot-utility-sm
  * normal copilot model entry.
  */
 export function buildUtilityAliasModelInfo(
-	family: ChatEndpointFamily,
+	family: string,
 	endpoint: IChatEndpoint,
 	models: readonly vscode.LanguageModelChatInformation[],
 	baseCount: number,
@@ -453,6 +454,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			}
 		}
 
+		const luna = this._resolvedUtilityEndpoints.get(DICTATION_CLEANUP_LUNA_ALIAS);
+		if (luna && !models.some(model => model.id === DICTATION_CLEANUP_LUNA_MODEL_ID)) {
+			this._utilityAliasEndpoints.set(DICTATION_CLEANUP_LUNA_MODEL_ID, luna.endpoint);
+			const modelInfo = buildUtilityAliasModelInfo(DICTATION_CLEANUP_LUNA_MODEL_ID, luna.endpoint, models, luna.baseCount, requiresAuthorization);
+			this._logService.trace(`[LanguageModelAccess] Publishing core-only model '${DICTATION_CLEANUP_LUNA_MODEL_ID}' -> ${luna.endpoint.model}.`);
+			models.push(modelInfo.info);
+		}
+
 		// Resolution may hang (override lookups, base-count tokenization), so keep it off
 		// the model-info request path. Newly resolved endpoints are published on the next
 		// request once `_refreshUtilityOverrides` fires `_onDidChange`.
@@ -546,7 +555,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		if (dictationCleanupAliases.has(model.id) && options.requestInitiator !== 'core') {
+		const isCoreOnlyModel = dictationCleanupAliases.has(model.id) || (model.id === DICTATION_CLEANUP_LUNA_MODEL_ID && this._utilityAliasEndpoints.has(model.id));
+		if (isCoreOnlyModel && options.requestInitiator !== 'core') {
 			throw new Error(`Model ${model.id} is only available to VS Code core.`);
 		}
 		let endpoint = await this._getEndpointForModel(model, buildAutoRoutingContext(messages, options));

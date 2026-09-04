@@ -10,7 +10,6 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObs
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,6 +18,7 @@ import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
+import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
@@ -26,6 +26,7 @@ import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrol
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
 import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
+import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { RevealOptions } from './multiDiffEditorWidget.js';
 import './style.css';
@@ -69,6 +70,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration,
 		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		private readonly _paddingBottomPx: IObservable<number>,
@@ -101,13 +103,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
 					getUnboundSize: item => derived(item, reader => {
-						const headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
+						const headerHeight = this._variantConfiguration.headerHeight;
 						if (item.collapsed.read(reader)) {
 							return headerHeight;
 						}
 						if (item.isBinary) {
 							return headerHeight
-								+ (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0)
+								+ this._variantConfiguration.contentBottomPadding
 								+ binaryFilePlaceholderContentHeight;
 						}
 						return item.lastTemplateData.read(reader).expandedContentHeight;
@@ -117,6 +119,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						context.contentDomNode,
 						context.overflowWidgetsDomNode,
 						this._workbenchUIElementFactory,
+						this._variantConfiguration,
 						this._optionsOverride,
 					),
 					onDidBind: binding => {
@@ -197,7 +200,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
 		});
-		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
+		this._elements = h(`div.monaco-component.multiDiffEditor.${this._variantConfiguration.className}`, {}, [
 			this._scrollView.domNode,
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
@@ -663,19 +666,6 @@ interface IMultiDiffDocState {
 	collapsed: boolean;
 	selections?: ISelection[];
 }
-
-export interface IMultiDiffEditorOptions extends ITextEditorOptions {
-	viewState?: IMultiDiffEditorOptionsViewState;
-}
-
-export interface IMultiDiffEditorOptionsViewState {
-	revealData?: {
-		resource: IMultiDiffResourceId;
-		range?: IRange;
-	};
-}
-
-export type IMultiDiffResourceId = { original: URI | undefined; modified: URI | undefined };
 
 export interface IMultiDiffEditorLayoutDebugState {
 	readonly scrollLeft: number;

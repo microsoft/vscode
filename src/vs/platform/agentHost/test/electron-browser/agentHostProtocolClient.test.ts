@@ -26,11 +26,11 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -2262,6 +2262,40 @@ suite('AgentHostProtocolClient', () => {
 			}
 		}
 
+		/**
+		 * Like {@link waitForRequestAt}, but gives up instead of spinning forever.
+		 * Yields through the timer queue so a regression that never issues the
+		 * request fails with a readable assertion rather than starving Mocha's
+		 * own timeout.
+		 */
+		async function waitForRequestAtWithin(transport: TestProtocolTransport, method: string, index: number, timeoutMs = 8_000): Promise<JsonRpcRequest> {
+			const deadline = Date.now() + timeoutMs;
+			while (true) {
+				const requests = transport.sentMessages.filter(
+					(message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === method,
+				);
+				if (requests[index]) {
+					return requests[index];
+				}
+				if (Date.now() > deadline) {
+					const sent = transport.sentMessages.map(m => hasKey(m, { method: true }) ? m.method : 'response').join(', ');
+					throw new Error(`Timed out waiting for '${method}' request #${index}; saw ${requests.length}. Sent: [${sent}]`);
+				}
+				await new Promise<void>(r => setTimeout(r, 5));
+			}
+		}
+
+		/** Wait for the client to reach {@link AgentHostClientState.Connected}, bounded. */
+		async function waitForConnectedWithin(client: AgentHostProtocolClient, timeoutMs = 8_000): Promise<void> {
+			const deadline = Date.now() + timeoutMs;
+			while (client.connectionState !== AgentHostClientState.Connected) {
+				if (Date.now() > deadline) {
+					throw new Error(`Timed out waiting for Connected; state is ${client.connectionState}`);
+				}
+				await new Promise<void>(r => setTimeout(r, 5));
+			}
+		}
+
 		/** Wait for the next time the new transport is created by the factory. */
 		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
 			while (transports.length <= index) {
@@ -2803,6 +2837,302 @@ suite('AgentHostProtocolClient', () => {
 			annotationsRef.dispose();
 			chatRef.dispose();
 			sessionRef.dispose();
+			client.dispose();
+		});
+
+		test('restores subscriptions when a cached resource authentication is rejected after a host restart', async function () {
+			this.timeout(20_000);
+			const { client, transports } = createFactoryClient();
+			const sessionUri = URI.parse('codex:/stuck-session');
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const sessionRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+			});
+			const authentication = client.authenticate({ resource: 'https://mcp.example.com', token: 'token' });
+			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+				},
+			});
+
+			// The restarted host no longer accepts this cached third-party token.
+			// That must not abort the restart recovery: the session channel still
+			// holds pre-restart state and would otherwise never be reseated.
+			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredAuthenticate.id,
+				error: { code: AhpErrorCodes.AuthRequired, message: 'Authentication failed for resource: https://mcp.example.com' },
+			});
+
+			const restoredSubscribe = await waitForRequestAtWithin(reconnectTransport, 'subscribe', 0);
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 3 } },
+			});
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual({
+				channel: (restoredSubscribe.params as { channel: string }).channel,
+				state: client.connectionState,
+			}, {
+				channel: sessionUri.toString(),
+				state: AgentHostClientState.Connected,
+			});
+
+			sessionRef.dispose();
+			client.dispose();
+		});
+
+		test('finishes an interrupted post-restart subscription restore on the next reconnect', async function () {
+			this.timeout(20_000);
+			const { client, transports } = createFactoryClient();
+			const sessionUri = URI.parse('codex:/stuck-session');
+			const chatUri = URI.parse('ahp-chat://default/stuck-session');
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const sessionRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			const initialSessionSubscribe = await waitForRequestAt(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+			});
+			const chatRef = client.getSubscription(StateComponents.Chat, chatUri, 'test');
+			const initialChatSubscribe = await waitForRequestAt(transports[0], 'subscribe', 1);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 22,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 22 }],
+				},
+			});
+
+			// The session is reseated, then the transport drops before the chat
+			// channel gets its snapshot.
+			const restoredSessionSubscribe = await waitForRequestAtWithin(reconnectTransport, 'subscribe', 0);
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 23 } },
+			});
+			await flushMicrotasks();
+			reconnectTransport.fireClose();
+			await waitForReconnecting(client);
+
+			// The host now remembers the client, so this reconnect resolves to a
+			// replay — which carries no snapshot for the chat channel.
+			const secondTransport = await waitForTransport(transports, 2);
+			secondTransport.connectDeferred.complete();
+			const secondReconnect = await waitForRequest(secondTransport, 'reconnect');
+			secondTransport.fireMessage({
+				jsonrpc: '2.0', id: secondReconnect.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+
+			const restoredChatSubscribe = await waitForRequestAtWithin(secondTransport, 'subscribe', 0);
+			secondTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 40 } },
+			});
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual({
+				resubscribedAfterReplay: (restoredChatSubscribe.params as { channel: string }).channel,
+				sessionResubscribedAgain: secondTransport.sentMessages.filter(
+					message => hasKey(message, { method: true }) && message.method === 'subscribe'
+						&& (message.params as { channel: string }).channel === sessionUri.toString(),
+				).length,
+				state: client.connectionState,
+			}, {
+				resubscribedAfterReplay: chatUri.toString(),
+				sessionResubscribedAgain: 0,
+				state: AgentHostClientState.Connected,
+			});
+
+			chatRef.dispose();
+			sessionRef.dispose();
+			client.dispose();
+		});
+
+		test('keeps an action that arrives before the post-restart restore snapshot', async function () {
+			this.timeout(20_000);
+			const { client, transports } = createFactoryClient();
+			const chatUri = URI.parse('ahp-chat://default/racing-session');
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const chatRef = client.getSubscription<{ turns: { id: string; state?: TurnState }[] }>(StateComponents.Chat, chatUri, 'test');
+			const initialSubscribe = await waitForRequest(transports[0], 'subscribe');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 22,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 22 }],
+				},
+			});
+
+			// The channel is already live server-side, so an action newer than
+			// the snapshot being computed can reach the client first. It must
+			// survive the older snapshot that follows.
+			const restoreSubscribe = await waitForRequestAtWithin(reconnectTransport, 'subscribe', 0);
+			const completion: ChatTurnCompleteAction = { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 };
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: {
+					channel: chatUri.toString(),
+					action: completion,
+					serverSeq: 24,
+					origin: undefined,
+				},
+			});
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoreSubscribe.id,
+				result: {
+					snapshot: {
+						resource: chatUri.toString(),
+						// An in-flight turn lives in `activeTurn`; this is exactly the
+						// stale shape that left the UI spinning forever.
+						state: {
+							turns: [],
+							activeTurn: {
+								id: 'turn-1',
+								startedAt: '2026-09-02T00:00:00.000Z',
+								message: { text: 'hi', origin: { kind: MessageKind.User } },
+								responseParts: [],
+								usage: undefined,
+							},
+						},
+						fromSeq: 23,
+					},
+				},
+			});
+			await waitForConnectedWithin(client);
+
+			const value = chatRef.object.value as { turns: { id: string; state?: TurnState }[]; activeTurn?: { id: string } };
+			assert.deepStrictEqual({
+				turnStates: value.turns.map(turn => turn.state),
+				stillActive: value.activeTurn?.id,
+			}, {
+				turnStates: [TurnState.Complete],
+				stillActive: undefined,
+			});
+
+			chatRef.dispose();
+			client.dispose();
+		});
+
+		test('finishes an interrupted authentication restore on the next reconnect', async function () {
+			this.timeout(20_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const authentication = client.authenticate({ resource: 'https://sandbox.example.com', token: 'sealed' });
+			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+
+			// The transport dies after the authenticate frame goes out but before
+			// the host answers, so the credential may never have landed.
+			await waitForRequestAtWithin(reconnectTransport, 'authenticate', 0);
+			reconnectTransport.fireClose();
+			await waitForReconnecting(client);
+
+			// The host remembers the client now, so this reconnect is a replay —
+			// which historically never revisited authentication.
+			const secondTransport = await waitForTransport(transports, 2);
+			secondTransport.connectDeferred.complete();
+			const secondReconnect = await waitForRequest(secondTransport, 'reconnect');
+			secondTransport.fireMessage({
+				jsonrpc: '2.0', id: secondReconnect.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+
+			const retriedAuthenticate = await waitForRequestAtWithin(secondTransport, 'authenticate', 0);
+			secondTransport.fireMessage({ jsonrpc: '2.0', id: retriedAuthenticate.id, result: {} });
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual({
+				resource: (retriedAuthenticate.params as { resource: string }).resource,
+				state: client.connectionState,
+			}, {
+				resource: 'https://sandbox.example.com',
+				state: AgentHostClientState.Connected,
+			});
+
 			client.dispose();
 		});
 

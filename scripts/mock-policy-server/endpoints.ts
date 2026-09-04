@@ -96,17 +96,6 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					}
 				},
 				{
-					id: 'allow-auto-only',
-					label: 'Allow auto-approval only',
-					description: 'Blocks full allow-all bypass but still permits advisory auto-approval (LLM safety recommendations with normal prompt paths).',
-					status: 200,
-					body: {
-						permissions: {
-							disableBypassPermissionsMode: 'allow-auto-only'
-						}
-					}
-				},
-				{
 					id: 'deny-dangerous-commands',
 					label: 'Deny dangerous shell/file operations',
 					description: 'Blocks specific shell commands, workspace-scoped file writes, and a domain outright. A single leading slash means the workspace root in the managed permission syntax.',

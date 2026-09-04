@@ -50,10 +50,26 @@ export type LineRange = {
 	end: number;
 };
 
-export type Region = {
+export interface Region {
 	kind: string;
 	name?: string;
 	range: LineRange;
+}
+
+export namespace Region {
+	export function getSpan(region: Region): number {
+		return region.range.end - region.range.start;
+	}
+}
+
+export type PathInfo = {
+	smallest: number[];
+	largest?: number[];
+};
+
+export type RegionResult = {
+	regions: Region[];
+	paths: PathInfo;
 };
 
 export type WithinRangeCacheScope = {
@@ -460,14 +476,16 @@ export interface RegionContextRequest extends tt.server.protocol.Request {
 }
 
 export namespace RegionContextResponse {
-	export type OK = {
-		regions: Region[];
-	};
+	export type OK = RegionResult;
 
 	export type Failed = CustomResponse.Failed;
 
 	export function isOk(response: RegionContextResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
-		return response?.type === 'response' && Array.isArray((response.body as OK | undefined)?.regions);
+		if (response?.type !== 'response') {
+			return false;
+		}
+		const body = response.body as OK | undefined;
+		return Array.isArray(body?.regions) && Array.isArray(body?.paths?.smallest);
 	}
 
 	export function isError(response: RegionContextResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IObservableWithChange, ISettableObservable, derived, derivedConstOnceDefined, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, IObservableWithChange, ISettableObservable, ITransaction, derived, derivedConstOnceDefined, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
@@ -18,6 +18,7 @@ export class DiffEditorOptions {
 	public get editorOptions(): IObservableWithChange<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
 	private readonly _diffEditorWidth;
+	private readonly _widthBasedLayout = observableValue<'auto' | 'inline'>(this, 'auto');
 
 	private readonly _screenReaderMode;
 
@@ -31,6 +32,13 @@ export class DiffEditorOptions {
 			this._options.read(reader).renderSideBySide && this._diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
 		);
 		this.renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
+		this.renderSideBySideInAutomaticMode = derived(this, reader => {
+			if (this.compactMode.read(reader) && this.shouldRenderInlineViewInSmartMode.read(reader)) {
+				return false;
+			}
+			return this._diffEditorWidth.read(reader) > this._options.read(reader).renderSideBySideInlineBreakpoint
+				|| this._screenReaderMode.read(reader);
+		});
 		this.renderSideBySide = derived(this, reader => {
 			if (this.compactMode.read(reader)) {
 				if (this.shouldRenderInlineViewInSmartMode.read(reader)) {
@@ -39,6 +47,7 @@ export class DiffEditorOptions {
 			}
 
 			return this._options.read(reader).renderSideBySide
+				&& this._widthBasedLayout.read(reader) === 'auto'
 				&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader) && !this._screenReaderMode.read(reader));
 		});
 		this.readOnly = derived(this, reader => this._options.read(reader).readOnly);
@@ -92,7 +101,9 @@ export class DiffEditorOptions {
 	public readonly couldShowInlineViewBecauseOfSize;
 
 	public readonly renderOverviewRuler;
+	public readonly renderSideBySideInAutomaticMode;
 	public readonly renderSideBySide;
+	public readonly temporaryInlineMode = this._widthBasedLayout.map(this, layout => layout === 'inline');
 	public readonly readOnly;
 
 	public readonly shouldRenderOldRevertArrows;
@@ -123,13 +134,44 @@ export class DiffEditorOptions {
 	public readonly hideUnchangedRegionsMinimumLineCount;
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
+		const currentOptions = this._options.get();
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
-		const newOptions = { ...this._options.get(), ...changedOptions, ...newDiffEditorOptions };
-		this._options.set(newOptions, undefined, { changedOptions: changedOptions });
+		const newOptions = { ...currentOptions, ...changedOptions, ...newDiffEditorOptions };
+		transaction(tx => {
+			if (
+				currentOptions.renderSideBySide !== newOptions.renderSideBySide
+				|| currentOptions.useInlineViewWhenSpaceIsLimited !== newOptions.useInlineViewWhenSpaceIsLimited
+				|| currentOptions.renderSideBySideInlineBreakpoint !== newOptions.renderSideBySideInlineBreakpoint
+			) {
+				this._widthBasedLayout.set('auto', tx);
+			}
+			this._options.set(newOptions, tx, { changedOptions: changedOptions });
+		});
 	}
 
-	public setWidth(width: number): void {
-		this._diffEditorWidth.set(width, undefined);
+	public setWidth(width: number, smoothResizeStartWidth?: number): void {
+		const options = this._options.get();
+		transaction(tx => {
+			this._diffEditorWidth.set(width, tx);
+			if (width <= options.renderSideBySideInlineBreakpoint) {
+				this._widthBasedLayout.set('auto', tx);
+			} else if (
+				smoothResizeStartWidth !== undefined
+				&& this._widthBasedLayout.get() === 'auto'
+				&& options.renderSideBySide
+				&& options.useInlineViewWhenSpaceIsLimited
+				&& smoothResizeStartWidth <= options.renderSideBySideInlineBreakpoint
+				&& width > options.renderSideBySideInlineBreakpoint
+				&& !this._screenReaderMode.get()
+				&& !(this.compactMode.get() && this.shouldRenderInlineViewInSmartMode.get())
+			) {
+				this._widthBasedLayout.set('inline', tx);
+			}
+		});
+	}
+
+	public resetWidthBasedLayout(tx?: ITransaction): void {
+		this._widthBasedLayout.set('auto', tx);
 	}
 
 	private readonly _model;

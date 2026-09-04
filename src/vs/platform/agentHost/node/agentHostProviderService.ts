@@ -58,6 +58,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerInitializers = new Set<(provider: IAgent) => IDisposable>();
 	private readonly _authenticationReplays = new Map<AgentProvider, Promise<void>>();
 	private _defaultProvider: AgentProvider | undefined;
+	private _shutdownStarted = false;
 	private _shutdownPromise: Promise<void> | undefined;
 
 	constructor(
@@ -77,7 +78,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	registerProvider(provider: IAgent): void {
-		if (this._shutdownPromise) {
+		if (this._shutdownStarted) {
 			throw new Error('Cannot register an agent provider after shutdown has started');
 		}
 		if (this._providers.has(provider.id)) {
@@ -219,14 +220,27 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	shutdown(): Promise<void> {
-		return this._shutdownPromise ??= this._shutdown();
+		if (!this._shutdownPromise) {
+			this._shutdownStarted = true;
+			this._shutdownPromise = this._shutdown();
+		}
+		return this._shutdownPromise;
 	}
 
 	private async _shutdown(): Promise<void> {
+		const providers = [...this._providers.values()];
 		try {
-			await Promises.settled([...this._authenticationReplays.values()]);
-			await Promises.settled([...this._providers.values()].map(provider => provider.shutdown()));
+			await Promises.settled([
+				Promises.settled([...this._authenticationReplays.values()]),
+				Promises.settled(providers.map(async provider => provider.shutdown())),
+			]);
 		} finally {
+			for (const provider of providers) {
+				this._providerRegistrations.deleteAndDispose(provider.id);
+				this._providers.deleteAndDispose(provider.id);
+			}
+			this._agents.set([], undefined);
+			this._defaultProvider = undefined;
 			this._sessionToProvider.clear();
 		}
 	}

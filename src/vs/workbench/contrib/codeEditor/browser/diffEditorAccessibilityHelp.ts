@@ -37,6 +37,7 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementatio
 		}
 
 		const switchSides = localize('msg3', "Run the command Diff Editor: Switch Side{0} to toggle between the original and modified editors.", '<keybinding:diffEditor.switchSide>');
+		const diffView = localize('msg6', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout.");
 		const diffEditorActiveAnnouncement = localize('msg5', "The setting, accessibility.verbosity.diffEditorActive, controls if a diff editor announcement is made when it becomes the active editor.");
 
 		const keys = ['accessibility.signals.diffLineDeleted', 'accessibility.signals.diffLineInserted', 'accessibility.signals.diffLineModified'];
@@ -44,6 +45,7 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementatio
 			localize('msg1', "You are in a diff editor."),
 			localize('msg2', "View the next{0} or previous{1} diff in diff review mode, which is optimized for screen readers.", '<keybinding:' + AccessibleDiffViewerNext.id + '>', '<keybinding:' + AccessibleDiffViewerPrev.id + '>'),
 			switchSides,
+			diffView,
 			diffEditorActiveAnnouncement,
 			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
 		];

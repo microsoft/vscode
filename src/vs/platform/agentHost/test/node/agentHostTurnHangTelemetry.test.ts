@@ -19,6 +19,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
@@ -115,7 +116,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(): void {
+	function setupSession(isEphemeral = false): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -123,6 +124,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -257,7 +259,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 	test('reports noProgress for a turn that starts and is never heard from again', async () => {
 		await runWithFakedTimers({}, async () => {
-			setupSession();
+			setupSession(true);
 			startTurn('turn-lost');
 			await timeout(TURN_HANG_THRESHOLD_MS);
 		});
@@ -270,6 +272,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
 				isSubagentSession: false,
 				turnId: 'turn-lost',
+				messageOriginKind: 'inline',
 				hangReason: 'noProgress',
 				isExpected: false,
 				hadAnyProgress: false,
@@ -418,7 +421,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 	test('reports the paired recovery event when a hung turn later completes', async () => {
 		await runWithFakedTimers({}, async () => {
-			setupSession();
+			setupSession(true);
 			startTurn('turn-recovered');
 			await timeout(TURN_HANG_THRESHOLD_MS);
 			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-recovered', duration: 1000 });
@@ -432,6 +435,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
 				isSubagentSession: false,
 				turnId: 'turn-recovered',
+				messageOriginKind: 'inline',
 				hangReason: 'noProgress',
 				result: 'success',
 				hangReportCount: 1,
@@ -540,6 +544,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			chatSessionId: getTelemetryChatSessionId(session),
 			isSubagentSession: false,
 			turnId: 'turn',
+			messageOriginKind: undefined,
 			hangReason: 'noProgress',
 			isExpected: false,
 			hadAnyProgress: false,

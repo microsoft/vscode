@@ -893,6 +893,7 @@ suite('mcpListWidget', () => {
 			} as unknown as ICustomizationHarnessService;
 			const renderer = new McpServerItemRenderer(
 				async () => { },
+				() => { },
 				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
 				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
@@ -925,6 +926,13 @@ suite('mcpListWidget', () => {
 
 			const button = ctx.actionNode();
 			assert.ok(button, 'expected an action for an erroring server');
+			assert.deepStrictEqual({
+				text: ctx.templateData.statusBadge.textContent,
+				className: ctx.templateData.statusBadge.className,
+			}, {
+				text: 'Error',
+				className: 'plugin-list-item-status mcp-runtime-status-badge error',
+			});
 
 			// What the autorun does in production while a server sits in error.
 			for (let i = 0; i < 10; i++) {

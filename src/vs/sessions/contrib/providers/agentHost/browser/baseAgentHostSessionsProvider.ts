@@ -10,6 +10,7 @@ import { arrayEquals, structuralEquals } from '../../../../../base/common/equals
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -2008,6 +2009,7 @@ class NewSession extends Disposable {
 	 */
 	private _config: ResolveSessionConfigResult | undefined = { schema: { type: 'object', properties: {} }, values: {} };
 	private _configResolution: Promise<void> | undefined;
+	private _configOperation: Promise<void> | undefined;
 
 	/**
 	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
@@ -2277,23 +2279,54 @@ class NewSession extends Disposable {
 		}
 	}
 
+	trackConfigOperation(operation: Promise<void>): void {
+		this._configOperation = operation;
+		void operation.then(
+			() => this._clearConfigOperation(operation),
+			() => this._clearConfigOperation(operation),
+		);
+	}
+
+	async waitForConfigurationReady(): Promise<void> {
+		while (this._configOperation || this._configResolution) {
+			if (this._configOperation) {
+				await raceCancellationError(this._configOperation, this.cancellationToken);
+			} else {
+				await this.waitForConfigResolution();
+			}
+		}
+	}
+
 	private _clearConfigResolution(promise: Promise<void>): void {
 		if (this._configResolution === promise) {
 			this._configResolution = undefined;
 		}
 	}
 
+	private _clearConfigOperation(promise: Promise<void>): void {
+		if (this._configOperation === promise) {
+			this._configOperation = undefined;
+		}
+	}
+
 	/**
-	 * Optimistically merges a single property into the cached config.
+	 * Optimistically updates a single property in the cached config.
+	 * An undefined value removes the property.
 	 * Preserves the existing schema so schema-driven pickers don't flash
 	 * during the async re-resolve. {@link resolveConfig} replaces both
 	 * schema and values when its response lands.
 	 */
 	setConfigValue(property: string, value: unknown): void {
 		const current = this._config;
+		const values = { ...(current?.values ?? {}) };
+		if (value === undefined) {
+			delete values[property];
+		} else {
+			values[property] = value;
+		}
 		this._config = {
 			schema: current?.schema ?? { type: 'object', properties: {} },
-			values: { ...(current?.values ?? {}), [property]: value },
+			values,
 		};
 		this._syncWorktreePending();
 	}
@@ -2590,6 +2623,10 @@ class NewSession extends Disposable {
 // ============================================================================
 // BaseAgentHostSessionsProvider — shared base for local and remote providers
 // ============================================================================
+
+function escapeResourceLabelPathSeparators(label: string): string {
+	return label.replaceAll('/', '\u2215').replaceAll('\\', '\u29F5');
+}
 
 /**
  * Shared base class for the local and remote agent host sessions providers.
@@ -3287,8 +3324,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private readonly _resourceLabelHomeRegistrations = this._register(new DisposableMap<string>());
 	private readonly _resourceLabelHomeLabels = new Map<string, Map<string, string>>();
+	private readonly _resourceLabelHomeFormattingEvents = this._register(new DisposableMap<string, Emitter<void>>());
 
-	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService, onDidChange: Event<void>): void {
+	protected updateResourceLabelHomeFormatters(homes: readonly { readonly uri: URI; readonly label: string }[], labelService: ILabelService): void {
 		const groups = new Map<string, { readonly parent: URI; readonly labels: Map<string, string> }>();
 		for (const home of homes) {
 			const parent = dirname(home.uri);
@@ -3301,10 +3339,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			group.labels.set(basename(home.uri), home.label);
 		}
 
-		this._resourceLabelHomeLabels.clear();
 		const registrationKeys = new Set<string>();
+		const removedGroupKeys = new Set(this._resourceLabelHomeLabels.keys());
+		const changedFormattingEvents: Emitter<void>[] = [];
 		for (const [key, group] of groups) {
+			removedGroupKeys.delete(key);
+			const previousLabels = this._resourceLabelHomeLabels.get(key);
 			this._resourceLabelHomeLabels.set(key, group.labels);
+			let formattingEvent = this._resourceLabelHomeFormattingEvents.get(key);
+			if (!formattingEvent) {
+				formattingEvent = new Emitter<void>();
+				this._resourceLabelHomeFormattingEvents.set(key, formattingEvent);
+			} else if (previousLabels && !mapsStrictEqualIgnoreOrder(previousLabels, group.labels)) {
+				changedFormattingEvents.push(formattingEvent);
+			}
 			const separator = labelService.getSeparator(group.parent.scheme, group.parent.authority);
 			const templateKey = `template:${key}`;
 			if (group.labels.size > (group.labels.has('') ? 1 : 0)) {
@@ -3312,7 +3360,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (!this._resourceLabelHomeRegistrations.has(templateKey)) {
 					this._resourceLabelHomeRegistrations.set(templateKey, labelService.registerFormatter({
 						home: joinPath(group.parent, '${sessionId}'),
-						onDidChangeFormatting: onDidChange,
+						onDidChangeFormatting: formattingEvent.event,
 						formatting: context => {
 							const label = this._resourceLabelHomeLabels.get(key)?.get(context.parameters.get('sessionId') ?? '');
 							return label === undefined ? undefined : { label, separator };
@@ -3326,7 +3374,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (!this._resourceLabelHomeRegistrations.has(rootKey)) {
 					this._resourceLabelHomeRegistrations.set(rootKey, labelService.registerFormatter({
 						home: group.parent,
-						onDidChangeFormatting: onDidChange,
+						onDidChangeFormatting: formattingEvent.event,
 						formatting: () => {
 							const label = this._resourceLabelHomeLabels.get(key)?.get('');
 							return label === undefined ? undefined : { label, separator };
@@ -3340,11 +3388,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._resourceLabelHomeRegistrations.deleteAndDispose(key);
 			}
 		}
+		for (const key of removedGroupKeys) {
+			this._resourceLabelHomeLabels.delete(key);
+			this._resourceLabelHomeFormattingEvents.deleteAndDispose(key);
+		}
+		for (const formattingEvent of changedFormattingEvents) {
+			formattingEvent.fire();
+		}
 	}
 
 	protected getResourceLabelHomeLabel(session: ISession): string {
-		const providerLabel = this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
-		return `${providerLabel}/${session.title.get() || localize('sessionHome', "Session")}`;
+		const providerLabel = escapeResourceLabelPathSeparators(this.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType);
+		const sessionLabel = escapeResourceLabelPathSeparators(session.title.get() || localize('sessionHome', "Session"));
+		return `${providerLabel}/${sessionLabel}`;
 	}
 
 	protected getKnownSessions(): ISession[] {
@@ -3773,13 +3829,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
-			// Defense-in-depth: pickers render disabled during a resolve,
-			// but keyboard dropdown and mobile sheet paths bypass that.
-			// Drop the second pick so it can't race the schema replacement.
-			if (newSession.isResolvingConfig.get()) {
-				return;
+			while (newSession.isResolvingConfig.get()) {
+				await newSession.waitForConfigResolution();
+				if (this._getNewSession(sessionId) !== newSession) {
+					return;
+				}
 			}
 			newSession.beginResolveConfigSync();
+			if (property === SessionConfigKey.Isolation) {
+				newSession.setConfigValue(SessionConfigKey.Branch, undefined);
+			}
 			newSession.setConfigValue(property, normalizedValue);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession));
@@ -3792,6 +3851,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!runningConfig || !connection) {
 			return;
 		}
+
 		const schema = runningConfig.schema.properties[property];
 		if (!schema?.sessionMutable) {
 			return;
@@ -3814,6 +3874,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			connection.dispatch(sessionUri.toString(), action);
 			void this._resolveRunningSessionConfig(sessionId, cached, nextValues);
 		}
+	}
+
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void {
+		this._getNewSession(sessionId)?.trackConfigOperation(operation);
 	}
 
 	async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
@@ -3972,7 +4036,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mode === 'workspace' ? 'folder' : mode,
 			policyRestricted,
 		);
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.Isolation, value);
+		await this._setTransientNewSessionConfigValues(sessionId, { [SessionConfigKey.Isolation]: value }, true, [SessionConfigKey.Branch]);
 	}
 
 	async setWorktreeConfiguration(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
@@ -3994,7 +4058,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (configuration.branch) {
 			values[SessionConfigKey.Branch] = normalizeSessionConfigValue(SessionConfigKey.Branch, configuration.branch, policyRestricted);
 		}
-		await this._setTransientNewSessionConfigValues(sessionId, values, false);
+		const unsetProperties = configuration.isolationMode && !configuration.branch ? [SessionConfigKey.Branch] : undefined;
+		await this._setTransientNewSessionConfigValues(sessionId, values, false, unsetProperties);
 	}
 
 	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
@@ -4015,7 +4080,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await this._setTransientNewSessionConfigValues(sessionId, { [property]: value }, true);
 	}
 
-	private async _setTransientNewSessionConfigValues(sessionId: string, values: Readonly<Record<string, unknown>>, waitForCurrentResolve: boolean): Promise<void> {
+	private async _setTransientNewSessionConfigValues(sessionId: string, values: Readonly<Record<string, unknown>>, waitForCurrentResolve: boolean, unsetProperties?: readonly string[]): Promise<void> {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {
 			throw new Error('Cannot configure repository settings after session creation.');
@@ -4029,6 +4094,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		newSession.beginResolveConfigSync();
+		for (const property of unsetProperties ?? []) {
+			newSession.setConfigValue(property, undefined);
+		}
 		for (const [property, value] of Object.entries(values)) {
 			newSession.setConfigValue(property, value);
 		}
@@ -4854,7 +4922,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
-		await newSession.waitForConfigResolution();
+		await newSession.waitForConfigurationReady();
 		await newSession.waitForEagerCreate();
 		if (this._getNewSession(newSession.sessionId) !== newSession) {
 			throw new Error('Session was disposed before its configuration could be applied.');

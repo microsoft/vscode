@@ -221,6 +221,21 @@
             "included": true
         },
         {
+            "key": "chat.agentHost.customTerminalTool.enabled",
+            "name": "ChatAgentHostCustomTerminalTool",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.customTerminalTool.enabled.policy",
+                    "value": "Enable the Agent Host custom terminal tool override for Copilot SDK sessions."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
             "key": "chat.agentHost.otel.captureContent",
             "name": "CopilotOtelCaptureContent",
             "category": "InteractiveSession",

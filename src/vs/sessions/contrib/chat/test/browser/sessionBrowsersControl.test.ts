@@ -271,11 +271,24 @@ suite('SessionBrowsersControl', () => {
 
 		assert.deepStrictEqual({
 			visible: [...createControl({ browsers }, store).control.urls.get()],
-			hidden: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+			hidden: {
+				urls: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+				sections: sections(createControl({ browsers, visible: false }, store).control),
+			},
 			disabled: [...createControl({ browsers, enabled: false }, store).control.urls.get()],
 		}, {
 			visible: ['https://example.com/docs', 'https://preview.test/'],
-			hidden: [],
+			hidden: {
+				urls: [],
+				sections: [{
+					title: 'Browsers',
+					entries: [
+						{ label: 'Docs', icon: 'globe' },
+						{ label: 'Subagent Preview', icon: 'globe' },
+						{ label: 'Blank', icon: 'globe' },
+					],
+				}],
+			},
 			disabled: [],
 		});
 	});

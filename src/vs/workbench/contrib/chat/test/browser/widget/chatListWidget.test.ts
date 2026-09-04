@@ -291,8 +291,8 @@ suite('ChatListWidget', () => {
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
 	// streaming auto-scroll and the scroll-down button depend on.
-	test('scrolls through the bottom padding to reach the end', async () => {
-		const { disposables, model, widget } = createWidget({ paddingBottom: 30 });
+	test('updates bottom padding while keeping the list at the end', async () => {
+		const { disposables, model, widget } = createWidget();
 		for (let i = 0; i < 10; i++) {
 			const text = `question ${i}`;
 			const request = model.addRequest({
@@ -307,13 +307,19 @@ suite('ChatListWidget', () => {
 		await waitForStableLayout(widget);
 		widget.scrollToEnd();
 		await waitForStableLayout(widget);
+		const scrollHeightWithoutPadding = widget.scrollHeight;
+
+		widget.setPaddingBottom(30);
+		await waitForStableLayout(widget);
 
 		assert.deepStrictEqual({
 			// Guards the test from passing vacuously on a list that cannot scroll.
 			overflows: widget.scrollHeight > widget.renderHeight,
+			paddingAdded: widget.scrollHeight - scrollHeightWithoutPadding,
 			atBottom: widget.isScrolledToBottom,
 		}, {
 			overflows: true,
+			paddingAdded: 30,
 			atBottom: true,
 		});
 

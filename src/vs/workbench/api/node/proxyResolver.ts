@@ -102,6 +102,7 @@ export function connectProxyResolver(
 			return intervalSeconds * 1000;
 		},
 		loadAdditionalCertificates: async () => {
+			const start = Date.now();
 			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault);
 			const promises: Promise<string[]>[] = [];
 			if (isRemote) {
@@ -126,6 +127,7 @@ export function connectProxyResolver(
 			const result = (await Promise.all(promises)).flat();
 			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
 				count: result.length,
+				duration: Date.now() - start,
 				isRemote,
 				loadLocalCertificates,
 				useNodeSystemCerts,
@@ -299,8 +301,9 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 
 type AdditionalCertificatesClassification = {
 	owner: 'chrmarti';
-	comment: 'Tracks the number of additional certificates loaded for TLS connections';
+	comment: 'Tracks loading additional certificates for TLS connections';
 	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of additional certificates loaded' };
+	duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent loading additional certificates' };
 	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
 	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
 	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
@@ -308,6 +311,7 @@ type AdditionalCertificatesClassification = {
 
 type AdditionalCertificatesEvent = {
 	count: number;
+	duration: number;
 	isRemote: boolean;
 	loadLocalCertificates: boolean;
 	useNodeSystemCerts: boolean;

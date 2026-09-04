@@ -365,7 +365,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _useTreeHierarchy: boolean;
 	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
-	private readonly _paddingBottom: number;
+	private _paddingBottom: number;
 
 	//#endregion
 
@@ -1240,6 +1240,19 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+	}
+
+	setPaddingBottom(paddingBottom: number): void {
+		const value = Math.max(0, paddingBottom);
+		if (value === this._paddingBottom) {
+			return;
+		}
+		const wasScrolledToBottom = this.isScrolledToBottom;
+		this._paddingBottom = value;
+		this._tree.updateOptions({ paddingBottom: value });
+		if (wasScrolledToBottom) {
+			this.scrollToEnd();
+		}
 	}
 
 	/**

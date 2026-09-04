@@ -20,3 +20,16 @@ body {
 	width: 100%;
 	overflow: scroll;
 }
+
+.md-comment-widget {
+	background:
+		linear-gradient(var(--vscode-menu-background), var(--vscode-menu-background)),
+		var(--vscode-editor-background);
+}
+
+.md-comment-widget:hover,
+.md-comment-widget--hover {
+	background:
+		linear-gradient(var(--vscode-list-hoverBackground), var(--vscode-list-hoverBackground)),
+		var(--vscode-editor-background);
+}

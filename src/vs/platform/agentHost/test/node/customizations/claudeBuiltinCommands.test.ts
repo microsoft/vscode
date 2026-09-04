@@ -6,11 +6,9 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
 import { CustomizationType } from '../../../common/state/protocol/state.js';
 import { buildClaudeBuiltinSkillsContainer, buildSdkBuiltinSkillsContainer } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
-
-/** Black-box copy of the (intentionally unexported) built-in URI scheme. */
-const AGENT_BUILTIN_SCHEME = 'agent-builtin';
 
 suite('claudeBuiltinCommands', () => {
 
@@ -24,14 +22,14 @@ suite('claudeBuiltinCommands', () => {
 		assert.strictEqual(container.type, CustomizationType.Directory);
 		assert.strictEqual(container.contents, CustomizationType.Skill);
 		assert.strictEqual(container.writable, false);
-		assert.strictEqual(URI.parse(container.uri).scheme, AGENT_BUILTIN_SCHEME);
+		assert.strictEqual(URI.parse(container.uri).scheme, AGENT_BUILTIN_CUSTOMIZATION_SCHEME);
 
 		const children = container.children ?? [];
 		assert.ok(children.length > 0, 'expected built-in skills');
 		for (const child of children) {
 			const uri = URI.parse(child.uri);
 			assert.strictEqual(child.type, CustomizationType.Skill);
-			assert.strictEqual(uri.scheme, AGENT_BUILTIN_SCHEME, `child ${child.name} should use the agent-builtin scheme`);
+			assert.strictEqual(uri.scheme, AGENT_BUILTIN_CUSTOMIZATION_SCHEME, `child ${child.name} should use the agent-builtin scheme`);
 			assert.strictEqual(uri.path, `/skill/${child.name}`, `child ${child.name} should be a /skill/<name> path`);
 			assert.ok(child.description && child.description.length > 0, `child ${child.name} should have a description`);
 		}
@@ -65,14 +63,14 @@ suite('claudeBuiltinCommands', () => {
 
 		assert.strictEqual(container.contents, CustomizationType.Skill);
 		assert.strictEqual(container.writable, false);
-		assert.strictEqual(URI.parse(container.uri).scheme, AGENT_BUILTIN_SCHEME);
+		assert.strictEqual(URI.parse(container.uri).scheme, AGENT_BUILTIN_CUSTOMIZATION_SCHEME);
 
 		const children = container.children ?? [];
 		// The on-disk skill is excluded; the two genuine runtime built-ins remain.
 		const summary = children.map(child => {
 			assert.strictEqual(child.type, CustomizationType.Skill);
 			const uri = URI.parse(child.uri);
-			assert.strictEqual(uri.scheme, AGENT_BUILTIN_SCHEME);
+			assert.strictEqual(uri.scheme, AGENT_BUILTIN_CUSTOMIZATION_SCHEME);
 			assert.strictEqual(uri.path, `/skill/${child.name}`, `child ${child.name} should be a /skill/<name> path`);
 			return { name: child.name, description: child.description };
 		});
