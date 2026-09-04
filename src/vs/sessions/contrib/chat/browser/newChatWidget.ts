@@ -320,6 +320,7 @@ export class NewChatWidget extends Disposable {
 			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri);
 			this._newChatInput.focus();
 		}));
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration('chat.tips.enabled')) {
@@ -538,11 +539,19 @@ export class NewChatWidget extends Disposable {
 		if (this._syncWorkspacePickerFromActiveSession()) {
 			return;
 		}
-		if (this._workspacePicker.isNoWorkspaceSelected()) {
-			this.selectNoWorkspace();
-		} else if (restoredFolderUri) {
+		if (!this._restoreNoWorkspaceDraft() && restoredFolderUri) {
 			void this._createNewSession(restoredFolderUri);
 		}
+	}
+
+	private _restoreNoWorkspaceDraft(): boolean {
+		if (this._session.get() || !this._workspacePicker.isNoWorkspaceSelected()) {
+			return false;
+		}
+		if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
+			this.selectNoWorkspace();
+		}
+		return true;
 	}
 
 	/**

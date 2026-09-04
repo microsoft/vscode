@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
@@ -167,12 +168,20 @@ interface IWorkspaceRootsHarness {
 	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined };
 }
 
+interface IRestoreNoWorkspaceDraftHarness {
+	readonly _session: IObservable<IActiveSession | undefined>;
+	readonly _workspacePicker: { isNoWorkspaceSelected(): boolean };
+	readonly sessionsManagementService: { isQuickChatTargetAvailable(): boolean };
+	selectNoWorkspace(): void;
+}
+
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
+const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => boolean;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -336,6 +345,31 @@ suite('NewChatWidget', () => {
 			sessionCreationDisposed: true,
 			noWorkspaceSelectCount: 1,
 			quickChatOpenCount: 1,
+		});
+	});
+
+	test('restores a pending No workspace selection when quick chats become available', () => {
+		let quickChatAvailable = false;
+		let selectNoWorkspaceCalls = 0;
+		const harness: IRestoreNoWorkspaceDraftHarness = {
+			_session: constObservable(undefined),
+			_workspacePicker: { isNoWorkspaceSelected: () => true },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => quickChatAvailable },
+			selectNoWorkspace: () => selectNoWorkspaceCalls++,
+		};
+
+		const pending = restoreNoWorkspaceDraft.call(harness);
+		quickChatAvailable = true;
+		const restored = restoreNoWorkspaceDraft.call(harness);
+
+		assert.deepStrictEqual({
+			pending,
+			restored,
+			selectNoWorkspaceCalls,
+		}, {
+			pending: true,
+			restored: true,
+			selectNoWorkspaceCalls: 1,
 		});
 	});
 

@@ -3227,16 +3227,18 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const storage = disposables.add(new TestStorageService());
 		const localProvider = createMockProvider('local-1');
 		providersService.setProviders([localProvider]);
+		let noWorkspaceAvailable = true;
 		const options: IWorkspacePickerOptions = {
-			getNoWorkspaceOption: () => ({
+			getNoWorkspaceOption: () => noWorkspaceAvailable ? ({
 				description: 'Start without a backing workspace',
 				isSelected: false,
 				select: () => { },
-			}),
+			}) : undefined,
 		};
 		const firstPicker = createTestablePicker(disposables, providersService, true, options, undefined, storage, true);
 		firstPicker.selectNoWorkspace();
 		const firstPickerNoWorkspace = firstPicker.isNoWorkspaceSelected();
+		noWorkspaceAvailable = false;
 		const restoredPicker = createTestablePicker(disposables, providersService, true, options, undefined, storage, true);
 		const restoredNoWorkspace = restoredPicker.isNoWorkspaceSelected();
 

@@ -1041,7 +1041,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	isNoWorkspaceSelected(): boolean {
-		return !!this._getNoWorkspaceOption() && this.recentWorkspacesService.isNoWorkspaceChecked();
+		return !!this.options.getNoWorkspaceOption && this.recentWorkspacesService.isNoWorkspaceChecked();
 	}
 
 	selectNoWorkspace(): void {

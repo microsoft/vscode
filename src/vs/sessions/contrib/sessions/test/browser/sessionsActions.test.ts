@@ -20,7 +20,7 @@ import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
@@ -125,10 +125,11 @@ suite('Sessions - Actions', () => {
 		const handler = CommandsRegistry.getCommand('sessionsView.newQuickChat')?.handler;
 		assert.ok(handler);
 
-		const run = async (consolidatedRemoteWorkspaces: boolean) => {
+		const run = async (consolidatedRemoteWorkspaces: boolean, quickChatAvailable = true) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const quickChat = upcastPartial<IActiveSession>({ sessionId: 'quick-chat' });
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const existingSession = upcastPartial<IActiveSession>({ sessionId: 'existing-session' });
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', existingSession);
 			let unsetNewSessionCalls = 0;
 			let openQuickChatCalls = 0;
 			let selectNoWorkspaceCalls = 0;
@@ -137,6 +138,11 @@ suite('Sessions - Actions', () => {
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({
 				[ChatConfiguration.ConsolidatedRemoteWorkspaces]: consolidatedRemoteWorkspaces,
 			}));
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override isQuickChatTargetAvailable(): boolean {
+					return quickChatAvailable;
+				}
+			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = activeSession;
 				override unsetNewSession() {
@@ -172,9 +178,11 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual({
 			enabled: await run(true),
+			enabledUnavailable: await run(true, false),
 			disabled: await run(false),
 		}, {
 			enabled: { unsetNewSessionCalls: 1, openQuickChatCalls: 0, selectNoWorkspaceCalls: 1, focusedSessionId: 'quick-chat' },
+			enabledUnavailable: { unsetNewSessionCalls: 0, openQuickChatCalls: 0, selectNoWorkspaceCalls: 0, focusedSessionId: 'existing-session' },
 			disabled: { unsetNewSessionCalls: 0, openQuickChatCalls: 1, selectNoWorkspaceCalls: 0, focusedSessionId: 'quick-chat' },
 		});
 	});

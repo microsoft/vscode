@@ -547,8 +547,10 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		let activeSession;
 		if (accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.ConsolidatedRemoteWorkspaces)) {
-			sessionsService.unsetNewSession();
-			sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
+			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
+				sessionsService.unsetNewSession();
+				sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
+			}
 			activeSession = sessionsService.activeSession.get();
 		} else {
 			activeSession = sessionsService.openQuickChat();
