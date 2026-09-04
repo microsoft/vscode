@@ -2425,7 +2425,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SubagentsShowCreditUsage]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagents.showCreditUsage', "Controls whether AI credit usage is shown next to the duration for subagents."),
-			default: true,
+			default: false,
 		},
 		[ChatConfiguration.TerminalAgentHostEnabled]: {
 			type: 'boolean',

@@ -55,6 +55,12 @@ class TestOpenChatActionViewItem extends ActionViewItem {
 	}
 }
 
+class TestOpenSubagentChatActionViewItem extends OpenSubagentChatActionViewItem {
+	get tooltip(): string | undefined {
+		return this.getTooltip();
+	}
+}
+
 class TestActionViewItemService implements IActionViewItemService {
 	declare _serviceBrand: undefined;
 	private readonly _onDidChange = new Emitter<MenuId>();
@@ -538,7 +544,7 @@ suite('ChatSubagentContentPart', () => {
 			};
 			const action = store.add(new Action('openSubagent', 'Open Subagent'));
 			const viewItem = store.add(instantiationService.createInstance(
-				OpenSubagentChatActionViewItem,
+				TestOpenSubagentChatActionViewItem,
 				{
 					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
 					parentSessionResource: 'agent-host-copilotcli:/session',
@@ -556,6 +562,7 @@ suite('ChatSubagentContentPart', () => {
 			const before = {
 				text: credits?.textContent,
 				hidden: credits?.classList.contains('hidden'),
+				tooltip: viewItem.tooltip,
 				ariaLabel: container.getAttribute('aria-label'),
 			};
 
@@ -563,6 +570,7 @@ suite('ChatSubagentContentPart', () => {
 			const hidden = {
 				text: credits?.textContent,
 				hidden: credits?.classList.contains('hidden'),
+				tooltip: viewItem.tooltip,
 				ariaLabel: container.getAttribute('aria-label'),
 			};
 
@@ -570,6 +578,7 @@ suite('ChatSubagentContentPart', () => {
 			const restored = {
 				text: credits?.textContent,
 				hidden: credits?.classList.contains('hidden'),
+				tooltip: viewItem.tooltip,
 				ariaLabel: container.getAttribute('aria-label'),
 			};
 
@@ -577,16 +586,19 @@ suite('ChatSubagentContentPart', () => {
 				before: {
 					text: '2.5 credits',
 					hidden: false,
+					tooltip: 'Open Subagent\n2.5 credits',
 					ariaLabel: 'Open Subagent. Worked for 1m 5s. 2.5 credits',
 				},
 				hidden: {
 					text: '',
 					hidden: true,
+					tooltip: 'Open Subagent',
 					ariaLabel: 'Open Subagent. Worked for 1m 5s',
 				},
 				restored: {
 					text: '2.5 credits',
 					hidden: false,
+					tooltip: 'Open Subagent\n2.5 credits',
 					ariaLabel: 'Open Subagent. Worked for 1m 5s. 2.5 credits',
 				},
 			});

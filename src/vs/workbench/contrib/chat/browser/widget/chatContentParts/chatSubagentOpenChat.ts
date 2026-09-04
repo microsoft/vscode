@@ -445,7 +445,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private get _showCreditUsage(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsShowCreditUsage) !== false;
+		return this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsShowCreditUsage) === true;
 	}
 
 	private _setAgentType(agentType: string | undefined): void {
