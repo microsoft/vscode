@@ -14,6 +14,78 @@ export interface ITypeData {
 	positionDelta: number;
 }
 
+export interface ITextUpdateEvent {
+	text: string;
+	selectionStart: number;
+	selectionEnd: number;
+	updateRangeStart: number;
+	updateRangeEnd: number;
+}
+
+export class NativeEditContextInputState {
+
+	constructor(
+		private _text: string = '',
+		private _selectionStart: number = 0,
+		private _selectionEnd: number = 0,
+	) { }
+
+	public get text(): string { return this._text; }
+	public get selectionStart(): number { return this._selectionStart; }
+	public get selectionEnd(): number { return this._selectionEnd; }
+
+	public set(text: string, selectionStart: number, selectionEnd: number): void {
+		this._text = text;
+		this._selectionStart = selectionStart;
+		this._selectionEnd = selectionEnd;
+	}
+
+	public applyTextUpdate(event: ITextUpdateEvent, isComposing: boolean): ITypeData | null {
+		const updatedText = (
+			this._text.substring(0, event.updateRangeStart)
+			+ event.text
+			+ this._text.substring(event.updateRangeEnd)
+		);
+		const updatedRangeEnd = event.updateRangeStart + event.text.length;
+		if (
+			isComposing
+			&& updatedText === this._text
+			&& (event.selectionStart < event.updateRangeStart || event.selectionEnd > updatedRangeEnd)
+		) {
+			return null;
+		}
+
+		let replaceNextCharCnt = 0;
+		let replacePrevCharCnt = 0;
+		if (event.updateRangeEnd > this._selectionEnd) {
+			replaceNextCharCnt = event.updateRangeEnd - this._selectionEnd;
+		}
+		if (event.updateRangeStart < this._selectionStart) {
+			replacePrevCharCnt = this._selectionStart - event.updateRangeStart;
+		}
+		let text = '';
+		if (this._selectionStart < event.updateRangeStart) {
+			text += updatedText.substring(this._selectionStart, event.updateRangeStart);
+		}
+		text += event.text;
+		if (this._selectionEnd > event.updateRangeEnd) {
+			text += updatedText.substring(event.updateRangeEnd, this._selectionEnd);
+		}
+		let positionDelta = 0;
+		if (event.selectionStart === event.selectionEnd && this._selectionStart === this._selectionEnd) {
+			positionDelta = event.selectionStart - updatedRangeEnd;
+		}
+
+		this.set(updatedText, event.selectionStart, event.selectionEnd);
+		return {
+			text,
+			replacePrevCharCnt,
+			replaceNextCharCnt,
+			positionDelta
+		};
+	}
+}
+
 export class FocusTracker extends Disposable {
 	private _isFocused: boolean = false;
 	private _isPaused: boolean = false;
