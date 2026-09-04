@@ -275,7 +275,7 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			if (spanOpen) {
 				sb.appendString('</span>');
 			}
-			sb.appendString('<span style="display:inline-block;box-sizing:border-box;text-align:center;width:');
+			sb.appendString('<span class="mtkfullwidth" style="width:');
 			sb.appendString(String(fullwidthCharacterWidth));
 			sb.appendString('px;">');
 			spanStartOffsets.push(charOffset);

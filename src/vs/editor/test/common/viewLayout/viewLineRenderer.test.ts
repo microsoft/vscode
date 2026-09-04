@@ -1655,10 +1655,11 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
-	 * The style attribute emitted for a character that is centered in two character cells.
+	 * The style attribute emitted for a character that is centered in two character cells. The
+	 * declarations it shares with every other such character live in the `mtkfullwidth` class.
 	 */
 	function cell(width: number): string {
-		return ` style="display:inline-block;box-sizing:border-box;text-align:center;width:${width}px"`;
+		return ` style="width:${width}px"`;
 	}
 
 	function render(lineContent: string, opts: IRelaxedRenderLineInputOptions = {}): string[] {
@@ -1675,47 +1676,47 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 
 	test('a lone full-width character is centered in two cells', () => {
 		assert.deepStrictEqual(render('漢'), [
-			`<span${cell(20)} class="mtk1">漢</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
 		]);
 	});
 
 	test('every full-width character of a run gets its own cell', () => {
 		assert.deepStrictEqual(render('漢字'), [
-			`<span${cell(20)} class="mtk1">漢</span>`,
-			`<span${cell(20)} class="mtk1">字</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">字</span>`
 		]);
 	});
 
 	test('narrow characters around a full-width character stay in shared parts', () => {
 		assert.deepStrictEqual(render('ab漢cd'), [
 			`<span class="mtk1">ab</span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
 			`<span class="mtk1">cd</span>`
 		]);
 	});
 
 	test('a full-width character at either end of the line is centered', () => {
 		assert.deepStrictEqual(render('漢a漢'), [
-			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
 			`<span class="mtk1">a</span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
 		]);
 	});
 
 	test('full-width forms of ASCII characters are centered', () => {
 		assert.deepStrictEqual(render('Ａ１！'), [
-			`<span${cell(20)} class="mtk1">Ａ</span>`,
-			`<span${cell(20)} class="mtk1">１</span>`,
-			`<span${cell(20)} class="mtk1">！</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">Ａ</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">１</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">！</span>`
 		]);
 	});
 
 	test('CJK punctuation is centered', () => {
 		assert.deepStrictEqual(render('あ、い。'), [
-			`<span${cell(20)} class="mtk1">あ</span>`,
-			`<span${cell(20)} class="mtk1">、</span>`,
-			`<span${cell(20)} class="mtk1">い</span>`,
-			`<span${cell(20)} class="mtk1">。</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">あ</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">、</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">い</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">。</span>`
 		]);
 	});
 
@@ -1741,13 +1742,13 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 	test('characters included by the shared full-width classification are centered', () => {
 		const vaiSyllable = '\uA500';
 		assert.deepStrictEqual(render(vaiSyllable), [
-			`<span${cell(20)} class="mtk1">${vaiSyllable}</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">${vaiSyllable}</span>`
 		]);
 	});
 
 	test('the cell width follows the space width', () => {
 		assert.deepStrictEqual(render('漢', { spaceWidth: 7.5 }), [
-			`<span${cell(15)} class="mtk1">漢</span>`
+			`<span${cell(15)} class="mtk1 mtkfullwidth">漢</span>`
 		]);
 	});
 
@@ -1772,17 +1773,17 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 
 	test('a full-width character carrying a combining mark is centered by code point', () => {
 		assert.deepStrictEqual(render('あ́い'), [
-			`<span${cell(20)} class="mtk1">あ</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">あ</span>`,
 			`<span class="mtk1">́</span>`,
-			`<span${cell(20)} class="mtk1">い</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">い</span>`
 		]);
 	});
 
 	test('a full-width character followed by a variation selector is centered by code point', () => {
 		assert.deepStrictEqual(render('神︀社'), [
-			`<span${cell(20)} class="mtk1">神</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">神</span>`,
 			`<span class="mtk1">︀</span>`,
-			`<span${cell(20)} class="mtk1">社</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">社</span>`
 		]);
 	});
 
@@ -1790,7 +1791,7 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 		const ideograph = '\u{2000B}';
 		assert.deepStrictEqual(render(`${ideograph}漢`), [
 			`<span class="mtk1">${ideograph}</span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
 		]);
 	});
 
@@ -1818,7 +1819,7 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 			lineTokens: createViewLineTokens([createPart(3, 1), createPart(5, 2)])
 		}), [
 			`<span class="mtk1">ab</span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
 			`<span class="mtk2">cd</span>`
 		]);
 	});
@@ -1827,8 +1828,8 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 		assert.deepStrictEqual(render('漢字', {
 			lineTokens: createViewLineTokens([createPart(1, 1), createPart(2, 2)])
 		}), [
-			`<span${cell(20)} class="mtk1">漢</span>`,
-			`<span${cell(20)} class="mtk2">字</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk2 mtkfullwidth">字</span>`
 		]);
 	});
 
@@ -1837,7 +1838,7 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 			lineDecorations: [new LineDecoration(1, 4, 'link', InlineDecorationType.Regular)]
 		}), [
 			`<span class="mtk1 link">a</span>`,
-			`<span${cell(20)} class="mtk1 link">漢</span>`,
+			`<span${cell(20)} class="mtk1 link mtkfullwidth">漢</span>`,
 			`<span class="mtk1 link">b</span>`
 		]);
 	});
@@ -1845,14 +1846,14 @@ suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 	test('rendered whitespace next to a full-width character is preserved', () => {
 		assert.deepStrictEqual(render('  漢', { useMonospaceOptimizations: true, renderWhitespace: 'all' }), [
 			`<span class="mtkw">·‌·‌</span>`,
-			`<span${cell(20)} class="mtk1">漢</span>`
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`
 		]);
 	});
 
 	test('stopRenderingLineAfter truncates before centering', () => {
 		assert.deepStrictEqual(render('漢字漢字', { stopRenderingLineAfter: 2 }), [
-			`<span${cell(20)} class="mtk1">漢</span>`,
-			`<span${cell(20)} class="mtk1">字</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">漢</span>`,
+			`<span${cell(20)} class="mtk1 mtkfullwidth">字</span>`,
 			`<span class="mtkoverflow">Show more (2 chars)</span>`
 		]);
 	});

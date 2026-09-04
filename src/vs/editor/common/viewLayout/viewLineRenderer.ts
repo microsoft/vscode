@@ -1058,19 +1058,24 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const partIsFullWidth = useTwoCellFullwidthCharacters && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
+		// A full-width character is centered in two cells, unless the part already needs its
+		// style attribute for bidi isolation.
+		const partIsCenteredFullWidth = !partContainsRTL && useTwoCellFullwidthCharacters && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
 		if (partContainsRTL) {
 			sb.appendString('style="unicode-bidi:isolate" ');
-		} else if (partIsFullWidth) {
-			sb.appendString('style="display:inline-block;box-sizing:border-box;text-align:center;width:');
+		} else if (partIsCenteredFullWidth) {
+			sb.appendString('style="width:');
 			sb.appendString(String(fullWidthCharacterWidth));
 			sb.appendString('px" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
+		if (partIsCenteredFullWidth) {
+			sb.appendString(' mtkfullwidth');
+		}
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
 
 		if (partRendersWhitespace) {
