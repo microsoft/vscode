@@ -390,13 +390,6 @@ export interface ISessionsManagementService {
 	readonly quickChatOverlaySession: IObservable<ISession | undefined>;
 
 	/**
-	 * Observable for the New Session overlay's in-progress session draft. This
-	 * is independent from {@link newSession} so the overlay cannot replace the
-	 * regular New Session composer draft.
-	 */
-	readonly newSessionOverlaySession: IObservable<ISession | undefined>;
-
-	/**
 	 * Create and track an Automation dialog session draft for the given folder.
 	 */
 	createAutomationSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
@@ -416,12 +409,6 @@ export interface ISessionsManagementService {
 
 	/** Discard the matching Quick Chat overlay session draft. */
 	discardQuickChatOverlaySession(session?: ISession): void;
-
-	/** Create and track a workspace-backed New Session overlay draft. */
-	createNewSessionOverlaySession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
-
-	/** Discard the matching New Session overlay draft. */
-	discardNewSessionOverlaySession(session?: ISession): void;
 
 	/**
 	 * Capture the provider-owned values currently selected on an Automation draft.
@@ -541,16 +528,10 @@ export interface ISessionsManagementService {
 	createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
-	 * Send the current Quick Chat overlay draft without navigating away from the
-	 * visible session.
+	 * Send the current Quick Chat overlay draft. The caller uses the returned
+	 * committed session to navigate after a foreground send.
 	 */
 	sendQuickChatOverlayRequest(session: ISession, options: ISendRequestOptions, token?: CancellationToken): Promise<ISession | undefined>;
-
-	/**
-	 * Send the current New Session overlay draft without navigating away from
-	 * the visible session.
-	 */
-	sendNewSessionOverlayRequest(session: ISession, options: ISendRequestOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.

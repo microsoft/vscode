@@ -86,10 +86,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _quickChatOverlaySession = observableValue<ISession | undefined>(this, undefined);
 	readonly quickChatOverlaySession: IObservable<ISession | undefined> = this._quickChatOverlaySession;
 
-	/** Tracks the New Session overlay's in-progress session draft. */
-	private readonly _newSessionOverlaySession = observableValue<ISession | undefined>(this, undefined);
-	readonly newSessionOverlaySession: IObservable<ISession | undefined> = this._newSessionOverlaySession;
-
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
@@ -201,10 +197,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			const quickChatOverlaySession = this._quickChatOverlaySession.get();
 			if (quickChatOverlaySession && e.removed.some(r => r.sessionId === quickChatOverlaySession.sessionId)) {
 				this._quickChatOverlaySession.set(undefined, undefined);
-			}
-			const newSessionOverlaySession = this._newSessionOverlaySession.get();
-			if (newSessionOverlaySession && e.removed.some(r => r.sessionId === newSessionOverlaySession.sessionId)) {
-				this._newSessionOverlaySession.set(undefined, undefined);
 			}
 		}
 
@@ -443,15 +435,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
 	}
 
-	discardNewSessionOverlaySession(session?: ISession): void {
-		const current = this._newSessionOverlaySession.get();
-		if (!current || (session && session.sessionId !== current.sessionId)) {
-			return;
-		}
-		this._newSessionOverlaySession.set(undefined, undefined);
-		this._getProvider(current)?.deleteNewSession(current.sessionId);
-	}
-
 	/**
 	 * Resolve the provider and session type to use for a new session in the
 	 * given folder. Includes that provider's resolved workspace so headless
@@ -553,17 +536,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._getProvider(previousAutomationSession)?.deleteNewSession(previousAutomationSession.sessionId);
 		}
 		this._automationSession.set(session, undefined);
-		return session;
-	}
-
-	createNewSessionOverlaySession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
-		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
-		const previousOverlaySession = this._newSessionOverlaySession.get();
-		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: options?.metadata });
-		if (previousOverlaySession && previousOverlaySession.sessionId !== session.sessionId) {
-			this._getProvider(previousOverlaySession)?.deleteNewSession(previousOverlaySession.sessionId);
-		}
-		this._newSessionOverlaySession.set(session, undefined);
 		return session;
 	}
 
@@ -976,26 +948,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		this._quickChatOverlaySession.set(undefined, undefined);
 		try {
-			return await this._sendNewChatRequestInBackground(provider, session, { ...options, background: true }, token);
-		} catch (error) {
-			provider.deleteNewSession(session.sessionId);
-			throw error;
-		}
-	}
-
-	async sendNewSessionOverlayRequest(session: ISession, options: ISendRequestOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
-		const current = this._newSessionOverlaySession.get();
-		if (!current || current.sessionId !== session.sessionId) {
-			throw new Error(`New Session overlay session '${session.sessionId}' is no longer active`);
-		}
-		const provider = this._getProvider(session);
-		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
-		}
-
-		this._newSessionOverlaySession.set(undefined, undefined);
-		try {
-			return await this._sendNewChatRequestInBackground(provider, session, { ...options, background: true }, token);
+			return await this._sendNewChatRequestInBackground(provider, session, options, token);
 		} catch (error) {
 			provider.deleteNewSession(session.sessionId);
 			throw error;
