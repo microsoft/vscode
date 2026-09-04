@@ -53,6 +53,9 @@ export function getAgentSdkSetupState(inputs: IAgentSdkSetupStateInputs): AgentS
 		// consent (or a click) never flashes the offer it has already satisfied.
 		return inputs.downloadRequested ? undefined : 'downloadOffered';
 	}
+	if (inputs.download === 'downloadOnUse' || inputs.download === 'downloading') {
+		return undefined;
+	}
 	// Everything below explains a missing account, which is the signed-out
 	// experiment and stays behind its flag.
 	if (!inputs.allowSignedOutWhenUsable || !inputs.entitlementResolved || inputs.signedIn) {
@@ -61,9 +64,7 @@ export function getAgentSdkSetupState(inputs: IAgentSdkSetupStateInputs): AgentS
 	if (inputs.hasModels) {
 		return 'resolved';
 	}
-	// A fetch in flight has nothing to ask for — the host drives its own
-	// progress notification while it runs.
-	return inputs.download === 'downloading' ? undefined : 'noAccount';
+	return 'noAccount';
 }
 
 /**

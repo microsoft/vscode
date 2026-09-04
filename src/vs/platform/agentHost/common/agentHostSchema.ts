@@ -761,7 +761,7 @@ export const platformRootSchema = createSchema({
 	[AGENT_SDK_AUTO_DOWNLOAD_CONFIG_KEY]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('agentHost.config.agentSdkAutoDownload.title', "Automatic Agent SDK Downloads"),
-		description: localize('agentHost.config.agentSdkAutoDownload.description', "Agent SDK packages this Agent Host may download automatically when their configured version changes."),
+		description: localize('agentHost.config.agentSdkAutoDownload.description', "Agent SDK packages this Agent Host may download automatically when they are next used."),
 		items: { type: 'string', title: localize('agentHost.config.agentSdkAutoDownload.item.title', "Agent SDK Package") },
 		default: [],
 	}),

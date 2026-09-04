@@ -32,11 +32,14 @@ export function agentSdkSetupStatusKey(agent: string): string {
 /**
  * Whether the agent's SDK can be loaded without a network fetch.
  *
+ * `downloadOnUse` means the SDK is absent, but this host remembers consent and
+ * will fetch it only when an agent turn needs it.
+ *
  * Deliberately the *only* thing on the wire: account state is derivable from the
  * model list, which already flows over AHP — `ready` plus zero models means "no
  * account" — and publishing it too would be two sources for one truth.
  */
-export type AgentSdkDownloadStatus = 'notDownloaded' | 'downloading' | 'ready';
+export type AgentSdkDownloadStatus = 'notDownloaded' | 'downloadOnUse' | 'downloading' | 'ready';
 
 /**
  * What an agent declares about its own setup. Capabilities, never UI: no
@@ -80,7 +83,7 @@ function readOne(value: unknown, agent: string): IAgentSdkSetupInfo | undefined 
 		return undefined;
 	}
 	const info: Partial<IAgentSdkSetupInfo> = value;
-	if (info.download !== 'notDownloaded' && info.download !== 'downloading' && info.download !== 'ready') {
+	if (info.download !== 'notDownloaded' && info.download !== 'downloadOnUse' && info.download !== 'downloading' && info.download !== 'ready') {
 		return undefined;
 	}
 	return {

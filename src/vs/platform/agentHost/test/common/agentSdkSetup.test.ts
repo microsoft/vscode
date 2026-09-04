@@ -15,11 +15,11 @@ suite('Agent SDK setup channel', () => {
 			agents: [],
 			_meta: {
 				[agentSdkSetupStatusKey('claude')]: { download: 'ready', setupDocsUrl: 'https://example.test/claude' },
-				[agentSdkSetupStatusKey('codex')]: { download: 'notDownloaded', signInProviderName: 'ChatGPT' },
+				[agentSdkSetupStatusKey('codex')]: { download: 'downloadOnUse', signInProviderName: 'ChatGPT' },
 			},
 		}), [
 			{ agent: 'claude', download: 'ready', setupDocsUrl: 'https://example.test/claude', signInProviderName: undefined },
-			{ agent: 'codex', download: 'notDownloaded', setupDocsUrl: undefined, signInProviderName: 'ChatGPT' },
+			{ agent: 'codex', download: 'downloadOnUse', setupDocsUrl: undefined, signInProviderName: 'ChatGPT' },
 		]);
 	});
 

@@ -43,7 +43,7 @@ class TestConfigurationService extends mock<IAgentConfigurationService>() implem
 			return;
 		}
 		const download: unknown = Reflect.get(value, 'download');
-		if (download === 'notDownloaded' || download === 'downloading' || download === 'ready') {
+		if (download === 'notDownloaded' || download === 'downloadOnUse' || download === 'downloading' || download === 'ready') {
 			this.statuses.push(download);
 		}
 	}
@@ -162,7 +162,7 @@ suite('AgentSdkSetupChannel', () => {
 		});
 	});
 
-	test('standing consent downloads a missing SDK on host startup', async () => {
+	test('standing consent waits for SDK use instead of downloading on host startup', async () => {
 		const ctx = createChannel({ autoDownload: true });
 		await timeout(0);
 
@@ -172,14 +172,14 @@ suite('AgentSdkSetupChannel', () => {
 			progressInterests: ctx.progressInterests,
 			lookedAgain: ctx.lookedAgain,
 		}, {
-			statuses: ['downloading', 'ready'],
-			downloads: 1,
+			statuses: ['downloadOnUse'],
+			downloads: 0,
 			progressInterests: [],
-			lookedAgain: ['discovery', 'models'],
+			lookedAgain: [],
 		});
 	});
 
-	test('existing cache history migrates consent to the host and downloads the new version', async () => {
+	test('existing cache history migrates consent without downloading the new version', async () => {
 		const ctx = createChannel({ hasDownloadHistory: true });
 		await timeout(0);
 
@@ -189,8 +189,8 @@ suite('AgentSdkSetupChannel', () => {
 			statuses: ctx.configuration.statuses,
 		}, {
 			autoDownload: ['claude'],
-			downloads: 1,
-			statuses: ['downloading', 'ready'],
+			downloads: 0,
+			statuses: ['downloadOnUse'],
 		});
 	});
 
@@ -216,21 +216,4 @@ suite('AgentSdkSetupChannel', () => {
 		});
 	});
 
-	test('a failed automatic download waits for the next host lifetime to retry', async () => {
-		const ctx = createChannel({
-			autoDownload: true,
-			downloadSdk: async () => { throw new Error('offline'); },
-		});
-		await timeout(0);
-		ctx.configuration.updateRootConfig({ unrelated: true });
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			downloads: ctx.downloadCalls(),
-			statuses: ctx.configuration.statuses,
-		}, {
-			downloads: 1,
-			statuses: ['downloading', 'notDownloaded'],
-		});
-	});
 });

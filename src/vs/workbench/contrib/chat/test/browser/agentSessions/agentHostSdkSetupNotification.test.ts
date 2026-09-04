@@ -32,6 +32,7 @@ suite('Agent SDK setup banner', () => {
 	suite('state', () => {
 		const cases: readonly { readonly name: string; readonly inputs: IAgentSdkSetupStateInputs; readonly expected: AgentSdkSetupState | undefined }[] = [
 			{ name: 'signed-out user with no SDK is offered the download', inputs: BLOCKED_USER, expected: 'downloadOffered' },
+			{ name: 'standing consent waits quietly for the SDK to be used', inputs: { ...BLOCKED_USER, download: 'downloadOnUse' }, expected: undefined },
 			{ name: 'a fetch in flight has nothing to ask for, since the host shows its own progress', inputs: { ...BLOCKED_USER, download: 'downloading' }, expected: undefined },
 			// The host answers a download request over IPC, so it keeps saying
 			// `notDownloaded` for a moment after we ask. Offering the button again in
