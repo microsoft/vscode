@@ -732,7 +732,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			default:
 				platform = Platform.platform;
 		}
-		this._taskService.registerTaskSystem(key, {
+		this._register(this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			uriProvider: (path: string): URI => {
 				return URI.from({ scheme: info.scheme, authority: info.authority, path });
@@ -777,7 +777,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
 				return this._proxy.$findExecutable(command, cwd, paths);
 			}
-		});
+		}));
 	}
 
 	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
