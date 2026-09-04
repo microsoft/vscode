@@ -834,7 +834,7 @@ function getFileDeployment() {
 		platforms: {
 			macos: {
 				path: macOsPath,
-				installCommand: `sudo mkdir -p "/Library/Application Support/GitHubCopilot" && sudo sh -c 'tmp=$(mktemp "\${1}.tmp.XXXXXX") && trap "rm -f -- \\"$tmp\\"" EXIT && cat > "$tmp" && chown root "$tmp" && chmod 0644 "$tmp" && mv -f -- "$tmp" "$1"' sh "${macOsPath}" <<'JSON'\n${body}\nJSON`,
+				installCommand: `sudo mkdir -p "/Library/Application Support/GitHubCopilot" && sudo sh -c 'tmp=$(mktemp "\${1}.tmp.XXXXXX") && trap "rm -f -- \\"$tmp\\"" EXIT && cat > "$tmp" && chown root "$tmp" && chmod 0644 "$tmp" && mv -fh -- "$tmp" "$1"' sh "${macOsPath}" <<'JSON'\n${body}\nJSON`,
 				removeCommand: `sudo rm -f -- "${macOsPath}"`
 			},
 			windows: {
