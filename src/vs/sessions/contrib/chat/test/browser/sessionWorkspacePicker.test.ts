@@ -2454,6 +2454,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 				icon: Codicon.repo,
 				providerId: 'default-copilot',
 				attachesContext: false,
+				supportsContextAttachment: true,
 				run: async () => {
 					// Mirrors the real popup: the action widget hides while the
 					// repository quick pick is open, resetting the direct filter.
@@ -3510,7 +3511,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 	test('filters context actions and allows repository attachment with a sole consolidated tab', () => {
 		const baseProvider = createMockProvider('github', {
 			browseActions: [
-				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true },
 				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
 			],
 		});
@@ -3535,12 +3536,28 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('offers one repository attachment action for multiple acquisition actions', () => {
+	test('uses the attachable repository action for repository context', async () => {
+		const actionRuns: string[] = [];
 		const provider = createMockProvider('github', {
 			browseActions: [
-				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Add GitHub Repository...'), attachesContext: false },
+				{
+					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Add GitHub Repository...'),
+					attachesContext: false,
+					run: async () => {
+						actionRuns.push('add');
+						return { ...provider.resolveWorkspace(URI.file('/github/local'))!, group: SESSION_WORKSPACE_GROUP_LOCAL };
+					},
+				},
 				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Clone Repository...'), attachesContext: false },
-				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Use Repository in Cloud...'), attachesContext: false },
+				{
+					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Use Repository in Cloud...'),
+					attachesContext: false,
+					supportsContextAttachment: true,
+					run: async () => {
+						actionRuns.push('cloud');
+						return { ...provider.resolveWorkspace(URI.file('/github/cloud'))!, group: SESSION_WORKSPACE_GROUP_GITHUB };
+					},
+				},
 			],
 		});
 		providersService.setProviders([provider]);
@@ -3549,12 +3566,18 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 		picker.selectWorkspaceActions();
 
-		assert.deepStrictEqual(picker.getItemLabels(), [
-			'Add GitHub Repository',
-			'Attach Repository',
-			'Clone Repository',
-			'Use Repository in Cloud',
-		]);
+		const items = picker.getItemLabels();
+		await picker.select('Attach Repository');
+
+		assert.deepStrictEqual({ items, actionRuns }, {
+			items: [
+				'Add GitHub Repository',
+				'Clone Repository',
+				'Use Repository in Cloud',
+				'Attach Repository',
+			],
+			actionRuns: ['cloud'],
+		});
 	});
 
 	test('shows GitHub sign-in with remote and GitHub workspaces when groups are combined', () => {
@@ -3562,14 +3585,15 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const remoteUri = URI.parse('vscode-remote://host/remote-project');
 		const gitHubUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
 		seedStorage(storage, [
-			{ uri: remoteUri, providerId: 'remote', checked: false },
+			{ uri: remoteUri, providerId: 'agenthost-menu', checked: false },
 			{ uri: gitHubUri, providerId: 'github', checked: false },
 		]);
-		const remoteProvider = createMockProvider('remote', {
-			browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')],
+		const remoteProvider = createMockProvider('agenthost-menu', {
+			connectionStatus: observableValue('remoteStatus', RemoteAgentHostConnectionStatus.disconnected),
+			browseActions: [makeBrowseAction('agenthost-menu', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')],
 		});
 		const gitHubProvider = createMockProvider('github', {
-			browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false }],
+			browseActions: [{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true }],
 		});
 		providersService.setProviders([
 			{
@@ -3604,7 +3628,11 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 		assert.deepStrictEqual({
 			items: picker.getItemLabels(),
-			remoteItems: remoteActions instanceof SubmenuAction ? remoteActions.actions.map(action => action.label) : undefined,
+			remoteItems: remoteActions instanceof SubmenuAction ? remoteActions.actions.map(action => ({
+				label: action.label,
+				enabled: action.enabled,
+				removable: typeof (action as { onRemove?: () => void }).onRemove === 'function',
+			})) : undefined,
 		}, {
 			items: [
 				'microsoft/vscode/HEAD',
@@ -3613,7 +3641,11 @@ suite('WorkspacePicker - Tab discovery', () => {
 				'Attach Repository',
 				'Remote',
 			],
-			remoteItems: ['remote-project', 'Select Remote'],
+			remoteItems: [
+				{ label: 'remote-project', enabled: false, removable: true },
+				{ label: 'Select Remote', enabled: false, removable: false },
+				{ label: 'Provider agenthost-menu', enabled: true, removable: false },
+			],
 		});
 	});
 
@@ -3782,7 +3814,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		seedStorage(storage, [{ uri: recentUri, providerId: 'p1', checked: false }]);
 		const baseProvider = createMockProvider('p1', {
 			browseActions: [
-				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true },
 				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
 				{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Pull Request...'), attachesContext: true },
 			],
@@ -3830,7 +3862,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		providersService.setProviders([{
 			...createMockProvider('p1', {
 				browseActions: [
-					{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false },
+					{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'), attachesContext: false, supportsContextAttachment: true },
 					{ ...makeBrowseAction('p1', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'), attachesContext: true },
 				],
 			}),

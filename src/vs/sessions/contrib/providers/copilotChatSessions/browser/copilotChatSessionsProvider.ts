@@ -1510,7 +1510,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return !this.agentHostEnablementService.enabled.get();
 	}
 
-	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
 
 	constructor(
@@ -1543,6 +1542,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._refreshSessionCache();
 		}));
 
+		// Forward session changes from the underlying model
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			this._refreshSessionCache();
+		}));
+
+		this._registerGroupMembershipFanOut();
+		this._ensureSessionCache();
+	}
+
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
 		const useConsolidatedRemoteWorkspaces = this.configurationService.getValue<boolean>(ChatConfiguration.ConsolidatedRemoteWorkspaces);
 		const repositoryActions: ISessionWorkspaceBrowseAction[] = useConsolidatedRemoteWorkspaces
 			? [
@@ -1570,6 +1579,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					icon: Codicon.cloud,
 					providerId: this.id,
 					attachesContext: false,
+					supportsContextAttachment: true,
 					run: () => this._browseForCloudRepo(),
 				},
 			]
@@ -1579,10 +1589,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				icon: Codicon.library,
 				providerId: this.id,
 				attachesContext: false,
+				supportsContextAttachment: true,
 				run: () => this._browseForCloudRepo(),
 			}];
 
-		this.browseActions = [
+		return [
 			...repositoryActions,
 			{
 				label: localize('issue', "Issue..."),
@@ -1601,14 +1612,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest, workspace),
 			},
 		];
-
-		// Forward session changes from the underlying model
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
-			this._refreshSessionCache();
-		}));
-
-		this._registerGroupMembershipFanOut();
-		this._ensureSessionCache();
 	}
 
 	// -- Sessions --

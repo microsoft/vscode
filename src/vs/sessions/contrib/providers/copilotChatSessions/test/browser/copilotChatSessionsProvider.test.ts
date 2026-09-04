@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -496,8 +497,10 @@ suite('CopilotChatSessionsProvider', () => {
 			remote: remoteProvider.browseActions.map(action => ({ label: action.label, icon: action.icon.id })),
 		}, {
 			local: [
-				{ label: 'Add GitHub Repository...', icon: 'github' },
-				{ label: 'Clone Repository...', icon: 'link' },
+				...isWeb ? [] : [
+					{ label: 'Add GitHub Repository...', icon: 'github' },
+					{ label: 'Clone Repository...', icon: 'link' },
+				],
 				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
@@ -518,6 +521,34 @@ suite('CopilotChatSessionsProvider', () => {
 			{ label: 'Issue...', icon: 'issues' },
 			{ label: 'Pull Request...', icon: 'git-pull-request' },
 		]);
+	});
+
+	test('updates repository actions when unified workspaces setting changes', () => {
+		const { provider, configService } = createProviderWithConfig(disposables, model);
+		const legacyActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
+
+		configService.setUserConfiguration(ChatConfiguration.ConsolidatedRemoteWorkspaces, true);
+		const unifiedActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
+
+		assert.deepStrictEqual({
+			legacyActions,
+			unifiedActions,
+		}, {
+			legacyActions: [
+				{ label: 'Repository...', icon: 'library' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'git-pull-request' },
+			],
+			unifiedActions: [
+				...isWeb ? [] : [
+					{ label: 'Add GitHub Repository...', icon: 'github' },
+					{ label: 'Clone Repository...', icon: 'link' },
+				],
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'github' },
+			],
+		});
 	});
 
 	test('adds a selected GitHub repository by cloning it locally', async () => {

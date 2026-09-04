@@ -852,13 +852,13 @@ export class WorkspacePicker extends Disposable {
 			if (item.attachAsContext) {
 				if (action?.group === SESSION_WORKSPACE_GROUP_GITHUB
 					&& action.attachesContext !== true
-					&& this._attachAdditionalRepository(selection.workspace, selection.providerId)) {
-					return true;
+					&& action.supportsContextAttachment === true) {
+					return this._attachAdditionalRepository(selection.workspace, selection.providerId);
 				}
 				if (action === this._localBrowseAction) {
-					this._attachAdditionalFolder(folderUri, selection.providerId);
-					return true;
+					return this._attachAdditionalFolder(folderUri, selection.providerId);
 				}
+				return false;
 			}
 			const relatedWorkspace = this._findRelatedLocalWorkspace(selection.workspace);
 			this._selectFolder(
@@ -1377,13 +1377,18 @@ export class WorkspacePicker extends Disposable {
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			if (useRemoteSubmenu && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE) {
+				const unavailable = this._isProviderUnavailable(providerId);
 				const submenuAction = toAction({
 					id: `workspacePicker.remote.workspace.${providerId}.${remoteSubmenuActions.length}`,
 					label: workspace.label,
 					tooltip: typeof workspace.description === 'string' ? workspace.description : undefined,
+					enabled: !unavailable,
 					run: () => setRemotePickerItem({ folderUri, providerId }),
 				});
-				Object.assign(submenuAction, { icon: workspace.icon });
+				Object.assign(submenuAction, {
+					icon: workspace.icon,
+					onRemove: () => this._removeRecentWorkspace(folderUri),
+				});
 				remoteSubmenuActions.push(submenuAction);
 				continue;
 			}
@@ -1438,29 +1443,19 @@ export class WorkspacePicker extends Disposable {
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|…)$/, '')
 					: action.label;
+			const isUnavailable = this._isProviderUnavailable(action.providerId);
 			if (useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE) {
 				const submenuAction = toAction({
 					id: `workspacePicker.remote.browse.${action.providerId}.${index}`,
 					label: actionLabel,
 					tooltip: action.description,
+					enabled: !isUnavailable,
 					run: () => setRemotePickerItem({ browseAction: action }),
 				});
 				Object.assign(submenuAction, { icon: actionIcon });
 				remoteSubmenuActions.push(submenuAction);
 				return;
 			}
-			const provider = allProviders.find(p => p.id === action.providerId);
-			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
-			const connectionStatus = agentHostProvider?.connectionStatus?.get();
-			// `incompatible` always disables the action — the user can't fix
-			// a protocol mismatch by clicking. Otherwise, if the provider
-			// supports connect-on-demand (e.g. WSL boots the distro on first
-			// browse), keep the action live even while disconnected.
-			const isIncompatible = RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
-			const isUnavailable = isIncompatible
-				|| (!!connectionStatus
-					&& !RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
-					&& !agentHostProvider?.canConnectOnDemand);
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
 			items.push({
 				kind: ActionListItemKind.Action,
@@ -1475,6 +1470,7 @@ export class WorkspacePicker extends Disposable {
 				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_LOCAL
 				&& (!this._useConsolidatedRemoteWorkspaces() || this._directPickerAttachesContext === true);
 			const canAttachRepository = isRepositoryAction
+				&& action.supportsContextAttachment === true
 				&& !!this._selectedFolderUri
 				&& this._isGroupInActiveTab(SESSION_WORKSPACE_GROUP_GITHUB)
 				&& !hasRepositoryAttachmentAction;
@@ -1531,6 +1527,7 @@ export class WorkspacePicker extends Disposable {
 						id: action.id,
 						label: action.label,
 						tooltip: action.tooltip,
+						enabled: action.enabled,
 						run: () => setRemotePickerItem({ run: () => action.run() }),
 					});
 					Object.assign(submenuAction, {
@@ -1558,6 +1555,7 @@ export class WorkspacePicker extends Disposable {
 							id: menuAction.id,
 							label: menuAction.label,
 							tooltip: menuAction.tooltip,
+							enabled: menuAction.enabled,
 							run: () => setRemotePickerItem({ run: () => menuAction.run() }),
 						});
 						Object.assign(submenuAction, { icon });
