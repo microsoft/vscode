@@ -7,10 +7,11 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
@@ -47,6 +48,30 @@ class TestGitService extends mock<IGitService>() {
 	constructor(override readonly repositories: readonly IGitRepository[]) {
 		super();
 	}
+
+	override async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+		return this.repositories.find(repository => repository.rootUri.toString() === uri.toString());
+	}
+}
+
+class WorkspaceLoadingGitService extends mock<IGitService>() {
+	private readonly openedRepositories: IGitRepository[] = [];
+
+	constructor(private readonly availableRepositories: readonly IGitRepository[]) {
+		super();
+	}
+
+	override get repositories(): readonly IGitRepository[] {
+		return this.openedRepositories;
+	}
+
+	override async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+		const repository = this.availableRepositories.find(repository => repository.rootUri.toString() === uri.toString());
+		if (repository && !this.openedRepositories.includes(repository)) {
+			this.openedRepositories.push(repository);
+		}
+		return repository;
+	}
 }
 
 class TestCommandService extends mock<ICommandService>() {
@@ -67,6 +92,16 @@ class TestGitHubContextValuePick extends GitHubContextValuePick {
 		this.repositoryPicks = repositories;
 		return this.selectedRepository;
 	}
+}
+
+function workspaceContextService(folderUris: readonly URI[] = []): IWorkspaceContextService {
+	return new class extends mock<IWorkspaceContextService>() {
+		override getWorkspace(): IWorkspace {
+			return upcastPartial<IWorkspace>({
+				folders: folderUris.map(uri => upcastPartial<IWorkspaceFolder>({ uri })),
+			});
+		}
+	}();
 }
 
 suite('ChatContext', () => {
@@ -108,6 +143,7 @@ suite('ChatContext', () => {
 			new TestGitService([repository('https://example.com/owner/repository.git')]),
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
+			workspaceContextService(),
 		);
 
 		await pick.asAttachment();
@@ -135,6 +171,7 @@ suite('ChatContext', () => {
 			new TestGitService([repository('https://github.com/microsoft/vscode.git')]),
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
+			workspaceContextService(),
 		);
 
 		const attachment = await pick.asAttachment();
@@ -162,14 +199,16 @@ suite('ChatContext', () => {
 
 	test('selects a repository before opening GitHub context picker for multiple repositories', async () => {
 		const commandService = new TestCommandService();
+		const repositories = [
+			repository('git@github.com:microsoft/vscode.git'),
+			repository('https://github.com/microsoft/typescript.git'),
+		];
 		const pick = new TestGitHubContextValuePick(
 			'pullRequest',
-			new TestGitService([
-				repository('git@github.com:microsoft/vscode.git'),
-				repository('https://github.com/microsoft/typescript.git'),
-			]),
+			new WorkspaceLoadingGitService(repositories),
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
+			workspaceContextService(repositories.map(repository => repository.rootUri)),
 		);
 		pick.selectedRepository = 'microsoft/vscode';
 
@@ -190,6 +229,7 @@ suite('ChatContext', () => {
 			new TestGitService([]),
 			new class extends mock<IQuickInputService>() { }(),
 			new TestCommandService(),
+			workspaceContextService(),
 		)));
 		disposables.add(service.registerChatContextItem({
 			type: 'valuePick',

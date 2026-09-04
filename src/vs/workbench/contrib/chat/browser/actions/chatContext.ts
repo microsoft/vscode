@@ -41,6 +41,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
@@ -122,6 +123,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		@IGitService private readonly gitService: IGitService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		if (kind === 'issue') {
 			this.label = localize('chatContext.githubIssue', "Issue...");
@@ -139,7 +141,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
-		const repositories = this.getRepositories();
+		const repositories = await this.getRepositories();
 		let repoId: string | undefined;
 
 		if (repositories.length === 1) {
@@ -177,9 +179,17 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		return repository?.repoId;
 	}
 
-	private getRepositories(): readonly string[] {
+	private async getRepositories(): Promise<readonly string[]> {
+		const knownRepositories = Array.from(this.gitService.repositories);
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		const workspaceRepositories = workspaceFolders.length > 1 && knownRepositories.length < workspaceFolders.length
+			? await Promise.all(workspaceFolders.map(folder => this.gitService.openRepository(folder.uri)))
+			: [];
 		const repositories = new Set<string>();
-		for (const repository of this.gitService.repositories) {
+		for (const repository of [...knownRepositories, ...workspaceRepositories]) {
+			if (!repository) {
+				continue;
+			}
 			const info = getGitHubRemoteInfo(repository.state.get());
 			if (info) {
 				repositories.add(`${info.owner}/${info.repo}`);
