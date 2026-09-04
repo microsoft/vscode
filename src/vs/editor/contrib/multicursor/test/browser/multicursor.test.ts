@@ -593,4 +593,78 @@ suite('Multicursor selection', () => {
 		});
 
 	});
+
+	suite('issue #107090: AddSelectionToNextFindMatch with isRegex', () => {
+
+		test('AddSelectionToNextFindMatchAction respects isRegex from find widget', () => {
+			// When the find widget has regex mode ON, Ctrl+D should treat the
+			// search string as a regex, not as a literal.
+			const text = [
+				'foo123',
+				'foo456',
+				'foo789',
+			];
+			testMulticursor(text, (editor, findController) => {
+				const action = new AddSelectionToNextFindMatchAction();
+
+				// Put focus in find widget so the find state drives the search
+				findController.getState().change({ searchString: 'foo\\d+', isRegex: true, isRevealed: true }, false);
+
+				// Click into the editor (simulate editor focus so the first Ctrl+D
+				// picks the first match driven by the find state)
+				editor.setSelection(new Selection(1, 1, 1, 1));
+
+				action.run(null!, editor);
+				// Should select the first regex match 'foo123'
+				assert.deepStrictEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 7),
+				]);
+
+				action.run(null!, editor);
+				// Should add 'foo456'
+				assert.deepStrictEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 7),
+					new Selection(2, 1, 2, 7),
+				]);
+
+				action.run(null!, editor);
+				// Should add 'foo789'
+				assert.deepStrictEqual(editor.getSelections(), [
+					new Selection(1, 1, 1, 7),
+					new Selection(2, 1, 2, 7),
+					new Selection(3, 1, 3, 7),
+				]);
+			});
+		});
+
+		test('SelectHighlightsAction respects isRegex from find widget', () => {
+			// "Select All Occurrences" (Ctrl+Shift+L) should also honour isRegex.
+			const text = [
+				'foo123',
+				'foo456',
+				'foo789',
+				'notfoo',
+			];
+			withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor) => {
+				const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+				const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+				const action = new SelectHighlightsAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				findController.getState().change({ searchString: 'foo\\d+', isRegex: true, isRevealed: true }, false);
+
+				action.run(null!, editor);
+				assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+					[1, 1, 1, 7],
+					[2, 1, 2, 7],
+					[3, 1, 3, 7],
+				]);
+
+				multiCursorSelectController.dispose();
+				findController.dispose();
+			});
+		});
+
+	});
+
 });
