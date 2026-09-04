@@ -14,12 +14,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
@@ -150,6 +150,9 @@ export class PermissionPicker extends Disposable {
 	protected _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
 	protected _triggerElement: HTMLElement | undefined;
 	protected readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _pickerDisposables = this._register(new DisposableStore());
+	private readonly _sandboxToggleDisabled = derived(this, reader => this._delegate.managedSandboxEnforced?.read(reader) === true
+		&& !this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader));
 
 	constructor(
 		protected readonly _delegate: IPermissionPickerDelegate,
@@ -160,7 +163,7 @@ export class PermissionPicker extends Disposable {
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
-		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 	}
@@ -349,6 +352,7 @@ export class PermissionPicker extends Disposable {
 				}
 			},
 			onHide: () => {
+				this._pickerDisposables.clear();
 				triggerElement.focus();
 			},
 		};
@@ -367,6 +371,20 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
+		if (sandboxToggle) {
+			this._pickerDisposables.add(autorun(reader => {
+				this._delegate.managedSandboxEnforced?.read(reader);
+				this._sandboxToggleDisabled.read(reader);
+				const standaloneToggle = this._getSandboxStandaloneToggle();
+				const disabled = standaloneToggle?.disabled === true;
+				this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
+					...item,
+					standaloneToggle,
+					disabled,
+					hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
+				} : item));
+			}));
+		}
 	}
 
 	protected _isResolving(): boolean {
@@ -484,8 +502,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxToggleDisabled(): boolean {
-		return this._isSandboxManaged()
-			&& this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY) !== true;
+		return this._sandboxToggleDisabled.get();
 	}
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {

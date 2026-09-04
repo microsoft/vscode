@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -54,17 +55,36 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
+		let allowBypass: boolean | undefined;
+		const managedSettingsChanged = store.add(new Emitter<void>());
+		const managedSettingsService: IManagedSettingsService = {
+			_serviceBrand: undefined,
+			onDidChangeManagedSettings: managedSettingsChanged.event,
+			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+		};
 		const enablementService: IAgentHostEnablementService = {
 			_serviceBrand: undefined,
 			enabled: constObservable(true),
 			managedSandboxEnforced,
+			managedSandboxAllowsBypass: observableFromEvent(managedSettingsService, managedSettingsChanged.event, () => allowBypass === true),
 		};
-		let allowBypass: boolean | undefined;
-		const managedSettingsService: IManagedSettingsService = {
-			_serviceBrand: undefined,
-			onDidChangeManagedSettings: Event.None,
-			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+		const visibleStates: Pick<IActionListItemInlineToggle, 'disabled' | 'title'>[] = [];
+		let onHide: (() => void) | undefined;
+		const recordVisibleState = <T>(items: readonly IActionListItem<T>[]) => {
+			const toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+			assert.ok(toggle);
+			visibleStates.push({ disabled: toggle.disabled, title: toggle.title });
 		};
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				onHide = delegate.onHide;
+				recordVisibleState(items);
+			}
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				recordVisibleState(items);
+			}
+		}();
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
 			override viewModel: IChatViewModel | undefined;
@@ -73,7 +93,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			widget,
 			SessionConfigKey.AutoApprove,
 			new class extends mock<IAgentHostService>() { }(),
-			new class extends mock<IActionWidgetService>() { }(),
+			actionWidgetService,
 			new class extends mock<IHoverService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
 			new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
@@ -86,7 +106,6 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IDialogService>() { }(),
 			store.add(new TestStorageService()),
 			enablementService,
-			managedSettingsService,
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -125,6 +144,40 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
 		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
+
+		picker['_initialResolved'] = {
+			sessionResource: widget.viewModel.sessionResource,
+			result: {
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default' },
+					},
+				},
+			},
+		};
+		allowBypass = false;
+		await picker['_showPicker'](document.createElement('div'));
+		allowBypass = true;
+		managedSettingsChanged.fire();
+		managedSettingsChanged.fire();
+		managedSandboxEnforced.set(false, undefined);
+		managedSandboxEnforced.set(true, undefined);
+		allowBypass = false;
+		managedSettingsChanged.fire();
+		assert.ok(onHide);
+		onHide();
+		allowBypass = true;
+		managedSettingsChanged.fire();
+		assert.deepStrictEqual(visibleStates, [
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
+			{ disabled: false, title: 'Run terminal commands inside a sandbox that restricts file system and network access' },
+			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+		]);
 	});
 });
 

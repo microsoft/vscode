@@ -134,6 +134,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		_serviceBrand: undefined,
 		enabled: constObservable(true),
 		managedSandboxEnforced,
+		managedSandboxAllowsBypass: constObservable(false),
 	});
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
