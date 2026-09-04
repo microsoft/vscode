@@ -17,7 +17,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -264,7 +264,10 @@ suite('CustomizationMigrationService', () => {
 					},
 				},
 			],
-			hint: 'Found 5 customization files that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+			hint: {
+				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+				target: CustomizationMigrationHintTarget.FileMigrations,
+			},
 			localHint: undefined,
 			requestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
@@ -296,7 +299,34 @@ suite('CustomizationMigrationService', () => {
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
-		assert.strictEqual(hint, 'Found 1 customization file that is present but not used by Claude and could be migrated.');
+		assert.deepStrictEqual(hint, {
+			message: 'Found 1 workspace customization file that is present but not used by Claude and could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		});
+	});
+
+	test('summarizes migration candidates by storage', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/workspace/.github/prompts/one.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/workspace/.github/prompts/two.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/user-data/prompts/three.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
+			{ uri: URI.file('/user-data/prompts/four.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
+		]));
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return undefined; }
+		}();
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override getWorkingDirectories() { return []; }
+		}();
+		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
+
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
+
+		assert.deepStrictEqual(hint, {
+			message: 'Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		});
 	});
 
 	test('reports unsupported MCP servers when there are no file migrations', async () => {
@@ -343,6 +373,9 @@ suite('CustomizationMigrationService', () => {
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
 
-		assert.strictEqual(hint, 'Found 2 MCP servers that are not fully supported by Copilot.');
+		assert.deepStrictEqual(hint, {
+			message: 'Found 2 MCP servers that are not fully supported by Copilot.',
+			target: CustomizationMigrationHintTarget.McpServers,
+		});
 	});
 });
