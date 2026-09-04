@@ -699,6 +699,11 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	return expandedText;
 }
 
+/**
+ * Gets the Emmet syntax from command arguments
+ * @param args Command arguments containing language and parentMode information
+ * @returns The Emmet syntax string or undefined if not applicable
+ */
 export function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
@@ -708,9 +713,48 @@ export function getSyntaxFromArgs(args: { [x: string]: string }): string | undef
 		return;
 	}
 
-	let syntax = getEmmetMode(mappedModes[language] ?? language, mappedModes, excludedLanguages);
+	let syntax: string | undefined;
+	const languageMapping = mappedModes[language];
+	
+	if (languageMapping) {
+		if (typeof languageMapping === 'string') {
+			// Handle single string mapping (backward compatibility)
+			syntax = getEmmetMode(languageMapping, mappedModes, excludedLanguages);
+		} else if (Array.isArray(languageMapping)) {
+			// Handle array of languages (new feature)
+			// Try each language in the array until we find a valid syntax
+			for (const lang of languageMapping) {
+				const mode = getEmmetMode(lang, mappedModes, excludedLanguages);
+				if (mode) {
+					syntax = mode;
+					break;
+				}
+			}
+		}
+	}
+	
 	if (!syntax) {
-		syntax = getEmmetMode(mappedModes[parentMode] ?? parentMode, mappedModes, excludedLanguages);
+		syntax = getEmmetMode(language, mappedModes, excludedLanguages);
+	}
+	
+	if (!syntax) {
+		const parentMapping = mappedModes[parentMode];
+		if (parentMapping) {
+			if (typeof parentMapping === 'string') {
+				syntax = getEmmetMode(parentMapping, mappedModes, excludedLanguages);
+			} else if (Array.isArray(parentMapping)) {
+				for (const lang of parentMapping) {
+					const mode = getEmmetMode(lang, mappedModes, excludedLanguages);
+					if (mode) {
+						syntax = mode;
+						break;
+					}
+				}
+			}
+		}
+		if (!syntax) {
+			syntax = getEmmetMode(parentMode, mappedModes, excludedLanguages);
+		}
 	}
 
 	return syntax;
