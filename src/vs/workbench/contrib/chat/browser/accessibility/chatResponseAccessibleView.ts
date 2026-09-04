@@ -384,6 +384,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'systemNotification': {
+				const text = part.accessibilityLabel ?? renderChatMessageAsPlaintext(part.content);
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
