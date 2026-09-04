@@ -250,6 +250,19 @@
 	display: none;
 }
 
+.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-picker-item > .action-label:focus,
+.monaco-workbench.agent-sessions-workbench .interactive-session .sessions-chat-picker-slot > .action-label:focus,
+.monaco-workbench.agent-sessions-workbench .interactive-session .agent-host-chat-input-picker-slot > .action-label:focus {
+	outline: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-picker-item > .action-label:focus-visible,
+.monaco-workbench.agent-sessions-workbench .interactive-session .sessions-chat-picker-slot > .action-label:focus-visible,
+.monaco-workbench.agent-sessions-workbench .interactive-session .agent-host-chat-input-picker-slot > .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .agent-sessions-workbench .interactive-session .compact-picker .sessions-chat-dropdown-label {
 	display: none;
 }
