@@ -3223,6 +3223,40 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('persists No workspace as the checked selection until a workspace is selected', () => {
+		const storage = disposables.add(new TestStorageService());
+		const localProvider = createMockProvider('local-1');
+		providersService.setProviders([localProvider]);
+		let noWorkspaceAvailable = true;
+		const options: IWorkspacePickerOptions = {
+			getNoWorkspaceOption: () => noWorkspaceAvailable ? ({
+				description: 'Start without a backing workspace',
+				isSelected: false,
+				select: () => { },
+			}) : undefined,
+		};
+		const firstPicker = createTestablePicker(disposables, providersService, true, options, undefined, storage, true);
+		firstPicker.selectNoWorkspace();
+		const firstPickerNoWorkspace = firstPicker.isNoWorkspaceSelected();
+		noWorkspaceAvailable = false;
+		const restoredPicker = createTestablePicker(disposables, providersService, true, options, undefined, storage, true);
+		const restoredNoWorkspace = restoredPicker.isNoWorkspaceSelected();
+
+		restoredPicker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false });
+
+		assert.deepStrictEqual({
+			firstPickerNoWorkspace,
+			restoredNoWorkspace,
+			afterWorkspaceSelection: restoredPicker.isNoWorkspaceSelected(),
+			selectedFolder: restoredPicker.selectedFolderUri?.path,
+		}, {
+			firstPickerNoWorkspace: true,
+			restoredNoWorkspace: true,
+			afterWorkspaceSelection: false,
+			selectedFolder: '/local/project',
+		});
+	});
+
 	test('keeps GitHub context actions separate when groups are combined', () => {
 		providersService.setProviders([
 			createMockProvider('github', {
