@@ -6,13 +6,14 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableFromPromise, observableSignal, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -59,6 +60,7 @@ import { IAgentHostEnablementService } from '../../../../../platform/agentHost/c
 import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -669,7 +671,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	/**
 	 * The repository this session targets, as `owner/repo`. A GitHub workspace root carries a ref
-	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForRepo}), so this
+	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForCloudRepo}), so this
 	 * takes only the first two path segments rather than the whole path.
 	 */
 	get repoNwo(): string | undefined {
@@ -1498,7 +1500,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return !this.agentHostEnablementService.enabled.get();
 	}
 
-	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
 
 	constructor(
@@ -1520,6 +1521,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IGitService private readonly gitService: IGitService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 
@@ -1530,15 +1532,59 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._refreshSessionCache();
 		}));
 
-		this.browseActions = [
-			{
+		// Forward session changes from the underlying model
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			this._refreshSessionCache();
+		}));
+
+		this._registerGroupMembershipFanOut();
+		this._ensureSessionCache();
+	}
+
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
+		const useConsolidatedRemoteWorkspaces = this.configurationService.getValue<boolean>(ChatConfiguration.ConsolidatedRemoteWorkspaces);
+		const repositoryActions: ISessionWorkspaceBrowseAction[] = useConsolidatedRemoteWorkspaces
+			? [
+				...(!isWeb && this.pathService.defaultUriScheme === Schemas.file ? [
+					{
+						label: localize('addGitHubRepository', "Add GitHub Repository..."),
+						group: SESSION_WORKSPACE_GROUP_GITHUB,
+						icon: Codicon.github,
+						providerId: this.id,
+						attachesContext: false,
+						run: () => this._browseForGitHubRepo(),
+					},
+					{
+						label: localize('cloneRepository', "Clone Repository..."),
+						group: SESSION_WORKSPACE_GROUP_GITHUB,
+						icon: Codicon.link,
+						providerId: this.id,
+						attachesContext: false,
+						run: () => this._cloneRepository(),
+					},
+				] satisfies ISessionWorkspaceBrowseAction[] : []),
+				{
+					label: localize('useRepositoryInCloud', "Use Repository in Cloud..."),
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+					icon: Codicon.cloud,
+					providerId: this.id,
+					attachesContext: false,
+					supportsContextAttachment: true,
+					run: () => this._browseForCloudRepo(),
+				},
+			]
+			: [{
 				label: localize('repository', "Repository..."),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				icon: Codicon.library,
 				providerId: this.id,
 				attachesContext: false,
-				run: () => this._browseForRepo(),
-			},
+				supportsContextAttachment: true,
+				run: () => this._browseForCloudRepo(),
+			}];
+
+		return [
+			...repositoryActions,
 			{
 				label: localize('issue', "Issue..."),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
@@ -1550,20 +1596,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			{
 				label: localize('pullRequest', "Pull Request..."),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				icon: Codicon.gitPullRequest,
+				icon: useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest,
 				providerId: this.id,
 				attachesContext: true,
-				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, Codicon.gitPullRequest, workspace),
+				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest, workspace),
 			},
 		];
-
-		// Forward session changes from the underlying model
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
-			this._refreshSessionCache();
-		}));
-
-		this._registerGroupMembershipFanOut();
-		this._ensureSessionCache();
 	}
 
 	// -- Sessions --
@@ -2722,28 +2760,57 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Private --
 
-	private async _browseForRepo(): Promise<ISessionWorkspace | undefined> {
+	private async _browseForGitHubRepo(): Promise<ISessionWorkspace | undefined> {
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
-		if (repoId) {
-			const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
-			const folder: ISessionFolder = {
-				root: uri,
-				workingDirectory: uri,
-				name: basename(uri),
-				description: undefined,
-				gitRepository: undefined,
-			};
-			return {
-				uri: URI.parse(`https://github.com/${repoId}`),
-				label: this._labelFromUri(uri),
-				icon: this._iconFromUri(uri),
-				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				folders: [folder],
-				requiresWorkspaceTrust: false,
-				isVirtualWorkspace: true,
-			};
+		if (!repoId) {
+			return undefined;
 		}
-		return undefined;
+		return this._cloneRepository(`https://github.com/${repoId}.git`);
+	}
+
+	private async _cloneRepository(url?: string): Promise<ISessionWorkspace | undefined> {
+		try {
+			const repositoryPath = await this.commandService.executeCommand<string>(
+				'git.clone',
+				url,
+				undefined,
+				{ postCloneAction: 'none' },
+			);
+			if (repositoryPath?.endsWith('.code-workspace')) {
+				this.notificationService.error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose Clone again to select a repository folder."));
+				return undefined;
+			}
+			return repositoryPath ? this.resolveWorkspace(URI.file(repositoryPath)) : undefined;
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+			return undefined;
+		}
+	}
+
+	private async _browseForCloudRepo(): Promise<ISessionWorkspace | undefined> {
+		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+		if (!repoId) {
+			return undefined;
+		}
+		const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
+		const folder: ISessionFolder = {
+			root: uri,
+			workingDirectory: uri,
+			name: basename(uri),
+			description: undefined,
+			gitRepository: undefined,
+		};
+		return {
+			uri: URI.parse(`https://github.com/${repoId}`),
+			label: this._labelFromUri(uri),
+			icon: this._iconFromUri(uri),
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: [folder],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
 	}
 
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
