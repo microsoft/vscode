@@ -203,7 +203,7 @@ suite('CustomizationMigrationService', () => {
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
 		const agentHostCustomizationService = {
 			onDidChangeCustomizations: Event.None,
-			getWorkingDirectories: () => [root.fsPath],
+			getWorkingDirectories: () => [root.toString()],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
 		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService()));
 		const agentHostSessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
