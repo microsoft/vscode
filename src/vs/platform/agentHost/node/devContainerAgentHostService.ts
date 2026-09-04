@@ -5,6 +5,8 @@
 
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { createHash, randomUUID } from 'crypto';
+import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -20,6 +22,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IRequestService } from '../../request/common/request.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
@@ -38,6 +41,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
+import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -100,6 +104,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
+	private _devContainerEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
@@ -108,6 +113,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 	}
@@ -235,7 +241,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			throw new CancellationError();
 		}
 		const [environment, nativeRequire] = await Promise.all([
-			this._resolveShellEnvironment(),
+			this._resolveDevContainerEnvironment(),
 			this._getNativeRequire(),
 		]);
 		if (token.isCancellationRequested) {
@@ -316,7 +322,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	protected async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
-		const environment = await this._resolveShellEnvironment();
+		const environment = await this._resolveDevContainerEnvironment();
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());
@@ -386,6 +392,88 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			return process.env;
 		});
 		return this._shellEnvironment;
+	}
+
+	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		this._devContainerEnvironment ??= this._doResolveDevContainerEnvironment();
+		return this._devContainerEnvironment;
+	}
+
+	private async _doResolveDevContainerEnvironment(): Promise<typeof process.env> {
+		const environment = await this._resolveShellEnvironment();
+		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
+			return environment;
+		}
+		if (this._configurationService.getValue<boolean>('http.systemCertificates') === false) {
+			return environment;
+		}
+		const certificates = await this._requestService.loadCertificates();
+		if (certificates.length === 0) {
+			return environment;
+		}
+		return {
+			...environment,
+			NODE_EXTRA_CA_CERTS: await this._writeCertificatesFile(certificates),
+		};
+	}
+
+	protected async _isFile(path: string): Promise<boolean> {
+		try {
+			return (await stat(path)).isFile();
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'ENOTDIR') {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
+		const content = certificates.join(process.platform === 'win32' ? '\r\n' : '\n');
+		const hash = createHash('sha256').update(content).digest('hex');
+		const directory = this._getCertificatesDirectory();
+		await prepareOwnerOnlyDirectory(directory);
+		const path = join(directory, `certificates-${hash}.pem`);
+		if (await this._isSecureCacheFile(path)) {
+			return path;
+		}
+		const temporaryPath = `${path}-${randomUUID()}`;
+		await writeFile(temporaryPath, content, { mode: 0o600 });
+		try {
+			await this._renameCertificateFile(temporaryPath, path);
+		} catch (error) {
+			if (!await this._isSecureCacheFile(path)) {
+				await rm(temporaryPath, { force: true });
+				throw error;
+			}
+			await rm(temporaryPath, { force: true });
+		}
+		return path;
+	}
+
+	protected _getCertificatesDirectory(): string {
+		const owner = process.getuid?.().toString()
+			?? createHash('sha256').update(this._environmentService.userDataPath).digest('hex').slice(0, 12);
+		return join(this._environmentService.tmpDir.fsPath, `vscode-dev-container-${owner}`);
+	}
+
+	protected async _isSecureCacheFile(path: string): Promise<boolean> {
+		try {
+			const fileStat = await lstat(path);
+			return fileStat.isFile() && !fileStat.isSymbolicLink()
+				&& (!process.getuid || fileStat.uid === process.getuid());
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'ENOTDIR') {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	protected _renameCertificateFile(from: string, to: string): Promise<void> {
+		return rename(from, to);
 	}
 
 	protected _reportOutput(connectionId: string, data: string): void {

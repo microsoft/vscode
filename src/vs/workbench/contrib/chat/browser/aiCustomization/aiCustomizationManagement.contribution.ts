@@ -804,7 +804,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
 				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource } = resolveAICustomizationManagementOpenEditorTarget(
+				const { section, revealUri, sessionResource, migration } = resolveAICustomizationManagementOpenEditorTarget(
 					target,
 					widget?.input.pendingDelegationTarget,
 					widget?.viewModel?.sessionResource,
@@ -820,7 +820,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
 				);
 				const pane = await editorService.openEditor(input, { pinned: true });
-				if (section && pane instanceof AICustomizationManagementEditor) {
+				if (migration && pane instanceof AICustomizationManagementEditor) {
+					await pane.showCustomizationMigrationPage();
+				} else if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 					if (revealUri) {
 						await pane.revealCustomizationByUri(revealUri);
