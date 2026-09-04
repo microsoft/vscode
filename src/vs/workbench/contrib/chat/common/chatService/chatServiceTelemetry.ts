@@ -190,10 +190,10 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	sessionType: string | undefined;
 	harness: string | undefined;
 	sessionTypeSelectionReason: string | undefined;
-	sessionTypeSelectionSettingDefaultToCopilotHarness: boolean | undefined;
-	sessionTypeSelectionSettingPreferCopilotHarness: boolean | undefined;
-	sessionTypeSelectionSettingLocalAgentEnabled: boolean | undefined;
-	sessionTypeSelectionManagedSandboxEnforced: boolean | undefined;
+	selectionTimeSettingDefaultToCopilotHarness: boolean | undefined;
+	selectionTimeSettingPreferCopilotHarness: boolean | undefined;
+	selectionTimeSettingLocalAgentEnabled: boolean | undefined;
+	selectionTimeManagedSandboxEnforced: boolean | undefined;
 	isVirtualWorkspace: boolean;
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
@@ -224,10 +224,10 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	sessionTypeSelectionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session type was selected when the session was created. Undefined for restored or reused sessions.' };
-	sessionTypeSelectionSettingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.defaultToCopilotHarness captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
-	sessionTypeSelectionSettingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.preferCopilotHarness captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
-	sessionTypeSelectionSettingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.localAgent.enabled captured with sessionTypeSelectionReason. Undefined for restored or reused sessions.' };
-	sessionTypeSelectionManagedSandboxEnforced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the managed Copilot SDK sandbox floor was enforced when sessionTypeSelectionReason was computed. Undefined for restored or reused sessions.' };
+	selectionTimeSettingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.defaultToCopilotHarness at the moment the session type was selected, captured together with sessionTypeSelectionReason. Compare against settingDefaultToCopilotHarness, which is sampled later when the request is sent; a difference means the setting changed during the session. Undefined for restored or reused sessions.' };
+	selectionTimeSettingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.preferCopilotHarness at the moment the session type was selected, captured together with sessionTypeSelectionReason. Compare against settingPreferCopilotHarness, which is sampled later when the request is sent. Undefined for restored or reused sessions.' };
+	selectionTimeSettingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of chat.editor.localAgent.enabled at the moment the session type was selected, captured together with sessionTypeSelectionReason. Compare against settingLocalAgentEnabled, which is sampled later when the request is sent. Undefined for restored or reused sessions.' };
+	selectionTimeManagedSandboxEnforced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the managed Copilot SDK sandbox floor was enforced at the moment the session type was selected, captured together with sessionTypeSelectionReason. Compare against managedSandboxEnforced, which is sampled later when the request is sent. Undefined for restored or reused sessions.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
 	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which can select the Copilot harness even when this is false.' };
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started. The harness decision also depends on managedSandboxEnforced, which can select the Copilot harness even when this is false.' };
@@ -384,10 +384,10 @@ export class ChatRequestTelemetry {
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 			requestIndex: this.opts.requestIndex,
 			sessionTypeSelectionReason: this.opts.sessionTypeSelectionTelemetry?.reason,
-			sessionTypeSelectionSettingDefaultToCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingDefaultToCopilotHarness,
-			sessionTypeSelectionSettingPreferCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingPreferCopilotHarness,
-			sessionTypeSelectionSettingLocalAgentEnabled: this.opts.sessionTypeSelectionTelemetry?.settingLocalAgentEnabled,
-			sessionTypeSelectionManagedSandboxEnforced: this.opts.sessionTypeSelectionTelemetry?.managedSandboxEnforced,
+			selectionTimeSettingDefaultToCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingDefaultToCopilotHarness,
+			selectionTimeSettingPreferCopilotHarness: this.opts.sessionTypeSelectionTelemetry?.settingPreferCopilotHarness,
+			selectionTimeSettingLocalAgentEnabled: this.opts.sessionTypeSelectionTelemetry?.settingLocalAgentEnabled,
+			selectionTimeManagedSandboxEnforced: this.opts.sessionTypeSelectionTelemetry?.managedSandboxEnforced,
 			timeToFirstProgress,
 			totalTime,
 			result,
