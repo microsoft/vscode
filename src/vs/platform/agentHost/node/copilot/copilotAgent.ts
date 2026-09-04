@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
@@ -859,7 +859,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
-	private readonly _sessionsPendingRegistration = new Set<CopilotAgentSession>();
+	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
@@ -1806,7 +1806,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
 		let handled = false;
-		const sessions = new Set([...this._sessionsPendingRegistration, ...this._allLiveSessions()]);
+		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
 		for (const session of sessions) {
 			const didHandle = await session.resolveMcpAuthentication(params);
 			handled ||= didHandle;
@@ -4520,12 +4520,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat, resource: storageScope });
 				const initializingSession = agentSession;
-				await this._initializeAndRegisterSession(initializingSession, async () => {
+				await this._initializeAndRegisterSession(initializingSession, () => {
+					this._throwIfClientReplaced(client, initializingSession);
+					this._registerLiveChat(chat, initializingSession, activeClient);
+				}, async () => {
 					if (fork?.turnIdMapping) {
 						await initializingSession.remapTurnIds(fork.turnIdMapping);
 					}
-					this._throwIfClientReplaced(client, initializingSession);
-					this._registerLiveChat(chat, initializingSession, activeClient);
 				});
 				const backing: IPersistedChat = {
 					sdkSessionId,
@@ -5127,9 +5128,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._isShuttingDown = true;
-			for (const session of this._sessionsPendingRegistration) {
-				session.dispose();
-			}
+			this._sessionsPendingRegistration.clearAndDisposeAll();
 			for (const lifetime of this._sessionLifetimes.values()) {
 				void lifetime.close();
 			}
@@ -5430,8 +5429,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return [...this._chatEntriesBySdkId.values()].map(entry => entry.chatSession);
 	}
 
-	/** Keeps SDK callbacks routable until an initialized session becomes visible in the live-session map. */
-	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void | Promise<void>): Promise<void> {
+	/** Keeps SDK callbacks routable until ownership transfers to the live-session map. */
+	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, prepare?: () => void | Promise<void>): Promise<void> {
 		if (this._isShuttingDown) {
 			session.dispose();
 			throw new CancellationError();
@@ -5439,9 +5438,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionsPendingRegistration.add(session);
 		try {
 			await session.initializeSession();
-			await register();
+			await prepare?.();
+			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
+				throw new CancellationError();
+			}
+			register();
 		} finally {
-			this._sessionsPendingRegistration.delete(session);
+			this._sessionsPendingRegistration.deleteAndLeak(session);
 		}
 	}
 
@@ -5535,9 +5538,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 		try {
-			await this._initializeAndRegisterSession(agentSession, async () => {
-				await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
+			await this._initializeAndRegisterSession(agentSession, () => {
 				this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);
+			}, async () => {
+				await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
 			});
 		} catch (err) {
 			agentSession.dispose();
