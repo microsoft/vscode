@@ -14,6 +14,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IRequestService } from '../../../request/common/request.js';
+import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
@@ -34,12 +36,19 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
 	relayCommand: string | undefined;
+	loadedCertificates = 0;
+	writtenCertificates: readonly string[] | undefined;
 
 	constructor(
 		private readonly _libc = '',
 		private readonly _forceCliInstall = false,
 		private readonly _shellEnvironmentError?: Error,
+		private readonly _testShellEnvironment: typeof process.env = process.env,
+		systemCertificates = true,
+		_certificates: readonly string[] = [],
+		private readonly _existingCertificateFiles: ReadonlySet<string> = new Set(),
 	) {
+		const configurationService = new TestConfigurationService({ 'http.systemCertificates': systemCertificates });
 		super(
 			new NullLogService(),
 			new class extends mock<IProductService>() {
@@ -48,9 +57,15 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				override readonly commit = undefined;
 			}(),
 			NullTelemetryService,
-			new TestConfigurationService(),
+			configurationService,
 			new class extends mock<INativeEnvironmentService>() {
 				override readonly args = Object.create(null);
+				override readonly tmpDir = URI.file('/tmp');
+			}(),
+			new class extends mock<IRequestService>() {
+				override async loadCertificates(): Promise<string[]> {
+					return [..._certificates];
+				}
 			}(),
 		);
 	}
@@ -59,11 +74,25 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		if (this._shellEnvironmentError) {
 			return Promise.reject(this._shellEnvironmentError);
 		}
-		return Promise.resolve(process.env);
+		return Promise.resolve(this._testShellEnvironment);
 	}
 
 	resolveShellEnvironment(): Promise<typeof process.env> {
 		return this._resolveShellEnvironment();
+	}
+
+	resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		return this._resolveDevContainerEnvironment();
+	}
+
+	protected override _isFile(path: string): Promise<boolean> {
+		return Promise.resolve(this._existingCertificateFiles.has(path));
+	}
+
+	protected override _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
+		this.loadedCertificates++;
+		this.writtenCertificates = certificates;
+		return Promise.resolve('/tmp/vscode-dev-container/certificates.pem');
 	}
 
 	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -153,6 +182,32 @@ suite('Dev Container Agent Host Main Service', () => {
 			exists: true,
 			status: 0,
 			version: '0.88.0',
+		});
+	});
+
+	test('configures Dev Container CLI certificates like Remote Containers', async () => {
+		const suppliedCertificatePath = '/custom/certificates.pem';
+		const supplied = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {
+			...process.env,
+			NODE_EXTRA_CA_CERTS: suppliedCertificatePath,
+		}, true, ['ignored'], new Set([suppliedCertificatePath])));
+		const disabled = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, false, ['ignored']));
+		const loaded = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, ['CERT A', 'CERT B']));
+
+		assert.deepStrictEqual({
+			supplied: (await supplied.resolveDevContainerEnvironment()).NODE_EXTRA_CA_CERTS,
+			suppliedLoads: supplied.loadedCertificates,
+			disabled: (await disabled.resolveDevContainerEnvironment()).NODE_EXTRA_CA_CERTS,
+			disabledLoads: disabled.loadedCertificates,
+			loaded: (await loaded.resolveDevContainerEnvironment()).NODE_EXTRA_CA_CERTS,
+			loadedCertificates: loaded.writtenCertificates,
+		}, {
+			supplied: suppliedCertificatePath,
+			suppliedLoads: 0,
+			disabled: process.env.NODE_EXTRA_CA_CERTS,
+			disabledLoads: 0,
+			loaded: '/tmp/vscode-dev-container/certificates.pem',
+			loadedCertificates: ['CERT A', 'CERT B'],
 		});
 	});
 
