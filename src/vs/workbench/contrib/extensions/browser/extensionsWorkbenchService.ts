@@ -1155,14 +1155,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this._onChange.fire(undefined);
 			}
 			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
-				if (this.isAutoCheckUpdatesEnabled()) {
-					this.checkForUpdates(`Enabled auto check updates`);
-				}
+				void this.checkForUpdatesAutomatically(`Enabled auto check updates`);
 			}
 		}));
 		this._register(this.extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() === 'on' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
-				this.checkForUpdates('Extension enablement changed');
+			if (this.getAutoUpdateValue() === 'on' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+				void this.checkForUpdatesAutomatically('Extension enablement changed');
 			}
 		}));
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
@@ -1172,22 +1170,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					owner: 'sandy081';
 					comment: 'Report when update check is triggered on product update';
 				}>('extensions:updatecheckonproductupdate');
-				if (this.isAutoCheckUpdatesEnabled()) {
-					this.checkForUpdates('Product update');
-				}
+				void this.checkForUpdatesAutomatically('Product update');
 			}
 		}));
 
 		this._register(this.allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => {
-			if (this.isAutoCheckUpdatesEnabled()) {
-				this.checkForUpdates('Allowed extensions changed');
-			}
+			void this.checkForUpdatesAutomatically('Allowed extensions changed');
 		}));
 
 		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(() => {
-			if (this.isAutoCheckUpdatesEnabled()) {
-				this.checkForUpdates('Connection is no longer metered');
-			}
+			void this.checkForUpdatesAutomatically('Connection is no longer metered');
 			if (isWeb && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
@@ -2225,13 +2217,26 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.configurationService.getValue(AutoCheckUpdatesConfigurationKey);
 	}
 
+	private async checkForUpdatesAutomatically(reason?: string): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (!this._store.isDisposed && this.isAutoCheckUpdatesEnabled()) {
+			await this.checkForUpdates(reason);
+		}
+	}
+
 	private eventuallyCheckForUpdates(immediate = false): void {
 		this.updatesCheckDelayer.cancel();
 		this.updatesCheckDelayer.trigger(async () => {
+			await this.meteredConnectionService.whenInitialized;
+			if (this._store.isDisposed) {
+				return;
+			}
 			if (this.isAutoCheckUpdatesEnabled()) {
 				await this.checkForUpdates();
 			}
-			this.eventuallyCheckForUpdates();
+			if (!this._store.isDisposed) {
+				this.eventuallyCheckForUpdates();
+			}
 		}, immediate ? 0 : this.getUpdatesCheckInterval()).then(undefined, err => null);
 	}
 
@@ -2248,7 +2253,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateBuiltinExtensions(): Promise<void> {
-		if (this.meteredConnectionService.isConnectionMetered) {
+		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed || this.meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 		await this.checkForUpdates(undefined, true);
@@ -2272,6 +2278,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this.meteredConnectionService.isConnectionMetered) {
 			this.logService.trace('[Extensions]: Skipping auto-update because connection is metered');
 			return;

@@ -105,7 +105,11 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			} else {
 				this.logService.info('[AutoSync] Disabled.');
 			}
-			this.updateAutoSync();
+			if (this.meteredConnectionService.isConnectionMetered) {
+				void this.initializeAutoSync();
+			} else {
+				this.updateAutoSync();
+			}
 
 			if (this.hasToDisableMachineEventually()) {
 				this.disableMachineEventually();
@@ -117,6 +121,13 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'])));
 			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'])));
 			this._register(meteredConnectionService.onDidChangeIsConnectionMetered(() => this.updateAutoSync()));
+		}
+	}
+
+	private async initializeAutoSync(): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (!this._store.isDisposed) {
+			this.updateAutoSync();
 		}
 	}
 

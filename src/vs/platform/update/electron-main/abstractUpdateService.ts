@@ -209,7 +209,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return;
 		}
 
-		await this.meteredConnectionService.whenConnectionStateInitialized;
+		await this.meteredConnectionService.whenInitialized;
 
 		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

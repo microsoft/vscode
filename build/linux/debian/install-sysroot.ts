@@ -17,6 +17,7 @@ import type { DebianArchString } from './types.ts';
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
+const VSCODE_SYSROOT_VERSION = '20260212-405735';
 
 const ghApiHeaders: Record<string, string> = {
 	Accept: 'application/vnd.github.v3+json',
@@ -70,8 +71,7 @@ function getVSCodeSysrootChecksum(expectedName: string) {
  * tar implementation for that reason.
  */
 async function fetchUrl(options: IFetchOptions): Promise<void> {
-	const version = '20260212-405735';
-	const releaseUrl = `https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`;
+	const releaseUrl = `https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${VSCODE_SYSROOT_VERSION}`;
 	const downloadOptions = {
 		attempts: 11,
 		onRetry: (error: Error) => console.log(`Fetching failed: ${error}`)
@@ -79,7 +79,7 @@ async function fetchUrl(options: IFetchOptions): Promise<void> {
 	const releaseContents = await download(releaseUrl, { ...downloadOptions, headers: ghApiHeaders });
 	const asset = JSON.parse(Buffer.from(releaseContents).toString()).assets.find((a: { name: string }) => a.name === options.assetName);
 	if (!asset) {
-		throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
+		throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${VSCODE_SYSROOT_VERSION}`);
 	}
 
 	console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
@@ -130,11 +130,12 @@ export async function getVSCodeSysroot(arch: DebianArchString, isMusl: boolean =
 	}
 	const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join(tmpdir(), `vscode-${arch}-sysroot`);
 	const stamp = path.join(sysroot, '.stamp');
+	const expectedStamp = `${VSCODE_SYSROOT_VERSION}/${expectedName}`;
 	let result = `${sysroot}/${triple}/${triple}/sysroot`;
 	if (isMusl) {
 		result = `${sysroot}/output/${triple}`;
 	}
-	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
+	if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedStamp) {
 		return result;
 	}
 	console.log(`Installing ${arch} root image: ${sysroot}`);
@@ -145,7 +146,7 @@ export async function getVSCodeSysroot(arch: DebianArchString, isMusl: boolean =
 		assetName: expectedName,
 		dest: sysroot
 	});
-	fs.writeFileSync(stamp, expectedName);
+	fs.writeFileSync(stamp, expectedStamp);
 	return result;
 }
 
