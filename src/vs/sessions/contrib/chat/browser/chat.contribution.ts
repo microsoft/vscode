@@ -383,7 +383,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
 			tags: ['experimental'],
-			experiment: { mode: 'auto' },
+			experiment: {
+				mode: 'auto',
+				name: 'config.chat.agentSessions.consolidatedRemoteWorkspaces',
+			},
 		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
