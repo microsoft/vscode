@@ -85,13 +85,15 @@ export interface IAgentHostNetworkEndpoint {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'policyHelper' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
 	readonly deviceManaged: boolean;
 	readonly clientManaged?: boolean;
+	readonly policyHelperManaged?: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
+	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
 }
