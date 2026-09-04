@@ -5484,13 +5484,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `SessionState` updates fire for every turn-status / activity / meta
 		// change too — firing on all of them caused excessive picker
 		// recomputes (and a feedback loop with `setAgent`).
-		const didCustomizationsChange = !previous || customizationsChanged(previous, state);
-		if (didCustomizationsChange) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._reconcileAgentFromState(sessionId, state);
 			this._onDidChangeCustomAgents.fire();
-		}
-		if (didCustomizationsChange
-			|| !arrayEquals(previous?.workingDirectories ?? [], state.workingDirectories ?? [])) {
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
@@ -5578,12 +5574,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
 		this._newSessions.get(sessionId)?.applySessionMeta(state._meta);
-		const didCustomizationsChange = !previous || customizationsChanged(previous, state);
-		if (didCustomizationsChange) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
-		}
-		if (didCustomizationsChange
-			|| !arrayEquals(previous?.workingDirectories ?? [], state.workingDirectories ?? [])) {
 			this._onDidChangeCustomizations.fire();
 		}
 	}
