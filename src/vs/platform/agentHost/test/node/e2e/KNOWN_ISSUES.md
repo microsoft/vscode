@@ -809,19 +809,26 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
 ### Copilot custom subagent without a display name
 
-A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
+A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Historically the bundled Copilot runtime started the child and immediately failed it with `failed to assemble custom-agent system prompt: displayName: Required` (the same validation boundary also rejected the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`), so custom agents that followed either optional-field contract could not run as subagents.
 
-- Test: `custom agent without a display name completes as a subagent`.
+As of `@github/copilot` `1.0.83-5` / `@github/copilot-sdk` `1.0.13-preview.6` the runtime now assembles these optional-field custom agents and runs the child. The committed captures for both tests below were recorded against the old "failed to assemble" behavior, so they are now stale: the child issues an extra model request that shifts the deterministic replay sequence (the setup turn consumes three recorded exchanges instead of two). Both tests are therefore gated behind `AGENT_HOST_RUN_KNOWN_ISSUES=1` until their fixtures are re-recorded against the fixed runtime, at which point they can be re-enabled in normal replay.
+
+- Tests:
+  - `custom agent without a display name completes as a subagent`.
+  - `restored parent accepts a new turn after a custom subagent has no transcript`.
 - Scope: Copilot.
-- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
-- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
-- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
-- Reproduce:
+- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` (first test) / the setup turn replies `SETUP_DONE` and the restored parent accepts a follow-up (second test).
+- Observed (with the stale captures): the replay sequence is shifted by one because the now-assembled child issues its own model request, so the recorded responses no longer line up.
+- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the captures are re-recorded against the fixed runtime.
+- Reproduce (re-record):
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "custom agent without a display name completes as a subagent"
+  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "restored parent accepts a new turn after a custom subagent has no transcript"
   ```
 
 ### Mid-turn abort is record-only
