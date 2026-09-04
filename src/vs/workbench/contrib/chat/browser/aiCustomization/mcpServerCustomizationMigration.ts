@@ -34,8 +34,6 @@ interface IJsonDocument {
 	readonly content: string;
 	readonly value: Record<string, unknown>;
 	readonly exists: boolean;
-	readonly mtime?: number;
-	readonly etag?: string;
 }
 
 interface IMcpServerCustomizationMigrationExecutionOptions {
@@ -290,7 +288,12 @@ async function migrateGroup(
 		try {
 			writtenTarget = await writeDocument(group.targetUri, targetContent, target, fileService);
 		} catch (error) {
-			throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.WriteFailed, toError(error));
+			throw new McpServerMigrationError(
+				error instanceof McpServerDocumentChangedError
+					? McpServerCustomizationMigrationFailureReason.TargetChanged
+					: McpServerCustomizationMigrationFailureReason.WriteFailed,
+				toError(error),
+			);
 		}
 	}
 
@@ -308,10 +311,13 @@ async function migrateGroup(
 	try {
 		writtenSource = await writeDocument(group.sourceUri, sourceContent, source, fileService);
 	} catch (error) {
-		try {
-			await restoreSourceAfterFailedWrite(group.sourceUri, source, sourceContent, fileService);
-		} catch (restoreError) {
-			throw rollbackErrorWith(error, restoreError, group.sourceUri);
+		const sourceChangedBeforeWrite = error instanceof McpServerDocumentChangedError;
+		if (!sourceChangedBeforeWrite) {
+			try {
+				await restoreSourceAfterFailedWrite(group.sourceUri, source, sourceContent, fileService);
+			} catch (restoreError) {
+				throw rollbackErrorWith(error, restoreError, group.sourceUri);
+			}
 		}
 		if (writtenTarget) {
 			try {
@@ -320,7 +326,12 @@ async function migrateGroup(
 				throw rollbackErrorWith(error, rollbackError, group.sourceUri);
 			}
 		}
-		throw new McpServerMigrationError(McpServerCustomizationMigrationFailureReason.WriteFailed, toError(error));
+		throw new McpServerMigrationError(
+			sourceChangedBeforeWrite
+				? McpServerCustomizationMigrationFailureReason.SourceChanged
+				: McpServerCustomizationMigrationFailureReason.WriteFailed,
+			toError(error),
+		);
 	}
 
 	try {
@@ -363,10 +374,7 @@ async function restoreSourceAfterFailedWrite(resource: URI, original: IJsonDocum
 		throw new Error(`Cannot safely restore ${resource.toString()} because it changed during migration.`);
 	}
 	try {
-		await fileService.writeFile(resource, VSBuffer.fromString(original.content), {
-			etag: current.etag,
-			mtime: current.mtime,
-		});
+		await writeExistingDocument(resource, original.content, attemptedContent, fileService);
 	} catch (error) {
 		const afterFailedRestore = await fileService.readFile(resource);
 		if (afterFailedRestore.value.toString() === original.content) {
@@ -408,7 +416,7 @@ async function readSourceDocument(resource: URI, fileService: IFileService): Pro
 			new Error(`MCP configuration ${resource.toString()} contains invalid JSON.`),
 		);
 	}
-	return { content, value, exists: true, mtime: file.mtime, etag: file.etag };
+	return { content, value, exists: true };
 }
 
 async function readTargetDocument(resource: URI, fileService: IFileService): Promise<IJsonDocument> {
@@ -424,7 +432,7 @@ async function readTargetDocument(resource: URI, fileService: IFileService): Pro
 		if (!isJsonObject(value) || !getObjectProperty(value, 'mcpServers')) {
 			throw new Error(`MCP configuration ${resource.toString()} must contain an mcpServers object.`);
 		}
-		return { content, value, exists: true, mtime: file.mtime, etag: file.etag };
+		return { content, value, exists: true };
 	} catch (error) {
 		if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 			throw error;
@@ -440,13 +448,21 @@ async function readTargetDocument(resource: URI, fileService: IFileService): Pro
 
 async function writeDocument(resource: URI, content: string, document: IJsonDocument, fileService: IFileService): Promise<IFileStatWithMetadata> {
 	if (document.exists) {
-		await ensureFileExists(resource, fileService);
-		return fileService.writeFile(resource, VSBuffer.fromString(content), {
-			etag: document.etag,
-			mtime: document.mtime,
-		});
+		return writeExistingDocument(resource, content, document.content, fileService);
 	}
 	return fileService.createFile(resource, VSBuffer.fromString(content), { overwrite: false });
+}
+
+async function writeExistingDocument(resource: URI, content: string, expectedContent: string, fileService: IFileService): Promise<IFileStatWithMetadata> {
+	await ensureFileExists(resource, fileService);
+	const current = await fileService.readFile(resource);
+	if (current.value.toString() !== expectedContent) {
+		throw new McpServerDocumentChangedError(resource);
+	}
+	return fileService.writeFile(resource, VSBuffer.fromString(content), {
+		etag: current.etag,
+		mtime: current.mtime,
+	});
 }
 
 async function restoreExistingDocument(
@@ -460,10 +476,7 @@ async function restoreExistingDocument(
 	if (current.etag !== written.etag || current.mtime !== written.mtime || current.value.toString() !== writtenContent) {
 		throw new Error(`Cannot safely restore ${resource.toString()} because it changed after migration.`);
 	}
-	await fileService.writeFile(resource, VSBuffer.fromString(original.content), {
-		etag: current.etag,
-		mtime: current.mtime,
-	});
+	await writeExistingDocument(resource, original.content, writtenContent, fileService);
 }
 
 async function rollbackTarget(
@@ -481,10 +494,7 @@ async function rollbackTarget(
 		);
 	}
 	if (original.exists) {
-		await fileService.writeFile(resource, VSBuffer.fromString(original.content), {
-			etag: current.etag,
-			mtime: current.mtime,
-		});
+		await writeExistingDocument(resource, original.content, writtenContent, fileService);
 	} else {
 		throw new McpServerMigrationError(
 			McpServerCustomizationMigrationFailureReason.RollbackFailed,
@@ -494,8 +504,13 @@ async function rollbackTarget(
 }
 
 async function ensureFileExists(resource: URI, fileService: IFileService): Promise<void> {
-	if (!await fileService.exists(resource)) {
-		throw new FileOperationError(`File was deleted during MCP migration: ${resource.toString()}`, FileOperationResult.FILE_NOT_FOUND);
+	try {
+		await fileService.resolve(resource);
+	} catch (error) {
+		if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+			throw new FileOperationError(`File was deleted during MCP migration: ${resource.toString()}`, FileOperationResult.FILE_NOT_FOUND);
+		}
+		throw error;
 	}
 }
 
@@ -604,6 +619,12 @@ class McpServerMigrationError extends Error {
 		readonly underlyingError: Error,
 	) {
 		super(underlyingError.message);
+	}
+}
+
+class McpServerDocumentChangedError extends Error {
+	constructor(resource: URI) {
+		super(`MCP configuration ${resource.toString()} changed during migration.`);
 	}
 }
 

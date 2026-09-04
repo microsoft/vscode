@@ -11,7 +11,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
+import { IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -89,6 +89,37 @@ class ConcurrentSourceRestoreProvider extends InMemoryFileSystemProvider {
 			this.restoreSourceAfterWrite = false;
 			await super.writeFile(resource, VSBuffer.fromString(this.originalSourceContent).buffer, options);
 		}
+	}
+}
+
+class ConcurrentSameSizeReadProvider extends InMemoryFileSystemProvider {
+	resource: URI | undefined;
+	concurrentContent = '';
+	private readCount = 0;
+
+	override async readFile(resource: URI): Promise<Uint8Array> {
+		if (this.resource && isEqual(resource, this.resource) && ++this.readCount === 2) {
+			await super.writeFile(resource, VSBuffer.fromString(this.concurrentContent).buffer, {
+				create: true,
+				overwrite: true,
+				unlock: false,
+				atomic: false,
+			});
+		}
+		return super.readFile(resource);
+	}
+}
+
+class ResolveFailingProvider extends InMemoryFileSystemProvider {
+	resource: URI | undefined;
+	failAtStat = 0;
+	private statCount = 0;
+
+	override async stat(resource: URI): Promise<IStat> {
+		if (this.resource && isEqual(resource, this.resource) && ++this.statCount === this.failAtStat) {
+			throw new Error('Expected resolve failure');
+		}
+		return super.stat(resource);
 	}
 }
 
@@ -320,6 +351,86 @@ suite('McpServerCustomizationMigration', () => {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'changed' }, concurrent: { command: 'other' } } },
 			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'stdio', command: 'node' } } },
+		});
+	});
+
+	test('preserves a same-size source edit made before the source overwrite', async () => {
+		const root = URI.file('/source-same-size-change');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const provider = new ConcurrentSameSizeReadProvider();
+		const fileService = createFileService(provider);
+		const originalSource = '{"servers":{"server":{"command":"node"},"other":{"command":"first"}}}';
+		const concurrentSource = '{"servers":{"server":{"command":"node"},"other":{"command":"other"}}}';
+		await fileService.writeFile(sourceUri, VSBuffer.fromString(originalSource));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"existing":{"command":"first"}}}'));
+		provider.resource = sourceUri;
+		provider.concurrentContent = concurrentSource;
+
+		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+
+		assert.deepStrictEqual({
+			sameSize: originalSource.length === concurrentSource.length,
+			failures: result.failures.map(failure => failure.reason),
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			sameSize: true,
+			failures: [McpServerCustomizationMigrationFailureReason.SourceChanged],
+			source: { servers: { server: { command: 'node' }, other: { command: 'other' } } },
+			target: { mcpServers: { existing: { command: 'first' } } },
+		});
+	});
+
+	test('preserves a same-size target edit made before the target overwrite', async () => {
+		const root = URI.file('/target-same-size-change');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const provider = new ConcurrentSameSizeReadProvider();
+		const fileService = createFileService(provider);
+		const originalTarget = '{"mcpServers":{"existing":{"command":"first"}}}';
+		const concurrentTarget = '{"mcpServers":{"existing":{"command":"other"}}}';
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString(originalTarget));
+		provider.resource = targetUri;
+		provider.concurrentContent = concurrentTarget;
+
+		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+
+		assert.deepStrictEqual({
+			sameSize: originalTarget.length === concurrentTarget.length,
+			failures: result.failures.map(failure => failure.reason),
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			sameSize: true,
+			failures: [McpServerCustomizationMigrationFailureReason.TargetChanged],
+			source: { servers: { server: { command: 'node' } } },
+			target: { mcpServers: { existing: { command: 'other' } } },
+		});
+	});
+
+	test('preserves provider errors while checking that a target still exists', async () => {
+		const root = URI.file('/target-resolve-failure');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const provider = new ResolveFailingProvider();
+		const fileService = createFileService(provider);
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"existing":{"command":"existing"}}}'));
+		provider.resource = targetUri;
+		provider.failAtStat = 2;
+
+		const result = await new McpServerCustomizationMigrator(fileService).migrate([candidate(root, 'server')]);
+
+		assert.deepStrictEqual({
+			failures: result.failures.map(failure => [failure.reason, failure.error?.message]),
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			failures: [[McpServerCustomizationMigrationFailureReason.WriteFailed, 'Expected resolve failure']],
+			source: { servers: { server: { command: 'node' } } },
+			target: { mcpServers: { existing: { command: 'existing' } } },
 		});
 	});
 
