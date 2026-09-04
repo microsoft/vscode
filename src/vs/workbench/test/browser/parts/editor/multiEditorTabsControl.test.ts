@@ -142,7 +142,10 @@ suite('MultiEditorTabsControl', () => {
 
 		const actions = [tabActions()];
 
+		// Alt+Tab to another application: the `keyup` for Alt is
+		// delivered to that application and never seen here
 		hostService.setFocus(false);
+		ModifierKeyEmitter.getInstance().resetKeyStatus();
 		actions.push(tabActions());
 
 		// Alt being reported as pressed again when focus returns must not
@@ -151,10 +154,15 @@ suite('MultiEditorTabsControl', () => {
 		alt(true);
 		actions.push(tabActions());
 
+		// Hovering a tab again arms the swap as usual
+		hoverTab(0);
+		actions.push(tabActions());
+
 		assert.deepStrictEqual(actions, [
 			['closeOthers', 'close'],
 			['close', 'close'],
-			['close', 'close']
+			['close', 'close'],
+			['closeOthers', 'close']
 		]);
 	});
 
