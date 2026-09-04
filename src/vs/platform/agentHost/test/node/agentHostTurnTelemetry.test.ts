@@ -11,6 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
@@ -229,6 +231,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostGitStateService, createNoopGitStateService()],
 			[IAgentHostStateManager, stateManager],
+			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
