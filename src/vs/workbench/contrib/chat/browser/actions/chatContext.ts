@@ -53,14 +53,7 @@ interface IGitHubContextSelection {
 	readonly label: string;
 }
 
-interface IGitHubRepositoryQuickPickItem extends IQuickPickItem {
-	readonly repoId?: string;
-	readonly folderUri?: URI;
-}
-
-interface IGitHubRepositoryPick {
-	readonly label: string;
-	readonly description?: string;
+interface IGitHubRepositoryPick extends IQuickPickItem {
 	readonly repoId?: string;
 	readonly folderUri?: URI;
 }
@@ -182,9 +175,12 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	}
 
 	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
-		return this.quickInputService.pick(
-			repositories,
-			{ placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository") }
+		return this.quickInputService.pick<IGitHubRepositoryPick>(
+			[...repositories],
+			{
+				canPickMany: false,
+				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
+			}
 		);
 	}
 
