@@ -386,9 +386,9 @@ export interface IManagedSettingsContribution {
 export interface IManagedSettingResolution {
 	/** The effective (winning) value applied for the key. */
 	readonly value: ManagedSettingValue;
-	/** The channel whose value won (always the first {@link contributions} entry's channel). */
+	/** The highest-precedence channel supplying the effective value. */
 	readonly source: ManagedSettingsChannel;
-	/** Every channel that supplied this key, in precedence order (winner first, overridden after). */
+	/** Every channel that supplied this key, in delivery precedence order. */
 	readonly contributions: readonly IManagedSettingsContribution[];
 }
 
@@ -408,8 +408,8 @@ export interface IManagedSettingsPick {
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the
- * server or a file, while keys those higher channels leave unset remain available to lower ones.
+ * a lower channel. The runtime-owned `sandbox.enabled` control is the exception: any managed
+ * `true` wins, so harness selection cannot discard a sandbox requirement from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -420,8 +420,7 @@ export interface IManagedSettingsPick {
 export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
 	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
 
-	// Walk channels highest-precedence first: the first channel to supply a key wins, and later
-	// channels are appended as overridden contributions for provenance.
+	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
@@ -438,6 +437,10 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			const existing = resolutions.get(key);
 			if (existing) {
 				existing.contributions.push({ channel, value });
+				if (key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true) {
+					existing.value = value;
+					existing.source = channel;
+				}
 			} else {
 				resolutions.set(key, { value, source: channel, contributions: [{ channel, value }] });
 			}
