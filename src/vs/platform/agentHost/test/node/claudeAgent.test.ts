@@ -5219,18 +5219,10 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('neither restore nor cold discovery pulls the SDK down', async () => {
-		// Regression: when a materialized Claude session is restored on
-		// startup (the renderer subscribes to the last-active session), the
-		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
-		// and `chats.getMessages`, both of which dynamically import the SDK.
-		// Before the fix that eagerly triggered a cold SDK download (with no
-		// progress interest registered, so no notification) purely from
-		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Discovery used to be exempt and fetch in the
-		// background; it no longer is, since the download is the user's call.
+	test('restoring chat history downloads a cold SDK while passive metadata and discovery stay cold', async () => {
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
+		sdk.ensureAvailableGate = Promise.resolve().then(() => { sdk.canLoadWithoutDownloadResult = true; });
 		sdk.sessionList = [
 			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
 		];
@@ -5255,26 +5247,27 @@ suite('ClaudeAgent', () => {
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
-		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const passiveMetadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const restoredMetadata = await agent.getChatMetadata(chat, chatContext(chat), undefined, { activation: 'restore' });
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			metadata,
-			messages,
-			// Nothing reachable from restore or discovery may touch the SDK
-			// while it is absent, whether to read it or to fetch it.
+			passiveMetadata,
+			restoredSummary: restoredMetadata?.summary,
+			messageCount: messages.length,
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
 			availabilityRequests: sdk.ensureAvailableCalls,
 			discoveredChats,
 		}, {
-			metadata: undefined,
-			messages: [],
-			getSessionInfoCalls: [],
-			getSessionMessagesCalls: [],
-			availabilityRequests: 0,
+			passiveMetadata: undefined,
+			restoredSummary: 'Materialized Session',
+			messageCount: 2,
+			getSessionInfoCalls: ['materialized'],
+			getSessionMessagesCalls: [{ sessionId: 'materialized', options: { includeSystemMessages: true } }],
+			availabilityRequests: 1,
 			discoveredChats: [],
 		});
 	});
