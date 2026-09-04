@@ -21,6 +21,18 @@ import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions } from '../../../../../../platform/browserView/common/browserView.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Tunnel, TunnelModel } from '../../../../../services/remote/common/tunnelModel.js';
+
+function createRemoteExplorerService(localUri: string): IRemoteExplorerService {
+	return upcastPartial<IRemoteExplorerService>({
+		tunnelModel: upcastPartial<TunnelModel>({
+			forwarded: new Map([
+				['localhost:3000', upcastPartial<Tunnel>({ localUri: URI.parse(localUri) })],
+			]),
+			detected: new Map(),
+		}),
+	});
+}
 
 suite('OpenBrowserTool', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -89,7 +101,9 @@ suite('OpenBrowserTool', () => {
 				}
 			}),
 			upcastPartial<IRemoteExplorerService>({}),
-			upcastPartial<AgentNetworkFilterService>({}),
+			upcastPartial<AgentNetworkFilterService>({
+				isUriAllowed: () => true,
+			}),
 			upcastPartial<IChatService>({}),
 			new TestConfigurationService(),
 			upcastPartial<ILogService>({}),
@@ -118,6 +132,105 @@ suite('OpenBrowserTool', () => {
 			},
 			editorOpenOptions: { preserveFocus: true },
 			summaryArguments: ['chat:session', 'page-id', 'https://example.com', 5000]
+		});
+	});
+
+	test('blocks an external forwarded destination before opening a browser page', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['localhost']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		let createCount = 0;
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			willUseRemoteProxy: () => false,
+			createBrowserView: async () => {
+				createCount++;
+				return upcastPartial<BrowserEditorInput>({ id: 'page-id' });
+			},
+		});
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async () => 'Page summary',
+			}),
+			upcastPartial<IEditorService>({}),
+			browserViewService,
+			createRemoteExplorerService('https://blocked-tunnel.example'),
+			networkFilterService,
+			upcastPartial<IChatService>({}),
+			configService,
+			upcastPartial<ILogService>({}),
+		);
+		const parameters = { url: 'http://localhost:3000/private', forceNew: true };
+
+		await tool.prepareToolInvocation({
+			parameters,
+			toolCallId: 'test-tool-call',
+			chatSessionResource: undefined,
+		}, CancellationToken.None);
+		const result = await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters,
+				context: { sessionResource: URI.parse('chat:session') },
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			createCount,
+			error: result.toolResultError,
+		}, {
+			createCount: 0,
+			error: networkFilterService.formatError(URI.parse('https://blocked-tunnel.example/private')),
+		});
+	});
+
+	test('rechecks policy before existing-page discovery', async () => {
+		let allowed = true;
+		let discoveryCount = 0;
+		const networkFilterService = upcastPartial<AgentNetworkFilterService>({
+			isUriAllowed: () => allowed,
+			formatError: uri => `Blocked ${uri.authority}`,
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			willUseRemoteProxy: () => true,
+			getContextualBrowserViews: () => {
+				discoveryCount++;
+				return new Map();
+			},
+		});
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({}),
+			upcastPartial<IEditorService>({}),
+			browserViewService,
+			upcastPartial<IRemoteExplorerService>({}),
+			networkFilterService,
+			upcastPartial<IChatService>({}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+		);
+		const parameters = { url: 'https://example.com/private' };
+
+		await tool.prepareToolInvocation({
+			parameters,
+			toolCallId: 'test-tool-call',
+			chatSessionResource: undefined,
+		}, CancellationToken.None);
+		allowed = false;
+		const result = await tool.invoke(
+			upcastPartial<IToolInvocation>({ parameters }),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			discoveryCount,
+			error: result.toolResultError,
+		}, {
+			discoveryCount: 0,
+			error: 'Blocked example.com',
 		});
 	});
 });

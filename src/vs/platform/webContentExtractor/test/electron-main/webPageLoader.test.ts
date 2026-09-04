@@ -814,6 +814,34 @@ suite('WebPageLoader', () => {
 		});
 	});
 
+	test('fails closed for empty-authority WebSocket requests', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
+		createWebPageLoader(
+			URI.parse('https://allowed.example/page'),
+			undefined,
+			undefined,
+			uri => networkFilterService.isUriAllowed(uri)
+		);
+
+		const listener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
+		const urls = [
+			String.raw`ws:\\evil.example/socket`,
+			String.raw`wss:\evil.example/socket`,
+		];
+		const callbackResults = new Map<string, unknown>();
+		for (const url of urls) {
+			listener({ url, resourceType: 'webSocket' }, (result: unknown) => callbackResults.set(url, result));
+		}
+
+		assert.deepStrictEqual(
+			[...callbackResults.values()],
+			urls.map(() => ({ cancel: true }))
+		);
+	});
+
 	test('fails closed for malformed request and frame URLs', () => {
 		createWebPageLoader(URI.parse('https://allowed.example/page'));
 		const requestListener = window.webContents.session.webRequest.onBeforeRequest.firstCall.args[0];
