@@ -12,20 +12,12 @@
 		overflow: hidden;
 	}
 
-	.agent-sessions-sidebar-splitview-container {
+	.agent-sessions-sidebar-content {
+		display: flex;
+		flex-direction: column;
 		flex: 1;
 		min-height: 0;
 		overflow: hidden;
-	}
-
-	.agent-sessions-sidebar-splitview-container .monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
-		left: var(--vscode-spacing-size40, 4px);
-		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px)));
-	}
-
-	.agent-sessions-sidebar-splitview-container .monaco-split-view2.vertical > .sash-container > .monaco-sash.horizontal {
-		left: var(--vscode-spacing-size40, 4px) !important;
-		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px))) !important;
 	}
 
 	/* Section headers - more prominent than time-based groupings */
@@ -49,7 +41,7 @@
 		opacity: 0.7;
 	}
 
-	/* Sessions section - fills remaining space above customizations */
+	/* Sessions section - fills the available sidebar content area */
 	.agent-sessions-section {
 		display: flex;
 		flex-direction: column;
@@ -174,10 +166,6 @@
 		overflow: hidden;
 	}
 
-	.agent-sessions-customizations-section {
-		overflow: hidden;
-		min-height: 0;
-	}
 }
 
 .agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {

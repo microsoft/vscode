@@ -21,9 +21,9 @@ import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/c
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
+import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
 
 //#region Utilities
 
@@ -292,7 +292,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FOCUS_AI_CUSTOMIZATION_VIEW_ID,
-			title: localize2('focusCustomizations', "Focus Chat Customizations"),
+			title: localize2('openCustomizations', "Open Chat Customizations"),
 			category: AI_CUSTOMIZATION_CATEGORY,
 			precondition: IsSessionsWindowContext,
 			f1: true,
@@ -304,9 +304,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const sessionsView = await viewsService.openView<SessionsView>(SessionsViewId, false);
-		sessionsView?.focusCustomizations();
+		await accessor.get(ICommandService).executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID);
 	}
 });
 

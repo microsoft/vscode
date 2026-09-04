@@ -311,6 +311,19 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.sessions-customize-migration-indicator {
+	display: none;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.sessions-customize-trigger.has-migrations .sessions-customize-migration-indicator {
+	display: block;
+}
+
 .sessions-workspace-category-picker .sessions-chat-dropdown-label {
 	margin-left: 0;
 }

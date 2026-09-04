@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 /* Agent Host section - sits at the bottom of the sessions sidebar on web desktop. */
 
-/*
- * Static divider above the section. Matches the split view separator between
- * sessions and customizations — same color and same horizontal inset — but is
- * a plain line, since this section cannot be resized.
- */
+/* Static divider above the section. */
 .agent-host-toolbar-separator {
 	flex-shrink: 0;
 	height: 1px;

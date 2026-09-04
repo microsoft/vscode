@@ -56,6 +56,12 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { ICustomizationMigrationAvailabilityService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 // #region --- New Chat Widget ---
 
@@ -128,6 +134,9 @@ export class NewChatWidget extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
+		@ICustomizationMigrationAvailabilityService private readonly customizationMigrationAvailabilityService: ICustomizationMigrationAvailabilityService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -435,6 +444,7 @@ export class NewChatWidget extends Disposable {
 
 		if (!isWeb) {
 			this._quickChatHeaderPickerHost = dom.append(chatWidgetContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
+			this._register(this._renderCustomizeTrigger(this._quickChatHeaderPickerHost));
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
@@ -775,12 +785,52 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
+		const customizeTrigger = this._renderCustomizeTrigger(row);
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
+			customizeTrigger.dispose();
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 			}
 		});
+	}
+
+	private _renderCustomizeTrigger(container: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const trigger = dom.append(slot, dom.$('a.action-label.sessions-customize-trigger'));
+		trigger.tabIndex = 0;
+		trigger.role = 'button';
+		const icon = dom.append(trigger, renderIcon(Codicon.tools));
+		icon.setAttribute('aria-hidden', 'true');
+		const label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
+		label.textContent = localize('newSessionCustomize', "Customize");
+		const indicator = dom.append(trigger, dom.$('span.sessions-customize-migration-indicator'));
+		indicator.setAttribute('aria-hidden', 'true');
+
+		const run = () => this.commandService.executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID).catch(onUnexpectedError);
+		store.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, event => {
+			dom.EventHelper.stop(event, true);
+			run();
+		}));
+		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				dom.EventHelper.stop(event, true);
+				run();
+			}
+		}));
+		store.add(this.hoverService.setupDelayedHover(trigger, {
+			content: localize('newSessionCustomizeTooltip', "Open customization overview"),
+		}));
+		store.add(autorun(reader => {
+			const hasMigrations = this.customizationMigrationAvailabilityService.candidateCount.read(reader) > 0;
+			trigger.classList.toggle('has-migrations', hasMigrations);
+			trigger.setAttribute('aria-label', hasMigrations
+				? localize('newSessionCustomizeMigrationsAriaLabel', "Customize, migrations available")
+				: localize('newSessionCustomizeAriaLabel', "Customize"));
+		}));
+		store.add(toDisposable(() => slot.remove()));
+		return store;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void {
@@ -788,8 +838,11 @@ export class NewChatWidget extends Disposable {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 		});
 		const sessionTypePicker = container.lastElementChild;
-		if (!isQuickChat && sessionTypePicker && container.firstElementChild !== sessionTypePicker) {
-			container.insertBefore(sessionTypePicker, container.firstElementChild?.nextSibling ?? null);
+		if (isQuickChat && sessionTypePicker) {
+			container.prepend(sessionTypePicker);
+		} else if (sessionTypePicker) {
+			const workspaceTrigger = container.firstElementChild;
+			workspaceTrigger?.after(sessionTypePicker);
 		}
 	}
 
