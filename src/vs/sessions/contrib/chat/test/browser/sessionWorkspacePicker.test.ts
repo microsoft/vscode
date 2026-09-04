@@ -3257,7 +3257,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: picker.getItemLabels(),
 			itemIcons: picker.getItems()
 				.filter(item => item.kind === ActionListItemKind.Action)
-				.map(item => item.group?.icon.id),
+				.map(item => item.group?.icon?.id),
 			showsFilter: picker.showsFilter(),
 			focusesFilter: picker.focusesFilter(),
 			filterPlaceholder: picker.filterPlaceholder(),
@@ -3356,7 +3356,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
 				label: item.label,
 				description: item.description,
-				icon: item.group?.icon.id,
+				icon: item.group?.icon?.id,
 				checked: item.item?.checked,
 			})),
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
@@ -3369,7 +3369,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				items: picker.getItems().filter(item => item.kind === ActionListItemKind.Action).map(item => ({
 					label: item.label,
 					description: item.description,
-					icon: item.group?.icon.id,
+					icon: item.group?.icon?.id,
 					checked: item.item?.checked,
 				})),
 				triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,

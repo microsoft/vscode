@@ -1471,11 +1471,11 @@ export class WorkspacePicker extends Disposable {
 				item: { browseActionIndex: index },
 			});
 			const canAttachFolder = action === this._localBrowseAction
-				&& this._selectedFolderUri
+				&& !!this._selectedFolderUri
 				&& this._getActivePickerGroup() === SESSION_WORKSPACE_GROUP_LOCAL
 				&& (!this._useConsolidatedRemoteWorkspaces() || this._directPickerAttachesContext === true);
 			const canAttachRepository = isRepositoryAction
-				&& this._selectedFolderUri
+				&& !!this._selectedFolderUri
 				&& this._isGroupInActiveTab(SESSION_WORKSPACE_GROUP_GITHUB)
 				&& !hasRepositoryAttachmentAction;
 			if (canAttachFolder || canAttachRepository) {

@@ -671,7 +671,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	/**
 	 * The repository this session targets, as `owner/repo`. A GitHub workspace root carries a ref
-	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForRepo}), so this
+	 * (`/<owner>/<repo>/HEAD`, see {@link CopilotChatSessionsProvider._browseForCloudRepo}), so this
 	 * takes only the first two path segments rather than the whole path.
 	 */
 	get repoNwo(): string | undefined {
@@ -1579,7 +1579,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				icon: Codicon.library,
 				providerId: this.id,
 				attachesContext: false,
-				run: () => this._browseForRepo(),
+				run: () => this._browseForCloudRepo(),
 			}];
 
 		this.browseActions = [
