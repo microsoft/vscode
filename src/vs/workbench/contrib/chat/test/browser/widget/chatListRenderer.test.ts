@@ -1574,6 +1574,105 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('keeps a workspace transition outside collapsed completed steps', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'Continue in the requested workspace.';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'workspace-continuation', true, 'Continue in Requested Workspace', undefined, false, undefined, false, undefined, true);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		model.acceptResponseProgress(request, {
+			kind: 'systemNotification',
+			content: new MarkdownString('Now working in vscode'),
+			presentation: 'workspaceTransition',
+			workspaceName: 'vscode',
+			accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+		});
+		for (const callId of ['call-1', 'call-2']) {
+			const toolInvocation = new ChatToolInvocation({
+				invocationMessage: 'Running tool...',
+				pastTenseMessage: 'Tool completed',
+			}, {
+				id: 'my-tool',
+				displayName: 'My Tool',
+				modelDescription: 'Test tool',
+				source: ToolDataSource.Internal,
+			}, callId, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, toolInvocation);
+			await toolInvocation.didExecuteTool(undefined);
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Provider continued work') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		const transition = container.querySelector<HTMLElement>('.chat-workspace-transition');
+		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		const providerOutput = [...container.querySelectorAll<HTMLElement>('.rendered-markdown')]
+			.find(element => element.textContent === 'Provider continued work');
+		assert.deepStrictEqual({
+			requestVisible: viewModel.getItems().some(isRequestVM),
+			transitionVisible: !!transition,
+			transitionParentIsResponse: transition?.parentElement === template.value,
+			transitionInsideDisclosure: !!transition && !!disclosure?.contains(transition),
+			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
+			disclosureOpen: disclosure?.open,
+			transitionBeforeDisclosure: !!transition && !!disclosure && !!(transition.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			disclosureBeforeProviderOutput: !!disclosure && !!providerOutput && !!(disclosure.compareDocumentPosition(providerOutput) & Node.DOCUMENT_POSITION_FOLLOWING),
+		}, {
+			requestVisible: false,
+			transitionVisible: true,
+			transitionParentIsResponse: true,
+			transitionInsideDisclosure: false,
+			disclosureLabel: 'Completed 2 steps',
+			disclosureOpen: false,
+			transitionBeforeDisclosure: true,
+			disclosureBeforeProviderOutput: true,
+		});
+
+		disposables.dispose();
+	});
+
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
