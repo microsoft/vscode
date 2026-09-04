@@ -353,26 +353,26 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		}
 	}
 
-	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2): void {
+	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2, useTwoCellFullwidthCharacters: boolean = false): void {
 		// sanity check the test
 		assert.strictEqual(text, parseAnnotatedText(annotatedText1).text);
 		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
+		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
+		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData1);
+		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData1, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
 		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData2);
+		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData2, null, useTwoCellFullwidthCharacters);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
 		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
@@ -555,6 +555,38 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 			combinedNatural: '\u3042|\u0301aa',
 			combinedTwoCells: '\u3042|\u0301aa',
 		});
+	});
+
+	test('MonospaceLineBreaksComputer - two-cell width supports incremental line breaks', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+
+		// A font that lies about its full-width ratio: each ideograph still occupies exactly two cells.
+		assertIncrementalLineBreaks(
+			factory, 'ああああああ', 4,
+			5, 'ああ|ああ|ああ',
+			7, 'あああ|あああ',
+			WrappingIndent.None,
+			3,
+			true
+		);
+
+		assertIncrementalLineBreaks(
+			factory, '    ああああ', 4,
+			8, '    ああ|ああ',
+			10, '    あああ|あ',
+			WrappingIndent.Same,
+			3,
+			true
+		);
+
+		assertIncrementalLineBreaks(
+			factory, '你好 **hello** **hello** **hello-world** hey there!', 4,
+			15, '你好 **hello** |**hello** |**hello-world**| hey there!',
+			1, '你|好| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|-|w|o|r|l|d|*|*| |h|e|y| |t|h|e|r|e|!',
+			WrappingIndent.Same,
+			1.6605405405405405,
+			true
+		);
 	});
 
 	test('MonospaceLineBreaksComputer - WrappingIndent.Same', () => {
