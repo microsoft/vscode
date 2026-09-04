@@ -303,7 +303,11 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
-		conn.setState(turnChangesetUri('t1'), new Error('checkpoint unavailable'));
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Error,
+			error: { errorType: 'computeFailed', message: 'checkpoint unavailable' },
+			files: [],
+		} satisfies ChangesetState);
 		conn.setState(defaultChatUri.toString(), {
 			turns: [{
 				id: 't1',

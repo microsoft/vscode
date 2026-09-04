@@ -106,7 +106,7 @@ suite('ChatTurnPillsContentPart', () => {
 		});
 		const before = readState();
 		diffs.set([
-			{ ...emptySessionEntryDiff(URI.file('/file3.ts'), URI.file('/file3.ts')), added: 4, removed: 1 },
+			{ ...emptySessionEntryDiff(URI.file('/file3.ts'), URI.file('/file3.ts')), added: 1, removed: 1 },
 		], undefined);
 
 		assert.deepStrictEqual({ before, after: readState() }, {
@@ -122,9 +122,9 @@ suite('ChatTurnPillsContentPart', () => {
 			after: {
 				display: '',
 				files: '1 file changed',
-				additions: '+4',
+				additions: '+1',
 				deletions: '-1',
-				ariaLabel: 'View all file changes: 1 file changed, 4 lines added, 1 lines deleted',
+				ariaLabel: 'View all file changes: 1 file changed, 1 line added, 1 line deleted',
 				hasDisclosure: true,
 				hasPreview: false,
 			},

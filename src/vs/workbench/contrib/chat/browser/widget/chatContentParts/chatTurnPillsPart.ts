@@ -112,22 +112,28 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			const fileCountLabel = files === 1
 				? localize('chat.turnChanges.oneFile', '1 file changed')
 				: localize('chat.turnChanges.manyFiles', '{0} files changed', files);
+			const insertionsLabel = insertions === 1
+				? localize('chat.turnChanges.oneLineAdded', '1 line added')
+				: localize('chat.turnChanges.manyLinesAdded', '{0} lines added', insertions);
+			const deletionsLabel = deletions === 1
+				? localize('chat.turnChanges.oneLineDeleted', '1 line deleted')
+				: localize('chat.turnChanges.manyLinesDeleted', '{0} lines deleted', deletions);
 			filesLabel.textContent = fileCountLabel;
 			addedLabel.textContent = `+${insertions}`;
 			removedLabel.textContent = `-${deletions}`;
 			counts.setAttribute('aria-label', localize(
 				'chat.turnChanges.viewAllAccessible',
-				'View all file changes: {0}, {1} lines added, {2} lines deleted',
+				'View all file changes: {0}, {1}, {2}',
 				fileCountLabel,
-				insertions,
-				deletions
+				insertionsLabel,
+				deletionsLabel
 			));
 			header.setAttribute('aria-label', localize(
 				'chat.turnChanges.accessibleSummary',
-				'{0}, {1} lines added, {2} lines deleted',
+				'{0}, {1}, {2}',
 				fileCountLabel,
-				insertions,
-				deletions
+				insertionsLabel,
+				deletionsLabel
 			));
 		}));
 	}
