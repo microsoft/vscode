@@ -50,14 +50,14 @@ export interface IAgentHostCustomizationService {
 	 */
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined;
 
+	/** The primary working-directory URI string in the agent host's URI space. */
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
-	/**
-	 * The full ordered set of working-directory roots for a session (index 0 =
-	 * primary).
-	 * Returns an empty array for sessions with no working directory.
-	 */
+	/** The ordered host-side working-directory URI strings (primary first), or empty when none are known. */
 	getWorkingDirectories(sessionResource: URI): readonly string[];
+
+	/** The ordered working-directory roots as client-resolvable URIs for filesystem access. */
+	getWorkingDirectoryUris(sessionResource: URI): readonly URI[];
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
@@ -117,6 +117,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	getWorkingDirectories(_sessionResource: URI): readonly string[] {
 		return [];
 	}
+	getWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
+		return [];
+	}
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
 		return [];
 	}
@@ -139,6 +142,7 @@ export interface IAgentHostCustomizationTarget {
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
+	/** Host-side URI strings, also used in protocol enablement decisions. */
 	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
@@ -195,6 +199,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getWorkingDirectories(sessionResource: URI): readonly string[] {
 		return this._resolveTarget(sessionResource)?.workingDirectories ?? [];
+	}
+
+	getWorkingDirectoryUris(sessionResource: URI): readonly URI[] {
+		const target = this._resolveTarget(sessionResource);
+		if (!target) {
+			return [];
+		}
+		return target.workingDirectories?.map(root => target.resourceUris.fromAgentHost(URI.parse(root))) ?? [];
 	}
 
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
@@ -487,8 +499,8 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscriptionValue = subscription?.value;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
 		const workingDirectories = sessionState
-			? this._mapWorkingDirectories(target, sessionState.workingDirectories ?? [])
-			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => target.connection.resourceUris.fromAgentHost(root).toString()) ?? [];
+			? sessionState.workingDirectories ?? []
+			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => root.toString()) ?? [];
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -528,10 +540,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				});
 			}
 		};
-	}
-
-	private _mapWorkingDirectories(target: IAgentHostSessionResolution, roots: readonly string[]): readonly string[] {
-		return roots.map(root => target.connection.resourceUris.fromAgentHost(URI.parse(root)).toString());
 	}
 
 	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {

@@ -169,6 +169,7 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
 		override getWorkingDirectories() { return ['file:///workspace']; }
+		override getWorkingDirectoryUris() { return [URI.file('/workspace')]; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }

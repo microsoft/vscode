@@ -97,7 +97,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return { migratedCount: 0, failures: [] };
 		}
 
-		const roots = this.getWorkingDirectoryUris(sessionResource);
+		const roots = this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource);
 		const contextGeneration = this.activeContextGeneration;
 		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
 			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
@@ -236,11 +236,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return { type, files: filteredCandidates.map(customization => customization.uri), candidates: filteredCandidates };
 	}
 
-	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None, expectedRoots?: readonly URI[]): Promise<McpServerCustomizationMigration> {
-		const roots = this.getWorkingDirectoryUris(sessionResource);
-		if (expectedRoots && !this.areRootsEqual(expectedRoots, roots)) {
-			return this.emptyMcpServerMigration();
-		}
+	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigration> {
+		const roots = this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource);
 		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
 		if (!scope) {
 			return this.emptyMcpServerMigration();
@@ -248,12 +245,12 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 
 		try {
 			await raceCancellation(scope.whenResolved(), token);
-			if (token.isCancellationRequested || !this.areRootsEqual(roots, this.getWorkingDirectoryUris(sessionResource))) {
+			if (token.isCancellationRequested || !this.areRootsEqual(roots, this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource))) {
 				return this.emptyMcpServerMigration();
 			}
 			const snapshot = scope.support.get();
 			const plan = await this.mcpServerMigration.createPlan(snapshot, roots);
-			if (token.isCancellationRequested || !this.areRootsEqual(roots, this.getWorkingDirectoryUris(sessionResource))) {
+			if (token.isCancellationRequested || !this.areRootsEqual(roots, this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource))) {
 				return this.emptyMcpServerMigration();
 			}
 			return {
@@ -287,17 +284,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		};
 	}
 
-	private getWorkingDirectoryUris(sessionResource: URI): readonly URI[] {
-		return this.agentHostCustomizationService.getWorkingDirectories(sessionResource).map(value => {
-			const parsed = URI.parse(value);
-			return parsed.scheme ? parsed : URI.file(value);
-		});
-	}
-
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
 		return isEqual(sessionResource, this.customizationHarnessService.activeSessionResource.get())
 			&& generation === this.activeContextGeneration
-			&& this.areRootsEqual(roots, this.getWorkingDirectoryUris(sessionResource));
+			&& this.areRootsEqual(roots, this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource));
 	}
 
 	/**
@@ -335,7 +325,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	}
 
 	private updateActiveContext(sessionResource: URI): void {
-		const roots = this.getWorkingDirectoryUris(sessionResource);
+		const roots = this.agentHostCustomizationService.getWorkingDirectoryUris(sessionResource);
 		const key = JSON.stringify([getComparisonKey(sessionResource), ...roots.map(root => getComparisonKey(root))]);
 		if (key !== this.activeContextKey) {
 			this.activeContextKey = key;

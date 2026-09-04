@@ -581,10 +581,6 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function canonicalizeMcpServerCustomizationMigrationConfiguration(configuration: IMcpServerConfiguration): Record<string, unknown> {
-	return canonicalizeConfiguration(configuration);
-}
-
 function canonicalizeConfiguration(configuration: IMcpServerConfiguration): Record<string, unknown> {
 	if (configuration.type === McpServerType.LOCAL) {
 		return {
