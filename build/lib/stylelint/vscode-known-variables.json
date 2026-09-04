@@ -994,6 +994,7 @@
 		"--session-view-background",
 		"--session-view-foreground",
 		"--session-view-centered-content-max-width",
+		"--session-view-content-horizontal-padding",
 		"--prompt-timeline-bottom",
 		"--prompt-timeline-rail-width",
 		"--prompt-timeline-content-gap",

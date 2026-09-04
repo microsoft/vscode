@@ -112,8 +112,8 @@
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
 	right: max(
-		var(--vscode-spacing-size320),
-		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--vscode-spacing-size320))
+		var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)),
+		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))
 	);
 }
 
@@ -132,7 +132,7 @@
 	justify-content: flex-end;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--vscode-spacing-size320);
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 	pointer-events: none;
 }
@@ -163,10 +163,10 @@
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding-left: 32px;
-	padding-right: 32px;
+	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 
@@ -234,10 +234,10 @@
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-input-part {
 	width: 100%;
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
 	display: inherit;
-	padding: 4px 32px;
+	padding: var(--vscode-spacing-size40) var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 
