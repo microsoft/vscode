@@ -311,6 +311,14 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
 	});
 
+	test('resolves a published child before the SDK reports it', () => {
+		const { controller } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:fs'), 'fs');
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:missing'), undefined);
+	});
+
 	test('top-level entry stays top-level across updates (id stable)', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);

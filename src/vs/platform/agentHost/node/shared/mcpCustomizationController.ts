@@ -212,7 +212,7 @@ export class McpCustomizationController extends Disposable {
 		return published?.topLevelId ?? published?.childId;
 	}
 
-	/** Returns the live server name associated with a customization id. */
+	/** Returns the server name associated with a live or currently published customization id. */
 	serverNameForCustomizationId(id: string): string | undefined {
 		for (const entry of this._live.get().values()) {
 			const entryId = entry.topLevelId ?? this._resolveChildId(entry.serverName);
@@ -220,7 +220,8 @@ export class McpCustomizationController extends Disposable {
 				return entry.serverName;
 			}
 		}
-		return undefined;
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		return findMcpServerName(customizations, id);
 	}
 
 	/** Returns the last live state recorded for the MCP server named `serverName`. */
