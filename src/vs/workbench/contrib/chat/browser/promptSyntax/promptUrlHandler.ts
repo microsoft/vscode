@@ -80,7 +80,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 
 			await this.hostService.focus(mainWindow);
 
-			if (await this.shouldBlockInstall(promptType, url)) {
+			if (await this.shouldBlockInstall(promptType, urlString)) {
 				return true;
 			}
 
@@ -117,17 +117,17 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 	}
 
-	private async shouldBlockInstall(promptType: PromptsType, url: URI): Promise<boolean> {
-		const uriString = url.toString();
-		let uriLabel = uriString;
+	private async shouldBlockInstall(promptType: PromptsType, urlString: string): Promise<boolean> {
+		// `URI.toString()` reserializes and can move the authority delimiter, hiding the real host.
+		let uriLabel = urlString;
 		if (uriLabel.length > 50) {
 			uriLabel = `${uriLabel.substring(0, 35)}...${uriLabel.substring(uriLabel.length - 15)}`;
 		}
 
+		// The label is truncated, so carry the full URI in the attributes; escaped for attribute context.
+		const uriAttribute = urlString.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 		const detail = new MarkdownString('', { supportHtml: true });
-		// The label is truncated in the middle, which can hide the real host. Carry the full URI in
-		// `title` and `aria-label` so it stays reachable, as `extensionUrlHandler` already does.
-		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `<a href="${uriString}" title="${uriString}" aria-label="${uriString}">${uriLabel}</a>`));
+		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `<a href="${uriAttribute}" title="${uriAttribute}" aria-label="${uriAttribute}">${uriLabel}</a>`));
 		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"));
 
 		let message: string;
