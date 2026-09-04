@@ -20,6 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
+import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
@@ -57,6 +58,10 @@ interface ITestWireRequest {
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly dynamicTools?: readonly { readonly name: string }[];
+		readonly approvalPolicy?: unknown;
+		readonly approvalsReviewer?: unknown;
+		readonly sandbox?: unknown;
+		readonly permissions?: unknown;
 	};
 }
 
@@ -855,6 +860,7 @@ suite('CodexAgent createChat', () => {
 			const forkChat = URI.parse(buildDefaultChatUri(forkSessionUri));
 			const forking = createSessionBackedChat(agent, forkChat, { configurationResource: forkSessionUri, resource: forkChat }, {
 				fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
+				config: { [CodexSessionConfigKey.PermissionsPreset]: 'custom' },
 			});
 
 			const read = await readNextRequest(peer.outbound);
@@ -872,6 +878,21 @@ suite('CodexAgent createChat', () => {
 				result: { thread: { id: 'source-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }] } },
 			});
 
+			const configRead = await readNextRequest(peer.outbound);
+			assert.strictEqual(configRead.method, 'config/read');
+			assert.strictEqual(configRead.params.cwd, folder.fsPath);
+			peer.push({
+				id: configRead.id,
+				result: {
+					config: {
+						approval_policy: 'on-request',
+						approvals_reviewer: 'auto_review',
+						default_permissions: 'team-safe',
+					},
+					origins: {},
+					layers: null,
+				},
+			});
 			const fork = await readNextRequest(peer.outbound);
 			assert.strictEqual(fork.method, 'thread/fork');
 			assert.strictEqual(fork.params.threadId, 'source-thread');
@@ -900,6 +921,12 @@ suite('CodexAgent createChat', () => {
 				boundSessionId: agent['_sessionIdByChatUri'].get(forkChat.toString()),
 				threadId: agent['_sessions'].get('session-fork-target')?.threadId,
 				chatChannel: agent['_sessions'].get('session-fork-target')?.chatChannel?.toString(),
+				permissionOverrides: {
+					approvalPolicy: fork.params.approvalPolicy,
+					approvalsReviewer: fork.params.approvalsReviewer,
+					sandbox: fork.params.sandbox,
+					permissions: fork.params.permissions,
+				},
 			}, {
 				provisional: undefined,
 				session: forkSessionUri.toString(),
@@ -907,6 +934,7 @@ suite('CodexAgent createChat', () => {
 				boundSessionId: 'session-fork-target',
 				threadId: newThreadId,
 				chatChannel: forkChat.toString(),
+				permissionOverrides: { approvalPolicy: 'on-request', approvalsReviewer: 'auto_review', sandbox: undefined, permissions: 'team-safe' },
 			});
 
 			// Exact chat binding is directly usable: sending on the forked chat
@@ -1084,7 +1112,7 @@ suite('CodexAgent createChat', () => {
 			const creating = agent.chats.createChat(additionalChat, { configurationResource: sessionUri, resource: additionalChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
-				config: {},
+				config: { [CodexSessionConfigKey.PermissionsPreset]: 'custom' },
 			});
 			const start = await readNextRequest(peer.outbound);
 			const connection = agent['_connection'];
@@ -1110,7 +1138,13 @@ suite('CodexAgent createChat', () => {
 			const peerCustomizations = await agent.getChatCustomizations(additionalChat, { configurationResource: sessionUri, resource: additionalChat });
 
 			assert.deepStrictEqual({
-				started: { method: start.method, cwd: start.params.cwd },
+				started: {
+					method: start.method,
+					cwd: start.params.cwd,
+					approvalPolicy: start.params.approvalPolicy,
+					approvalsReviewer: start.params.approvalsReviewer,
+					sandbox: start.params.sandbox,
+				},
 				// The owning session's identity is already taken, so this chat is
 				// identified by the thread it minted and reported as an internal
 				// backing rather than as a session of its own.
@@ -1124,7 +1158,7 @@ suite('CodexAgent createChat', () => {
 				peerMcp: peerCustomizations.filter(customization => customization.type === CustomizationType.McpServer).map(customization => customization.name),
 				configurationResource: agent['_sessions'].get('additional-thread')?.configurationResource.toString(),
 			}, {
-				started: { method: 'thread/start', cwd: folder.fsPath },
+				started: { method: 'thread/start', cwd: folder.fsPath, approvalPolicy: undefined, approvalsReviewer: undefined, sandbox: undefined },
 				backingSession: AgentSession.uri('codex', 'additional-thread').toString(),
 				backingId: 'additional-thread',
 				recreatedBackingId: 'additional-thread',

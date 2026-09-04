@@ -92,7 +92,7 @@ import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { codexAccountRateLimitFromResponse, codexAccountStateFromResponse, type ICodexAccountState } from './codexAccountState.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexCustomPermissions, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexCustomPermissions, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -305,11 +305,13 @@ const codexSessionConfigSchema = createSchema({
 			localize('codex.sessionConfig.permissionsPreset.default', "Default Permissions"),
 			localize('codex.sessionConfig.permissionsPreset.autoReview', "Auto-Review"),
 			localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
+			localize('codex.sessionConfig.permissionsPreset.custom', "Custom"),
 		],
 		enumDescriptions: [
 			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit files in the workspace and run routine local commands. It asks before using the internet or going beyond the workspace."),
 			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same workspace access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),
 			localize('codex.sessionConfig.permissionsPreset.fullAccessDescription', "Codex can edit files outside the workspace and use the internet without asking. Use only when you want full machine access."),
+			localize('codex.sessionConfig.permissionsPreset.customDescription', "Use the approval and sandbox settings from your Codex config.toml."),
 		],
 		default: CODEX_DEFAULT_PERMISSIONS_PRESET,
 		sessionMutable: true,
@@ -1737,9 +1739,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * - a session that persisted `approvalPolicy = 'never'` + `workspace-write`
 	 *   (which the chip renders as "Default Permissions") is snapped onto the
 	 *   `default` preset's `on-request` policy so it actually prompts, instead of
-	 *   running commands unprompted while the chip claims it would ask.
+	 *   running commands unprompted while the chip claims it would ask;
+	 * - `custom` resolves to no preset axes: thread starts defer directly to the
+	 *   app-server's layered configuration, while sticky operations refresh a
+	 *   narrow permission projection through `config/read`.
 	 */
-	private _resolveSessionPermissions(configResource: URI): ICodexResolvedPermissions {
+	private _resolveSessionPermissions(configResource: URI): ICodexResolvedPermissions | undefined {
 		const rawValues = this._configurationService.getSessionConfigValues(configResource.toString());
 		const defaults = {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
@@ -1775,19 +1780,33 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
+	private async _readCustomPermissions(client: ICodexAppServerClient, workspaceRoots: readonly string[], cwd?: string): Promise<ICodexCustomPermissions> {
+		const response = await client.request<'config/read', ConfigReadResponse>('config/read', {
+			includeLayers: false,
+			...(cwd ? { cwd } : {}),
+		});
+		return resolveCodexCustomPermissions(response.config, workspaceRoots);
+	}
+
+	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri, customPermissions?: ICodexCustomPermissions): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'permissions' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
 		const config = this._readSessionConfig(configResource);
 		const resolvedPermissions = this._resolveSessionPermissions(configResource);
-		const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
-		const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
-		const approvalsReviewer = resolvedPermissions.approvalsReviewer;
-		const resolvedSandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
-		const sandboxPolicy = session.agentMergeTurn && resolvedSandboxPolicy.type === 'workspaceWrite'
+		const approvalPolicy = session.agentMergeTurn
+			? 'on-request'
+			: resolvedPermissions?.approvalPolicy ?? customPermissions?.approvalPolicy;
+		const sandboxMode = resolvedPermissions
+			? (session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode)
+			: (session.agentMergeTurn ? 'workspace-write' : undefined);
+		const approvalsReviewer = resolvedPermissions?.approvalsReviewer
+			?? customPermissions?.approvalsReviewer
+			?? (session.agentMergeTurn ? 'user' : undefined);
+		const resolvedSandboxPolicy = customPermissions?.sandboxPolicy ?? (sandboxMode ? this._sandboxPolicy(session, config, sandboxMode) : undefined);
+		const sandboxPolicy = session.agentMergeTurn && resolvedSandboxPolicy?.type === 'workspaceWrite'
 			? { ...resolvedSandboxPolicy, networkAccess: false }
 			: resolvedSandboxPolicy;
 		const runtimeWorkspaceRoots = this._isMultiRootActive(session)
 			? this._runtimeWorkspaceRoots(session)
-			: (sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
+			: (sandboxPolicy?.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
 		const effort = this._getReasoningEffort(session, configResource);
 		const personality = narrowPersonality(config[CodexSessionConfigKey.Personality]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.Personality];
 		const summary = narrowReasoningSummary(config[CodexSessionConfigKey.ReasoningSummary]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ReasoningSummary];
@@ -1802,9 +1821,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			settings: { model: modelId, reasoning_effort: effort ?? null, developer_instructions: developerInstructions ?? null },
 		};
 		return {
-			approvalPolicy,
-			sandboxPolicy,
-			approvalsReviewer,
+			...(approvalPolicy ? { approvalPolicy } : {}),
+			...(sandboxPolicy ? { sandboxPolicy } : {}),
+			...(customPermissions?.permissions ? { permissions: customPermissions.permissions } : {}),
+			...(approvalsReviewer ? { approvalsReviewer } : {}),
 			effort,
 			personality,
 			summary,
@@ -4569,7 +4589,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 				sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 			};
-			const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
+			const permissions = resolveCodexPermissions(
 				migrateCodexPermissionValues(resolvedConfig, permissionDefaults),
 				permissionDefaults,
 			);
@@ -4594,9 +4614,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				cwd: workingDirectory.fsPath,
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
-				approvalPolicy,
-				sandbox: sandboxMode,
-				approvalsReviewer,
+				...(permissions ? {
+					approvalPolicy: permissions.approvalPolicy,
+					sandbox: permissions.sandboxMode,
+					approvalsReviewer: permissions.approvalsReviewer,
+				} : {}),
 				config: threadConfig,
 				dynamicTools,
 			});
@@ -4926,7 +4948,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		};
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
+		const permissions = resolveCodexPermissions(
 			migrateCodexPermissionValues({ ...sourceConfigValues, ...options?.config }, forkDefaults),
 			forkDefaults,
 		);
@@ -4950,6 +4972,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			forkConnection = sourceSession
 				? (await this._ensureThreadConnection(sourceSession)).connection
 				: await this._ensureConnection();
+			const customPermissions = permissions ? undefined : await this._readCustomPermissions(
+				forkConnection.client,
+				runtimeWorkspaceRoots ?? (sourcePrimary ? [sourcePrimary.fsPath] : []),
+				forkManagedWorkingDirectory?.fsPath ?? runtimeWorkspaceRoots?.[0] ?? sourceRead.thread.cwd,
+			);
 			forkResult = await forkConnection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
 				threadId: sourceThreadId,
 				...(forkManagedWorkingDirectory ? {
@@ -4960,9 +4987,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				} : {}),
 				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
 				config: { 'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider) },
-				approvalPolicy,
-				sandbox: sandboxMode,
-				approvalsReviewer,
+				...(permissions ? {
+					approvalPolicy: permissions.approvalPolicy,
+					sandbox: permissions.sandboxMode,
+					approvalsReviewer: permissions.approvalsReviewer,
+				} : customPermissions ? {
+					approvalPolicy: customPermissions.approvalPolicy,
+					approvalsReviewer: customPermissions.approvalsReviewer,
+					...(customPermissions.permissions ? { permissions: customPermissions.permissions } : { sandbox: customPermissions.sandbox }),
+				} : {}),
 			});
 		} catch (err) {
 			if (forkManagedWorkingDirectory) {
@@ -5168,7 +5201,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
-		const { approvalPolicy, sandboxMode, approvalsReviewer } = this._resolveSessionPermissions(configResource);
+		const permissions = this._resolveSessionPermissions(configResource);
 		// Attach the session's MCP servers per-thread (verified: codex starts
 		// them for this thread only): the workbench's root `mcpServers` config
 		// merged with this session's enabled client-plugin servers. Passing them
@@ -5208,9 +5241,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 			model: resolvedModel.modelId,
 			modelProvider: resolvedModel.modelProvider,
-			approvalPolicy,
-			sandbox: sandboxMode,
-			approvalsReviewer,
+			...(permissions ? {
+				approvalPolicy: permissions.approvalPolicy,
+				sandbox: permissions.sandboxMode,
+				approvalsReviewer: permissions.approvalsReviewer,
+			} : {}),
 			config: threadConfig,
 			developerInstructions: customizationLaunch.developerInstructions,
 			dynamicTools: this._buildDynamicTools(session),
@@ -5618,7 +5653,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			const currentCustomizationLaunch = await this._ensureCurrentLaunchBeforeTurn(session, configResource, conn);
 			conn = (await this._ensureThreadConnection(session, conn)).connection;
 			const threadId = session.threadId!;
-			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource);
+			const customPermissions = !this._resolveSessionPermissions(configResource) && !session.agentMergeTurn
+				? await this._readCustomPermissions(conn.client, this._runtimeWorkspaceRoots(session), session.workingDirectory?.fsPath)
+				: undefined;
+			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource, customPermissions);
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			session.lastPromptText = prompt;
 			session.currentTurnId = effectiveTurnId;
