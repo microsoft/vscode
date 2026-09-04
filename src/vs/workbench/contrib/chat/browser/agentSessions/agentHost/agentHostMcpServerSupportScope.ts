@@ -9,7 +9,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { autorun, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../../common/customizationLockdown.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
@@ -53,6 +53,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 		@IMcpWorkbenchService private readonly _mcpWorkbenchService: IMcpWorkbenchService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super();
 		this._updateDelayer = this._register(new Delayer<void>(MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY));
@@ -64,6 +65,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 				const initialAssessment = await assessMcpServersForCopilotAgentHost(
 					this._mcpService.servers.get(),
 					this._configurationResolverService,
+					this._allowedMcpServersService,
 					this._sessionType,
 					this._roots,
 					lazyState.state,
@@ -129,6 +131,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 			scheduleUpdate();
 		}));
 		this._register(this._mcpWorkbenchService.onChange(scheduleUpdate));
+		this._register(this._allowedMcpServersService.onDidChangeAllowedMcpServers(scheduleUpdate));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(mcpAccessConfig) || event.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG)) {
 				scheduleUpdate();
