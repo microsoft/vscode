@@ -198,6 +198,8 @@ class IndentationLineProcessor {
 
 	/**
 	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
+	 * Additionally, remove comment markers from string and regex tokens so that comment-like
+	 * sequences inside strings (e.g. '//text') do not trigger comment continuation on Enter.
 	 */
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
@@ -207,9 +209,16 @@ class IndentationLineProcessor {
 				|| tokenType === StandardTokenType.Comment;
 		};
 
+		const shouldRemoveCommentMarkersFromTokenType = (tokenType: StandardTokenType): boolean => {
+			return tokenType === StandardTokenType.String
+				|| tokenType === StandardTokenType.RegEx;
+		};
+
 		const languageId = tokens.getLanguageId(0);
-		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
+		const languageConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId);
+		const bracketsConfiguration = languageConfiguration.bracketsNew;
 		const bracketsRegExp = bracketsConfiguration.getBracketRegExp({ global: true });
+		const commentMarkerRegExp = IndentationLineProcessor._getCommentMarkerRegExp(languageConfiguration);
 		const textAndMetadata: { text: string; metadata: number }[] = [];
 		tokens.forEach((tokenIndex: number) => {
 			const tokenType = tokens.getStandardTokenType(tokenIndex);
@@ -217,11 +226,35 @@ class IndentationLineProcessor {
 			if (shouldRemoveBracketsFromTokenType(tokenType)) {
 				text = text.replace(bracketsRegExp, '');
 			}
+			if (shouldRemoveCommentMarkersFromTokenType(tokenType) && commentMarkerRegExp) {
+				text = text.replace(commentMarkerRegExp, '');
+			}
 			const metadata = tokens.getMetadata(tokenIndex);
 			textAndMetadata.push({ text, metadata });
 		});
 		const processedLineTokens = LineTokens.createFromTextAndMetadata(textAndMetadata, tokens.languageIdCodec);
 		return processedLineTokens;
+	}
+
+	private static _getCommentMarkerRegExp(languageConfiguration: ReturnType<ILanguageConfigurationService['getLanguageConfiguration']>): RegExp | null {
+		const comments = languageConfiguration.comments;
+		if (!comments) {
+			return null;
+		}
+		const markers: string[] = [];
+		if (comments.lineCommentToken) {
+			markers.push(strings.escapeRegExpCharacters(comments.lineCommentToken));
+		}
+		if (comments.blockCommentStartToken) {
+			markers.push(strings.escapeRegExpCharacters(comments.blockCommentStartToken));
+		}
+		if (comments.blockCommentEndToken) {
+			markers.push(strings.escapeRegExpCharacters(comments.blockCommentEndToken));
+		}
+		if (markers.length === 0) {
+			return null;
+		}
+		return new RegExp(markers.join('|'), 'g');
 	}
 }
 
