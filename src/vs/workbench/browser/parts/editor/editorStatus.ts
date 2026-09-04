@@ -338,6 +338,8 @@ class StatusInputMode extends Disposable {
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsSingleSelectionCompact = localize('singleSelectionCompact', "{0}:{1}");
+const nlsSingleSelectionRangeCompact = localize('singleSelectionRangeCompact', "{0}:{1} ({2} selected)");
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
@@ -655,12 +657,18 @@ class EditorStatus extends Disposable {
 			return undefined;
 		}
 
+		const compact = this.configurationService.getValue<boolean>('workbench.statusBar.compactPositionFormat');
+
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return compact
+				? format(nlsSingleSelectionRangeCompact, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected)
+				: format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
 			}
 
-			return format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+			return compact
+			? format(nlsSingleSelectionCompact, info.selections[0].positionLineNumber, info.selections[0].positionColumn)
+			: format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
 		}
 
 		if (info.charactersSelected) {
