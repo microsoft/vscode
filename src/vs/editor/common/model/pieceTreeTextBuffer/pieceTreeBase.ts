@@ -716,6 +716,10 @@ export class PieceTreeBase {
 				if (offsetInBuffer(m.index) >= end) {
 					return resultLen;
 				}
+				if (offsetInBuffer(m.index) + m[0].length > end) {
+					// Deletions only move `end` backward without erasing the buffer, so text past `end` is stale and no longer part of the document.
+					return resultLen;
+				}
 				this.positionInBuffer(node, offsetInBuffer(m.index) - startOffsetInBuffer, ret);
 				const lineFeedCnt = this.getLineFeedCnt(node.piece.bufferIndex, startCursor, ret);
 				const retStartColumn = ret.line === startCursor.line ? ret.column - startCursor.column + startColumn : ret.column + 1;
