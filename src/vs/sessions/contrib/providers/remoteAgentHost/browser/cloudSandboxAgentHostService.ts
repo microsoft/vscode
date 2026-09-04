@@ -25,7 +25,7 @@ import {
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -254,8 +254,12 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${address}`);
 			return address;
 		} catch (error) {
-			const connectionStillRegistered = this._remoteAgentHostService.connections.some(connection => connection.address === address);
-			if (token.isCancellationRequested || !connectionStillRegistered) {
+			// A failed dial now retains a client-less entry, so mere presence no
+			// longer means the connection survived — require a live one.
+			const connectionStillLive = this._remoteAgentHostService.connections.some(connection =>
+				connection.address === address
+				&& (RemoteAgentHostConnectionStatus.isConnected(connection.status) || RemoteAgentHostConnectionStatus.isReconnecting(connection.status)));
+			if (token.isCancellationRequested || !connectionStillLive) {
 				this._connectionFactory.unstageConfiguration(address);
 				await this._remoteAgentHostService.removeRemoteAgentHost(address);
 			}

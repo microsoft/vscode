@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -47,6 +48,14 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 				const customizations = await this.promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 				return this.createFileMigration(sessionResource, type, customizations.filter(isPromptFileMigrationCandidate));
 			}
+			case CustomizationMigrationType.ConfiguredLocations: {
+				const customizations = (await Promise.all([
+					this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+					this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+					this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+				])).flat();
+				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), true);
+			}
 			case CustomizationMigrationType.McpServers:
 				return this.computeMcpServerMigration(sessionResource);
 		}
@@ -56,6 +65,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		return Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
+			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
 		]);
 	}
@@ -66,12 +76,13 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			return undefined;
 		}
 
-		const [userDataMigration, promptFilesMigration, mcpServerMigration] = await Promise.all([
+		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
+			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
 		]);
-		const fileCount = userDataMigration.files.length + promptFilesMigration.files.length;
+		const fileCount = userDataMigration.files.length + promptFilesMigration.files.length + configuredLocationsMigration.files.length;
 		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
 		const fileHint = fileCount === 0
 			? undefined
@@ -89,7 +100,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		return fileHint ?? mcpHint;
 	}
 
-	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[]): Promise<FileCustomizationMigration> {
+	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
 		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.itemProvider;
 		if (!provider?.provideSourceFolders) {
 			return { type, files: [], candidates: [] };
@@ -103,7 +114,9 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		}
 		const filteredCandidates = candidates.filter(customization => {
 			const targetType = getCustomizationMigrationTargetType(customization);
-			return sourceFolders.get(targetType)?.some(folder => folder.source === customization.storage) === true;
+			const compatibleFolders = sourceFolders.get(targetType)?.filter(folder => folder.source === customization.storage) ?? [];
+			return compatibleFolders.length > 0
+				&& (!excludeSupportedLocations || !compatibleFolders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(customization.uri, folder.uri)));
 		});
 		return { type, files: filteredCandidates.map(customization => customization.uri), candidates: filteredCandidates };
 	}

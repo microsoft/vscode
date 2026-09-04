@@ -47,7 +47,8 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
+import { IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
@@ -59,7 +60,7 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
  * Mission Control creates every sandbox session as `ahp-session:/<id>` while the host advertises the
  * `copilot` agent, so the two schemes name the same session.
  */
-const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
+const SANDBOX_SESSION_SCHEME_ALIAS: IAgentHostSessionSchemeAlias = {
 	ui: CLOUD_SANDBOX_AGENT_PROVIDER,
 	backend: CLOUD_SANDBOX_SESSION_SCHEME,
 };
@@ -316,7 +317,8 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 				if (present.has(address) || this._provisioning.has(address)) {
 					continue;
 				}
-				const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
+				const connected = this._remoteAgentHostService.connections.some(
+					c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status));
 				if (!connected) {
 					this._teardownEnvironment(address);
 				}

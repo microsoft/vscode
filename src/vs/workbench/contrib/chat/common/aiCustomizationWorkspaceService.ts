@@ -89,6 +89,11 @@ export interface IAICustomizationWorkspaceService {
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
 	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
+
+	/**
 	 * Returns the current active project root, if any.
 	 */
 	getActiveProjectRoot(): URI | undefined;

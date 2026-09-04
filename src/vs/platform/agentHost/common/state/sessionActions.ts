@@ -88,7 +88,6 @@ export {
 	AuthRequiredReason,
 	type SessionAddedParams,
 	type SessionRemovedParams,
-	type SessionSummaryChangedParams,
 	type ProgressParams,
 	type AuthRequiredParams,
 } from './protocol/notifications.js';
@@ -145,8 +144,18 @@ import {
 	type RootConfigChangedAction,
 } from './protocol/actions.js';
 
-import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
+import type { SessionSummary } from './protocol/state.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams as ProtocolSessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
 import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, ClientChangesetAction as IClientChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_, AutomationAction as IAutomationAction_, ClientAutomationAction as IClientAutomationAction_, AutomationRunAction as IAutomationRunAction_, ClientAutomationRunAction as IClientAutomationRunAction_ } from './protocol/action-origin.generated.js';
+
+export type SessionSummaryChanges = Omit<Partial<SessionSummary>, 'activity'> & {
+	/** `null` explicitly clears activity; omission leaves it unchanged. */
+	activity?: string | null;
+};
+
+export type SessionSummaryChangedParams = Omit<ProtocolSessionSummaryChangedParams, 'changes'> & {
+	readonly changes: SessionSummaryChanges;
+};
 
 /**
  * Discriminated union of all server→client protocol notifications other than

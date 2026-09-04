@@ -107,8 +107,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const initialContent = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
 		// When presentationOverrides is set, the editor should be read-only since the displayed content
-		// differs from the actual command (e.g., extracted Python code vs full python -c command)
-		const isReadOnly = !!terminalData.presentationOverrides;
+		// differs from the actual command (e.g., extracted Python code vs full python -c command).
+		// A producer that cannot apply an edited command opts out the same way.
+		const isReadOnly = !!terminalData.presentationOverrides || terminalData.editable === false;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
 		// Custom actions typically come pre-computed from the run in terminal tool, but they can
@@ -176,16 +177,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			uri: model.uri,
 			chatSessionResource: this.context.element.sessionResource
 		});
-		this._register(model.onDidChangeContent(() => {
-			const currentValue = model.getValue();
-			// Only set userEdited if the content actually differs from the initial value
-			// Prepend cd prefix back if it was extracted for display
-			if (currentValue !== initialContent) {
-				terminalData.commandLine.userEdited = cdPrefix + currentValue;
-			} else {
-				terminalData.commandLine.userEdited = undefined;
-			}
-		}));
+		if (!isReadOnly) {
+			this._register(model.onDidChangeContent(() => {
+				const currentValue = model.getValue();
+				// Only set userEdited if the content actually differs from the initial value
+				// Prepend cd prefix back if it was extracted for display
+				if (currentValue !== initialContent) {
+					terminalData.commandLine.userEdited = cdPrefix + currentValue;
+				} else {
+					terminalData.commandLine.userEdited = undefined;
+				}
+			}));
+		}
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),

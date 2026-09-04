@@ -14,7 +14,8 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { AbstractChatView, IChatViewOptions } from './chatView.js';
+import { IChat } from '../../services/sessions/common/session.js';
+import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -284,9 +285,17 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._isVisible && this._header.startTitleEditing();
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
+	getFocusedChat(): IChat | undefined {
+		return this._groupsView.getFocusedChat();
+	}
+
+	getSession(): IActiveSession | undefined {
+		return this._currentSession;
+	}
+
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId) : this._groupsView.selectWorkspace(folderUri, providerId);
+		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
 	}
 
 	/** Opens the given chat in a group beside the active one ("open to the side"). */
