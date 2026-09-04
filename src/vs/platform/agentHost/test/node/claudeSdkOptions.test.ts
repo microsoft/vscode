@@ -6,7 +6,14 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildClaudeTelemetryEnv, buildOptions, buildSubprocessEnv, toClaudeMcpServers } from '../../node/claude/claudeSdkOptions.js';
+import { buildClaudeTelemetryEnv, buildClientMcpServers, buildOptions, buildSubprocessEnv, toClaudeMcpServers } from '../../node/claude/claudeSdkOptions.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
+import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import type { ClientToolCallRegistry } from '../../node/claude/clientTools/claudeClientToolMcpServer.js';
+import { SessionClientToolsDiff } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
+import type { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
+import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ClaudeTransport, IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/state.js';
@@ -470,5 +477,80 @@ suite('claudeSdkOptions / buildOptions additionalDirectories projection', () => 
 	test('undefined additionalDirectories omits Options.additionalDirectories', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		assert.strictEqual(opts.additionalDirectories, undefined);
+	});
+});
+
+suite('claudeSdkOptions / buildClientMcpServers', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function clientTool(name: string): ToolDefinition {
+		return { name, description: 'echoes', inputSchema: { type: 'object', properties: {} } };
+	}
+
+	function makeSdk(): { sdk: IClaudeAgentSdkService; recorded: { name: string; handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult> }[] } {
+		const recorded: { name: string; handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult> }[] = [];
+		const sdk = {
+			createSdkMcpServer: async (options: { name: string }) => ({ name: options.name, instance: {} } as unknown as McpSdkServerConfigWithInstance),
+			tool: async (name: string, _desc: string, _schema: unknown, handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>) => {
+				const entry = { name, handler };
+				recorded.push(entry);
+				return entry as unknown as ReturnType<IClaudeAgentSdkService['tool']>;
+			},
+		} as unknown as IClaudeAgentSdkService;
+		return { sdk, recorded };
+	}
+
+	const toolUseMeta = { _meta: { 'claudecode/toolUseId': 'call-1' } };
+
+	test('parks a call for a connected client and tags it with the owner', async () => {
+		const { sdk, recorded } = makeSdk();
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('client-a', [clientTool('echo')]);
+		const registry: ClientToolCallRegistry = new PendingRequestRegistry<CallToolResult, string | undefined>();
+
+		await buildClientMcpServers(diff, registry, sdk);
+		let settled = false;
+		void recorded[0].handler({}, toolUseMeta).then(() => settled = true, () => undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ settled, parked: registry.has('call-1'), owner: registry.getMetadata('call-1') }, { settled: false, parked: true, owner: 'client-a' });
+		registry.respond('call-1', { content: [] });
+	});
+
+	test('fails a call whose client has gone rather than parking one nothing can answer', async () => {
+		const { sdk, recorded } = makeSdk();
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('client-a', [clientTool('echo')]);
+		const registry: ClientToolCallRegistry = new PendingRequestRegistry<CallToolResult, string | undefined>();
+
+		await buildClientMcpServers(diff, registry, sdk);
+		// The client leaves after the SDK already built this tool.
+		diff.model.removeClient('client-a');
+		const result = await recorded[0].handler({}, toolUseMeta);
+
+		assert.deepStrictEqual({
+			isError: result.isError,
+			parked: registry.has('call-1'),
+			mentionsTool: result.content.some(block => block.type === 'text' && block.text.includes('echo')),
+		}, {
+			isError: true,
+			parked: false,
+			mentionsTool: true,
+		});
+	});
+
+	test('still consumes a result buffered before the handler ran', async () => {
+		const { sdk, recorded } = makeSdk();
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('client-a', [clientTool('echo')]);
+		const registry: ClientToolCallRegistry = new PendingRequestRegistry<CallToolResult, string | undefined>();
+
+		await buildClientMcpServers(diff, registry, sdk);
+		diff.model.removeClient('client-a');
+		registry.respondOrBuffer('call-1', { content: [{ type: 'text', text: 'buffered' }], isError: true });
+		const result = await recorded[0].handler({}, toolUseMeta);
+
+		assert.deepStrictEqual(result.content, [{ type: 'text', text: 'buffered' }]);
 	});
 });

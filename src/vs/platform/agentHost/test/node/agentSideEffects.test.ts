@@ -19,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -4583,7 +4583,7 @@ suite('AgentSideEffects', () => {
 				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
-		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
+		test('tool_ready is denied when the tool completes while permission lookup is pending', async () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -4636,9 +4636,12 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({
 				status: toolCall?.kind === ResponsePartKind.ToolCall ? toolCall.toolCall.status : undefined,
 				readyActions: envelopes.filter(e => e.action.type === ActionType.ChatToolCallReady).length,
+				// The SDK is parked inside `canUseTool`; dropping the ask would leak it forever.
+				permissionResponses: agent.respondToPermissionCalls,
 			}, {
 				status: ToolCallStatus.Completed,
 				readyActions: 1,
+				permissionResponses: [{ requestId: 'tc-stale-ready', approved: false }],
 			});
 		});
 
@@ -7698,6 +7701,357 @@ suite('AgentSideEffects', () => {
 				peerChat: peerChatUri,
 				defaultTurnId: 'turn-default',
 				defaultChat: defaultChatUri,
+			});
+		});
+	});
+
+	// ---- abandoned turn reaper -------------------------------------------
+
+	suite('abandoned turn reaper', () => {
+
+		/** A provider snapshot for a turn whose SDK call already settled. */
+		function settledSnapshot(providerCallState: 'resolved' | 'rejected' | 'notStarted'): IAgentTurnDiagnosticSnapshot {
+			return {
+				state: 'available',
+				providerCallState,
+				providerTurnStarted: providerCallState !== 'notStarted',
+				providerSessionState: 'active',
+				callSettlesWithTurn: true,
+			};
+		}
+
+		function sendTurn(turnId: string): void {
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, action, 'test');
+		}
+
+		/** Waits for the send to resolve and for the post-send check to run. */
+		async function settleSend(): Promise<void> {
+			await waitForSendMessageCalls(1);
+			await timeout(0);
+		}
+
+		test('closes a turn whose completion the provider dropped', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('resolved');
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			const chatState = stateManager.getChatState(defaultChatUri);
+			assert.deepStrictEqual({
+				activeTurnId: chatState?.activeTurn?.id,
+				endedTurn: chatState?.turns.at(-1)?.id,
+				state: chatState?.turns.at(-1)?.state,
+			}, {
+				activeTurnId: undefined,
+				endedTurn: 'turn-1',
+				state: TurnState.Complete,
+			});
+		});
+
+		test('fails a turn whose provider call was rejected', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('rejected');
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			const endedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+			const errorPart = endedTurn?.responseParts.find(part => part.kind === ResponsePartKind.Error);
+			assert.deepStrictEqual({
+				state: endedTurn?.state,
+				errorType: errorPart?.kind === ResponsePartKind.Error ? errorPart.error.errorType : undefined,
+				resumable: errorPart?.kind === ResponsePartKind.Error ? errorPart.resumable : undefined,
+			}, {
+				state: TurnState.Error,
+				errorType: 'executionAbandoned',
+				resumable: undefined,
+			});
+		});
+
+		test('leaves a turn whose provider call is still pending', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => ({
+				state: 'available',
+				providerCallState: 'pending',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+				callSettlesWithTurn: true,
+			});
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'turn-1');
+		});
+
+		test('leaves a turn alone for a provider whose send returns before the turn ends', async () => {
+			setupSession();
+			// Without `callSettlesWithTurn` a resolved call says nothing about the turn.
+			agent.getTurnDiagnosticSnapshot = () => ({
+				state: 'available',
+				providerCallState: 'resolved',
+				providerTurnStarted: true,
+				providerSessionState: 'active',
+			});
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'turn-1');
+		});
+
+		test('leaves a turn alone when the provider reports no diagnostics', async () => {
+			setupSession();
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'turn-1');
+		});
+
+		test('leaves a turn parked on a request the provider still tracks', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => ({
+				...settledSnapshot('resolved'),
+				pendingHostRequests: [{ kind: 'permission', id: 'tc-1' }],
+			});
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'turn-1');
+		});
+
+		test('leaves a turn parked on a request the user can see in state', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('resolved');
+			disposables.add(agent.onDidSendMessage(() => {
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatInputRequested,
+					request: {
+						id: 'req-1',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+					},
+				});
+			}));
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.strictEqual(stateManager.getActiveTurnId(defaultChatUri), 'turn-1');
+		});
+
+		test('a client cancellation racing the close ends the turn exactly once', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('resolved');
+			const terminals: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => {
+				if (e.action.type === ActionType.ChatTurnComplete || e.action.type === ActionType.ChatTurnCancelled || e.action.type === ActionType.ChatError) {
+					terminals.push(e.action.type);
+				}
+			}));
+			disposables.add(agent.onDidSendMessage(() => {
+				const cancel: ChatAction = { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 5 };
+				stateManager.dispatchClientAction(defaultChatUri, cancel, { clientId: 'test', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, cancel, 'test');
+			}));
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			assert.deepStrictEqual({
+				terminals,
+				state: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state,
+			}, {
+				terminals: [ActionType.ChatTurnCancelled],
+				state: TurnState.Cancelled,
+			});
+		});
+
+		test('ends a resolved subagent turn with its parent and keeps a live background spawn', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			for (const toolCallId of ['tc-foreground', 'tc-background']) {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId, toolName: 'task', displayName: 'Task', contributor: undefined,
+						_meta: { toolKind: 'subagent', language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+						toolCallId, invocationMessage: 'Delegating...', toolInput: undefined,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					},
+				});
+				agent.fireProgress({
+					kind: 'subagent_started', chat: URI.parse(defaultChatUri),
+					toolCallId, agentName: 'reviewer', agentDisplayName: 'Reviewer',
+				});
+			}
+
+			// The foreground spawn's tool call finishes; the background one keeps running.
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
+					toolCallId: 'tc-foreground', result: { success: true, pastTenseMessage: 'Reviewed' },
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+			});
+
+			const foreground = buildSubagentChatUri(sessionUri.toString(), 'tc-foreground');
+			const background = buildSubagentChatUri(sessionUri.toString(), 'tc-background');
+			assert.deepStrictEqual({
+				foregroundActiveTurn: stateManager.getActiveTurnId(foreground),
+				foregroundState: stateManager.getChatState(foreground)?.turns.at(-1)?.state,
+				backgroundStillRunning: stateManager.getActiveTurnId(background) !== undefined,
+			}, {
+				foregroundActiveTurn: undefined,
+				foregroundState: TurnState.Complete,
+				backgroundStillRunning: true,
+			});
+		});
+
+		test('closing an abandoned parent also ends its resolved subagent turns', async () => {
+			setupSession();
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('resolved');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			disposables.add(agent.onDidSendMessage(() => {
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', contributor: undefined,
+						_meta: { toolKind: 'subagent', language: undefined },
+					},
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+						toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					},
+				});
+				agent.fireProgress({
+					kind: 'subagent_started', chat: URI.parse(defaultChatUri),
+					toolCallId: 'tc-1', agentName: 'reviewer', agentDisplayName: 'Reviewer',
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallComplete, turnId: 'turn-1',
+						toolCallId: 'tc-1', result: { success: true, pastTenseMessage: 'Reviewed' },
+					},
+				});
+			}));
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-1');
+			assert.deepStrictEqual({
+				parentActiveTurn: stateManager.getActiveTurnId(defaultChatUri),
+				subagentActiveTurn: stateManager.getActiveTurnId(subagentUri),
+				subagentState: stateManager.getChatState(subagentUri)?.turns.at(-1)?.state,
+			}, {
+				parentActiveTurn: undefined,
+				subagentActiveTurn: undefined,
+				subagentState: TurnState.Complete,
+			});
+		});
+
+		test('closing an abandoned resumed turn drops its resumed execution record', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				duration: 100,
+				part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+			});
+			const resumedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+			assert.ok(resumedTurn);
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+			agent.chats.resumeTurn = async () => { };
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('resolved');
+
+			sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', AgentHostClientType.EditorWindow, resumedTurn);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				activeTurnId: stateManager.getActiveTurnId(defaultChatUri),
+				state: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state,
+				resumedExecution: sideEffects.getResumedTurnDuration(defaultChatUri, 'turn-1'),
+			}, {
+				activeTurnId: undefined,
+				state: TurnState.Complete,
+				resumedExecution: undefined,
+			});
+		});
+
+		test('a send that rejects before the provider took the turn is reported as abandoned', async () => {
+			setupSession();
+			agent.sendMessageError = new Error('rebind failed');
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('notStarted');
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			const endedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+			const errorPart = endedTurn?.responseParts.find(part => part.kind === ResponsePartKind.Error);
+			assert.deepStrictEqual({
+				state: endedTurn?.state,
+				errorType: errorPart?.kind === ResponsePartKind.Error ? errorPart.error.errorType : undefined,
+				resumable: errorPart?.kind === ResponsePartKind.Error ? errorPart.resumable : undefined,
+			}, {
+				state: TurnState.Error,
+				errorType: 'executionAbandoned',
+				resumable: undefined,
+			});
+		});
+
+		test('a genuine send failure keeps its own error even when the provider call was rejected', async () => {
+			setupSession();
+			agent.sendMessageError = new Error('model_not_supported');
+			agent.getTurnDiagnosticSnapshot = () => settledSnapshot('rejected');
+
+			sendTurn('turn-1');
+			await settleSend();
+
+			const endedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+			const errorPart = endedTurn?.responseParts.find(part => part.kind === ResponsePartKind.Error);
+			assert.deepStrictEqual({
+				state: endedTurn?.state,
+				errorType: errorPart?.kind === ResponsePartKind.Error ? errorPart.error.errorType : undefined,
+				keepsProviderMessage: errorPart?.kind === ResponsePartKind.Error ? errorPart.error.message.includes('model_not_supported') : false,
+			}, {
+				state: TurnState.Error,
+				errorType: 'sendFailed',
+				keepsProviderMessage: true,
 			});
 		});
 	});

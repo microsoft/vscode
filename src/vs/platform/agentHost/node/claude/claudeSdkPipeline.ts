@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
-import { AgentSignal } from '../../common/agent.js';
+import { AgentSignal, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -84,6 +84,9 @@ export interface ISdkResolvedCustomizations {
 	 */
 	readonly plugins: readonly { readonly name: string; readonly path: string; readonly source?: string }[];
 }
+
+/** How many recently settled turns {@link ClaudeSdkPipeline} keeps diagnostics for. */
+const MAX_SETTLED_TURNS_TRACKED = 16;
 
 export class ClaudeSdkPipeline extends Disposable {
 	/**
@@ -227,6 +230,15 @@ export class ClaudeSdkPipeline extends Disposable {
 	/** Set when the consumer loop ends in error (cancellation OR crash). Read by {@link send} to trigger rebind. */
 	private _needsRebind = false;
 
+	/** Reset on every SDK message; reported as `quietMs` in turn diagnostics. */
+	private readonly _quietStopWatch = StopWatch.create(false);
+
+	/**
+	 * How each recently settled turn's provider call ended, most recent last.
+	 * Bounded so a long-lived session cannot grow it without limit.
+	 */
+	private readonly _settledTurns = new Map<string, { readonly call: 'resolved' | 'rejected'; readonly started: boolean }>();
+
 	/** Tracks whether the consumer loop is currently draining {@link _query}. */
 	private _consumerLoopRunning = false;
 
@@ -294,6 +306,37 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * release to avoid tearing the pipeline down mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
+
+	/** Liveness of the SDK subprocess this pipeline drives. */
+	get providerSessionState(): AgentTurnProviderSessionState {
+		if (this._store.isDisposed || this._abortController.signal.aborted) {
+			return 'shutdown';
+		}
+		return this._needsRebind ? 'disconnected' : 'active';
+	}
+
+	/**
+	 * Bounded liveness facts for `turnId`: whether the SDK call is still
+	 * pending, how it settled, and how long the SDK has been quiet.
+	 */
+	getTurnDiagnosticSnapshot(turnId: string): IAgentTurnDiagnosticSnapshot {
+		const queued = this._queue.hasTurn(turnId);
+		const settled = this._settledTurns.get(turnId);
+		let providerCallState: AgentTurnProviderCallState = 'notStarted';
+		if (queued) {
+			providerCallState = 'pending';
+		} else if (settled) {
+			providerCallState = settled.call;
+		}
+		return {
+			state: 'available',
+			providerCallState,
+			providerTurnStarted: queued ? this._queue.isTurnYielded(turnId) : settled?.started === true,
+			providerSessionState: this.providerSessionState,
+			callSettlesWithTurn: true,
+			quietMs: this._quietStopWatch.elapsed(),
+		};
+	}
 
 	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.
@@ -502,7 +545,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			return;
 		}
 		this._abortController.abort();
-		this._queue.failAll(new CancellationError());
+		this._failQueue(new CancellationError());
 		// Mark unhealthy but keep the `_query` handle: the next `send` rebinds,
 		// and `shutdownAndWait` still needs it to await the subprocess exit.
 		this._needsRebind = true;
@@ -518,6 +561,22 @@ export class ClaudeSdkPipeline extends Disposable {
 		if (this._query && !this._needsRebind && mode !== this._appliedPermissionMode) {
 			await this._query.setPermissionMode(mode);
 			this._appliedPermissionMode = mode;
+		}
+	}
+
+	/** Reject every pending entry, recording each turn's call as rejected first. */
+	private _failQueue(err: Error): void {
+		for (const turnId of this._queue.pendingTurnIds()) {
+			this._recordSettledTurn(turnId, 'rejected', this._queue.isTurnYielded(turnId));
+		}
+		this._queue.failAll(err);
+	}
+
+	private _recordSettledTurn(turnId: string, call: 'resolved' | 'rejected', started: boolean): void {
+		this._settledTurns.delete(turnId);
+		this._settledTurns.set(turnId, { call, started });
+		while (this._settledTurns.size > MAX_SETTLED_TURNS_TRACKED) {
+			this._settledTurns.delete(this._settledTurns.keys().next().value!);
 		}
 	}
 
@@ -622,7 +681,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
 			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
-			this._queue.failAll(new CancellationError());
+			this._failQueue(new CancellationError());
 			this._needsRebind = true;
 			throw new CancellationError();
 		}
@@ -665,6 +724,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 		try {
 			for await (const message of query) {
+				this._quietStopWatch.reset();
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
@@ -696,6 +756,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					// Intermediate result (still pending entries from a
 					// steering preempt) does NOT fire ChatTurnComplete.
 					if (completed && this._queue.isEmpty) {
+						this._recordSettledTurn(completed.turnId, 'resolved', true);
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							resource: this.chatChannelUri,
@@ -728,7 +789,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			// not clobber the fresh one. Mark unhealthy (keep the handle for
 			// teardown); the next `send` rebinds.
 			if (this._query === query) {
-				this._queue.failAll(fatal);
+				this._failQueue(fatal);
 				this._needsRebind = true;
 			}
 			if (!isCancellationError(fatal)) {

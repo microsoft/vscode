@@ -28,7 +28,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, type IAgentTurnDiagnosticSnapshot, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -1561,7 +1561,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			model,
 			options?.agent,
 			options?.config,
-			new PendingRequestRegistry<CallToolResult>(),
+			new PendingRequestRegistry<CallToolResult, string | undefined>(),
 			this._resolvePermissionMode(options?.config),
 			this._instantiationService,
 			options?.workingDirectories?.slice(1) ?? [],
@@ -1794,7 +1794,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			model,
 			overlay.agent,
 			undefined,
-			new PendingRequestRegistry<CallToolResult>(),
+			new PendingRequestRegistry<CallToolResult, string | undefined>(),
 			permissionMode,
 			this._instantiationService,
 			additionalDirectories,
@@ -2447,6 +2447,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/**
+	 * Bounded diagnostics for an in-flight turn. A subagent chat is resolved
+	 * through the spawn edge its operation context carries.
+	 */
+	getTurnDiagnosticSnapshot(chat: URI, turnId: string, context?: URI | IAgentChatContext): IAgentTurnDiagnosticSnapshot {
+		const spawnedFrom = resolveSubagentChatParent(context);
+		const target = this._findChatByUri(chat) ?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined);
+		if (!target) {
+			return { state: 'missingChat' };
+		}
+		return target.getTurnDiagnosticSnapshot(turnId, spawnedFrom?.toolCallId) ?? { state: 'missingTurn' };
+	}
+
 	setServerToolHost(host: IAgentServerToolHost): void {
 		this._serverToolHost = host;
 	}
@@ -2489,6 +2502,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return;
 		}
 		target.removeClientTools(clientId);
+		target.failClientToolCalls(clientId);
 		void this._sessionSequencer.queue(target.sessionId, async () => target.removeClientCustomizations(clientId)).catch(() => { /* chat torn down */ });
 	}
 

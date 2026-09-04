@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options, PreToolUseHookInput, Settings, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-sdk';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
 import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,10 +11,9 @@ import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
-import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
+import { buildClientToolMcpServer, type ClientToolCallRegistry } from './clientTools/claudeClientToolMcpServer.js';
 import { toClaudeSdkModelId } from './claudeModelSelection.js';
 import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
@@ -221,14 +219,24 @@ export async function buildOptions(
  */
 export async function buildClientMcpServers(
 	toolDiff: SessionClientToolsDiff,
-	registry: PendingRequestRegistry<CallToolResult>,
+	registry: ClientToolCallRegistry,
 	sdkService: IClaudeAgentSdkService,
 ): Promise<Record<string, McpSdkServerConfigWithInstance> | undefined> {
 	const tools = toolDiff.consume();
 	if (tools.length === 0) {
 		return undefined;
 	}
-	const server = await buildClientToolMcpServer(tools, id => registry.register(id), sdkService);
+	const server = await buildClientToolMcpServer(tools, (id, toolName) => {
+		const owner = toolDiff.model.ownerOf(toolName);
+		// Removal only marks the diff for the next send, so this tool can still be called.
+		if (owner === undefined && !registry.hasBufferedResult(id)) {
+			return Promise.resolve({
+				content: [{ type: 'text', text: `Client tool "${toolName}" is unavailable: no connected client provides it.` }],
+				isError: true,
+			});
+		}
+		return registry.register(id, owner);
+	}, sdkService);
 	return { client: server };
 }
 
