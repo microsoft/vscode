@@ -5,6 +5,13 @@
 
 /* eslint-disable local/code-no-unused-expressions, @stylistic/semi -- playwright-cli requires a bare, unterminated function expression. */
 async page => {
+	const CONFIG = {
+		pollIntervalMs: 100,
+		maxVisibleAttempts: 10,
+		paletteTimeoutMs: 1000,
+		maxPaletteWaitAttempts: 50
+	};
+
 	const selectors = [
 		'.session-view.is-active .new-chat-input-area :is(.native-edit-context, textarea.inputarea)',
 		'.session-view.is-active .sessions-chat-editor :is(.native-edit-context, textarea.inputarea)',
@@ -32,6 +39,7 @@ async page => {
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
+	
 	const focusIfNeeded = async input => {
 		if (await isFocused(input)) {
 			return false;
@@ -42,13 +50,14 @@ async page => {
 		}
 		return true;
 	};
+
 	const waitForVisibleChatInput = async attempts => {
 		for (let attempt = 0; attempt < attempts; attempt++) {
 			const match = await findVisibleChatInput();
 			if (match) {
 				return match;
 			}
-			await page.waitForTimeout(100);
+			await page.waitForTimeout(CONFIG.pollIntervalMs);
 		}
 		return undefined;
 	};
@@ -62,7 +71,7 @@ async page => {
 	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
 	const shortcut = /^mac/i.test(platform) ? 'Control+Meta+i' : 'Control+Alt+i';
 	await page.keyboard.press(shortcut);
-	match = await waitForVisibleChatInput(10);
+	match = await waitForVisibleChatInput(CONFIG.maxVisibleAttempts);
 
 	let commandPaletteFallbackInvoked = false;
 	if (!match) {
@@ -72,13 +81,13 @@ async page => {
 		await page.keyboard.press('F1');
 		const commandPaletteInput = page.locator('.quick-input-widget .quick-input-box input');
 		try {
-			await commandPaletteInput.waitFor({ state: 'visible', timeout: 1000 });
+			await commandPaletteInput.waitFor({ state: 'visible', timeout: CONFIG.paletteTimeoutMs });
 		} catch {
 			throw new Error('F1 did not open the Command Palette; check the cloned profile keybindings');
 		}
 		await commandPaletteInput.fill(`>${commandId}`);
 		await page.keyboard.press('Enter');
-		match = await waitForVisibleChatInput(50);
+		match = await waitForVisibleChatInput(CONFIG.maxPaletteWaitAttempts);
 	}
 
 	if (!match) {
