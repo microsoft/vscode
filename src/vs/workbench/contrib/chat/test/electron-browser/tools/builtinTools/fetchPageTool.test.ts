@@ -314,6 +314,31 @@ suite('FetchWebPageTool', () => {
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
 	});
 
+	test('authorityless HTTPS URL with encoded user information requires confirmation', async () => {
+		const url = String.raw`https:\localhost%25%32%46@evil.example/resource`;
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+			new MockTrustedDomainService(),
+			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: [url] }, toolCallId: 'test-authorityless-url', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			title: preparation?.confirmationMessages?.title,
+			confirmationNotNeededReason: preparation?.confirmationMessages?.confirmationNotNeededReason,
+		}, {
+			title: 'Fetch web page?',
+			confirmationNotNeededReason: undefined,
+		});
+	});
+
 	test('should not show confirmation dialog for file URIs inside the workspace', async () => {
 		// Use a workspace rooted at /workspaceRoot
 		const workspaceRoot = URI.file('/workspaceRoot');

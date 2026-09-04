@@ -13,6 +13,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { isURLDomainTrusted } from '../../../url/common/trustedDomains.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
@@ -541,6 +542,30 @@ suite('WebPageLoader', () => {
 		if (result.status === 'redirect') {
 			assert.strictEqual(result.toURI.authority, 'untrusted-domain.com');
 		}
+	});
+
+	test('redirect with encoded user information does not inherit trusted domain approval', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const redirectUrl = 'https://example.com%2F@evil.example/redirected';
+		const loader = createWebPageLoader(
+			uri,
+			{ followRedirects: false },
+			uri => isURLDomainTrusted(uri, ['https://example.com'])
+		);
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+		const event = { preventDefault: sinon.stub() };
+		window.webContents.emit('will-redirect', event, redirectUrl);
+		const result = await loadPromise;
+
+		assert.deepStrictEqual({
+			prevented: event.preventDefault.calledOnce,
+			status: result.status,
+		}, {
+			prevented: true,
+			status: 'redirect',
+		});
 	});
 
 	test('redirect to wildcard subdomain trusted domain is allowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
