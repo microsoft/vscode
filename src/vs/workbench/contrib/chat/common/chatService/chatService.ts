@@ -2015,7 +2015,7 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, includeCustomizationSummary: boolean) => Promise<ICustomizationMigrationHint | undefined>): IDisposable;
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, includeCustomizationSummary: boolean, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable;
 
 	/**
 	 * An observable containing all live chat models.

@@ -3198,7 +3198,7 @@ class CustomizationMigrationHintContribution extends Disposable implements IWork
 	) {
 		super();
 		this._register(chatService.registerCustomizationMigrationHintProvider(
-			(sessionResource, includeCustomizationSummary) => customizationMigrationService.computeMigrationHint(sessionResource, includeCustomizationSummary)
+			(sessionResource, includeCustomizationSummary, token) => customizationMigrationService.computeMigrationHint(sessionResource, includeCustomizationSummary, token)
 		));
 	}
 }

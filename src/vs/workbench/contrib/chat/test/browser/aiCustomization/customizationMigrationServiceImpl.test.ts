@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -36,6 +37,7 @@ class TestPromptsService extends MockPromptsService {
 
 class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>() {
 	readonly requestedSourceFolderTypes: PromptsType[] = [];
+	customizationToken: CancellationToken | undefined;
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
@@ -55,7 +57,10 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			icon: Codicon.copilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [...this.customizations],
+				provideChatSessionCustomizations: async (_sessionResource, token) => {
+					this.customizationToken = token;
+					return [...this.customizations];
+				},
 				provideSourceFolders: async (_sessionResource, type) => {
 					this.requestedSourceFolderTypes.push(type);
 					switch (type) {
@@ -339,11 +344,17 @@ suite('CustomizationMigrationService', () => {
 		}();
 		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
 
-		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }), true);
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }), true, CancellationToken.Cancelled);
 
-		assert.deepStrictEqual(hint, {
-			message: '4 instructions, 10 skills, and 4 agents available to the agent. Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
+		assert.deepStrictEqual({
+			hint,
+			forwardedCancellationToken: harnessService.customizationToken === CancellationToken.Cancelled,
+		}, {
+			hint: {
+				message: '4 instructions, 10 skills, and 4 agents available to the agent. Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
+				target: CustomizationMigrationHintTarget.FileMigrations,
+			},
+			forwardedCancellationToken: true,
 		});
 	});
 

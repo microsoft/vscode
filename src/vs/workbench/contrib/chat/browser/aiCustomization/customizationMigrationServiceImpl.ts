@@ -27,9 +27,9 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 	) { }
 
-	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
-	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
-	async computeMigration(sessionResource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
+	async computeMigration(sessionResource: URI, type: CustomizationMigrationType, token = CancellationToken.None): Promise<CustomizationMigration> {
 		if (!isAgentHostSessionResource(sessionResource)) {
 			return type === CustomizationMigrationType.McpServers
 				? this.emptyMcpServerMigration()
@@ -39,50 +39,50 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		switch (type) {
 			case CustomizationMigrationType.UserData: {
 				const customizations = (await Promise.all([
-					this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
-					this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+					this.promptsService.listPromptFiles(PromptsType.agent, token),
+					this.promptsService.listPromptFiles(PromptsType.instructions, token),
 				])).flat();
-				return this.createFileMigration(sessionResource, type, customizations.filter(isUserDataMigrationCandidate));
+				return this.createFileMigration(sessionResource, type, customizations.filter(isUserDataMigrationCandidate), token);
 			}
 			case CustomizationMigrationType.PromptFiles: {
-				const customizations = await this.promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-				return this.createFileMigration(sessionResource, type, customizations.filter(isPromptFileMigrationCandidate));
+				const customizations = await this.promptsService.listPromptFiles(PromptsType.prompt, token);
+				return this.createFileMigration(sessionResource, type, customizations.filter(isPromptFileMigrationCandidate), token);
 			}
 			case CustomizationMigrationType.ConfiguredLocations: {
 				const customizations = (await Promise.all([
-					this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
-					this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
-					this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+					this.promptsService.listPromptFiles(PromptsType.agent, token),
+					this.promptsService.listPromptFiles(PromptsType.instructions, token),
+					this.promptsService.listPromptFiles(PromptsType.skill, token),
 				])).flat();
-				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), true);
+				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), token, true);
 			}
 			case CustomizationMigrationType.McpServers:
 				return this.computeMcpServerMigration(sessionResource);
 		}
 	}
 
-	async computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]> {
+	async computeMigrations(sessionResource: URI, token = CancellationToken.None): Promise<CustomizationMigration[]> {
 		return Promise.all([
-			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
-			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
-			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations),
-			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
+			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
 		]);
 	}
 
-	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false): Promise<ICustomizationMigrationHint | undefined> {
+	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
 		}
 
 		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration, customizations] = await Promise.all([
-			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
-			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
-			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations),
-			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
+			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
 			includeCustomizationSummary
-				? harness.itemProvider?.provideChatSessionCustomizations(sessionResource, CancellationToken.None)
+				? harness.itemProvider?.provideChatSessionCustomizations(sessionResource, token)
 				: undefined,
 		]);
 		const fileCandidates = [...userDataMigration.candidates, ...promptFilesMigration.candidates, ...configuredLocationsMigration.candidates];
@@ -148,7 +148,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		return localize('customizationCount', "{0} {1}", count, count === 1 ? singular : plural);
 	}
 
-	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
+	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
 		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.itemProvider;
 		if (!provider?.provideSourceFolders) {
 			return { type, files: [], candidates: [] };
@@ -157,7 +157,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		const targetTypes = new Set(candidates.map(getCustomizationMigrationTargetType));
 		const sourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>();
 		for (const targetType of targetTypes) {
-			const folders = await provider.provideSourceFolders(sessionResource, targetType, CancellationToken.None);
+			const folders = await provider.provideSourceFolders(sessionResource, targetType, token);
 			sourceFolders.set(targetType, folders ?? []);
 		}
 		const filteredCandidates = candidates.filter(customization => {
