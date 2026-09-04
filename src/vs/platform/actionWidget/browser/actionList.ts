@@ -1499,6 +1499,11 @@ export class ActionListWidget<T> extends Disposable {
 	 * for items with a detail (second line).
 	 */
 	protected _getItemHeight(item: IActionListItem<T>): number {
+		return this._itemHeightWith(item, this._options);
+	}
+
+	/** Row heights depend on the options of the tab the items belong to, not the shown one. */
+	private _itemHeightWith(item: IActionListItem<T>, options: IActionListOptions | undefined): number {
 		switch (item.kind) {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
@@ -1506,9 +1511,9 @@ export class ActionListWidget<T> extends Disposable {
 				return item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				if (item.inlineToggle) {
-					return this._options?.inlineToggleItemHeight ?? 70;
+					return options?.inlineToggleItemHeight ?? 70;
 				}
-				return item.detail ? (this._options?.detailItemHeight ?? 48) : this._actionLineHeight;
+				return item.detail ? (options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
 	}
 
@@ -1516,18 +1521,18 @@ export class ActionListWidget<T> extends Disposable {
 	 * Computes the total height of all items (including collapsed/filtered items).
 	 */
 	computeFullHeight(): number {
-		return this.computeHeightForItems(this._allMenuItems);
+		return this.computeHeightForItems(this._allMenuItems, undefined, this._options);
 	}
 
 	/** Height the list would need for `items`, leaving out anything in a collapsed section. */
-	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections?: ReadonlySet<string>): number {
+	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections: ReadonlySet<string> | undefined, options: IActionListOptions | undefined): number {
 		let height = 0;
 		for (const item of items) {
 			// The toggle is the row that reopens its own section, so it stays on screen.
 			if (collapsedSections && item.section && !item.isSectionToggle && collapsedSections.has(item.section)) {
 				continue;
 			}
-			height += this._getItemHeight(item);
+			height += this._itemHeightWith(item, options);
 		}
 		return height;
 	}
@@ -2387,8 +2392,8 @@ export class ActionList<T> extends Disposable {
 	}
 
 	/** Height the list would need for `items`, for a caller sizing against other contents. */
-	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections?: ReadonlySet<string>): number {
-		return this._widget.computeHeightForItems(items, collapsedSections);
+	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections: ReadonlySet<string> | undefined, options: IActionListOptions | undefined): number {
+		return this._widget.computeHeightForItems(items, collapsedSections, options);
 	}
 
 	focusItemById(itemId: string): void {

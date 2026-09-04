@@ -352,7 +352,7 @@ export class TabbedActionListWidget extends Disposable {
 				// height however the popup opened.
 				if (needsSizing) {
 					const sizing = sizingBuild ?? { items, listOptions };
-					this._fixedListHeight = list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault) || undefined;
+					this._fixedListHeight = list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
 					this._hasMeasuredSizingTab = true;
 				}
 
@@ -482,10 +482,7 @@ export class TabbedActionListWidget extends Disposable {
 		return boxes;
 	}
 
-	/**
-	 * Grows and shrinks the tabs from the boxes the previous render left them in, since the
-	 * strip is rebuilt on every switch.
-	 */
+	/** Grows and shrinks the tabs from the boxes the previous render left them in. */
 	private _animateTabResize(radio: Radio, tabs: readonly ITabDescriptor[], boxes: ReadonlyMap<string, ITabBox>, texts: ReadonlyMap<string, string>): IDisposable {
 		const store = new DisposableStore();
 		const previousBoxes = this._previousTabBoxes;
