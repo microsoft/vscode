@@ -23,8 +23,6 @@ The Agents Window contributes:
 
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
-`CustomizationMigrationWidget` owns the shared migration model and category flows. The model owns active-session context, ordered roots, category discovery state, and invalidation; the management editor only hosts navigation, focus, visibility, layout, and file-editor delegation.
-
 ## Service boundary
 
 ### `IAICustomizationWorkspaceService`

@@ -1790,7 +1790,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.migrationFocusState = this.captureCustomizationMigrationFocus() ?? this.migrationFocusState;
+		const targetDocument = DOM.getWindow(this.migrationListContainer).document;
+		const activeElement = targetDocument.activeElement;
+		const capturedFocusState = this.captureCustomizationMigrationFocus();
+		if (capturedFocusState) {
+			this.migrationFocusState = capturedFocusState;
+		} else if (DOM.isHTMLElement(activeElement) && activeElement.isConnected && activeElement !== targetDocument.body) {
+			this.migrationFocusState = undefined;
+		}
 		for (const section of this.migrationSectionLists) {
 			this.migrationSectionScrollPositions?.set(section.key, section.list.scrollTop);
 		}
@@ -1977,6 +1984,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!focusState) {
 			return;
 		}
+		this.migrationFocusState = undefined;
 		for (const section of this.migrationSectionLists) {
 			const index = section.items.findIndex(candidate => this.getCustomizationMigrationCandidateKey(candidate) === focusState.candidateKey);
 			if (index < 0) {

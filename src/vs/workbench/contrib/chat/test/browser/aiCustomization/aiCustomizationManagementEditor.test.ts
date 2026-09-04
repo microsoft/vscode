@@ -889,10 +889,16 @@ suite('aiCustomizationManagementEditor', () => {
 			const checkbox = editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
 			const focusRestored = document.activeElement === checkbox;
 			checkbox?.click();
+			const externalButton = document.body.appendChild(document.createElement('button'));
+			externalButton.focus();
+			editor.renderCustomizationMigrationPage();
+			const externalFocusRetained = document.activeElement === externalButton;
+			externalButton.remove();
 
 			assert.deepStrictEqual({
 				checkboxLabel: checkbox?.getAttribute('aria-label'),
 				focusRestored,
+				externalFocusRetained,
 				staticText: editor.migrationListContainer.querySelector('.prompt-migration-static-text')?.textContent,
 				openButtonDisplay: editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-open-button')?.style.display,
 				moreButtonDisplay: editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-more-action')?.style.display,
@@ -901,6 +907,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}, {
 				checkboxLabel: 'Select server from /workspace/.vscode/mcp.json',
 				focusRestored: true,
+				externalFocusRetained: true,
 				staticText: 'server/workspace/.vscode/mcp.json to /workspace/.mcp.json',
 				openButtonDisplay: 'none',
 				moreButtonDisplay: 'none',
