@@ -5,11 +5,13 @@
 
 import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { IButton } from '../../../../base/browser/ui/button/button.js';
+import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -124,18 +126,16 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let focusSessionConfigurationError: () => void = () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
-		let preparedResult: IAutomationDialogResult | undefined;
 		let saveInProgress = false;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
 
 		const title = isEdit
 			? localize('automation.dialog.editTitle', "Edit automation")
 			: localize('automation.dialog.createTitle', "New automation");
 
-		const buttonLabels = [
-			isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create"),
-			localize('automation.dialog.cancel', "Cancel"),
-		];
+		const saveButtonLabel = isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create");
+		const cancelButtonLabel = localize('automation.dialog.cancel', "Cancel");
 		const savingButtonLabel = localize('automation.dialog.saving', "Saving…");
 		const captureErrorMessage = localize('automation.dialog.captureError', "The automation wasn't saved because its session configuration couldn't be captured. Check the provider connection and try again.");
 
@@ -183,94 +183,110 @@ export class AutomationDialogService implements IAutomationDialogService {
 			return { kind: 'create', value: create };
 		};
 
+		const closeDialog = (result: IAutomationDialogResult | undefined) => {
+			if (completion.isSettled) {
+				return;
+			}
+			saveCancellation.value?.cancel();
+			void completion.complete(result);
+			dialog.dispose();
+		};
+
+		const save = async () => {
+			if (saveInProgress) {
+				return;
+			}
+			revalidate();
+			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
+				return;
+			}
+			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
+				return;
+			}
+
+			saveInProgress = true;
+			showSessionConfigurationError(undefined);
+			setSaving(true);
+			if (saveButton) {
+				saveButton.enabled = false;
+				saveButton.label = savingButtonLabel;
+			}
+			cancelButton?.focus();
+			const cancellation = new CancellationTokenSource();
+			saveCancellation.value = cancellation;
+			let shouldClose = false;
+			let shouldFocusError = false;
+			try {
+				await waitForAutomationSessionSync(cancellation.token);
+				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
+				if (sessionConfigurationCapture.kind === 'failed') {
+					showSessionConfigurationError(captureErrorMessage);
+					shouldFocusError = true;
+					return;
+				}
+				const result = buildResult(sessionConfigurationCapture);
+				if (result) {
+					shouldClose = true;
+					closeDialog(result);
+				}
+			} catch (error) {
+				if (!isCancellationError(error) && !cancellation.token.isCancellationRequested) {
+					this.logService.error('[AutomationDialog] Failed to save the automation session configuration.', error);
+					showSessionConfigurationError(captureErrorMessage);
+					shouldFocusError = true;
+				}
+			} finally {
+				if (saveCancellation.value === cancellation) {
+					saveCancellation.clear();
+				}
+				saveInProgress = false;
+				if (!shouldClose && !completion.isSettled) {
+					setSaving(false);
+					if (saveButton) {
+						saveButton.label = saveButtonLabel;
+					}
+					revalidate();
+					if (shouldFocusError) {
+						focusSessionConfigurationError();
+					}
+				}
+			}
+		};
+
 		const activeContainer = this.layoutService.activeContainer;
 		const dialog = disposables.add(new Dialog(
 			activeContainer,
 			title,
-			buttonLabels,
+			[],
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['automation-dialog'],
-				cancelId: 1,
+				disableDefaultAction: true,
 				isExternalFocusAllowed: isAutomationDialogPopupTarget,
-				buttonHandler: async button => {
-					if (button !== 0) {
-						saveCancellation.value?.cancel();
-						return true;
-					}
-					if (saveInProgress) {
-						return false;
-					}
-					revalidate();
-					if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
-						return false;
-					}
-					if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
-						return false;
-					}
-
-					saveInProgress = true;
-					showSessionConfigurationError(undefined);
-					setSaving(true);
-					if (saveButton) {
-						saveButton.enabled = false;
-						saveButton.label = savingButtonLabel;
-					}
-					cancelButton?.focus();
-					const cancellation = new CancellationTokenSource();
-					saveCancellation.value = cancellation;
-					let shouldClose = false;
-					let shouldFocusError = false;
-					try {
-						await waitForAutomationSessionSync(cancellation.token);
-						const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
-						if (sessionConfigurationCapture.kind === 'failed') {
-							showSessionConfigurationError(captureErrorMessage);
-							shouldFocusError = true;
-							return false;
-						}
-						preparedResult = buildResult(sessionConfigurationCapture);
-						shouldClose = !!preparedResult;
-						return shouldClose;
-					} catch (error) {
-						if (!isCancellationError(error) && !cancellation.token.isCancellationRequested) {
-							this.logService.error('[AutomationDialog] Failed to save the automation session configuration.', error);
-							showSessionConfigurationError(captureErrorMessage);
-							shouldFocusError = true;
-						}
-						return false;
-					} finally {
-						if (saveCancellation.value === cancellation) {
-							saveCancellation.clear();
-						}
-						saveInProgress = false;
-						if (!shouldClose) {
-							setSaving(false);
-							if (saveButton) {
-								saveButton.label = buttonLabels[0];
-							}
-							revalidate();
-							if (shouldFocusError) {
-								focusSessionConfigurationError();
-							}
-						}
-					}
-				},
 				// textLinkForeground stamps inline styles onto chat input picker chips.
 				dialogStyles: { ...defaultDialogStyles, textLinkForeground: undefined },
-				buttonOptions: [
-					{
-						styleButton: button => {
-							saveButton = button;
-							revalidate();
-						},
-					},
-					{
-						styleButton: button => {
-							cancelButton = button;
-						},
-					},
-				],
+				renderFooter: container => {
+					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
+					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
+					const buttonBar = disposables.add(new ButtonBar(container));
+					const createSaveButton = () => {
+						saveButton = buttonBar.addButton(defaultButtonStyles);
+						saveButton.label = saveButtonLabel;
+						disposables.add(saveButton.onDidClick(() => void save()));
+					};
+					const createCancelButton = () => {
+						cancelButton = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
+						cancelButton.label = cancelButtonLabel;
+						disposables.add(cancelButton.onDidClick(() => closeDialog(undefined)));
+					};
+					if (isWindows) {
+						createSaveButton();
+						createCancelButton();
+					} else {
+						createCancelButton();
+						createSaveButton();
+					}
+				},
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
 
@@ -305,7 +321,12 @@ export class AutomationDialogService implements IAutomationDialogService {
 						handle.acceptPromptSuggestion,
 					));
 					focusFirst = keyboardNavigation.focusFirst;
-					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
+					revalidate = () => {
+						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
+						if (saveInProgress && saveButton) {
+							saveButton.enabled = false;
+						}
+					};
 					revalidate();
 				},
 			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
@@ -316,13 +337,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 		disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
 
 		try {
-			const resultPromise = dialog.show();
+			void dialog.show().then(() => closeDialog(undefined));
 			focusFirst();
-			const result = await resultPromise;
-			if (result.button !== 0) {
-				return undefined;
-			}
-			return preparedResult;
+			return await completion.p;
 		} finally {
 			disposables.dispose();
 		}

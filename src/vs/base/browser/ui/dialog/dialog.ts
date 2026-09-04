@@ -13,7 +13,6 @@ import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
 import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
 import { Action, toAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
-import { onUnexpectedError } from '../../../common/errors.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { mnemonicButtonLabel } from '../../../common/labels.js';
@@ -70,8 +69,6 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
-	/** Invoked before a button closes the dialog; return `false` to keep it open. */
-	readonly buttonHandler?: (button: number) => boolean | Promise<boolean>;
 	/**
 	 * Temporary escape hatch for dialogs that embed widgets whose popups mount
 	 * at window root (outside the dialog DOM). Needed because the focus trap
@@ -291,37 +288,25 @@ export class Dialog extends Disposable {
 		return new Promise<IDialogResult>(resolve => {
 			clearNode(this.buttonsContainer);
 
+			const close = () => {
+				resolve({
+					button: this.options.cancelId || 0,
+					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
+				});
+				return;
+			};
+			this._register(toDisposable(close));
+
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer, { alignment: this.options?.alignment === DialogContentsAlignment.Vertical ? ButtonBarAlignment.Vertical : ButtonBarAlignment.Horizontal }));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
-			let settled = false;
-			const complete = (button: number, includeValues: boolean) => {
-				if (settled) {
-					return;
-				}
-				settled = true;
+
+			const onButtonClick = (index: number) => {
 				resolve({
-					button,
+					button: buttonMap[index].index,
 					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
-					...(includeValues ? { values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined } : {}),
+					values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
 				});
 			};
-			const tryComplete = async (button: number, includeValues: boolean) => {
-				if (settled) {
-					return;
-				}
-				try {
-					if (this.options.buttonHandler && !await this.options.buttonHandler(button)) {
-						return;
-					}
-					complete(button, includeValues);
-				} catch (error) {
-					onUnexpectedError(error);
-				}
-			};
-			const close = () => void tryComplete(this.options.cancelId ?? 0, false);
-			this._register(toDisposable(() => complete(this.options.cancelId ?? 0, false)));
-
-			const onButtonClick = (index: number) => tryComplete(buttonMap[index].index, true);
 
 			// Buttons
 			buttonMap.forEach((_, index) => {
@@ -340,7 +325,7 @@ export class Dialog extends Disposable {
 							run: async () => {
 								await action.run();
 
-								await onButtonClick(index);
+								onButtonClick(index);
 							}
 						}))
 					}));
@@ -365,7 +350,7 @@ export class Dialog extends Disposable {
 						EventHelper.stop(e);
 					}
 
-					void onButtonClick(index);
+					onButtonClick(index);
 				}));
 			});
 
@@ -388,7 +373,12 @@ export class Dialog extends Disposable {
 					// Enter in input field should OK the dialog
 					if (this.inputs.some(input => input.hasFocus())) {
 						EventHelper.stop(e);
-						void tryComplete(buttonMap.find(button => button.index !== this.options.cancelId)?.index ?? 0, true);
+
+						resolve({
+							button: buttonMap.find(button => button.index !== this.options.cancelId)?.index ?? 0,
+							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						});
 					}
 
 					return; // leave default handling
@@ -400,7 +390,11 @@ export class Dialog extends Disposable {
 
 					const noButton = buttonMap.find(button => button.index === 1 && button.index !== this.options.cancelId);
 					if (noButton) {
-						void tryComplete(noButton.index, true);
+						resolve({
+							button: noButton.index,
+							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
+							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						});
 					}
 
 					return; // leave default handling
@@ -566,7 +560,12 @@ export class Dialog extends Disposable {
 			if (!this.options.disableCloseAction && !this.options.disableCloseButton) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
-				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => close()));
+				const action = this._register(new Action('dialog.close', localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
+					resolve({
+						button: this.options.cancelId || 0,
+						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
+					});
+				}));
 
 				actionBar.push(action, { icon: true, label: false });
 			}

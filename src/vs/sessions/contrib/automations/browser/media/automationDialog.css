@@ -88,8 +88,18 @@
 	min-height: 0;
 }
 
-.monaco-dialog-box.automation-dialog > .dialog-buttons-row {
+.monaco-dialog-box.automation-dialog > .dialog-buttons-row:not(.automation-dialog-footer-row) {
+	display: none;
+}
+
+.monaco-dialog-box.automation-dialog > .automation-dialog-footer-row {
+	flex-grow: 0;
+	margin-top: 0;
 	padding: 8px 10px 10px;
+}
+
+.monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
+	margin-left: 0;
 }
 
 /*

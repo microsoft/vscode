@@ -5,11 +5,10 @@
 
 import assert from 'assert';
 import { $, append, getWindow } from '../../../../browser/dom.js';
-import { Button, IButton, unthemedButtonStyles } from '../../../../browser/ui/button/button.js';
+import { Button, unthemedButtonStyles } from '../../../../browser/ui/button/button.js';
 import { Dialog, IDialogStyles } from '../../../../browser/ui/dialog/dialog.js';
 import { unthemedInboxStyles } from '../../../../browser/ui/inputbox/inputBox.js';
 import { ICheckboxStyles } from '../../../../browser/ui/toggle/toggle.js';
-import { DeferredPromise } from '../../../../common/async.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -111,86 +110,6 @@ suite('Dialog', () => {
 
 		dialog.dispose();
 		await result;
-	});
-
-	test('keeps the dialog open when an asynchronous button handler rejects closure', async () => {
-		const container = append(document.body, $('.test-dialog-container'));
-		disposables.add(toDisposable(() => container.remove()));
-		let primaryButton!: IButton;
-		let attempts = 0;
-		const dialog = disposables.add(new Dialog(container, 'Message', ['Save', 'Cancel'], {
-			cancelId: 1,
-			buttonHandler: async button => {
-				await Promise.resolve();
-				return button !== 0 || ++attempts > 1;
-			},
-			buttonOptions: [{
-				styleButton: button => primaryButton = button,
-			}],
-			buttonStyles: unthemedButtonStyles,
-			checkboxStyles: unthemedCheckboxStyles,
-			inputBoxStyles: unthemedInboxStyles,
-			dialogStyles: unthemedDialogStyles,
-		}));
-		let completed = false;
-		const result = dialog.show().then(value => {
-			completed = true;
-			return value;
-		});
-
-		primaryButton.element.click();
-		await Promise.resolve();
-		await Promise.resolve();
-		const afterRejectedClosure = completed;
-		primaryButton.element.click();
-
-		assert.deepStrictEqual({
-			afterRejectedClosure,
-			result: await result,
-			attempts,
-		}, {
-			afterRejectedClosure: false,
-			result: { button: 0, checkboxChecked: undefined, values: undefined },
-			attempts: 2,
-		});
-	});
-
-	test('routes the close action through a pending asynchronous button handler', async () => {
-		const container = append(document.body, $('.test-dialog-container'));
-		disposables.add(toDisposable(() => container.remove()));
-		let primaryButton!: IButton;
-		const saveStarted = new DeferredPromise<void>();
-		const releaseSave = new DeferredPromise<void>();
-		const dialog = disposables.add(new Dialog(container, 'Message', ['Save', 'Cancel'], {
-			cancelId: 1,
-			buttonHandler: async button => {
-				if (button === 0) {
-					saveStarted.complete();
-					await releaseSave.p;
-					return false;
-				}
-				return true;
-			},
-			buttonOptions: [{
-				styleButton: button => primaryButton = button,
-			}],
-			buttonStyles: unthemedButtonStyles,
-			checkboxStyles: unthemedCheckboxStyles,
-			inputBoxStyles: unthemedInboxStyles,
-			dialogStyles: unthemedDialogStyles,
-		}));
-		const result = dialog.show();
-
-		primaryButton.element.click();
-		await saveStarted.p;
-		const closeButton = container.querySelector<HTMLElement>('.dialog-toolbar .action-label');
-		assert.ok(closeButton);
-		closeButton.click();
-		const cancelled = await result;
-		releaseSave.complete();
-		await Promise.resolve();
-
-		assert.deepStrictEqual(cancelled, { button: 1, checkboxChecked: undefined });
 	});
 
 	test('prefers a pre-rendered detailElement over plain detail text and makes its links keyboard-focusable', async () => {
