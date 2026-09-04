@@ -1568,9 +1568,14 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async buffer(ref: string, filePath: string): Promise<Buffer> {
+	async buffer(ref: string, filePath: string, options: { textconv?: boolean } = {}): Promise<Buffer> {
 		const relativePath = this.sanitizeRelativePath(filePath);
-		const child = this.stream(['show', '--textconv', `${ref}:${relativePath}`]);
+		const args = ['show'];
+		if (options.textconv !== false) {
+			args.push('--textconv');
+		}
+		args.push(`${ref}:${relativePath}`);
+		const child = this.stream(args);
 
 		if (!child.stdout) {
 			return Promise.reject<Buffer>('Can\'t open file from git');
