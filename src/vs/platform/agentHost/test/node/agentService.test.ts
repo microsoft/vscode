@@ -7265,6 +7265,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('stores MCP tokens for the same resource by server name', async () => {
+			const mcpAgent = new MockAgent();
+			disposables.add(toDisposable(() => mcpAgent.dispose()));
+			const mcpAgentContract: IAgent = mcpAgent;
+			mcpAgent.getProtectedResources = () => [{ resource: 'https://mcp.example.com' }];
+			mcpAgentContract.handleAuthenticationToken = async () => true;
+			registerTestAgentProvider(service, mcpAgentContract);
+
+			await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'first-server', token: 'first-token' });
+			await service.authenticate({ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'second-server', token: 'second-token' });
+
+			assert.deepStrictEqual({
+				first: getAuthenticationService(service).getAuthToken({ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'first-server' }),
+				second: getAuthenticationService(service).getAuthToken({ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'second-server' }),
+				unscoped: getAuthenticationService(service).getAuthToken({ resource: 'https://mcp.example.com', scopes: ['read'] }),
+				genericAuthenticateCalls: mcpAgent.authenticateCalls,
+			}, {
+				first: 'first-token',
+				second: 'second-token',
+				unscoped: undefined,
+				genericAuthenticateCalls: [],
+			});
+		});
+
 		test('accepts an already handled MCP token after retrying session handlers', async () => {
 			const mcpAgent = new MockAgent();
 			disposables.add(toDisposable(() => mcpAgent.dispose()));

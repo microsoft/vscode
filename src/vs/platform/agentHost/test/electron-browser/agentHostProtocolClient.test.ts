@@ -464,6 +464,41 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
+	test('retains same-resource MCP authentication separately by server name', async () => {
+		const { client, transport } = createClient();
+		const authenticate = async (serverName: string, token: string) => {
+			const promise = client.authenticate({ resource: 'https://mcp.example.com', scopes: ['read'], serverName, token });
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { authenticated: true } });
+			await promise;
+			return request.params;
+		};
+
+		const first = await authenticate('first-server', 'first-token');
+		const second = await authenticate('second-server', 'second-token');
+
+		assert.deepStrictEqual({ first, second, retained: [...client['_authentication'].values()] }, {
+			first: {
+				channel: ROOT_STATE_URI,
+				resource: 'https://mcp.example.com',
+				scopes: ['read'],
+				serverName: 'first-server',
+				token: 'first-token',
+			},
+			second: {
+				channel: ROOT_STATE_URI,
+				resource: 'https://mcp.example.com',
+				scopes: ['read'],
+				serverName: 'second-server',
+				token: 'second-token',
+			},
+			retained: [
+				{ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'first-server', token: 'first-token' },
+				{ resource: 'https://mcp.example.com', scopes: ['read'], serverName: 'second-server', token: 'second-token' },
+			],
+		});
+	});
+
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window

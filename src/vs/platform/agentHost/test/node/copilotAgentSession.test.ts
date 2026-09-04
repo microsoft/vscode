@@ -12094,6 +12094,66 @@ Use the attached image as context.
 			});
 		});
 
+		test('resolves same-resource MCP authentication only for the named server', async () => {
+			const { session, runtime } = await createAgentSession(disposables);
+			const resourceMetadata = JSON.stringify({
+				resource: 'https://mcp.example.com',
+				authorization_servers: ['https://auth.example.com'],
+				scopes_supported: ['read'],
+			});
+			const firstAuth = runtime.handleMcpAuthRequest({
+				requestId: 'first-auth',
+				serverName: 'first-server',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'upscope',
+				resourceMetadata,
+				wwwAuthenticateParams: { scope: 'read' },
+			}, { sessionId: 'test-session-1' });
+			let secondSettled = false;
+			const secondAuth = runtime.handleMcpAuthRequest({
+				requestId: 'second-auth',
+				serverName: 'second-server',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'upscope',
+				resourceMetadata,
+				wwwAuthenticateParams: { scope: 'read' },
+			}, { sessionId: 'test-session-1' }).then(result => {
+				secondSettled = true;
+				return result;
+			});
+			await timeout(0);
+
+			const firstResolved = await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: ['read'],
+				serverName: 'first-server',
+				token: 'first-token',
+			});
+			const firstResult = await firstAuth;
+			await timeout(0);
+			const secondWasPending = !secondSettled;
+			const secondResolved = await session.resolveMcpAuthentication({
+				resource: 'https://mcp.example.com',
+				scopes: ['read'],
+				serverName: 'second-server',
+				token: 'second-token',
+			});
+
+			assert.deepStrictEqual({
+				firstResolved,
+				firstResult,
+				secondWasPending,
+				secondResolved,
+				secondResult: await secondAuth,
+			}, {
+				firstResolved: true,
+				firstResult: { kind: 'token', accessToken: 'first-token' },
+				secondWasPending: true,
+				secondResolved: true,
+				secondResult: { kind: 'token', accessToken: 'second-token' },
+			});
+		});
+
 		test('needs-auth status remains starting when no auth request details are available', async () => {
 			const { mockSession, waitForSignal } = await createAgentSession(disposables);
 

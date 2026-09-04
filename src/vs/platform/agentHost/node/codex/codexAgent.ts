@@ -1085,15 +1085,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
 	/**
-	 * OAuth bearer tokens acquired for auth-gated http MCP servers, keyed by
-	 * the server's {@link normalizeCodexMcpResourceUrl | normalized URL}.
+	 * OAuth bearer tokens acquired for auth-gated http MCP servers, keyed first
+	 * by server name and then by its {@link normalizeCodexMcpResourceUrl | normalized URL}.
 	 * Populated by {@link handleAuthenticationToken} after the workbench
 	 * completes the sign-in, then injected into the per-thread `http_headers`
 	 * by {@link _buildSessionMcpServers}. Process-global: a token for a given
 	 * server URL applies to every session/thread that uses it (codex runs one
 	 * shared app-server).
 	 */
-	private readonly _mcpAuthTokens = new Map<string, string>();
+	private readonly _mcpAuthTokens = new Map<string, Map<string, string>>();
 	/**
 	 * Association from a normalized OAuth `resource` (what the workbench
 	 * authenticates) to the normalized MCP server URL(s) it unlocks. RFC 9728
@@ -1104,7 +1104,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * read by {@link handleAuthenticationToken} to route the token to the right
 	 * server(s).
 	 */
-	private readonly _mcpAuthServerUrlsByResource = new Map<string, Set<string>>();
+	private readonly _mcpAuthServerUrlsByResource = new Map<string, Map<string, Set<string>>>();
 	private _githubToken: string | undefined;
 	private _gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined;
 	private _githubAuthenticationGeneration = 0;
@@ -1535,37 +1535,74 @@ export class CodexAgent extends Disposable implements IAgent {
 		// recorded at discovery time, plus a direct match when the resource IS
 		// a configured server URL (discovery returned the URL unchanged, or was
 		// skipped).
-		const serverUrls = new Set(this._mcpAuthServerUrlsByResource.get(normalizedResource) ?? []);
-		if (this._isConfiguredHttpServerUrl(normalizedResource)) {
-			serverUrls.add(normalizedResource);
+		const associatedServers = this._mcpAuthServerUrlsByResource.get(normalizedResource);
+		const serverUrlsByName = new Map<string, Set<string>>();
+		if (params.serverName !== undefined) {
+			const associatedUrls = associatedServers?.get(params.serverName);
+			if (associatedUrls) {
+				serverUrlsByName.set(params.serverName, new Set(associatedUrls));
+			}
+			if (this._configuredHttpServerNamesForUrl(normalizedResource).has(params.serverName)) {
+				const urls = serverUrlsByName.get(params.serverName) ?? new Set<string>();
+				urls.add(normalizedResource);
+				serverUrlsByName.set(params.serverName, urls);
+			}
+		} else {
+			for (const [name, urls] of associatedServers ?? []) {
+				serverUrlsByName.set(name, new Set(urls));
+			}
+			for (const name of this._configuredHttpServerNamesForUrl(normalizedResource)) {
+				const urls = serverUrlsByName.get(name) ?? new Set<string>();
+				urls.add(normalizedResource);
+				serverUrlsByName.set(name, urls);
+			}
 		}
-		if (serverUrls.size === 0) {
+		if (serverUrlsByName.size === 0) {
 			return false;
 		}
 		let changed = false;
-		for (const serverUrl of serverUrls) {
-			if (this._mcpAuthTokens.get(serverUrl) !== params.token) {
-				this._mcpAuthTokens.set(serverUrl, params.token);
-				changed = true;
+		const affectedUrls = new Set<string>();
+		for (const [name, serverUrls] of serverUrlsByName) {
+			let tokens = this._mcpAuthTokens.get(name);
+			for (const serverUrl of serverUrls) {
+				affectedUrls.add(serverUrl);
+				if (!params.token) {
+					changed = tokens?.delete(serverUrl) === true || changed;
+				} else if (tokens?.get(serverUrl) !== params.token) {
+					tokens ??= new Map<string, string>();
+					tokens.set(serverUrl, params.token);
+					changed = true;
+				}
+			}
+			if (tokens?.size) {
+				this._mcpAuthTokens.set(name, tokens);
+			} else {
+				this._mcpAuthTokens.delete(name);
 			}
 		}
 		if (!changed) {
 			return true;
 		}
-		this._logService.info(`[Codex] stored MCP auth token for ${params.resource}; reconnecting affected sessions`);
-		await this._reconnectSessionsForMcpAuth(serverUrls);
+		this._logService.info(`[Codex] ${params.token ? 'stored' : 'cleared'} MCP auth token for ${params.resource}; reconnecting affected sessions`);
+		await this._reconnectSessionsForMcpAuth(affectedUrls);
 		return true;
 	}
 
-	/** Whether `normalizedUrl` is a currently-configured http MCP server (root config or any session's client plugins). */
-	private _isConfiguredHttpServerUrl(normalizedUrl: string): boolean {
-		if (Object.values(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
-			.some(server => server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === normalizedUrl)) {
-			return true;
+	private _configuredHttpServerNamesForUrl(normalizedUrl: string): Set<string> {
+		const names = new Set<string>();
+		for (const [name, server] of Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))) {
+			if (server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === normalizedUrl) {
+				names.add(name);
+			}
 		}
-		return [...this._sessions.values()].some(session =>
-			[...this._httpMcpServerUrls(session).values()].includes(normalizedUrl),
-		);
+		for (const session of this._sessions.values()) {
+			for (const [name, url] of this._httpMcpServerUrls(session)) {
+				if (url === normalizedUrl) {
+					names.add(name);
+				}
+			}
+		}
+		return names;
 	}
 
 	/**
@@ -7554,7 +7591,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				// insufficient scopes). Drop it so the user is re-prompted
 				// instead of getting stuck on a terminal error with no way to
 				// re-authenticate.
-				if (this._mcpAuthTokens.delete(normalized)) {
+				const tokens = this._mcpAuthTokens.get(name);
+				if (tokens?.delete(normalized)) {
+					if (tokens.size === 0) {
+						this._mcpAuthTokens.delete(name);
+					}
 					this._logService.info(`[Codex] MCP server '${name}' rejected the stored token; clearing it to allow re-authentication`);
 				}
 				void this._surfaceMcpAuthRequired(client, threadId, name, url, error);
@@ -7639,8 +7680,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		const normalizedServer = normalizeCodexMcpResourceUrl(url);
 		const normalizedResource = normalizeCodexMcpResourceUrl(resource.resource) ?? normalizedServer;
 		if (normalizedServer !== undefined && normalizedResource !== undefined) {
-			const servers = this._mcpAuthServerUrlsByResource.get(normalizedResource) ?? new Set<string>();
-			servers.add(normalizedServer);
+			const servers = this._mcpAuthServerUrlsByResource.get(normalizedResource) ?? new Map<string, Set<string>>();
+			const urls = servers.get(name) ?? new Set<string>();
+			urls.add(normalizedServer);
+			servers.set(name, urls);
 			this._mcpAuthServerUrlsByResource.set(normalizedResource, servers);
 		}
 		this._logService.info(`[Codex] MCP server '${name}' requires authentication for ${url}`);

@@ -1297,7 +1297,8 @@ export class SetOAuthClientSecret extends Action2 {
 		}
 
 		if (result.kind === 'delete') {
-			await secretStorageService.delete(key);
+			// Preserve an explicit secretless choice so legacy provider migration cannot revive a stale secret.
+			await secretStorageService.set(key, '');
 		} else {
 			await secretStorageService.set(key, result.value);
 		}

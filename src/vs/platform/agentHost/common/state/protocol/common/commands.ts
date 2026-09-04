@@ -1159,6 +1159,12 @@ export interface AuthenticateParams extends BaseParams {
 	 * token.
 	 */
 	scopes?: string[];
+	/**
+	 * Exact, case-sensitive MCP server configuration name when the token resolves
+	 * a server-owned authentication request. The host MUST apply the token only
+	 * to that named server. Omit for provider-level protected resources.
+	 */
+	serverName?: string;
 }
 
 /**
