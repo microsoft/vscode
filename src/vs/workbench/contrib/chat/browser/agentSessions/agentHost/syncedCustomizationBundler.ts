@@ -6,7 +6,7 @@
 import { Limiter, SequencerByKey } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
@@ -56,6 +56,38 @@ function pluginDirForType(type: PromptsType): string | undefined {
 }
 
 type QueueFileOperation = <T>(operation: () => Promise<T>) => Promise<T>;
+
+/** Cancels queued operations on disposal while allowing already-started operations to settle. */
+class DrainingFileOperationLimiter implements IDisposable {
+
+	private readonly _limiter = new Limiter<unknown>(FILE_OPERATION_CONCURRENCY);
+	private _isDisposed = false;
+
+	queue<T>(operation: () => Promise<T>): Promise<T> {
+		if (this._isDisposed) {
+			return Promise.reject(new CancellationError());
+		}
+		return this._limiter.queue(async () => {
+			if (this._isDisposed) {
+				throw new CancellationError();
+			}
+			return operation();
+		}) as Promise<T>;
+	}
+
+	dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		void this._disposeWhenIdle();
+	}
+
+	private async _disposeWhenIdle(): Promise<void> {
+		await this._limiter.whenIdle();
+		this._limiter.dispose();
+	}
+}
 
 async function collectDirectoryFiles(fileService: IFileService, logService: ILogService, root: URI, directory: URI, queueFileOperation: QueueFileOperation): Promise<IFileStatWithPartialMetadata[]> {
 	const stat = await queueFileOperation(() => fileService.resolve(directory));
@@ -159,7 +191,7 @@ interface IBundleResult {
  */
 export class SyncedCustomizationBundler extends Disposable {
 
-	private readonly _fileOperationLimiter = this._register(new MutableDisposable<Limiter<unknown>>());
+	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
@@ -174,7 +206,6 @@ export class SyncedCustomizationBundler extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._fileOperationLimiter.value = new Limiter<unknown>(FILE_OPERATION_CONCURRENCY);
 		this._authority = authority;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
@@ -190,11 +221,7 @@ export class SyncedCustomizationBundler extends Disposable {
 
 	private _queueFileOperation<T>(operation: () => Promise<T>): Promise<T> {
 		this._throwIfDisposed();
-		const limiter = this._fileOperationLimiter.value;
-		if (!limiter) {
-			throw new CancellationError();
-		}
-		return limiter.queue(operation) as Promise<T>;
+		return this._fileOperationLimiter.queue(operation);
 	}
 
 	private _throwIfDisposed(): void {
@@ -214,7 +241,14 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	async bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []): Promise<IBundleResult | undefined> {
 		this._throwIfDisposed();
-		return bundleSequencer.queue(this._authority, () => this._bundle(files, mcpServers));
+		try {
+			const result = await bundleSequencer.queue(this._authority, () => this._bundle(files, mcpServers));
+			this._throwIfDisposed();
+			return result;
+		} catch (error) {
+			this._throwIfDisposed();
+			throw error;
+		}
 	}
 
 	private async _bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[]): Promise<IBundleResult | undefined> {
@@ -402,16 +436,6 @@ export class SyncedCustomizationBundler extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
-		// Keep the limiter alive until file operations queued before disposal have settled.
-		const limiter = this._fileOperationLimiter.clearAndLeak();
 		super.dispose();
-		if (!limiter) {
-			return;
-		}
-		if (limiter.size === 0) {
-			limiter.dispose();
-		} else {
-			void limiter.whenIdle().then(() => limiter.dispose());
-		}
 	}
 }

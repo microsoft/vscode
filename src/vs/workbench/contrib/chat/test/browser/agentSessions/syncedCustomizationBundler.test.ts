@@ -30,6 +30,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private statDelay = 0;
 	activeStats = 0;
 	maxActiveStats = 0;
+	statCalls = 0;
 
 	markSymbolicLink(resource: URI): void {
 		this.symbolicLinks.add(resource);
@@ -44,6 +45,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 
 	override async stat(resource: URI): Promise<IStat> {
+		this.statCalls++;
 		this.activeStats++;
 		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
 		try {
@@ -332,10 +334,30 @@ suite('SyncedCustomizationBundler', () => {
 		while (memFs.maxActiveStats < 10) {
 			await timeout(0);
 		}
+		const statCallsAtDisposal = memFs.statCalls;
 		bundler.dispose();
 
 		await assert.rejects(bundle, error => isCancellationError(error));
 		await assert.rejects(bundler.bundle([{ uri: skill, type: PromptsType.skill }]), error => isCancellationError(error));
+		while (memFs.activeStats > 0) {
+			await timeout(0);
+		}
+		assert.strictEqual(memFs.statCalls, statCallsAtDisposal);
+	});
+
+	test('normalizes an in-flight provider failure after disposal to cancellation', async () => {
+		const bundler = createBundler();
+		const resource = await seedFile('/test/unavailable.md', 'content');
+		memFs.delayStats(20);
+		memFs.failStat(resource);
+
+		const bundle = bundler.bundle([{ uri: resource, type: PromptsType.instructions }]);
+		while (memFs.activeStats === 0) {
+			await timeout(0);
+		}
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
 	});
 
 	test('serializes replacement bundles for the same authority', async () => {
