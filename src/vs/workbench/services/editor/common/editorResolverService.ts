@@ -166,11 +166,99 @@ export interface IEditorResolverServiceGetEditorsOptions {
 	readonly isDiffEditor?: boolean;
 }
 
+export interface IEditorResolverServiceGetEditorMatchesOptions {
+	readonly isDiffEditor?: boolean;
+}
+
 export interface IEditorResolverServiceGetAllEditorsOptions {
 	/**
 	 * Excludes registrations whose editor priority is exclusive.
 	 */
 	readonly excludeExclusiveEditors?: boolean;
+}
+
+export const enum EditorMatchRuleSource {
+	UserAssociation,
+	EditorRegistration,
+	Fallback
+}
+
+/**
+ * The effective rule that makes one editor choice available for a resource.
+ */
+export type EditorMatchRule = {
+	readonly editor: RegisteredEditorInfo;
+	readonly priority: RegisteredEditorPriority;
+	readonly associationPattern: string;
+} & (
+		| { readonly source: EditorMatchRuleSource.UserAssociation; readonly association: EditorAssociation }
+		| { readonly source: EditorMatchRuleSource.EditorRegistration; readonly globPattern: string | glob.IRelativePattern }
+		| { readonly source: EditorMatchRuleSource.Fallback }
+	);
+
+export function isUnconfiguredUniversalOptionalEditorMatch(rule: EditorMatchRule): boolean {
+	return rule.source === EditorMatchRuleSource.EditorRegistration
+		&& rule.globPattern === '*'
+		&& rule.priority === RegisteredEditorPriority.option;
+}
+
+function freezeEditorMatchRule(rule: EditorMatchRule): EditorMatchRule {
+	const editor = Object.freeze({
+		...rule.editor,
+		priority: Object.freeze({ ...rule.editor.priority })
+	});
+	switch (rule.source) {
+		case EditorMatchRuleSource.UserAssociation:
+			return Object.freeze({ ...rule, editor, association: Object.freeze({ ...rule.association }) });
+		case EditorMatchRuleSource.EditorRegistration:
+			return Object.freeze({
+				...rule,
+				editor,
+				globPattern: typeof rule.globPattern === 'string' ? rule.globPattern : Object.freeze({ ...rule.globPattern })
+			});
+		case EditorMatchRuleSource.Fallback:
+			return Object.freeze({ ...rule, editor });
+	}
+}
+
+/**
+ * An immutable snapshot containing one effective rule per matching editor and the rule selecting its default.
+ */
+export class EditorMatches {
+	readonly matches: readonly EditorMatchRule[];
+	readonly defaultRuleIndex: number;
+	readonly defaultRule: EditorMatchRule;
+	readonly naturalDefaultRuleIndex: number;
+	readonly naturalDefaultRule: EditorMatchRule;
+	readonly conflictingDefault: boolean;
+	readonly hasExclusiveMatch: boolean;
+
+	constructor(matches: readonly EditorMatchRule[], defaultRuleIndex: number, naturalDefaultRuleIndex: number, conflictingDefault: boolean) {
+		if (defaultRuleIndex < 0 || defaultRuleIndex >= matches.length) {
+			throw new RangeError('The default editor rule must be an item in the matches array.');
+		}
+		if (naturalDefaultRuleIndex < 0 || naturalDefaultRuleIndex >= matches.length) {
+			throw new RangeError('The natural default editor rule must be an item in the matches array.');
+		}
+		if (new Set(matches.map(match => match.editor.id)).size !== matches.length) {
+			throw new RangeError('Each editor must have exactly one effective match rule.');
+		}
+		if (conflictingDefault && matches[defaultRuleIndex].source !== EditorMatchRuleSource.EditorRegistration) {
+			throw new RangeError('Only a registered editor default can conflict with another default.');
+		}
+		if (matches.some((match, index) => match.source === EditorMatchRuleSource.Fallback && index !== defaultRuleIndex && index !== naturalDefaultRuleIndex)) {
+			throw new RangeError('A fallback rule must select the effective or natural default editor.');
+		}
+
+		this.matches = Object.freeze(matches.map(freezeEditorMatchRule));
+		this.defaultRuleIndex = defaultRuleIndex;
+		this.defaultRule = this.matches[defaultRuleIndex];
+		this.naturalDefaultRuleIndex = naturalDefaultRuleIndex;
+		this.naturalDefaultRule = this.matches[naturalDefaultRuleIndex];
+		this.conflictingDefault = conflictingDefault;
+		this.hasExclusiveMatch = this.matches.some(match => match.priority === RegisteredEditorPriority.exclusive);
+		Object.freeze(this);
+	}
 }
 
 export type RegisteredEditorPriorityInfo = {
@@ -241,22 +329,19 @@ export interface IEditorResolverService {
 	getAssociationsForResource(resource: URI): EditorAssociations;
 
 	/**
-	 * Returns the view type of the user-configured default editor for a resource, or `undefined` when
-	 * none is configured. When `forDiffEditor` is `true` the diff editor association setting
-	 * (`workbench.diffEditorAssociations`) is consulted instead of the general one.
-	 * @param resource The resource to match
-	 * @param forDiffEditor Whether to read the diff editor association setting
+	 * Returns an immutable snapshot of the editors matching a resource and the rule selecting its default.
 	 */
-	getConfiguredDefaultEditor(resource: URI, forDiffEditor?: boolean): string | undefined;
+	getEditorMatches(resource: URI, options?: IEditorResolverServiceGetEditorMatchesOptions): EditorMatches;
 
 	/**
-	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
-	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
-	 * @param editorID The ID of the editor to make a user default
+	 * Sets an editor as the default for a resource, removing a redundant association when restoring
+	 * the natural default supplied by editor registrations or the Text Editor fallback.
+	 * @param resource The resource whose editor default is changing.
+	 * @param editorID The ID of the editor to make the default.
 	 * @param forDiffEditor When `true`, the diff editor association (`workbench.diffEditorAssociations`)
 	 * is updated instead of the general editor association (`workbench.editorAssociations`).
 	 */
-	updateUserAssociations(globPattern: string, editorID: string, forDiffEditor?: boolean): void;
+	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void;
 
 	/**
 	 * Emitted when an editor is registered or unregistered.

@@ -3833,6 +3833,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('serializes draft config writes instead of dropping selections during resolution', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder' },
+		};
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+
+		const isolationUpdate = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		const branchUpdate = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Branch, 'feature');
+		await timeout(0);
+		const requestsWhileResolving = agentHost.resolveSessionConfigRequests.slice(-1).map(request => request.config);
+
+		barrier.complete();
+		await Promise.all([isolationUpdate, branchUpdate]);
+
+		assert.deepStrictEqual({
+			requestsWhileResolving,
+			finalRequests: agentHost.resolveSessionConfigRequests.slice(-2).map(request => request.config),
+		}, {
+			requestsWhileResolving: [{ isolation: 'folder' }],
+			finalRequests: [
+				{ isolation: 'folder' },
+				{ isolation: 'folder', branch: 'feature' },
+			],
+		});
+	});
+
+	test('first send waits for tracked draft config operations', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => {
+				sendCalls++;
+				agentHost.addSession(createSession('config-operation-send', { summary: 'Config Operation' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		const barrier = new DeferredPromise<void>();
+		provider.trackSessionConfigOperation(session.sessionId, barrier.p);
+
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		const pendingSendCalls = sendCalls;
+
+		barrier.complete();
+		const committed = await send;
+
+		assert.deepStrictEqual({
+			pendingSendCalls,
+			sendCalls,
+			title: committed.title.get(),
+		}, {
+			pendingSendCalls: 0,
+			sendCalls: 1,
+			title: 'Config Operation',
+		});
+	});
+
 	test('first send waits for trusted eager backend creation', async () => {
 		const workspaceTrustBarrier = new DeferredPromise<void>();
 		let sendCalls = 0;
@@ -3948,14 +4012,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'feature' },
+		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'feature');
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: {} },
-			values: { isolation: 'folder', branch: 'main' },
+			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setIsolationMode(session.sessionId, 'workspace');
 
@@ -3969,6 +4037,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ isolation: 'folder' },
 			],
 			remembered: {},
+		});
+	});
+
+	test('resets the branch to the isolation default when New Worktree is toggled', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main');
+		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstToggleRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [
+				{ isolation: 'folder' },
+				{ isolation: 'worktree' },
+			],
+			config: { isolation: 'worktree', branch: 'main' },
 		});
 	});
 
@@ -6027,6 +6129,89 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ whileComputing, afterReady }, {
 			whileComputing: [changedFile.toString()],
 			afterReady: [],
+		});
+	}));
+
+	test('Last Turn Changes ignores a trailing host notice turn', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const workingDirectory = URI.file('/repo');
+		agentHost.addSession(createSession('notice-turn-changes', { summary: 'Notice Turn Changes', workingDirectory }));
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Notice Turn Changes');
+		assert.ok(session);
+		activeSession.set(session as IActiveSession, undefined);
+		assert.ok(session instanceof AgentHostSessionAdapter);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'notice-turn-changes').toString();
+		const chatUri = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('notice-turn-changes', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Notice Turn Changes',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat: chatUri,
+			chats: [{
+				resource: chatUri,
+				title: 'Default',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}],
+			workingDirectories: [workingDirectory.toString()],
+		});
+		session.updateChangesets([{
+			label: 'Last Turn Changes',
+			uriTemplate: `${sessionUri}/changeset/turn/{turnId}`,
+			changeKind: 'turn',
+		}]);
+
+		const changedFile = URI.file('/repo/edited.ts');
+		agentHost.setChangesetState(`${sessionUri}/changeset/turn/agent-turn`, {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: changedFile.toString(),
+				edit: {
+					after: { uri: changedFile.toString(), content: { uri: changedFile.toString() } },
+					diff: { added: 3, removed: 1 },
+				},
+			}],
+		});
+		agentHost.setChangesetState(`${sessionUri}/changeset/turn/notice-turn`, { status: ChangesetStatus.Ready, files: [] });
+
+		// The agent's turn, followed by a hidden Agent Merge notice turn.
+		agentHost.setChatState(chatUri, {
+			resource: chatUri,
+			title: 'Default',
+			status: ProtocolSessionStatus.Idle,
+			modifiedAt: new Date().toISOString(),
+			turns: [{
+				id: 'agent-turn',
+				message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}, {
+				id: 'notice-turn',
+				message: {
+					text: '<!-- vscode-request-hidden-from-transcript -->\nAgent Merge is enabled for `feature`.',
+					origin: { kind: MessageKind.SystemNotification },
+				},
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		});
+
+		const changeset = session.changesets.get()?.find(candidate => candidate.id === TURN_CHANGES_CHANGESET_ID);
+		assert.deepStrictEqual({
+			isEnabled: changeset?.isEnabled.get(),
+			changes: changeset?.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString()),
+		}, {
+			isEnabled: true,
+			changes: [changedFile.toString()],
 		});
 	}));
 

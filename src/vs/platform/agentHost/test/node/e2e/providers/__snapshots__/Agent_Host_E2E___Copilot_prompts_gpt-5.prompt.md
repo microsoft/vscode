@@ -805,7 +805,7 @@
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply.",
+      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.",
       "parameters": {
         "type": "object",
         "properties": {

@@ -6,12 +6,13 @@
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import type { IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -163,7 +164,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply.',
+		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -1065,11 +1066,12 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 }
 
 /**
- * Sends a message to an existing session/chat, starting a new turn there.
+ * Sends a message to an existing session/chat, starting a new turn there or
+ * queuing it behind the target chat's active or pending messages.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
-export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string): Promise<string> {
+export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
@@ -1077,17 +1079,33 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	}
 	const sourceChat = currentChannel ? URI.parse(currentChannel) : undefined;
 	const sourceSession = sourceChat ? currentSessionUri(sourceChat.toString()) : undefined;
-	await accessor.startPrompt(session, chat, message, sourceSession ? {
+	const delegation: IAgentMessageDelegationMeta | undefined = sourceSession ? {
 		sourceSession: sourceSession.toString(),
 		sourceChat: sourceChat?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined);
-	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId));
+	} : undefined;
+	const targetState = stateManager?.getChatState(chat.toString());
+	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+		const queuedMessage: Message = {
+			text: message,
+			origin: { kind: MessageKind.Agent },
+			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
+		};
+		stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: generateUuid(),
+			message: queuedMessage,
+		});
+		return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), true);
+	}
+	await accessor.startPrompt(session, chat, message, delegation);
+	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), false);
 }
 
 /** Builds the model-facing `send_message` result. */
-export function formatSendMessageResult(openLink: string): string {
-	return `Message sent (${openLink}).`;
+export function formatSendMessageResult(openLink: string, queued: boolean): string {
+	return `Message ${queued ? 'queued' : 'sent'} (${openLink}).`;
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1402,7 +1420,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 			return getSessionToolDisplay(toolName, args, result);
 		},
-		async execute(_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
+		async execute(stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
 			if (!accessor) {
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
@@ -1448,7 +1466,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
 					sentMessageCount++;
 					return result;
 				}

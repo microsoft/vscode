@@ -33,6 +33,7 @@ export interface IAgentHostEnablementService {
 	 * affected, and virtual workspaces are exempt.
 	 */
 	readonly managedSandboxEnforced: IObservable<boolean>;
+	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

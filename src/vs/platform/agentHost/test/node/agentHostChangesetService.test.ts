@@ -16,7 +16,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -1430,6 +1430,17 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		};
 	}
 
+	/** Polls until `changesetUri` reaches `Ready`. */
+	async function waitForChangesetReady(stateManager: AgentHostStateManager, changesetUri: string): Promise<void> {
+		for (let i = 0; i < 500; i++) {
+			if (stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Ready) {
+				return;
+			}
+			await timeout(1);
+		}
+		assert.fail(`changeset ${changesetUri} never reached Ready`);
+	}
+
 	function build(options: {
 		workingDirectories: string[];
 		git: IAgentHostGitService;
@@ -1812,6 +1823,55 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		assert.strictEqual(state?.status, ChangesetStatus.Ready);
 		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/wd/tracked.ts').toString()], 'fallback returns all of the turn edits, exactly as today');
 		assert.strictEqual(repoRootCalls, 0, 'single-folder fallback must not resolve repositories');
+	});
+
+	/**
+	 * A host notice turn captures no checkpoint, so picking it as the session's
+	 * latest turn drops the session changeset onto the edit tracker, which
+	 * cannot see terminal-tool edits.
+	 */
+	test('session changeset keeps its git fast path when the chat ends on a host notice turn', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
+		git.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+			diffCalls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+			return [gitDiff('/wd/edited.ts', 3, 1)];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getBaselineCheckpoint: async () => 'baseline',
+			// Mirrors production: only the agent's turn has a checkpoint.
+			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
+				turnId === 'agent-turn' ? { parent: 'agent~p', current: 'agent~c' } : undefined,
+		};
+		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+
+		const chat = buildDefaultChatUri(sessionStr);
+		for (const turn of [
+			{ id: 'agent-turn', message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } } },
+			{
+				id: 'notice-turn',
+				message: withMessageRequestHiddenFromTranscript(
+					{ text: 'Agent Merge is enabled for `feature`.', origin: { kind: MessageKind.SystemNotification } },
+					true,
+				),
+			},
+		]) {
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: turn.id, startedAt: new Date(0).toISOString(), message: turn.message });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 });
+		}
+
+		svc.refreshSessionChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, buildSessionChangesetUri(sessionStr));
+
+		assert.deepStrictEqual({
+			diffCalls,
+			files: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id),
+		}, {
+			diffCalls: [{ fromRef: 'baseline', toRef: 'agent~c' }],
+			files: [URI.file('/wd/edited.ts').toString()],
+		});
 	});
 
 	/**
