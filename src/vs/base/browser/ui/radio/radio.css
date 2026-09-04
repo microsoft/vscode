@@ -78,12 +78,14 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
+/* Every segment carries the border box so the selected one can colour it without
+ * shifting the reel by a pixel as the selection moves. */
 .monaco-custom-radio.segmented > .monaco-button {
 	flex: 1 1 0;
 	justify-content: center;
 	height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	border: none;
+	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-circle);
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
@@ -96,10 +98,12 @@
 	background: transparent;
 }
 
+/* The fill only shifts the hue, so the border is what identifies the selection. */
 .monaco-custom-radio.segmented > .monaco-button.active,
 .monaco-custom-radio.segmented > .monaco-button.active:hover {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-menu-background));
+	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 	box-shadow: var(--vscode-shadow-sm);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -107,9 +111,4 @@
 .monaco-custom-radio.segmented > .monaco-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.hc-black .monaco-custom-radio.segmented > .monaco-button.active,
-.hc-light .monaco-custom-radio.segmented > .monaco-button.active {
-	border: var(--vscode-strokeThickness) solid var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 }
