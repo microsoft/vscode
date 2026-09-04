@@ -335,7 +335,7 @@ suite('SessionWorkspaceConversionService', () => {
 				hidden: false,
 				label: 'Workspace Set',
 				origin: MessageKind.SystemNotification,
-				text: 'The current session is now attached to /workspace/project. Continue the user\'s original task in this workspace. Do not request another session or workspace conversion.',
+				text: `The current session is now attached to ${workspaceFolder.fsPath}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
 			}],
 		});
 	});
@@ -416,12 +416,13 @@ suite('SessionWorkspaceConversionService', () => {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.Branch]: 'main',
 			},
-			continuationText: 'The current session is now attached to /workspace/project.worktrees/implement-feature in an isolated worktree. Continue the user\'s original task in this workspace. Do not request another session or workspace conversion.',
+			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
 		});
 	});
 
 	test('keeps the session workspace-less when workspace trust is declined', async () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => false);
+		const workspaceFolder = URI.file('/workspace/project');
 		const providerCalls: string[] = [];
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async (_chat, _context, workingDirectory) => {
@@ -429,7 +430,7 @@ suite('SessionWorkspaceConversionService', () => {
 		};
 		startTurn(harness.stateManager, harness.chat);
 		await harness.database.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
-		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspaceFolder, false, 'client-1');
 		completeTurn(harness.stateManager, harness.chat);
 
 		await updateSessionWorkspace(harness);
@@ -456,7 +457,7 @@ suite('SessionWorkspaceConversionService', () => {
 			persistedWorkspaceless: 'true',
 			continuation: [{
 				label: 'Workspace Setup Failed',
-				text: 'The requested workspace setup did not complete successfully: Workspace trust was not granted for \'/workspace/project\'. Do not run the user\'s task. Tell the user that workspace setup failed and include this error.',
+				text: `The requested workspace setup did not complete successfully: Workspace trust was not granted for '${workspaceFolder.fsPath}'. Do not run the user's task. Tell the user that workspace setup failed and include this error.`,
 			}],
 		});
 	});
@@ -623,7 +624,7 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: ['file:///workspace/authoritative'],
 			workspaceless: false,
 			persistedWorkspaceless: 'false',
-			continuationText: 'The requested workspace setup did not complete successfully: The workspace changed to \'/workspace/authoritative\', but conversion did not complete cleanly: SDK returned a different directory. Do not run the user\'s task. Tell the user that workspace setup failed and include this error.',
+			continuationText: `The requested workspace setup did not complete successfully: The workspace changed to '${authoritative.fsPath}', but conversion did not complete cleanly: SDK returned a different directory. Do not run the user's task. Tell the user that workspace setup failed and include this error.`,
 		});
 	});
 
@@ -680,7 +681,7 @@ suite('SessionWorkspaceConversionService', () => {
 				chat: harness.chat.toString(),
 				error: {
 					errorType: 'workspaceConversionFailed',
-					message: 'The provider changed to an untrusted working directory and was disposed: Workspace trust was not granted for \'/workspace/authoritative\'',
+					message: `The provider changed to an untrusted working directory and was disposed: Workspace trust was not granted for '${authoritative.fsPath}'`,
 				},
 				turnId: 'continuation-1',
 			}],

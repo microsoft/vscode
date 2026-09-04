@@ -1282,7 +1282,7 @@ suite('CopilotAgentSession', () => {
 			workingDirectory: nextWorkingDirectory.toString(),
 			customizationDirectory: nextWorkingDirectory.toString(),
 			rpcCalls: [{ workingDirectory: nextWorkingDirectory.fsPath }],
-			runtimeOptionCalls: ['/workspace/next'],
+			runtimeOptionCalls: [URI.file('/workspace/next').fsPath],
 			shellPreflightCalls: 1,
 			shellSetCalls: [nextWorkingDirectory.toString()],
 		});

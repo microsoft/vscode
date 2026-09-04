@@ -3535,6 +3535,11 @@ suite('CopilotAgent', () => {
 
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await Promise.all([
+				fileService.createFolder(URI.joinPath(previous, '.github', 'skills', 'previous-skill')),
+				fileService.createFolder(URI.joinPath(next, '.github', 'skills', 'workspace-skill')),
+				fileService.createFolder(URI.joinPath(next, '.github', 'instructions')),
+			]);
 			await fileService.writeFile(
 				URI.joinPath(previous, '.github', 'skills', 'previous-skill', 'SKILL.md'),
 				VSBuffer.fromString('---\nname: previous-skill\ndescription: Previous workspace skill\n---\nbody'),
