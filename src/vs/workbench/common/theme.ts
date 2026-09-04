@@ -693,6 +693,15 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
 
+// Default matches the previous hardcoded treatment: `foreground` at 30% alpha, drawn at 0.75
+// opacity. High contrast themes get the opaque foreground so the grips stay legible.
+export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
+	dark: transparent(foreground, 0.225),
+	light: transparent(foreground, 0.225),
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('modernSashGripForeground', "Color of the grip handles marking the resizable boundaries between workbench parts when the modern UI is enabled."));
+
 // < --- Modern Tabs --- >
 
 export const MODERN_TAB_ACTIVE_BACKGROUND = registerColor('modernTab.activeBackground', listInactiveSelectionBackground, localize('modernTabActiveBackground', "Background color of active tabs when the modern tab style is enabled."));

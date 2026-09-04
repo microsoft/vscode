@@ -978,7 +978,8 @@
 		"--vscode-statusBar-inactiveBackground",
 		"--vscode-modernPanel-border",
 		"--vscode-modernUI-shellBackground",
-		"--vscode-modernUI-inactiveShellBackground"
+		"--vscode-modernUI-inactiveShellBackground",
+		"--vscode-modernSash-gripForeground"
 	],
 	"others": [
 		"--action-widget-close-start-opacity",
