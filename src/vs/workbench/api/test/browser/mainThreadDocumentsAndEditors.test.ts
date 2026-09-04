@@ -68,7 +68,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 		configService = new TestConfigurationService();
 		propertyChanges = 0;
-		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
