@@ -216,9 +216,11 @@
 
 /* Over a chat background these chips sit straight on the wallpaper with nothing
  * to separate their opaque surface from it, so give them a frame — the same move
- * the in-session secondary toolbar makes in chatView.css. */
+ * the in-session secondary toolbar makes in chatView.css. High-contrast themes
+ * take `contrastBorder`, since `commandCenter.inactiveBorder` stays translucent
+ * there. */
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-bottom-container .action-label {
-	border: var(--vscode-strokeThickness) solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border));
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-commandCenter-inactiveBorder, var(--vscode-widget-border)));
 	border-radius: var(--vscode-cornerRadius-small);
 }
 

@@ -134,6 +134,9 @@ function createChatBackgroundPart(container: HTMLElement, disposableStore: Dispo
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
+	// The part carries the opaque base, as it does in the Agents window, so the
+	// session view above it can stay transparent and let the wallpaper through.
+	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
 	renderer.setBackground({ kind: 'codicons' });
 	return part;
@@ -352,7 +355,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore) : container, dom.$('.session-view.is-active'));
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	if (!withChatBackground) {
+		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
 	sessionViewContent.style.width = '100%';
