@@ -757,8 +757,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}));
 
-		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
-
 		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -1249,9 +1247,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
 
-	private _onDidChangeMenuContext: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
-	readonly onDidChangeMenuContext: Event<readonly ITreeItem[]> = this._onDidChangeMenuContext.event;
-
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
 	private _hasCheckbox: boolean = false;
@@ -1514,10 +1509,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this._renderedElements.set(element.element.handle, [...renderedItems, { original: element, rendered: templateData }]);
 	}
 
-	private rerender() {
+	private rerender(items?: readonly ITreeItem[]) {
 		// As we add items to the map during this call we can't directly use the map in the for loop
 		// but have to create a copy of the keys first
-		const keys = new Set(this._renderedElements.keys());
+		const keys = new Set(items ? items.map(item => item.handle) : this._renderedElements.keys());
 		for (const key of keys) {
 			const values = this._renderedElements.get(key) ?? [];
 			for (const value of values) {
@@ -1593,7 +1588,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 		}
 		if (items.length) {
-			this._onDidChangeMenuContext.fire(items);
+			this.rerender(items);
 		}
 	}
 
