@@ -48,13 +48,14 @@ import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 // #region --- New Chat Widget ---
 
@@ -151,8 +152,8 @@ export class NewChatWidget extends Disposable {
 		});
 		this._useConsolidatedRemoteWorkspaces = observableFromEvent(
 			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.ConsolidatedRemoteWorkspaces)),
-			() => this.configurationService.getValue<boolean>(ChatConfiguration.ConsolidatedRemoteWorkspaces),
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
+			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);

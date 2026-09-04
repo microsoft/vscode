@@ -47,14 +47,12 @@ import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/b
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
 const FILTER_THRESHOLD = 10;
-
-export const AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING = ChatConfiguration.ConsolidatedRemoteWorkspaces;
 
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
@@ -1254,7 +1252,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
-		return this.configurationService.getValue<boolean>(AGENT_SESSIONS_CONSOLIDATED_REMOTE_WORKSPACES_SETTING);
+		return this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 	}
 
 	private _getTabGroup(group: string | undefined): string | undefined {
