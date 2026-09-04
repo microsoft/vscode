@@ -83,6 +83,7 @@ export class FoldedCellHint extends CellContentPart {
 			const idx = this._notebookEditor.getCellIndex(element);
 			if (typeof idx === 'number') {
 				controller.setFoldingStateDown(idx, CellFoldingState.Expanded, 1);
+				this._notebookEditor.focusElement(element);
 			}
 		}));
 
