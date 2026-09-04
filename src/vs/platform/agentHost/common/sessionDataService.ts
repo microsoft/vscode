@@ -303,6 +303,11 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
 
 	/**
+	 * Atomically delete metadata keys.
+	 */
+	deleteMetadata(keys: readonly string[]): Promise<void>;
+
+	/**
 	 * Atomically stores metadata values only when `key` is absent. Values named
 	 * by `copies` are read from their source keys and copied when present.
 	 */
@@ -419,6 +424,7 @@ export interface ISessionDataService {
 	 * already exists on disk**. Returns `undefined` when no database has
 	 * been created yet, avoiding the side effect of materializing empty
 	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
 	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 

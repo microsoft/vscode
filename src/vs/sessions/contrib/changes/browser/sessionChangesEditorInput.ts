@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/sessionChangesEditorInput.css';
 import { localize } from '../../../../nls.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -15,7 +18,8 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { getSessionChangesFileCountLabel } from '../common/changes.js';
+import { ISessionChangesService } from '../common/sessionChangesService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
@@ -32,6 +36,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -40,6 +45,9 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 				this._onDidChangeCapabilities.fire();
 			}
 		}));
+
+		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionChangeCountObs);
+		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
 	}
 
 	override get resource(): URI {
@@ -61,6 +69,17 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	override getName(): string {
 		return localize('sessionChangesEditor.name', "Changes");
+	}
+
+	override getAriaLabel(): string {
+		const changeCount = this.sessionChangesService.activeSessionChangeCountObs.get();
+		return !changeCount
+			? this.getName()
+			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getName(), getSessionChangesFileCountLabel(changeCount));
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['session-changes-editor-label'];
 	}
 
 	override getIcon(): ThemeIcon {

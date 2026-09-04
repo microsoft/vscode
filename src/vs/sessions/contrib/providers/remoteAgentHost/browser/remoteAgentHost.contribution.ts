@@ -13,6 +13,7 @@ import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } 
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -26,7 +27,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
-import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -34,7 +35,7 @@ import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessi
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -160,7 +161,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
-		this._register(this._authenticationService.onDidChangeSessions(() => this._authenticateAllConnections()));
+		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(() => this._authenticateAllConnections()));
+		this._register(this._authenticationService.onDidChangeSessions(event => {
+			void this._handleAuthenticationSessionsChanged(event.providerId, event.event.removed ?? []);
+		}));
 
 		this._reconcile();
 	}
@@ -173,7 +177,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const currentConnections = this._remoteAgentHostService.connections;
 		const connectedAddresses = new Set(
 			currentConnections
-				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status))
+				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
 				.map(c => c.address)
 		);
 		const allAddresses = new Set(currentConnections.map(c => c.address));
@@ -192,7 +196,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Add or update connections
 		for (const connectionInfo of currentConnections) {
 			// Only set up contribution state for connected entries
-			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
+			if (!RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status) || connectionInfo.clientId === undefined) {
 				continue;
 			}
 			const existing = this._connections.get(connectionInfo.address);
@@ -365,7 +369,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			agentHostProviderId: agent.provider,
-			supportsDelegation: true,
+			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
@@ -434,7 +438,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		agentStore.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor));
+		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
@@ -450,6 +454,27 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				this._authenticateWithConnection(address, connState.connection, rootState.agents).catch(() => { /* best-effort */ });
 			}
 		}
+	}
+
+	private async _handleAuthenticationSessionsChanged(providerId: string, removedSessions: readonly AuthenticationSession[]): Promise<void> {
+		if (removedSessions.length > 0) {
+			for (const [address, connState] of this._connections) {
+				const rootState = connState.connection.rootState.value;
+				if (!rootState || rootState instanceof Error) {
+					continue;
+				}
+				try {
+					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
+						authTokenCache: connState.authTokenCache,
+						logPrefix: '[RemoteAgentHost]',
+						authenticate: this._authenticateCallback(address, connState.connection),
+					});
+				} catch (error) {
+					this._logService.error(`[RemoteAgentHost] Failed to revoke removed authentication session for ${address}`, error);
+				}
+			}
+		}
+		this._authenticateAllConnections();
 	}
 
 	/**
@@ -517,7 +542,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (!transform) {
 			return request => connection.authenticate(request);
 		}
-		return async request => connection.authenticate(await transform(request));
+		return async request => {
+			// An empty token is the protocol's revocation sentinel, not a credential.
+			// Token transforms substitute a live credential for an unsealed one, which
+			// would turn a sign-out into a re-authentication and leave the remote host
+			// holding a credential the user just revoked.
+			if (!request.token) {
+				return connection.authenticate(request);
+			}
+			return connection.authenticate(await transform(request));
+		};
 	}
 
 	/**
@@ -585,6 +619,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'chat.agentHost.forwardSSHAgent': {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.forwardSSHAgent', "When enabled, forwards the local SSH agent to the remote machine during SSH agent host connections to hosts whose SSH config has `ForwardAgent yes`. Only enable this for trusted hosts. The remote agent host process must be restarted for this setting to take effect."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		[WslAutoStartSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.wsl.autoStart', "Automatically start a WSL distribution when opening a chat whose distribution is not running. When disabled, the chat shows a Start button instead."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

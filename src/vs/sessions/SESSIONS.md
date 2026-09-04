@@ -84,6 +84,8 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
+Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
+
 Providers may expose immutable creation provenance when a session was created by
 another session. `createdBySession` identifies the creating session and may also
 identify its chat and turn. The reference is observable so list presentation can

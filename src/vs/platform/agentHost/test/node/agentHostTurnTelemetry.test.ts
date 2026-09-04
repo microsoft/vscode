@@ -22,6 +22,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -31,6 +32,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -38,6 +40,7 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../n
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
@@ -118,7 +121,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(ready = true, workingDirectories?: string[]): void {
+	function setupSession(ready = true, workingDirectories?: string[], isEphemeral = false): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -127,6 +130,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			...(workingDirectories ? { workingDirectories } : {}),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
 		});
 		if (ready) {
 			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
@@ -234,10 +238,18 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[ISessionDataService, sessionDataService],
 			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+			[ISessionWorkspaceConversionService, {
+				_serviceBrand: undefined,
+				requestSessionWorkspaceUpdate: () => { },
+				isPending: () => false,
+				cancel: () => { },
+				updateSessionWorkspace: async () => { },
+			}],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
@@ -267,7 +279,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('emits turnCompleted with timing and turn-start context on success', () => {
-		setupSession();
+		setupSession(true, undefined, true);
 		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
 		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
 		startTurn('turn-1', 'hello', 'gpt-5.5');
@@ -290,10 +302,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.isSubagentSession, false);
 		assert.strictEqual(data.isBYOK, false);
 		assert.strictEqual(data.interactionMode, 'interactive');
+		assert.strictEqual(data.messageOriginKind, 'inline');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
 		assert.strictEqual(data.isMultiRoot, false);
 		assert.strictEqual(data.folderCount, 0);
+		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
 	});
 
 	test('attributes completed and failed turns to the initiating client identity', () => {
@@ -317,6 +331,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				initiatorConnectionKind: data.initiatorConnectionKind,
 				initiatorTransportKind: data.initiatorTransportKind,
 				hostLaunchKind: data.hostLaunchKind,
+				messageOriginKind: data.messageOriginKind,
 				initiatorMachineId: data.initiatorMachineId,
 				initiatorDevDeviceId: data.initiatorDevDeviceId,
 			};
@@ -326,6 +341,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			initiatorConnectionKind: 'remote_extension_host',
 			initiatorTransportKind: 'message_port',
 			hostLaunchKind: 'vscode_main_process',
+			messageOriginKind: 'user',
 			initiatorMachineId: 'client-machine-id',
 			initiatorDevDeviceId: 'client-dev-device-id',
 		}, {
@@ -334,6 +350,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			initiatorConnectionKind: 'remote_extension_host',
 			initiatorTransportKind: 'message_port',
 			hostLaunchKind: 'vscode_main_process',
+			messageOriginKind: 'user',
 			initiatorMachineId: 'client-machine-id',
 			initiatorDevDeviceId: 'client-dev-device-id',
 		}]);
@@ -1009,7 +1026,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	});
 
 	test('emits result=error when a queued sendMessage rejects', async () => {
-		setupSession();
+		setupSession(true, undefined, true);
 		agent.sendMessage = async () => { throw new Error('boom'); };
 
 		const setAction: ChatAction = {
@@ -1026,6 +1043,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+		assert.strictEqual((events[0].data as Record<string, unknown>).messageOriginKind, 'inline');
+		assert.strictEqual((telemetry.events.find(event => event.eventName === 'agentHost.userMessageSent')?.data as Record<string, unknown>).messageOriginKind, 'inline');
 	});
 
 	test('captures interactionMode for queued turns', () => {

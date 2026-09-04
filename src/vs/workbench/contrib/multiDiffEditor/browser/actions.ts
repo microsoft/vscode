@@ -11,8 +11,8 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +25,14 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: MenuId.DiffEditorViewSubmenu,
+	title: localize('diffView', "Diff View"),
+	group: '1_diff',
+	order: 10,
+	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), IsSessionsWindowContext.toNegated()),
+});
 
 export class GoToFileAction extends Action2 {
 	constructor() {
@@ -187,7 +195,7 @@ export class CollapseAllAction extends Action2 {
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
 			menu: [
-				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),
@@ -236,7 +244,7 @@ export class ExpandAllAction extends Action2 {
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
 			menu: [
-				// In the agents window this action lives in the editor title overflow (...) menu instead of as a primary toolbar icon.
+				// In the agents window this action lives in the editor header overflow (...) menu instead of as a primary toolbar icon.
 				{
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed'), IsSessionsWindowContext.toNegated()),

@@ -11,7 +11,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -434,7 +434,7 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
 }
 
-class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
+export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
 
@@ -484,14 +484,17 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			return undefined;
 		}
 		const sessionState = this._readSessionState(sessionResource);
+		const workingDirectories = sessionState === undefined
+			? this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(uri => uri.toString())
+			: sessionState.workingDirectories;
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
-			workingDirectory: sessionState?.workingDirectories?.[0],
-			workingDirectories: sessionState?.workingDirectories,
+			workingDirectory: workingDirectories?.[0],
+			workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
@@ -527,8 +530,9 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
 		const target = this._resolveSessionTarget(sessionResource);
-		const value = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub.value : undefined;
-		return value && !(value instanceof Error) ? value : undefined;
+		const subscription = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub : undefined;
+		const value = subscription?.value;
+		return value instanceof Error ? subscription?.verifiedValue : value;
 	}
 
 	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
@@ -565,7 +569,11 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		const provisionalSession = this._provisionalSessionService.get(sessionResource);
 		if (provisionalSession) {
 			// Provisional (untitled) sessions are always backed by the ambient host.
-			return { connection: this._connectionsService.ambientConnection, backendSession: provisionalSession };
+			return {
+				connection: this._connectionsService.ambientConnection,
+				connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+				backendSession: provisionalSession,
+			};
 		}
 
 		if (isUntitledChatSession(sessionResource)) {

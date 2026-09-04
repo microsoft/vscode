@@ -71,6 +71,11 @@ export interface ISessionsPartService {
 	getSessionView(sessionId: string | undefined): SessionView | undefined;
 
 	/**
+	 * Returns the session view that currently contains DOM focus.
+	 */
+	getFocusedSessionView(): SessionView | undefined;
+
+	/**
 	 * Returns the progress indicator for the sessions part, which drives the
 	 * progress bar shown at the top of the part's content area.
 	 */

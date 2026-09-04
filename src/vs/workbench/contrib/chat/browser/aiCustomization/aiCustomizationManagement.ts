@@ -10,6 +10,7 @@ import { AICustomizationManagementSection } from '../../common/aiCustomizationWo
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -22,6 +23,7 @@ export type AICustomizationManagementOpenEditorTarget =
 		readonly section?: AICustomizationManagementSection;
 		readonly sessionType?: string;
 		readonly revealUri?: URI;
+		readonly migration?: boolean;
 	}
 	| IChatViewTitleActionContext;
 
@@ -30,7 +32,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly migration?: boolean } {
 	if (isChatViewTitleActionContext(target)) {
 		return { sessionResource: target.sessionResource };
 	}
@@ -40,6 +42,7 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	return {
 		section: options?.section,
 		revealUri: options?.revealUri,
+		migration: options?.migration,
 		sessionResource: sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource,
 	};
 }
@@ -109,6 +112,18 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
 
 /**
+ * Internal-only menu for synthetic items that do not have source content.
+ * This is intentionally separate from the extension-contributable item menu.
+ */
+export const AICustomizationManagementSyntheticItemMenuId = MenuId.for('AICustomizationManagementEditorSyntheticItem');
+
+export function getAICustomizationManagementItemMenuId(uri: URI): MenuId {
+	return hasReadableCustomizationContent(uri)
+		? AICustomizationManagementItemMenuId
+		: AICustomizationManagementSyntheticItemMenuId;
+}
+
+/**
  * Menu ID for the AI Customization Management Editor create/add button.
  * Extensions can contribute commands here to add create actions to the section's add button dropdown.
  * Use the `chatCustomizationSection` context key to target a specific section.
@@ -139,7 +154,6 @@ export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementIt
  * Context key indicating whether the item is disabled.
  */
 export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';
-
 
 /**
  * Storage key for persisting the selected section.

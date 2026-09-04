@@ -16,6 +16,7 @@ import { ISessionWorkspace } from '../common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
+const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 
@@ -66,6 +67,12 @@ export interface ISessionsRecentWorkspacesService {
 
 	/** Clears the `checked` flag on every recent entry. */
 	clearCheckedWorkspace(): void;
+
+	/** Whether "No workspace" is the checked new-session target. */
+	isNoWorkspaceChecked(): boolean;
+
+	/** Marks "No workspace" as checked and un-checks every recent workspace. */
+	checkNoWorkspace(): void;
 }
 
 /** Exported for direct instantiation in tests; consumers should depend on {@link ISessionsRecentWorkspacesService}. */
@@ -132,6 +139,9 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 
 		const entry: IStoredRecentWorkspace = { uri: folderUri.toJSON(), providerId, checked };
 		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		if (checked) {
+			this.storageService.remove(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE);
+		}
 		this._persistRecentWorkspaces(updated);
 	}
 
@@ -147,6 +157,18 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	clearCheckedWorkspace(): void {
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.map(p => ({ ...p, checked: false }));
+		this.storageService.remove(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE);
+		this._persistRecentWorkspaces(updated);
+	}
+
+	isNoWorkspaceChecked(): boolean {
+		return this.storageService.getBoolean(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE, false);
+	}
+
+	checkNoWorkspace(): void {
+		const recents = this._getStoredRecentWorkspaces();
+		const updated = recents.map(p => ({ ...p, checked: false }));
+		this.storageService.store(STORAGE_KEY_NO_WORKSPACE_CHECKED, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._persistRecentWorkspaces(updated);
 	}
 

@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
@@ -112,6 +119,72 @@ suite('Sessions - Actions', () => {
 		const deleteChat = MenuRegistry.getCommand('sessions.chatCompositeBar.deleteChat');
 
 		assert.strictEqual(deleteChat && (typeof deleteChat.title === 'string' ? deleteChat.title : deleteChat.title.value), 'Delete Chat');
+	});
+
+	test('routes New Quick Chat through the new-session composer when remote workspaces are consolidated', async () => {
+		const handler = CommandsRegistry.getCommand('sessionsView.newQuickChat')?.handler;
+		assert.ok(handler);
+
+		const run = async (consolidatedRemoteWorkspaces: boolean, quickChatAvailable = true) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const quickChat = upcastPartial<IActiveSession>({ sessionId: 'quick-chat' });
+			const existingSession = upcastPartial<IActiveSession>({ sessionId: 'existing-session' });
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', existingSession);
+			let unsetNewSessionCalls = 0;
+			let openQuickChatCalls = 0;
+			let selectNoWorkspaceCalls = 0;
+			let focusedSessionId: string | undefined;
+
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.ConsolidatedRemoteWorkspaces]: consolidatedRemoteWorkspaces,
+			}));
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override isQuickChatTargetAvailable(): boolean {
+					return quickChatAvailable;
+				}
+			});
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = activeSession;
+				override unsetNewSession() {
+					unsetNewSessionCalls++;
+					activeSession.set(undefined, undefined);
+				}
+				override openQuickChat() {
+					openQuickChatCalls++;
+					activeSession.set(quickChat, undefined);
+					return quickChat;
+				}
+			});
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getSessionView(sessionId: string | undefined) {
+					if (sessionId !== undefined) {
+						return undefined;
+					}
+					return new class extends mock<SessionView>() {
+						override selectNoWorkspace(): void {
+							selectNoWorkspaceCalls++;
+							activeSession.set(quickChat, undefined);
+						}
+					};
+				}
+				override focusSession(session: IActiveSession | undefined): void {
+					focusedSessionId = session?.sessionId;
+				}
+			});
+
+			await handler(instantiationService);
+			return { unsetNewSessionCalls, openQuickChatCalls, selectNoWorkspaceCalls, focusedSessionId };
+		};
+
+		assert.deepStrictEqual({
+			enabled: await run(true),
+			enabledUnavailable: await run(true, false),
+			disabled: await run(false),
+		}, {
+			enabled: { unsetNewSessionCalls: 1, openQuickChatCalls: 0, selectNoWorkspaceCalls: 1, focusedSessionId: 'quick-chat' },
+			enabledUnavailable: { unsetNewSessionCalls: 0, openQuickChatCalls: 0, selectNoWorkspaceCalls: 0, focusedSessionId: 'existing-session' },
+			disabled: { unsetNewSessionCalls: 0, openQuickChatCalls: 1, selectNoWorkspaceCalls: 0, focusedSessionId: 'quick-chat' },
+		});
 	});
 
 	test('groups session toolbar actions with concise titles', () => {

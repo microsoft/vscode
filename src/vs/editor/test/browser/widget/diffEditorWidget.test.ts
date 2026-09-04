@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
@@ -12,6 +14,88 @@ import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
 suite('DiffEditorWidget2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('width based layout', () => {
+		test('commits temporary inline when smoothly enlarging from automatic inline', () => {
+			const options = new DiffEditorOptions({
+				renderSideBySide: true,
+				renderSideBySideInlineBreakpoint: 900,
+				useInlineViewWhenSpaceIsLimited: true,
+			}, new TestAccessibilityService());
+
+			options.setWidth(1000);
+			const initiallySideBySide = options.renderSideBySide.get();
+			options.setWidth(800, 1000);
+			const inlineDuringResize = options.renderSideBySide.get();
+			const temporaryInlineAfterShrinking = options.temporaryInlineMode.get();
+			options.setWidth(1000, 1000);
+			const restoredDuringResize = options.renderSideBySide.get();
+			options.setWidth(800, 1000);
+			const temporaryInlineAfterEndingNarrow = options.temporaryInlineMode.get();
+			options.setWidth(1000, 800);
+			const wideAfterInlineWasCommitted = options.renderSideBySide.get();
+			const temporaryInlineMode = options.temporaryInlineMode.get();
+			options.setWidth(800);
+			const temporaryInlineAfterBecomingNarrow = options.temporaryInlineMode.get();
+			options.setWidth(1000, 800);
+			options.resetWidthBasedLayout();
+			const wideAfterResettingAutomatic = options.renderSideBySide.get();
+			options.setWidth(800);
+			const automaticInlineResult = options.renderSideBySideInAutomaticMode.get();
+			options.setWidth(1000);
+			const automaticSideBySideResult = options.renderSideBySideInAutomaticMode.get();
+			options.updateOptions({ renderSideBySide: false });
+			options.updateOptions({ renderSideBySide: true });
+
+			assert.deepStrictEqual({
+				initiallySideBySide,
+				inlineDuringResize,
+				temporaryInlineAfterShrinking,
+				restoredDuringResize,
+				temporaryInlineAfterEndingNarrow,
+				wideAfterInlineWasCommitted,
+				temporaryInlineMode,
+				temporaryInlineAfterBecomingNarrow,
+				wideAfterResettingAutomatic,
+				automaticInlineResult,
+				automaticSideBySideResult,
+				wideAfterExplicitlyRestoringAuto: options.renderSideBySide.get(),
+			}, {
+				initiallySideBySide: true,
+				inlineDuringResize: false,
+				temporaryInlineAfterShrinking: false,
+				restoredDuringResize: true,
+				temporaryInlineAfterEndingNarrow: false,
+				wideAfterInlineWasCommitted: false,
+				temporaryInlineMode: true,
+				temporaryInlineAfterBecomingNarrow: false,
+				wideAfterResettingAutomatic: true,
+				automaticInlineResult: false,
+				automaticSideBySideResult: true,
+				wideAfterExplicitlyRestoringAuto: true,
+			});
+		});
+
+		test('keeps auto layout after a non-resize layout change', () => {
+			const options = new DiffEditorOptions({
+				renderSideBySide: true,
+				renderSideBySideInlineBreakpoint: 900,
+				useInlineViewWhenSpaceIsLimited: true,
+			}, new TestAccessibilityService());
+
+			options.setWidth(800);
+			const narrow = options.renderSideBySide.get();
+			options.setWidth(1000);
+
+			assert.deepStrictEqual({
+				narrow,
+				wideAfterLayoutChange: options.renderSideBySide.get(),
+			}, {
+				narrow: false,
+				wideAfterLayoutChange: true,
+			});
+		});
+	});
 
 	suite('UnchangedRegion', () => {
 		function serialize(regions: UnchangedRegion[]): unknown {

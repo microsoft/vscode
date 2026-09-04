@@ -211,6 +211,27 @@ suite('getPermissionDisplay — read confirmation title', () => {
 	});
 });
 
+suite('getPermissionDisplay — server tool confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the plain-language set_workspace confirmation without raw input', () => {
+		assert.deepStrictEqual(
+			getPermissionDisplay(customToolPermissionRequest('set_workspace', {
+				workspaceFolder: '/workspace/app',
+				isolation: false,
+			})),
+			{
+				confirmationTitle: 'Continue in app?',
+				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				toolInput: undefined,
+				permissionKind: 'custom-tool',
+				permissionPath: undefined,
+			},
+		);
+	});
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

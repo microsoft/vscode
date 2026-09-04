@@ -16,7 +16,7 @@ import { IEditorPane, IVisibleEditorPane } from '../../../../../workbench/common
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
 import { SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
 import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/textDiffEditor.js';
-import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { DiffEditorViewMode, IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { IDiffEditorOptionsService } from '../../common/diffEditorOptionsService.js';
@@ -25,7 +25,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(activeEditorPane: IEditorPane | undefined, visibleEditorPanes: readonly IVisibleEditorPane[] = []): { service: SessionsDiffEditorCommandsService; getToggleCount(): number } {
+	function createService(activeEditorPane: IEditorPane | undefined, visibleEditorPanes: readonly IVisibleEditorPane[] = []): { service: SessionsDiffEditorCommandsService; getToggleCount(): number; setModes: DiffEditorViewMode[] } {
 		const editorService = new class extends mock<IEditorService>() {
 			override get activeEditorPane() { return activeEditorPane as IVisibleEditorPane | undefined; }
 			override get activeEditor() { return undefined; }
@@ -37,12 +37,14 @@ suite('SessionsDiffEditorCommandsService', () => {
 			override getContextKeyValue<T>(): T | undefined { return undefined; }
 		};
 		let toggleCount = 0;
+		const setModes: DiffEditorViewMode[] = [];
 		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
 			override toggleRenderSideBySide(): void { toggleCount++; }
+			override setViewMode(mode: DiffEditorViewMode): void { setModes.push(mode); }
 		};
 
 		const service = new SessionsDiffEditorCommandsService(editorService, textResourceConfigurationService, contextKeyService, diffEditorOptionsService);
-		return { service, getToggleCount: () => toggleCount };
+		return { service, getToggleCount: () => toggleCount, setModes };
 	}
 
 	function createTextDiffEditor(resource: URI, renderSideBySide: boolean, controlUpdates: IDiffEditorOptions[]): TextDiffEditor {
@@ -70,6 +72,15 @@ suite('SessionsDiffEditorCommandsService', () => {
 		await service.toggleRenderSideBySide([]);
 
 		assert.strictEqual(getToggleCount(), 1);
+	});
+
+	test('sets an explicit shared view mode from the Changes editor', async () => {
+		const changesEditor = Object.create(SessionChangesEditor.prototype) as IEditorPane;
+		const { service, setModes } = createService(changesEditor);
+
+		await service.setViewMode([], 'sideBySide');
+
+		assert.deepStrictEqual(setModes, ['sideBySide']);
 	});
 
 	test('toggles the shared preference when a narrow single-file diff is effectively inline', async () => {
@@ -123,7 +134,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 		});
 	});
 
-	test('applies the shared responsive preference to all visible text diffs', () => {
+	test('applies the shared view mode to all visible text diffs', () => {
 		const activeControlUpdates: IDiffEditorOptions[] = [];
 		const visibleControlUpdates: IDiffEditorOptions[] = [];
 		const activeEditor = createTextDiffEditor(URI.file('/workspace/active.ts'), false, activeControlUpdates);
@@ -134,13 +145,15 @@ suite('SessionsDiffEditorCommandsService', () => {
 			override get activeEditorPane() { return activeEditor as IVisibleEditorPane; }
 			override get visibleEditorPanes() { return [visibleEditor as IVisibleEditorPane]; }
 		};
-		const renderSideBySide = observableValue('test', true);
+		const viewMode = observableValue<DiffEditorViewMode>('test', 'automatic');
 		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
-			override readonly renderSideBySide = renderSideBySide;
+			override readonly viewMode = viewMode;
+			override readonly renderSideBySide = viewMode.map(this, mode => mode !== 'inline');
 		};
 		disposables.add(new SessionsDiffEditorLayoutContribution(editorService, diffEditorOptionsService));
 
-		renderSideBySide.set(false, undefined);
+		viewMode.set('sideBySide', undefined);
+		viewMode.set('inline', undefined);
 
 		assert.deepStrictEqual({
 			activeControlUpdates,
@@ -148,11 +161,13 @@ suite('SessionsDiffEditorCommandsService', () => {
 		}, {
 			activeControlUpdates: [
 				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true },
-				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: true },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false },
+				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false },
 			],
 			visibleControlUpdates: [
 				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true },
-				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: true },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false },
+				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false },
 			],
 		});
 	});
