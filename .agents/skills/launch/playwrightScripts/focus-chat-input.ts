@@ -39,7 +39,6 @@ async page => {
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
-	
 	const focusIfNeeded = async input => {
 		if (await isFocused(input)) {
 			return false;
