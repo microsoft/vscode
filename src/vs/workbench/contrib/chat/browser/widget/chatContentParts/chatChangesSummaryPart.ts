@@ -112,11 +112,11 @@ export function renderChangesSummaryFileList(
 	// The chat transcript is a list itself and list focus styles are written as
 	// descendant selectors, so a row left focused here keeps the focused treatment
 	// once the transcript takes over DOM focus. Drop focus and selection when focus
-	// leaves the list, but keep them when only the window lost focus so that
-	// returning to the window restores the previous state.
+	// moves to another element, but keep them when the window merely got deactivated
+	// (the document keeps its active element) so that coming back restores the state.
 	const focusTracker = store.add(dom.trackFocus(listNode));
 	store.add(focusTracker.onDidBlur(() => {
-		if (dom.getWindow(listNode).document.hasFocus()) {
+		if (!dom.isAncestorOfActiveElement(listNode)) {
 			list.setFocus([]);
 			list.setSelection([]);
 		}

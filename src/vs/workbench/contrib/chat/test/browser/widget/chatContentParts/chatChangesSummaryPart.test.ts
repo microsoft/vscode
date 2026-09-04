@@ -180,13 +180,18 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService));
 
 		const row = container.querySelector<HTMLElement>('.monaco-list-row');
-		assert.ok(row);
+		const listNode = container.querySelector<HTMLElement>('.monaco-list');
+		assert.ok(row && listNode);
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		// Test windows are hidden, so the browser moves the active element without ever
+		// dispatching focus events. Announce the moves to the focus tracker instead.
+		listNode.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 		const readState = () => ({ focused: row.classList.contains('focused'), selected: row.classList.contains('selected') });
 		const states = [readState()];
 
 		outside.focus();
+		listNode.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
 		// The focus tracker reports the blur on the next tick.
 		await timeout(0);
 		states.push(readState());
