@@ -17,7 +17,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { type ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
+import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
@@ -57,12 +57,12 @@ import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js'
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(IsSessionsWindowContext, SessionsChatBackgroundAvailableContext);
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundImageConfiguredContext);
-const LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING = 'chat.agentSessions.consolidatedRemoteWorkspaces';
 
 type RecentChatBackgroundTypeItem = IQuickPickItem & {
 	readonly kind: 'recentImage';
@@ -436,14 +436,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
-	key: LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING,
-	includeApplication: true,
-	migrateFn: (value, accessor) => {
-		const pairs: ConfigurationKeyValuePairs = [[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, { value: undefined }]];
-		if (accessor(UNIFIED_WORKSPACE_PICKER_SETTING) === undefined) {
-			pairs.push([UNIFIED_WORKSPACE_PICKER_SETTING, { value }]);
-		}
-		return pairs;
-	},
-}]);
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([unifiedWorkspacePickerConfigurationMigration]);
