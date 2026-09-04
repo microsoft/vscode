@@ -1637,6 +1637,11 @@ suite('ModernUIContribution', () => {
 		const reservedLeftTab = appendElement(reservedTabs, 'tab tab-actions-left');
 		const reservedDirtyBorderTopTab = appendElement(reservedTabs, 'tab dirty dirty-border-top');
 		const reservedDirtyBorderTopLeftTab = appendElement(reservedTabs, 'tab dirty dirty-border-top tab-actions-left');
+		const wrappedTitle = appendElement(editor, 'title tabs tabs-can-wrap');
+		const wrappedTabs = appendElement(wrappedTitle, 'tabs-container');
+		const wrappedCloseOffTab = appendElement(wrappedTabs, 'tab close-action-off');
+		const wrappedCloseOffBorderTopTab = appendElement(wrappedTabs, 'tab dirty dirty-border-top close-action-off');
+		const wrappedCloseOffLeftTab = appendElement(wrappedTabs, 'tab close-action-off tab-actions-left');
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
@@ -1654,6 +1659,9 @@ suite('ModernUIContribution', () => {
 			reservedLeft: [targetWindow.getComputedStyle(reservedLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedLeftTab).paddingRight],
 			reservedDirtyBorderTop: [targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopTab).paddingRight],
 			reservedDirtyBorderTopLeft: [targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingLeft, targetWindow.getComputedStyle(reservedDirtyBorderTopLeftTab).paddingRight],
+			wrappedCloseOff: [targetWindow.getComputedStyle(wrappedCloseOffTab).paddingLeft, targetWindow.getComputedStyle(wrappedCloseOffTab).paddingRight],
+			wrappedCloseOffBorderTop: [targetWindow.getComputedStyle(wrappedCloseOffBorderTopTab).paddingLeft, targetWindow.getComputedStyle(wrappedCloseOffBorderTopTab).paddingRight],
+			wrappedCloseOffLeft: [targetWindow.getComputedStyle(wrappedCloseOffLeftTab).paddingLeft, targetWindow.getComputedStyle(wrappedCloseOffLeftTab).paddingRight],
 		}, {
 			compact: ['6px', '8px'],
 			dirty: ['6px', '28px'],
@@ -1669,6 +1677,9 @@ suite('ModernUIContribution', () => {
 			reservedLeft: ['28px', '8px'],
 			reservedDirtyBorderTop: ['6px', '28px'],
 			reservedDirtyBorderTopLeft: ['28px', '8px'],
+			wrappedCloseOff: ['6px', '28px'],
+			wrappedCloseOffBorderTop: ['6px', '8px'],
+			wrappedCloseOffLeft: ['28px', '8px'],
 		});
 	});
 
