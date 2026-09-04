@@ -5,7 +5,7 @@
 
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, type IObservable } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -31,6 +31,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -82,13 +83,75 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
+interface IModePickerModelEntry {
+	readonly model: ModePickerModel;
+	readonly store: DisposableStore;
+	references: number;
+	disposalGeneration: number;
+}
+
+class ScopedModePickerModelCache extends Disposable {
+	private readonly entries = new Map<IObservable<IActiveSession | undefined>, IModePickerModelEntry>();
+
+	constructor(private readonly sessionsProvidersService: ISessionsProvidersService) {
+		super();
+	}
+
+	acquire(session: IObservable<IActiveSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
+		let entry = this.entries.get(session);
+		if (!entry) {
+			const store = new DisposableStore();
+			const model = store.add(instantiationService.createInstance(ModePickerModel));
+			store.add(autorun(reader => {
+				const scopedSession = session.read(reader);
+				const provider = scopedSession ? this.sessionsProvidersService.getProvider(scopedSession.providerId) : undefined;
+				model.setSession(provider && isAgentHostProvider(provider) ? scopedSession : undefined, scopedSession?.mode.read(reader)?.id);
+			}));
+			entry = { model, store, references: 0, disposalGeneration: 0 };
+			this.entries.set(session, entry);
+		}
+
+		entry.references++;
+		entry.disposalGeneration++;
+		let disposed = false;
+		return {
+			model: entry.model,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this.release(session, entry);
+			},
+		};
+	}
+
+	private release(session: IObservable<IActiveSession | undefined>, entry: IModePickerModelEntry): void {
+		entry.references--;
+		const disposalGeneration = ++entry.disposalGeneration;
+		queueMicrotask(() => {
+			if (entry.references === 0 && entry.disposalGeneration === disposalGeneration && this.entries.get(session) === entry) {
+				this.entries.delete(session);
+				entry.store.dispose();
+			}
+		});
+	}
+
+	override dispose(): void {
+		for (const entry of this.entries.values()) {
+			entry.store.dispose();
+		}
+		this.entries.clear();
+		super.dispose();
+	}
+}
+
 class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostAgentPicker';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatService private readonly chatService: IChatService,
@@ -97,8 +160,8 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
 		let settingAgentInternally = false;
+		const modePickerModels = this._register(new ScopedModePickerModelCache(sessionsProvidersService));
 
 		const initAgentFromActiveSession = () => {
 			const session = sessionsService.activeSession.get();
@@ -112,10 +175,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			const provider = this._getProvider(session, sessionsProvidersService);
 			const selectedAgentUri = session?.mode.read(reader)?.id;
-
-			modePickerModel.setSession(provider ? session : undefined, selectedAgentUri);
 
 			const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
 			this._syncChatInputMode(session, selectedAgentUri, sessionsProvidersService);
@@ -141,8 +201,9 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 			const disposableStore = new DisposableStore();
+			const modePickerModel = disposableStore.add(modePickerModels.acquire(session, scopedInstantiationService));
+			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, session);
 
 			disposableStore.add(picker.onDidSelect(mode => {
 				this._selectMode(mode, session.get(), sessionsProvidersService);

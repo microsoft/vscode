@@ -33,6 +33,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -41,7 +42,7 @@ import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } 
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -421,6 +422,17 @@ function createProviderForSendTests(
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override warn(message: unknown): void { opts?.notifications?.push(String(message)); }
 	}());
+	instantiationService.stub(IChatModeService, {
+		createModes: () => upcastPartial<IChatModes & IDisposable>({
+			onDidChange: Event.None,
+			builtin: [],
+			custom: [],
+			findModeById: () => undefined,
+			findModeByName: () => undefined,
+			waitForPendingUpdates: async () => { },
+			dispose: () => { },
+		}),
+	});
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
@@ -2042,6 +2054,73 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+		});
+
+		test('restores and captures Automation session configuration', async () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionTemplate = {
+				modelId: 'model',
+				config: {
+					providerOption: true,
+				},
+			};
+			const automationConfiguration = {
+				sessionTemplate,
+				modelId: 'model',
+				mode: ChatModeKind.Ask,
+				permissionLevel: ChatPermissionLevel.Autopilot,
+			};
+
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, { automationConfiguration });
+			const session = provider.getSession(sessionInfo.sessionId);
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				modelId: session?.modelId.get(),
+				mode: session?.mode.get()?.id,
+				permissionLevel: session?.permissionLevel.get(),
+				captured,
+			}, {
+				modelId: 'model',
+				mode: ChatModeKind.Ask,
+				permissionLevel: ChatPermissionLevel.Autopilot,
+				captured: {
+					sessionTemplate: {
+						modelId: 'model',
+						config: {
+							providerOption: true,
+							mode: ChatModeKind.Ask,
+							autoApprove: ChatPermissionLevel.Autopilot,
+						},
+					},
+					modelId: 'model',
+					mode: ChatModeKind.Ask,
+					permissionLevel: ChatPermissionLevel.Autopilot,
+				},
+			});
+		});
+
+		test('preserves an Automation mode while custom modes resolve', async () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const mode = 'file:///agents/reviewer.agent.md';
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: {
+					mode,
+					permissionLevel: ChatPermissionLevel.Default,
+				},
+			});
+
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				sessionMode: provider.getSession(sessionInfo.sessionId)?.mode.get()?.id,
+				capturedMode: captured?.mode,
+				templateMode: captured?.sessionTemplate?.config?.mode,
+			}, {
+				sessionMode: mode,
+				capturedMode: mode,
+				templateMode: mode,
+			});
 		});
 	});
 

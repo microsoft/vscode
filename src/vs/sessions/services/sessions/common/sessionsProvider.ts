@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
@@ -51,6 +51,16 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Complete Automation state for providers that also own compatibility projections. */
+	readonly automationConfiguration?: IAutomationSessionConfiguration;
+}
+
+/** Provider-owned Automation draft state plus temporary compatibility projections. */
+export interface IAutomationSessionConfiguration {
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly modelId?: string;
+	readonly mode?: string;
+	readonly permissionLevel?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -241,6 +251,11 @@ export interface ISessionsProvider {
 	 */
 	readonly supportsQuickChats?: boolean;
 
+	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
+	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
+	readonly supportsAutomationSessionConfiguration?: boolean;
+
 	/**
 	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
 	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
@@ -296,7 +311,7 @@ export interface ISessionsProvider {
 	 * support quick chats must throw.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createQuickChat(sessionTypeId: string): ISession;
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
@@ -306,6 +321,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The id of the new session to delete.
 	 */
 	deleteNewSession(sessionId: string): void;
+
+	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
+	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
 	/**
 	 * Get the session types supported for a given workspace URI.

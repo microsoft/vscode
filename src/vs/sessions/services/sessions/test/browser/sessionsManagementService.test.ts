@@ -36,6 +36,7 @@ import { PreferredGroup } from '../../../../../workbench/services/editor/common/
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -1842,6 +1843,73 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('createAndSendNewChatRequest restores Automation configuration during draft creation', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let providerOptions: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsAutomationSessionConfiguration = true;
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions = options;
+				return session;
+			}
+			override async getAutomationSessionConfiguration() { return automationConfiguration; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const sessionTemplate = {
+			modelId: 'model',
+			config: { mode: 'plan', autoApprove: 'assisted' },
+		};
+		const automationConfiguration = {
+			sessionTemplate,
+			modelId: 'model',
+			mode: 'plan',
+			permissionLevel: 'assisted',
+		};
+
+		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			sessionTemplate,
+			automationConfiguration,
+		});
+
+		assert.deepStrictEqual(providerOptions, {
+			metadata: undefined,
+			automationConfiguration: { sessionTemplate },
+		});
+	});
+
+	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let createCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override createNewSession(): ISession {
+				createCount++;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const sessionTemplate = { modelId: 'model', config: { mode: 'plan' } };
+
+		await Promise.all([
+			assert.rejects(
+				service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, { sessionTemplate }),
+				/does not support Automation session templates/,
+			),
+			assert.rejects(
+				service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, { automationConfiguration: { sessionTemplate } }),
+				/does not support Automation session templates/,
+			),
+		]);
+		assert.strictEqual(createCount, 0);
+	});
+
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {
 		const session = stubSession({
 			sessionId: 's1',
@@ -2925,7 +2993,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('automation draft lifecycle is isolated from the new-session draft', () => {
+	test('automation draft lifecycle and session template are isolated from the new-session draft', async () => {
 		const drafts = [
 			stubSession({ sessionId: 'automation-workspace', providerId: 'test' }),
 			stubSession({ sessionId: 'new-session', providerId: 'test' }),
@@ -2933,9 +3001,16 @@ suite('SessionsManagementService', () => {
 			stubSession({ sessionId: 'automation-replacement', providerId: 'test' }),
 		];
 		const deleted: string[] = [];
+		const createOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
+		const sessionTemplate: IAutomationSessionTemplate = {
+			modelId: 'model',
+			agent: { uri: 'file:///agent.md' },
+			config: { mode: 'plan' },
+		};
 		let createIndex = 0;
 		const provider = new class extends TestSessionsProvider {
 			override readonly supportsQuickChats = true;
+			override readonly supportsAutomationSessionConfiguration = true;
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace {
 				return {
 					uri: folderUri,
@@ -2946,16 +3021,24 @@ suite('SessionsManagementService', () => {
 					isVirtualWorkspace: false,
 				};
 			}
-			override createNewSession(): ISession { return drafts[createIndex++]; }
-			override createQuickChat(): ISession { return drafts[createIndex++]; }
+			override createNewSession(_folderUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				createOptions.push(options);
+				return drafts[createIndex++];
+			}
+			override createQuickChat(_sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				createOptions.push(options);
+				return drafts[createIndex++];
+			}
+			override async getAutomationSessionConfiguration() { return { sessionTemplate }; }
 			override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
 		}(drafts[0]);
 		const { service } = createSessionsManagementService(drafts[0], disposables, provider);
 		const folderUri = URI.parse('test:///folder');
 
-		const firstAutomationSession = service.createAutomationSession(folderUri);
+		const firstAutomationSession = service.createAutomationSession(folderUri, { sessionTemplate });
+		const capturedConfiguration = await service.getAutomationSessionConfiguration(firstAutomationSession);
 		service.createNewSession(folderUri);
-		service.createAutomationQuickChat();
+		service.createAutomationQuickChat({ sessionTemplate });
 		service.discardAutomationSession(firstAutomationSession);
 		service.createAutomationSession(folderUri);
 		service.discardAutomationSession();
@@ -2963,10 +3046,19 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({
 			newSession: service.newSession.get()?.sessionId,
 			automationSession: service.automationSession.get()?.sessionId,
+			capturedConfiguration,
+			createOptions,
 			deleted,
 		}, {
 			newSession: 'new-session',
 			automationSession: undefined,
+			capturedConfiguration: { sessionTemplate },
+			createOptions: [
+				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
+				{ metadata: undefined },
+				{ metadata: undefined, automationConfiguration: { sessionTemplate } },
+				{ metadata: undefined },
+			],
 			deleted: ['automation-workspace', 'automation-quick-chat', 'automation-replacement'],
 		});
 	});

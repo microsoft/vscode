@@ -15,12 +15,12 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationMutationGuard, AutomationSessionTemplateAuthorityError, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -35,8 +35,10 @@ const deleteAutomationConfirmationId = 'delete';
 const manualRunLeaderWindowId = 0;
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
-const chatModes: readonly ChatModeKind[] = [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
+const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
+const MAX_SESSION_TEMPLATE_CONFIG_NODES = 10_000;
+const MAX_SESSION_TEMPLATE_CONFIG_LENGTH = 65_536;
 
 interface IAutomationToolOutput {
 	readonly id: string;
@@ -56,9 +58,10 @@ interface IAutomationToolOutput {
 		readonly providerId: string;
 		readonly sessionTypeId: string;
 	};
-	readonly modelId: string | null;
-	readonly mode: string | null;
-	readonly permissionLevel: string | null;
+	readonly modelId?: string | null;
+	readonly mode?: string | null;
+	readonly permissionLevel?: string | null;
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -152,7 +155,7 @@ export class RunAutomationTool implements IToolImpl {
 			icon: Codicon.play,
 			displayName: localize('automation.tool.run.displayName', "Run Automation"),
 			userDescription: localize('automation.tool.run.userDescription', "Run a configured agent automation now"),
-			modelDescription: 'Run a configured automation immediately by stable ID. Call listAutomations first to obtain the current ID. This starts a fresh agent session in the background using the saved prompt, target, model, mode, and permission level, even when scheduled runs are disabled. The tool returns after session dispatch commits; do not run it again unless the user asks.',
+			modelDescription: 'Run a configured automation immediately by stable ID. Call listAutomations first to obtain the current ID. This starts a fresh agent session in the background using the saved prompt, target, and provider session configuration, even when scheduled runs are disabled. The tool returns after session dispatch commits; do not run it again unless the user asks.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -375,6 +378,8 @@ Create a new automation only when the user explicitly asks for an automation, or
 
 Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values.
 
+Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
+
 The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
@@ -460,15 +465,40 @@ The change uses the current tool-approval policy. When approval is required, the
 					},
 					modelId: {
 						type: ['string', 'null'],
-						description: 'Language model ID, or null to use the provider default.',
+						description: 'Legacy model alias. Use sessionTemplate for provider-owned configuration.',
 					},
 					mode: {
-						enum: [...chatModes, null],
-						description: 'Chat mode, or null to use the provider default.',
+						type: ['string', 'null'],
+						description: 'Legacy Mode alias. Use sessionTemplate for provider-owned configuration.',
 					},
 					permissionLevel: {
 						enum: [...chatPermissionLevels, null],
-						description: 'Permission level, or null to use the provider default.',
+						description: 'Legacy Approvals alias. Use sessionTemplate for provider-owned configuration.',
+					},
+					sessionTemplate: {
+						type: ['object', 'null'],
+						additionalProperties: false,
+						description: 'Provider-owned session configuration returned by listAutomations, or null to reset it.',
+						properties: {
+							modelId: {
+								type: ['string', 'null'],
+								description: 'Provider model identifier, or null to use its default.',
+							},
+							agent: {
+								type: ['object', 'null'],
+								additionalProperties: false,
+								description: 'Provider custom-agent selection, or null for none.',
+								properties: {
+									uri: { type: 'string' },
+								},
+								required: ['uri'],
+							},
+							config: {
+								type: ['object', 'null'],
+								description: 'Opaque JSON-safe provider configuration.',
+								additionalProperties: true,
+							},
+						},
 					},
 					enabled: {
 						type: 'boolean',
@@ -565,6 +595,9 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
 			}
+			if (error instanceof AutomationSessionTemplateAuthorityError) {
+				return automationToolError(error.message);
+			}
 			throw error;
 		}
 	}
@@ -645,7 +678,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'enabled'], 'configureAutomation input');
+		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
@@ -666,8 +699,15 @@ The change uses the current tool-approval policy. When approval is required, the
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
-		const mode = readOptionalNullableEnum(input, 'mode', chatModes);
+		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);
+		const sessionTemplate = parseSessionTemplate(input);
+		if (sessionTemplate !== undefined && (modelId !== undefined || mode !== undefined || permissionLevel !== undefined)) {
+			throw new AutomationToolInputError('"sessionTemplate" cannot be combined with legacy "modelId", "mode", or "permissionLevel" aliases.');
+		}
+		if (existing?.sessionTemplate && sessionTemplate === undefined && (modelId !== undefined || mode !== undefined || permissionLevel !== undefined)) {
+			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
+		}
 		const enabled = readOptionalBoolean(input, 'enabled');
 
 		const proposedValues: IUpdateAutomationOptions = {
@@ -678,6 +718,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			...(modelId !== undefined ? { modelId } : {}),
 			...(mode !== undefined ? { mode } : {}),
 			...(permissionLevel !== undefined ? { permissionLevel } : {}),
+			...(sessionTemplate !== undefined ? { sessionTemplate } : {}),
 			...(enabled !== undefined ? { enabled } : {}),
 		};
 		const validateTargetAvailability = input.target !== undefined
@@ -705,6 +746,7 @@ The change uses the current tool-approval policy. When approval is required, the
 				...(modelId ? { modelId } : {}),
 				...(mode ? { mode } : {}),
 				...(permissionLevel ? { permissionLevel } : {}),
+				...(sessionTemplate ? { sessionTemplate } : {}),
 				...(enabled !== undefined ? { enabled } : {}),
 			},
 			validateTargetAvailability,
@@ -846,6 +888,86 @@ function parseTarget(input: Record<string, unknown>, existing: IAutomationDescri
 	return { kind: 'workspace', folderUri, providerId, sessionTypeId, isolation };
 }
 
+function parseSessionTemplate(input: Record<string, unknown>): IAutomationSessionTemplate | null | undefined {
+	const value = input['sessionTemplate'];
+	if (value === undefined || value === null) {
+		return value;
+	}
+	if (!isRecord(value)) {
+		throw new AutomationToolInputError('"sessionTemplate" must be an object or null.');
+	}
+	assertKnownProperties(value, ['modelId', 'agent', 'config'], '"sessionTemplate"');
+	const modelId = readOptionalNullableNonEmptyString(value, 'modelId');
+
+	const rawAgent = value['agent'];
+	let agent: IAutomationSessionTemplate['agent'];
+	if (rawAgent !== undefined && rawAgent !== null) {
+		if (!isRecord(rawAgent)) {
+			throw new AutomationToolInputError('"sessionTemplate.agent" must be an object or null.');
+		}
+		assertKnownProperties(rawAgent, ['uri'], '"sessionTemplate.agent"');
+		const uri = readOptionalNonEmptyString(rawAgent, 'uri');
+		if (!uri) {
+			throw new AutomationToolInputError('"sessionTemplate.agent.uri" is required.');
+		}
+		agent = { uri };
+	}
+
+	const rawConfig = value['config'];
+	let config: Readonly<Record<string, unknown>> | undefined;
+	if (rawConfig !== undefined && rawConfig !== null) {
+		if (!isRecord(rawConfig)) {
+			throw new AutomationToolInputError('"sessionTemplate.config" must be an object or null.');
+		}
+		const cloneState = { nodes: 0 };
+		assertJsonComplexity('sessionTemplate.config', cloneState, 0);
+		config = cloneJsonObject(rawConfig, 'sessionTemplate.config', cloneState, 0);
+		if (JSON.stringify(config).length > MAX_SESSION_TEMPLATE_CONFIG_LENGTH) {
+			throw new AutomationToolInputError(`"sessionTemplate.config" must not exceed ${MAX_SESSION_TEMPLATE_CONFIG_LENGTH} characters.`);
+		}
+	}
+	return {
+		...(modelId ? { modelId } : {}),
+		...(agent ? { agent } : {}),
+		...(config ? { config } : {}),
+	};
+}
+
+function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number }, depth: number): Record<string, unknown> {
+	const prototype = Object.getPrototypeOf(value);
+	if (prototype !== Object.prototype && prototype !== null) {
+		throw new AutomationToolInputError(`"${field}" must contain only JSON values.`);
+	}
+	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJsonValue(entry, `${field}.${key}`, state, depth + 1)]));
+}
+
+function cloneJsonValue(value: unknown, field: string, state: { nodes: number }, depth: number): unknown {
+	assertJsonComplexity(field, state, depth);
+	if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+		return value;
+	}
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value.map((entry, index) => cloneJsonValue(entry, `${field}[${index}]`, state, depth + 1));
+	}
+	if (isRecord(value)) {
+		return cloneJsonObject(value, field, state, depth);
+	}
+	throw new AutomationToolInputError(`"${field}" must be JSON-safe.`);
+}
+
+function assertJsonComplexity(field: string, state: { nodes: number }, depth: number): void {
+	if (depth > MAX_SESSION_TEMPLATE_CONFIG_DEPTH) {
+		throw new AutomationToolInputError(`"${field}" exceeds the maximum nesting depth of ${MAX_SESSION_TEMPLATE_CONFIG_DEPTH}.`);
+	}
+	state.nodes++;
+	if (state.nodes > MAX_SESSION_TEMPLATE_CONFIG_NODES) {
+		throw new AutomationToolInputError(`"sessionTemplate.config" must not contain more than ${MAX_SESSION_TEMPLATE_CONFIG_NODES} values.`);
+	}
+}
+
 function parseUri(value: string, field: string): URI {
 	try {
 		const uri = URI.parse(value, true);
@@ -878,9 +1000,13 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		prompt: automation.prompt,
 		schedule: automation.schedule,
 		target,
-		modelId: automation.modelId ?? null,
-		mode: automation.mode ?? null,
-		permissionLevel: automation.permissionLevel ?? null,
+		...(automation.sessionTemplate
+			? { sessionTemplate: automation.sessionTemplate }
+			: {
+				modelId: automation.modelId ?? null,
+				mode: automation.mode ?? null,
+				permissionLevel: automation.permissionLevel ?? null,
+			}),
 		enabled: automation.enabled,
 		createdAt: automation.createdAt,
 		updatedAt: automation.updatedAt,

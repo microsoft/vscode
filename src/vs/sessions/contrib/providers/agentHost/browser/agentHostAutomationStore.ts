@@ -12,9 +12,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, applyLegacyAutomationSessionConfig, migrateLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
-import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -22,10 +22,9 @@ import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, 
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationActiveRunError, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
-import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
 
@@ -205,6 +204,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: options.target,
+			sessionTemplate: options.sessionTemplate,
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
@@ -224,7 +224,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
 		const updated = this._applyPatch(current, patch);
-		const state = await this._replaceDescriptor(updated);
+		const state = await this._replaceDescriptor(updated, false, undefined, patch.sessionTemplate === null);
 		return this._requireProjectedAutomation(state);
 	}
 
@@ -664,7 +664,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with no provider: resource=${state.resource}.`);
 			return undefined;
 		}
-		const config = state.definition.session.config;
+		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		return {
 			id: automationId(state.resource),
@@ -672,9 +672,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: state.definition.message.text,
 			schedule: projectSchedule(state.definition.triggers),
 			target,
-			modelId: this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
-			mode: readString(config?.[SessionConfigKey.Mode]),
-			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
+			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
@@ -783,13 +781,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationEntry> {
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean, resetSessionTemplate = false): Promise<AutomationEntry> {
 		const resource = automationResource(descriptor.id);
 		const current = this._findAutomationEntry(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending, resetSessionTemplate);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -830,11 +828,28 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
-		const config = { ...existing?.session.config };
-		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
-		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
-		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel === ChatPermissionLevel.Autopilot ? ChatPermissionLevel.Assisted : descriptor.permissionLevel);
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean, resetSessionTemplate = false): AutomationDefinition {
+		const sessionTemplate = descriptor.sessionTemplate;
+		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
+		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(modelId);
+		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
+		let projectedConfig: Record<string, unknown>;
+		if (sessionTemplate) {
+			projectedConfig = {
+				...pickAutomationDefinitionOwnedConfigValues(existingSession?.config),
+				...omitAutomationSessionTemplateConfigValues({ ...sessionTemplate.config }),
+			};
+		} else if (resetSessionTemplate) {
+			projectedConfig = pickAutomationDefinitionOwnedConfigValues(existingSession?.config);
+		} else {
+			projectedConfig = applyLegacyAutomationSessionConfig(
+				provider,
+				existingSession?.config,
+				descriptor.mode,
+				descriptor.permissionLevel,
+			);
+		}
+		const config = imported ? migrateLegacyAutomationSessionConfig(provider, projectedConfig) : projectedConfig;
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);
@@ -856,7 +871,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
 			session: {
 				provider,
-				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
+				model: modelId ? { id: this._toHostModelId(modelId, provider) } : undefined,
+				agent: resetSessionTemplate ? undefined : sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -901,23 +917,38 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _applyPatch(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
+		assertAutomationSessionTemplateAuthority(current, patch);
 		const now = new Date();
 		const schedule = patch.schedule ?? current.schedule;
 		const enabled = patch.enabled ?? current.enabled;
 		const target = patch.target ?? current.target;
 		const targetAuthorityChanged = patch.target !== undefined
 			&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+		const currentModelId = current.sessionTemplate?.modelId ?? current.modelId;
+		const currentMode = readString(current.sessionTemplate?.config?.[SessionConfigKey.Mode]) ?? current.mode;
+		const currentPermissionLevel = readString(current.sessionTemplate?.config?.[SessionConfigKey.AutoApprove]) ?? current.permissionLevel;
+		const templatePatched = patch.sessionTemplate !== undefined;
+		const modelId = templatePatched || patch.modelId === null
+			? undefined
+			: patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId);
+		const mode = templatePatched || patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : currentMode);
+		const permissionLevel = templatePatched || patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : currentPermissionLevel);
+		const provider = target.sessionTypeId ?? this._providerFromModelId(modelId);
+		const sessionTemplate = patch.sessionTemplate === null
+			? undefined
+			: patch.sessionTemplate ?? (targetAuthorityChanged
+				? undefined
+				: synchronizeAutomationSessionTemplate(current.sessionTemplate, provider, modelId, mode, permissionLevel));
 		return {
 			...current,
 			...(patch.name !== undefined ? { name: patch.name } : {}),
 			...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
 			schedule,
 			target,
-			modelId: patch.modelId === null
-				? undefined
-				: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId),
-			mode: patch.mode === null ? undefined : patch.mode ?? current.mode,
-			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? current.permissionLevel,
+			sessionTemplate,
+			modelId,
+			mode,
+			permissionLevel,
 			enabled,
 			updatedAt: now.toISOString(),
 		};
@@ -1224,6 +1255,30 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 
 function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
+}
+
+function projectAutomationSessionTemplate(definition: AutomationDefinition, modelId: string | undefined): IAutomationSessionTemplate | undefined {
+	const config = omitAutomationSessionTemplateConfigValues({ ...definition.session.config });
+	return createAutomationSessionTemplate(modelId, definition.session.agent, config);
+}
+
+function synchronizeAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined, provider: string | undefined, modelId: string | undefined, mode: string | undefined, permissionLevel: string | undefined): IAutomationSessionTemplate | undefined {
+	if (!template) {
+		return undefined;
+	}
+	const config = applyLegacyAutomationSessionConfig(provider, template.config, mode, permissionLevel);
+	return createAutomationSessionTemplate(modelId, template.agent, config);
+}
+
+function createAutomationSessionTemplate(modelId: string | undefined, agent: IAutomationSessionTemplate['agent'], config: Readonly<Record<string, unknown>>): IAutomationSessionTemplate | undefined {
+	if (!modelId && !agent && Object.keys(config).length === 0) {
+		return undefined;
+	}
+	return {
+		...(modelId ? { modelId } : {}),
+		...(agent ? { agent: { uri: agent.uri } } : {}),
+		...(Object.keys(config).length > 0 ? { config } : {}),
+	};
 }
 
 function setOptional(target: Record<string, unknown>, key: string, value: unknown): void {

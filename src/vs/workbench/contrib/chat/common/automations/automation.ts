@@ -52,6 +52,16 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+/** Provider-owned values used to create each Automation run session. */
+export interface IAutomationSessionTemplate {
+	/** Optional language model identifier. */
+	readonly modelId?: string;
+	/** Optional custom agent selection. */
+	readonly agent?: { readonly uri: string };
+	/** Provider-owned session configuration values. */
+	readonly config?: Readonly<Record<string, unknown>>;
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -65,13 +75,16 @@ export interface IAutomationDescriptor {
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
 
-	/** Optional language model identifier to seed the new session with. */
+	/** Complete provider-owned session template. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;

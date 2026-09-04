@@ -18,7 +18,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationSessionTemplateAuthorityError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -106,6 +106,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 			prompt: patch.prompt ?? existing.prompt,
 			schedule: patch.schedule ?? existing.schedule,
 			target: patch.target ?? existing.target,
+			sessionTemplate: patch.sessionTemplate === null ? undefined : patch.sessionTemplate ?? existing.sessionTemplate,
 			modelId: patch.modelId === null ? undefined : patch.modelId ?? existing.modelId,
 			mode: patch.mode === null ? undefined : patch.mode ?? existing.mode,
 			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? existing.permissionLevel,
@@ -230,6 +231,7 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 		target: automation.target.kind === 'workspace'
 			? { ...automation.target, folderUri: automation.target.folderUri.toString() }
 			: automation.target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel,
@@ -239,7 +241,7 @@ function editableAutomationKey(automation: IAutomationDescriptor): string {
 
 function serializeAutomationLedger(automations: readonly IAutomationDescriptor[], revision = 1): string {
 	return JSON.stringify({
-		schemaVersion: 3,
+		schemaVersion: 4,
 		revision,
 		automations: automations.map(automation => ({
 			...automation,
@@ -405,15 +407,28 @@ suite('AutomationTools', () => {
 			requiresExplicitAutomationIntent: modelDescription.includes('only when the user explicitly asks for an automation'),
 			allowsRecurringScheduleIntent: modelDescription.includes('or for a prompt to run on a recurring schedule'),
 			excludesMonitoringRequests: modelDescription.includes('Do not infer that intent from requests merely to monitor, watch, follow, or keep something'),
+			usesProviderTemplate: modelDescription.includes('Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals'),
+			rejectsMixedAliases: modelDescription.includes('Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases'),
 		}, {
 			requiresExplicitAutomationIntent: true,
 			allowsRecurringScheduleIntent: true,
 			excludesMonitoringRequests: true,
+			usesProviderTemplate: true,
+			rejectsMixedAliases: true,
 		});
 	});
 
 	test('listAutomations returns stable IDs and editable fields', async () => {
-		const automation = createAutomation();
+		const sessionTemplate = {
+			modelId: 'gpt-test',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'agent',
+				autoApprove: 'default',
+				providerOption: { enabled: true },
+			},
+		};
+		const automation = createAutomation({ sessionTemplate });
 		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
 
 		const result = await invoke(tool, {});
@@ -431,15 +446,33 @@ suite('AutomationTools', () => {
 					sessionTypeId: 'copilot',
 					isolation: { kind: 'default' },
 				},
-				modelId: 'gpt-test',
-				mode: 'agent',
-				permissionLevel: 'default',
+				sessionTemplate,
 				enabled: true,
 				createdAt: NOW,
 				updatedAt: NOW,
 				lastRunAt: null,
 				nextRunAt: '2026-01-02T09:00:00.000Z',
 			}],
+		});
+	});
+
+	test('listAutomations emits flat aliases only for legacy rows', async () => {
+		const automation = createAutomation();
+		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());
+
+		const result = await invoke(tool, {});
+		const listed = JSON.parse(getText(result)).automations[0];
+
+		assert.deepStrictEqual({
+			sessionTemplate: listed.sessionTemplate,
+			modelId: listed.modelId,
+			mode: listed.mode,
+			permissionLevel: listed.permissionLevel,
+		}, {
+			sessionTemplate: undefined,
+			modelId: 'gpt-test',
+			mode: 'agent',
+			permissionLevel: 'default',
 		});
 	});
 
@@ -830,6 +863,115 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation accepts a provider mode returned by listAutomations', async () => {
+		const existing = createAutomation({ mode: 'autopilot' });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const parameters = {
+			automationId: existing.id,
+			mode: 'autopilot',
+		};
+		const prepared = await tool.prepareToolInvocation!({
+			parameters,
+			toolCallId: 'update-call',
+			chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+
+		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, undefined, prepared.toolSpecificData);
+
+		assert.deepStrictEqual(automationService.updated, [{
+			id: existing.id,
+			patch: { mode: 'autopilot' },
+		}]);
+	});
+
+	test('configureAutomation updates the complete provider session template', async () => {
+		const existing = createAutomation({
+			sessionTemplate: {
+				modelId: 'old-model',
+				config: { mode: 'interactive', providerOption: false },
+			},
+		});
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		const sessionTemplate = {
+			modelId: 'new-model',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+			},
+		};
+
+		await invoke(tool, {
+			automationId: existing.id,
+			sessionTemplate,
+		});
+
+		assert.deepStrictEqual(automationService.updated, [{
+			id: existing.id,
+			patch: { sessionTemplate },
+		}]);
+	});
+
+	test('configureAutomation reports legacy alias updates to a canonical template as input errors', async () => {
+		const existing = createAutomation({
+			sessionTemplate: {
+				modelId: 'model',
+				config: { mode: 'interactive', autoApprove: 'default' },
+			},
+		});
+		const automationService = new FakeAutomationService([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+
+		const result = await invoke(tool, {
+			automationId: existing.id,
+			permissionLevel: 'autoApprove',
+		});
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			updates: automationService.updated,
+		}, {
+			error: 'Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.',
+			updates: [],
+		});
+	});
+
+	test('configureAutomation surfaces authority changes detected during the guarded update', async () => {
+		const existing = createAutomation();
+		const automationService = new class extends FakeAutomationService {
+			override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> {
+				throw new AutomationSessionTemplateAuthorityError();
+			}
+		}([existing]);
+		const tool = new ConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+
+		const result = await invoke(tool, {
+			automationId: existing.id,
+			permissionLevel: 'autoApprove',
+		});
+
+		assert.strictEqual(result.toolResultError, 'A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	});
+
 	test('configureAutomation rejects editable changes made while awaiting approval', async () => {
 		const existing = createAutomation();
 		const automationService = new FakeAutomationService([existing]);
@@ -1133,13 +1275,76 @@ suite('AutomationTools', () => {
 				branch: 'main',
 			},
 		});
+		const mixedConfigurationResult = await invoke(tool, {
+			name: 'Mixed configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString() },
+			mode: 'agent',
+			sessionTemplate: { config: { mode: 'plan' } },
+		});
+		const unsafeConfigurationResult = await invoke(tool, {
+			name: 'Unsafe configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString() },
+			sessionTemplate: { config: { value: new Date(0) } },
+		});
 
 		assert.deepStrictEqual({
 			staleError: staleResult.toolResultError,
 			targetError: malformedTargetResult.toolResultError,
+			mixedConfigurationError: mixedConfigurationResult.toolResultError,
+			unsafeConfigurationError: unsafeConfigurationResult.toolResultError,
 		}, {
 			staleError: 'Automation "missing" does not exist. Call listAutomations to refresh the available IDs.',
 			targetError: '"target.folderUri" must be a valid absolute URI.',
+			mixedConfigurationError: '"sessionTemplate" cannot be combined with legacy "modelId", "mode", or "permissionLevel" aliases.',
+			unsafeConfigurationError: '"sessionTemplate.config.value" must contain only JSON values.',
+		});
+	});
+
+	test('configureAutomation bounds opaque provider configuration', async () => {
+		const tool = new ConfigureAutomationTool(
+			new FakeAutomationService(),
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		);
+		let deeplyNested: Record<string, unknown> = {};
+		for (let depth = 0; depth < 40; depth++) {
+			deeplyNested = { nested: deeplyNested };
+		}
+		const target = { kind: 'workspace', folderUri: FOLDER.toString() };
+		const deeplyNestedResult = await invoke(tool, {
+			name: 'Deep configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: deeplyNested },
+		});
+		const oversizedResult = await invoke(tool, {
+			name: 'Large configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { value: 'x'.repeat(70_000) } },
+		});
+		const tooManyValuesResult = await invoke(tool, {
+			name: 'Wide configuration',
+			prompt: 'Do not save',
+			schedule: { interval: 'manual' },
+			target,
+			sessionTemplate: { config: { values: Array.from({ length: 10_001 }, () => null) } },
+		});
+
+		assert.deepStrictEqual({
+			depthBounded: typeof deeplyNestedResult.toolResultError === 'string' && deeplyNestedResult.toolResultError.includes('exceeds the maximum nesting depth of 32'),
+			sizeBounded: oversizedResult.toolResultError,
+			nodeCountBounded: tooManyValuesResult.toolResultError,
+		}, {
+			depthBounded: true,
+			sizeBounded: '"sessionTemplate.config" must not exceed 65536 characters.',
+			nodeCountBounded: '"sessionTemplate.config" must not contain more than 10000 values.',
 		});
 	});
 

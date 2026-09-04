@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -30,6 +31,22 @@ export function isAutomationActiveRunError(error: unknown): boolean {
 		|| (error instanceof AggregateError && error.errors.length > 0 && error.errors.every(isAutomationActiveRunError));
 }
 
+/** Signals that deprecated configuration aliases cannot modify an explicit provider template. */
+export class AutomationSessionTemplateAuthorityError extends Error {
+	constructor() {
+		super('A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	}
+}
+
+export function assertAutomationSessionTemplateAuthority(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): void {
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	if (current.sessionTemplate && patch.sessionTemplate === undefined && !targetAuthorityChanged && legacyConfigurationPatched) {
+		throw new AutomationSessionTemplateAuthorityError();
+	}
+}
+
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.
@@ -39,8 +56,12 @@ export interface ICreateAutomationOptions {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly target: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
 }
@@ -54,8 +75,12 @@ export interface IUpdateAutomationOptions {
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
 	readonly target?: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
 }
@@ -89,7 +114,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
 				: { kind: automation.target.isolation.kind },
 		};
-	return JSON.stringify({
+	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: {
@@ -99,6 +124,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleDay: automation.schedule.scheduleDay,
 		},
 		target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,

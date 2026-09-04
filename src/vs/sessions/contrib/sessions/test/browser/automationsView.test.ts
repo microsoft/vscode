@@ -861,9 +861,15 @@ suite('AutomationsCardsWidget', () => {
 			prompt: 'Review all open issues',
 			schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
 			target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
-			modelId: 'model',
-			mode: 'agent',
-			permissionLevel: 'autopilot',
+			sessionTemplate: {
+				modelId: 'model',
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				config: {
+					mode: 'agent',
+					autoApprove: 'autopilot',
+					providerOption: true,
+				},
+			},
 			enabled: false,
 		});
 		automationService.setAutomations([source]);
@@ -902,9 +908,7 @@ suite('AutomationsCardsWidget', () => {
 					prompt: 'Review all open issues',
 					schedule: source.schedule,
 					target: source.target,
-					modelId: 'model',
-					mode: 'agent',
-					permissionLevel: 'autopilot',
+					sessionTemplate: source.sessionTemplate,
 					enabled: false,
 				},
 			},
@@ -943,6 +947,33 @@ suite('AutomationsCardsWidget', () => {
 			initialName: 'Daily review Copy 2',
 			createCalls: [submitted],
 			createdNames: ['Customized copy', 'Daily review', 'Daily review Copy'],
+		});
+	});
+
+	test('duplicate preserves legacy flat configuration when no session template exists', async () => {
+		const { automationDialogService, automationService, instantiationService } = setup();
+		const source = automation({
+			name: 'Legacy review',
+			sessionTemplate: undefined,
+			modelId: 'legacy-model',
+			mode: 'ask',
+			permissionLevel: 'autopilot',
+		});
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual(automationDialogService.lastOptions?.initialValues, {
+			name: 'Legacy review Copy',
+			prompt: source.prompt,
+			schedule: source.schedule,
+			target: source.target,
+			modelId: 'legacy-model',
+			mode: 'ask',
+			permissionLevel: 'autopilot',
+			enabled: source.enabled,
 		});
 	});
 

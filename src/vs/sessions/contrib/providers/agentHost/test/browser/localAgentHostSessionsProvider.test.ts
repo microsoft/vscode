@@ -4424,6 +4424,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('Automation drafts merge derived worktree settings with saved provider configuration', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'automation/');
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json']);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const session = provider.createNewSession(
+			URI.parse('file:///home/user/project'),
+			provider.sessionTypes[0].id,
+			{
+				automationConfiguration: {
+					sessionTemplate: {
+						config: {
+							mode: 'plan',
+							autoApprove: 'assisted',
+						},
+					},
+				},
+			},
+		);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: {
+				worktreeBranchPrefix: 'automation/',
+				worktreeIncludeFiles: ['product.overrides.json'],
+				mode: 'plan',
+				autoApprove: 'assisted',
+			},
+			forwardedToAgentHost: {
+				worktreeBranchPrefix: 'automation/',
+				worktreeIncludeFiles: ['product.overrides.json'],
+				mode: 'plan',
+				autoApprove: 'assisted',
+			},
+		});
+	});
+
 	test('createNewSession gives remembered autoApprove precedence over a configured setting while policy still clamps', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
@@ -4463,6 +4502,157 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'autopilot',
 			autoApprove: 'default',
+		});
+	});
+
+	test('createNewSession restores and captures an Automation session template', async () => {
+		const sessionTemplate = {
+			modelId: 'agent-host-copilotcli:auto',
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+				clearedOption: true,
+				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+				[SessionConfigKey.WorktreeBranchPrefix]: 'template-prefix/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['template.json'],
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+				[SessionConfigKey.AgentMerge]: true,
+			},
+		};
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					clearedOption: { type: 'boolean', title: 'Cleared option' },
+				},
+			},
+			values: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				[SessionConfigKey.WorktreeBranchPrefix]: 'stale-prefix/',
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+			},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(
+			URI.parse('file:///home/user/project'),
+			provider.sessionTypes[0].id,
+			{ automationConfiguration: { sessionTemplate } },
+		);
+		await provider.getAutomationSessionConfiguration(session.sessionId);
+		await provider.setSessionConfigValue(session.sessionId, 'clearedOption', false);
+		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+
+		assert.deepStrictEqual({
+			captured,
+			initialConfig: agentHost.resolveSessionConfigRequests.at(-2)?.config,
+			modelId: session.modelId.get(),
+			agentUri: session.mode.get()?.id,
+		}, {
+			captured: {
+				sessionTemplate: {
+					...sessionTemplate,
+					config: {
+						mode: 'plan',
+						autoApprove: 'assisted',
+						providerOption: { enabled: true },
+					},
+				},
+				modelId: sessionTemplate.modelId,
+				mode: 'plan',
+				permissionLevel: 'assisted',
+			},
+			initialConfig: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+				clearedOption: true,
+			},
+			modelId: sessionTemplate.modelId,
+			agentUri: sessionTemplate.agent.uri,
+		});
+	});
+
+	test('createNewSession restores legacy Automation fields at the provider boundary', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(
+			URI.parse('file:///home/user/project'),
+			provider.sessionTypes[0].id,
+			{
+				automationConfiguration: {
+					modelId: 'agent-host-copilotcli:auto',
+					mode: 'autopilot',
+					permissionLevel: 'assisted',
+				},
+			},
+		);
+		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+
+		assert.deepStrictEqual({
+			initialConfig: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			modelId: session.modelId.get(),
+			captured,
+		}, {
+			initialConfig: {
+				mode: 'autopilot',
+				autoApprove: 'assisted',
+			},
+			modelId: 'agent-host-copilotcli:auto',
+			captured: {
+				sessionTemplate: {
+					modelId: 'agent-host-copilotcli:auto',
+					config: {
+						mode: 'autopilot',
+						autoApprove: 'assisted',
+					},
+				},
+				modelId: 'agent-host-copilotcli:auto',
+				mode: 'autopilot',
+				permissionLevel: 'assisted',
+			},
+		});
+	});
+
+	test('Automation drafts display policy-clamped approvals without overwriting the saved preference', async () => {
+		const sessionTemplate = {
+			config: {
+				autoApprove: 'autoApprove',
+			},
+		};
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'] },
+				},
+			},
+			values: { autoApprove: 'default' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: createPolicyRestrictedConfigurationService(),
+		});
+		const session = provider.createNewSession(
+			URI.parse('file:///home/user/project'),
+			provider.sessionTypes[0].id,
+			{ automationConfiguration: { sessionTemplate } },
+		);
+
+		const capturedWithoutEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'default');
+		const capturedAfterEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
+
+		assert.deepStrictEqual({
+			displayed: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			initialConfig: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			capturedWithoutEdit: capturedWithoutEdit?.sessionTemplate?.config?.autoApprove,
+			capturedAfterEdit: capturedAfterEdit?.sessionTemplate?.config?.autoApprove,
+		}, {
+			displayed: 'default',
+			initialConfig: 'default',
+			capturedWithoutEdit: 'autoApprove',
+			capturedAfterEdit: 'default',
 		});
 	});
 

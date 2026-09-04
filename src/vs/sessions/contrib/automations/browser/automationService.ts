@@ -17,9 +17,11 @@ import {
 	AutomationWorkspaceIsolation,
 	IAutomationDescriptor,
 	IAutomationRun,
+	IAutomationSessionTemplate,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
 	type AutomationMutationGuard,
+	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
 	IAutomationService,
 	ICreateAutomationOptions,
@@ -34,8 +36,9 @@ import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/auto
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
 
-const LEGACY_SCHEMA_VERSIONS = new Set([1, 2]);
-const CURRENT_SCHEMA_VERSION = 3;
+const LEGACY_TARGET_SCHEMA_VERSIONS = new Set([1, 2]);
+const CURRENT_TARGET_SCHEMA_VERSIONS = new Set([3, 4]);
+const CURRENT_SCHEMA_VERSION = 4;
 
 const MAX_RUNS_PER_AUTOMATION = 50;
 
@@ -44,6 +47,7 @@ interface ISerializedAutomationBase {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationDescriptor['schedule'];
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
@@ -82,7 +86,7 @@ interface ILegacySerializedAutomation extends ISerializedAutomationBase {
 }
 
 interface ISerializedLedger {
-	readonly schemaVersion: 3;
+	readonly schemaVersion: 4;
 	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
@@ -184,9 +188,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: normalizeAutomationTarget(options.target),
-			modelId: options.modelId,
-			mode: options.mode,
-			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+			...(options.sessionTemplate
+				? { sessionTemplate: options.sessionTemplate }
+				: {
+					modelId: options.modelId,
+					mode: options.mode,
+					permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+				}),
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -533,19 +541,19 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 		try {
-			const parsed = JSON.parse(raw) as ISerializedLedger | ILegacySerializedLedger;
+			const parsed = JSON.parse(raw) as ISerializedLedger | (Omit<ISerializedLedger, 'schemaVersion'> & { readonly schemaVersion: 3 }) | ILegacySerializedLedger;
 			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
 				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
 				return { kind: 'unsupportedSchema' };
 			}
-			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
+			if (!CURRENT_TARGET_SCHEMA_VERSIONS.has(parsed?.schemaVersion) && !LEGACY_TARGET_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
 				return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomationDescriptor[] = [];
 			// Malformed rows are dropped individually; only structurally invalid ledgers remain read-only.
 			const invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
-			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
+			if (CURRENT_TARGET_SCHEMA_VERSIONS.has(parsed.schemaVersion)) {
 				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
 				for (const entry of entries) {
 					try {
@@ -617,6 +625,7 @@ function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
 		prompt: a.prompt,
 		schedule: a.schedule,
 		target: serializeAutomationTarget(a.target),
+		sessionTemplate: a.sessionTemplate,
 		modelId: a.modelId,
 		mode: a.mode,
 		permissionLevel: a.permissionLevel,
@@ -679,10 +688,11 @@ function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomatio
 }
 
 function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomationDescriptor {
+	const sessionTemplate = deserializeAutomationSessionTemplate(s.sessionTemplate);
 	// Default to most restrictive if the persisted value is invalid.
-	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
+	const permissionLevel = !sessionTemplate && isChatPermissionLevel(s.permissionLevel)
 		? s.permissionLevel
-		: ChatPermissionLevel.Default;
+		: sessionTemplate ? undefined : ChatPermissionLevel.Default;
 
 	return Object.freeze({
 		id: s.id,
@@ -690,8 +700,9 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 		prompt: s.prompt,
 		schedule: s.schedule,
 		target,
-		modelId: s.modelId,
-		mode: s.mode,
+		...(sessionTemplate ? { sessionTemplate } : {}),
+		modelId: sessionTemplate ? undefined : s.modelId,
+		mode: sessionTemplate ? undefined : s.mode,
 		permissionLevel,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
@@ -715,15 +726,37 @@ function updateAutomation(current: IAutomationDescriptor, patch: IUpdateAutomati
 }
 
 function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
+	assertAutomationSessionTemplateAuthority(current, patch);
+	const target = patch.target ? normalizeAutomationTarget(patch.target) : current.target;
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (target.providerId !== current.target.providerId || target.sessionTypeId !== current.target.sessionTypeId);
+	const templatePatched = patch.sessionTemplate !== undefined;
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	const currentModelId = current.sessionTemplate ? undefined : current.modelId;
+	const currentMode = current.sessionTemplate ? undefined : current.mode;
+	const currentPermissionLevel = current.sessionTemplate ? undefined : current.permissionLevel;
+	const modelId = templatePatched ? undefined : patch.modelId === null ? undefined : (patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId));
+	const mode = templatePatched ? undefined : patch.mode === null ? undefined : (patch.mode ?? (targetAuthorityChanged ? undefined : currentMode));
+	const permissionLevel = templatePatched || patch.permissionLevel === null
+		? undefined
+		: patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel)
+			? patch.permissionLevel
+			: targetAuthorityChanged ? ChatPermissionLevel.Default : currentPermissionLevel;
+	const sessionTemplate = patch.sessionTemplate === null
+		? undefined
+		: patch.sessionTemplate ?? (targetAuthorityChanged || legacyConfigurationPatched
+			? undefined
+			: current.sessionTemplate);
 	return {
 		...current,
 		name: patch.name ?? current.name,
 		prompt: patch.prompt ?? current.prompt,
 		schedule: patch.schedule ?? current.schedule,
-		target: patch.target ? normalizeAutomationTarget(patch.target) : current.target,
-		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
-		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
-		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
+		target,
+		sessionTemplate,
+		modelId,
+		mode,
+		permissionLevel,
 		enabled: patch.enabled ?? current.enabled,
 	};
 }
@@ -744,6 +777,40 @@ function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {
 		target.sessionTypeId,
 		target.isolation,
 	);
+}
+
+function deserializeAutomationSessionTemplate(value: unknown): IAutomationSessionTemplate | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!isRecord(value)) {
+		throw new Error('Automation session template must be an object.');
+	}
+	const modelId = value['modelId'];
+	if (modelId !== undefined && typeof modelId !== 'string') {
+		throw new Error('Automation session template model must be a string.');
+	}
+	const rawAgent = value['agent'];
+	let agent: IAutomationSessionTemplate['agent'];
+	if (rawAgent !== undefined) {
+		if (!isRecord(rawAgent) || typeof rawAgent['uri'] !== 'string') {
+			throw new Error('Automation session template agent must contain a URI.');
+		}
+		agent = { uri: rawAgent['uri'] };
+	}
+	const config = value['config'];
+	if (config !== undefined && !isRecord(config)) {
+		throw new Error('Automation session template config must be an object.');
+	}
+	return {
+		...(modelId !== undefined ? { modelId } : {}),
+		...(agent ? { agent } : {}),
+		...(config !== undefined ? { config: { ...config } } : {}),
+	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomationTarget {
