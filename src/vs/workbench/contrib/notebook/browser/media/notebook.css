@@ -302,6 +302,40 @@
 	box-shadow: inset var(--vscode-shadow-sm);
 }
 
+/*
+ * The outline above is rounded, but the surfaces it frames paint square: the
+ * editor and the status bar below it. Both are filled with
+ * `notebook.cellEditorBackground`, which differs from the surrounding
+ * `notebook.editorBackground`, so their corners show outside the outline.
+ *
+ * Matching the radius is enough on its own, because a background is always
+ * clipped to its own border radius. The editor root needs it as well as its
+ * overflow guard, since the root paints `editor.background` and is
+ * `overflow: visible`.
+ *
+ * These use child combinators so they only reach the cell's own editor. A
+ * descendant selector would also match editors nested inside the cell, such as
+ * a Peek Definition preview, and give those the cell radius.
+ *
+ * `overflow: hidden` on `.cell-editor-part` is not an option instead: the
+ * execution progress bar is a child of the part sitting at `top: -3px`, above
+ * it, and clipping there would hide it.
+ */
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part > .cell-editor-container > .monaco-editor,
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part > .cell-editor-container > .monaco-editor > .overflow-guard {
+	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part > .cell-statusbar-container {
+	border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
+}
+
+/* With no status bar the editor is the only surface, so it closes all four corners. */
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-statusbar-hidden .cell-editor-part > .cell-editor-container > .monaco-editor,
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-statusbar-hidden .cell-editor-part > .cell-editor-container > .monaco-editor > .overflow-guard {
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 .monaco-workbench .notebookOverlay > .cell-list-container > .cell-list-insertion-indicator {
 	position: absolute;
 	height: 2px;
