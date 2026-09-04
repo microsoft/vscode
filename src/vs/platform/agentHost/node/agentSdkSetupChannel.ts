@@ -106,6 +106,9 @@ export class AgentSdkSetupChannel extends Disposable {
 		const values = this._configurationService.getRootConfigValues?.() ?? {};
 		if (this._takeRequest(values, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY)) {
 			if (this._downloadActivity === 'idle') {
+				this._downloadActivity = 'explicit';
+				this._downloadFailed = false;
+				this._publish(false);
 				this._queue('explicit agent SDK download failed', async () => {
 					await this._recordDownloadConsent();
 					await this._download();
@@ -151,13 +154,10 @@ export class AgentSdkSetupChannel extends Disposable {
 
 	/** Download requested explicitly through the setup UI. */
 	private async _download(): Promise<void> {
-		if (this._downloadActivity !== 'idle') {
+		if (this._downloadActivity !== 'explicit') {
 			return;
 		}
 		const progressInterest = this._downloader.acquireDownloadProgressInterest(this._agent.sdkPackage);
-		this._downloadFailed = false;
-		this._downloadActivity = 'explicit';
-		this._publish(false);
 		let downloaded = false;
 		try {
 			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: downloading the agent SDK at the user's request`);

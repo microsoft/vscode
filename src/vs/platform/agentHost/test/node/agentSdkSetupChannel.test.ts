@@ -248,4 +248,29 @@ suite('AgentSdkSetupChannel', () => {
 		});
 	});
 
+	test('repeated explicit requests while another operation is running queue one download', async () => {
+		const sdkIsLocal = new DeferredPromise<boolean>();
+		const ctx = createChannel({ isSdkLocal: () => sdkIsLocal.p });
+		await timeout(0);
+
+		ctx.configuration.updateRootConfig({
+			[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent: 'claude', request: 'request-1' },
+		});
+		ctx.configuration.updateRootConfig({
+			[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent: 'claude', request: 'request-2' },
+		});
+		await sdkIsLocal.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			downloads: ctx.downloadCalls(),
+			progressInterests: ctx.progressInterests,
+			statuses: ctx.configuration.statuses,
+		}, {
+			downloads: 1,
+			progressInterests: ['claude'],
+			statuses: ['downloading', 'downloading', 'ready'],
+		});
+	});
+
 });
