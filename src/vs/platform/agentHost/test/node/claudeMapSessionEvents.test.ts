@@ -911,6 +911,32 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(usage.action.usage.model, undefined);
 	});
 
+	test('result keeps a background subagent inner tool pending, through the real mapResult wiring', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const registry = r();
+		const SPAWN_ID = 'toolu_spawn_bg';
+		const INNER_ID = 'toolu_inner_bg';
+
+		// A background spawn, with the subagent's inner tool attributed to it.
+		const spawn = registry.recordSpawn(SPAWN_ID, {});
+		spawn.background = true;
+		registry.noteInnerTool(INNER_ID, SPAWN_ID);
+
+		mapSDKMessageToAgentSignals(
+			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, INNER_ID, 'Bash')),
+			SESSION, TURN_ID, state, log, registry,
+		);
+
+		// The parent turn ends while the background subagent is still working.
+		mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, log, registry);
+
+		assert.ok(state.toolCalls.lookup(INNER_ID), 'the inner tool must outlive the parent turn');
+		assert.ok(
+			!log.warns.some(w => w.includes(INNER_ID)),
+			'and must not be reported as an orphan',
+		);
+	});
 	test('result drains pending tool_use entries that never received a tool_result and warns once per orphan', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
