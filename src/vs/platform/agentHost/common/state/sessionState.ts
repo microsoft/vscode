@@ -18,6 +18,7 @@ import type { IProductService } from '../../../product/common/productService.js'
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
+	MessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
@@ -329,6 +330,33 @@ export function withMessageRequestHiddenFromTranscript(message: Message, hidden:
 			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
 		},
 	};
+}
+
+/**
+ * Whether `turn` is a hidden system notification the host appended purely to
+ * carry a message (e.g. an Agent Merge status change). It never reaches the
+ * provider and never captures a checkpoint, so it can never own file changes
+ * and must be skipped when resolving a "last turn" for per-turn changes.
+ *
+ * A *visible* system notification (a background-agent completion, an Agent
+ * Merge repair prompt) is a real turn and is deliberately not matched.
+ */
+export function isHostNoticeTurn(turn: { readonly message: Message }): boolean {
+	return turn.message.origin.kind === MessageKind.SystemNotification
+		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message));
+}
+
+/** Returns the last turn id that can own file changes, or `undefined` if there is none. */
+export function lastAttributableTurnId(turns: readonly { readonly id: string; readonly message: Message }[] | undefined): string | undefined {
+	if (!turns) {
+		return undefined;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (!isHostNoticeTurn(turns[i])) {
+			return turns[i].id;
+		}
+	}
+	return undefined;
 }
 
 /** Whole-turn token consumption attributed to a single model. */

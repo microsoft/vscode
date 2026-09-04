@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-import type { IRegionContextProviderService, Region, LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
+import type { IRegionContextProviderService, RegionResult, LineRange } from '../../../../platform/languageContextProvider/common/regionContextProvider';
 import * as protocol from '../../common/serverProtocol';
 
 enum ExecutionTarget {
@@ -25,7 +25,7 @@ type RegionContextRequestArgs = Omit<protocol.RegionContextRequestArgs, 'file' |
 export class TS6RegionContextProvider implements Omit<IRegionContextProviderService, '_serviceBrand'>, vscode.Disposable {
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
-	async getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<Region[] | undefined> {
+	async getRegions(document: vscode.Uri, languageId: string, ranges: vscode.Range[], requested?: LineRange): Promise<RegionResult | undefined> {
 		if (document.scheme !== 'file' || (languageId !== 'typescript' && languageId !== 'javascript')) {
 			return undefined;
 		}
@@ -50,7 +50,7 @@ export class TS6RegionContextProvider implements Omit<IRegionContextProviderServ
 			args,
 			TS6RegionContextProvider.ExecConfig
 		);
-		return protocol.RegionContextResponse.isOk(response) && response.body.regions.length > 0 ? response.body.regions : undefined;
+		return protocol.RegionContextResponse.isOk(response) && response.body.regions.length > 0 ? response.body : undefined;
 	}
 
 	dispose(): void {

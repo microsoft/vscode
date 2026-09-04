@@ -15,6 +15,8 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
@@ -31,6 +33,7 @@ class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	layoutCount = 0;
+	primary = false;
 
 	constructor(readonly kind: ChatViewKind) {
 		super();
@@ -48,6 +51,10 @@ class TestChatView extends AbstractChatView {
 
 	focus(): void {
 		this._focusTarget.focus();
+	}
+
+	override setPrimary(primary: boolean): void {
+		this.primary = primary;
 	}
 }
 
@@ -217,6 +224,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const chatViewFactory = new TestChatViewFactory();
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
+	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+		override readonly onDidChangeEditorPartOptions = Event.None;
+		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
+	}());
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -530,7 +541,7 @@ suite('Sessions - ChatGroupsView', () => {
 	});
 
 	test('left split updates logical and accessible group order', async () => {
-		const { view } = createHarness(disposables);
+		const { view, chatViewFactory } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
 		const session = new TestActiveSession([main, secondary]);
@@ -541,11 +552,14 @@ suite('Sessions - ChatGroupsView', () => {
 		const groups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
 		const labelByChat = Object.fromEntries(groups.map(group => [
 			group.querySelector<HTMLElement>('.chat-composite-bar-tab')?.dataset.chatResource,
-			group.getAttribute('aria-label'),
+			{
+				label: group.getAttribute('aria-label'),
+				primary: chatViewFactory.views.find(candidate => candidate.element.parentElement === group.querySelector('.chat-group-view-content'))?.primary,
+			},
 		]));
 		assert.deepStrictEqual(labelByChat, {
-			[secondary.resource.toString()]: 'Chat Group 1 of 2',
-			[main.resource.toString()]: 'Chat Group 2 of 2',
+			[secondary.resource.toString()]: { label: 'Chat Group 1 of 2', primary: true },
+			[main.resource.toString()]: { label: 'Chat Group 2 of 2', primary: false },
 		});
 	});
 
@@ -1073,7 +1087,9 @@ suite('Sessions - ChatGroupsView', () => {
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
 			remoteConnectionStatus.set({ kind: 'connected' }, undefined);
-			await timeout(1_000);
+			// Past the delay, so this proves the settled connection suppresses the
+			// banner rather than the threshold simply not having elapsed.
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
 		});
@@ -1088,9 +1104,9 @@ suite('Sessions - ChatGroupsView', () => {
 			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
 			view.setSession(session, options);
 
-			await timeout(500);
+			await timeout(3_000);
 			chat.status.set(SessionStatus.Error, undefined);
-			await timeout(500);
+			await timeout(3_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1105,16 +1121,16 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 6_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 12_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const banner = readBanner(view);
 			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
-				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 				reconnectNowCalls: 1,
 			});
 		});
@@ -1125,18 +1141,44 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 7_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 13_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const beforeTick = readBanner(view);
 			await timeout(1_000);
 
 			assert.deepStrictEqual({ beforeTick, afterTick: readBanner(view) }, {
-				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 6s', action: 'Try Now' },
-				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 8s', action: 'Try Now' },
+				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 			});
+		});
+	});
+
+	test('stays quiet while a flapping transport keeps healing itself', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connected' });
+			const remoteConnectionStatus = session.remoteConnectionStatus;
+			assert.ok(remoteConnectionStatus);
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			// Every outage heals well inside the delay, so none is worth a banner.
+			const banners: boolean[] = [];
+			for (let i = 0; i < 5; i++) {
+				remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+				await timeout(2_100);
+				banners.push(readBanner(view).visible);
+				remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+				await timeout(3_700);
+				banners.push(readBanner(view).visible);
+			}
+
+			assert.deepStrictEqual(banners, [false, false, false, false, false, false, false, false, false, false]);
 		});
 	});
 
@@ -1149,7 +1191,7 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1182,7 +1224,7 @@ suite('Sessions - ChatGroupsView', () => {
 			}
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
 				connectCalls: 1,
