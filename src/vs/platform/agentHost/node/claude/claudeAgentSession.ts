@@ -1361,6 +1361,11 @@ export class ClaudeAgentSession extends Disposable {
 		return this.toolDiff.model.getTools(clientId);
 	}
 
+	/** Whether an active client of this session currently provides `toolName`. */
+	hasClientTool(toolName: string): boolean {
+		return this.toolDiff.model.ownerOf(toolName) !== undefined;
+	}
+
 	/** Remove a client's tool contribution from this session. */
 	removeClientTools(clientId: string): void {
 		this.toolDiff.model.removeClient(clientId);
