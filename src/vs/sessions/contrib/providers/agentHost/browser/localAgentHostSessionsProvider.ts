@@ -123,7 +123,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	private _automationSessionResources = new ResourceSet();
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
-	private readonly _preferredDevContainerDrafts = new Set<string>();
+	private readonly _pendingDevContainerEnablement = new Set<string>();
 	override get order(): number {
 		return -1;
 	}
@@ -309,16 +309,16 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		try {
 			const available = await this._devContainerAgentHostService.isAvailable(workspaceUri);
 			if (!available || !this._getNewSession(sessionId)) {
-				this._preferredDevContainerDrafts.delete(sessionId);
+				this._pendingDevContainerEnablement.delete(sessionId);
 				return;
 			}
 			this._devContainerAvailableDrafts.add(sessionId);
-			if (this._preferredDevContainerDrafts.delete(sessionId)) {
+			if (this._pendingDevContainerEnablement.delete(sessionId)) {
 				this._devContainerDrafts.add(sessionId);
 			}
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (error) {
-			this._preferredDevContainerDrafts.delete(sessionId);
+			this._pendingDevContainerEnablement.delete(sessionId);
 			this._logService.warn(`[${this.id}] Failed to resolve Dev Container availability for ${workspaceUri.toString()}`, error);
 		}
 	}
@@ -339,7 +339,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			this._devContainerDrafts.add(sessionId);
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} else {
-			this._preferredDevContainerDrafts.add(sessionId);
+			this._pendingDevContainerEnablement.add(sessionId);
 		}
 	}
 
@@ -351,11 +351,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			throw new Error(`Cannot enable Dev Container execution for unavailable session '${sessionId}'.`);
 		}
 		if (enabled) {
-			this._preferredDevContainerDrafts.delete(sessionId);
+			this._pendingDevContainerEnablement.delete(sessionId);
 			this._devContainerDrafts.add(sessionId);
 		} else {
 			this._devContainerDrafts.delete(sessionId);
-			this._preferredDevContainerDrafts.delete(sessionId);
+			this._pendingDevContainerEnablement.delete(sessionId);
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
@@ -544,14 +544,14 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	override deleteNewSession(sessionId: string): void {
 		this._devContainerAvailableDrafts.delete(sessionId);
 		this._devContainerDrafts.delete(sessionId);
-		this._preferredDevContainerDrafts.delete(sessionId);
+		this._pendingDevContainerEnablement.delete(sessionId);
 		super.deleteNewSession(sessionId);
 	}
 
 	protected override _disposeAllNewSessions(): void {
 		this._devContainerAvailableDrafts.clear();
 		this._devContainerDrafts.clear();
-		this._preferredDevContainerDrafts.clear();
+		this._pendingDevContainerEnablement.clear();
 		super._disposeAllNewSessions();
 	}
 
