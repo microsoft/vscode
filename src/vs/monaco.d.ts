@@ -3497,6 +3497,11 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
+		 * Control whether an indicator is rendered at the end of soft wrapped lines.
+		 * Defaults to 'none'.
+		 */
+		wordWrapIndicator?: 'none' | 'end';
+		/**
 		 * Override the `wordWrap` setting.
 		 */
 		wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -5245,19 +5250,20 @@ declare namespace monaco.editor {
 		inertialScroll = 158,
 		inlayHints = 159,
 		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		wordWrapIndicator = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173,
+		doubleClickSelectsBlock = 174
 	}
 
 	export const EditorOptions: {
@@ -5418,6 +5424,7 @@ declare namespace monaco.editor {
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
+		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, 'none' | 'end'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
