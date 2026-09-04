@@ -26,6 +26,11 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 export interface IChatViewOptions {
 }
 
+export interface ISelectWorkspaceOptions {
+	readonly providerId?: string;
+	readonly preferDevContainer?: boolean;
+}
+
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.
  * Each instance occupies a single grid leaf. Subclasses populate {@link element}
@@ -81,7 +86,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * implementation is a no-op; subclasses that host a workspace picker
 	 * (e.g. `NewChatView`) override this to forward the selection.
 	 */
-	selectWorkspace(_folderUri: URI, _providerId?: string): void {
+	selectWorkspace(_folderUri: URI, _options?: ISelectWorkspaceOptions): void {
 		// no-op by default
 	}
 

@@ -25,7 +25,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning
@@ -347,8 +347,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._currentView.value?.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+		this._currentView.value?.selectWorkspace(folderUri, options);
 	}
 
 	prefillInput(text: string): void {
