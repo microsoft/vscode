@@ -177,6 +177,8 @@
 		"editorGutter.background": "#FFFFFF",
 		"panel.background": "#FAFAFD",
 		"panel.border": "#F0F1F2",
+		"panelSection.border": "#E4E5E6",
+		"panelSectionHeader.border": "#E4E5E6",
 		"panelTitle.activeBorder": "#000000",
 		"panelTitle.activeForeground": "#202020",
 		"panelTitle.inactiveForeground": "#606060",

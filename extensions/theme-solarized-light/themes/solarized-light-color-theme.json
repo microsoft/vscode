@@ -451,6 +451,8 @@
 		// Workbench: Panel
 		// "panel.background": "",
 		"panel.border": "#DDD6C1",
+		"panelSection.border": "#DDD6C1",
+		"panelSectionHeader.border": "#DDD6C1",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
 		// "panelTitle.inactiveForeground": "",
@@ -458,6 +460,7 @@
 		"sideBar.background": "#EEE8D5",
 		"sideBarTitle.foreground": "#586E75",
 		// "sideBarSectionHeader.background": "",
+		"sideBarSectionHeader.border": "#DDD6C1",
 		// Workbench: Status Bar
 		"statusBar.foreground": "#586E75",
 		"statusBar.background": "#EEE8D5",

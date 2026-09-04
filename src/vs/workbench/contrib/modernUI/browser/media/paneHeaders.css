@@ -45,11 +45,17 @@
 }
 
 .modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header::before {
-	background-color: var(--vscode-sideBarSectionHeader-border);
+	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-surface-border));
 }
 
 .modern-ui .part.panel .monaco-pane-view .pane > .pane-header::before {
-	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border));
+	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border, var(--vscode-surface-border)));
+}
+
+:is(.hc-black, .hc-light).modern-ui .monaco-pane-view {
+	--vscode-sideBarSectionHeader-border: var(--vscode-contrastBorder);
+	--vscode-panelSectionHeader-border: var(--vscode-contrastBorder);
+	--vscode-panelSection-border: var(--vscode-contrastBorder);
 }
 
 /*

@@ -172,6 +172,8 @@
 		"editorOverviewRuler.warningForeground": "#e5ba7d",
 		"panel.background": "#191A1B",
 		"panel.border": "#2A2B2C",
+		"panelSection.border": "#2A2B2C",
+		"panelSectionHeader.border": "#2A2B2C",
 		"panelTitle.activeBorder": "#3994BC",
 		"panelTitle.activeForeground": "#bfbfbf",
 		"panelTitle.inactiveForeground": "#8C8C8C",
