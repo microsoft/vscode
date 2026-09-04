@@ -120,14 +120,14 @@
 		"editor.wordHighlightStrongBackground": "#27678280",
 		"editor.findMatchBackground": "#27678290",
 		"editor.findMatchHighlightBackground": "#27678280",
-		"editor.findRangeHighlightBackground": "#242526",
-		"editor.hoverHighlightBackground": "#242526",
+		"editor.findRangeHighlightBackground": "#FFFFFF13",
+		"editor.hoverHighlightBackground": "#FFFFFF13",
 		"editor.lineHighlightBackground": "#242526",
-		"editor.rangeHighlightBackground": "#242526",
+		"editor.rangeHighlightBackground": "#FFFFFF13",
 		"editorLink.activeForeground": "#3a94bc",
 		"editorWhitespace.foreground": "#8C8C8C4D",
-		"editorIndentGuide.background": "#8384854D",
-		"editorIndentGuide.activeBackground": "#838485",
+		"editorIndentGuide.background1": "#8384854D",
+		"editorIndentGuide.activeBackground1": "#838485",
 		"editorRuler.foreground": "#848484",
 		"editorCodeLens.foreground": "#8C8C8C",
 		"editorBracketMatch.background": "#3994BC55",
@@ -252,14 +252,6 @@
 		"gitDecoration.stageDeletedResourceForeground": "#f48771",
 		"quickInputTitle.background": "#202122",
 		"commandCenter.activeBorder": "#333536",
-		"quickInput.border": "#333536",
-		"gauge.foreground": "#59a4f9",
-		"gauge.background": "#58A4F94D",
-		"gauge.border": "#2A2C2E",
-		"gauge.warningForeground": "#e5ba7d",
-		"gauge.warningBackground": "#E3B97E4D",
-		"gauge.errorForeground": "#f48771",
-		"gauge.errorBackground": "#F287724D",
 		"chat.requestBubbleBackground": "#ffffff13",
 		"chat.requestBubbleHoverBackground": "#ffffff22",
 		"chat.inputWorkingBorderColor1": "#297AA0",
@@ -465,9 +457,7 @@
 			"scope": "carriage-return",
 			"settings": {
 				"foreground": "#f0f6fc",
-				"background": "#8b1111",
-				"fontStyle": "italic underline",
-				"content": "^M"
+				"fontStyle": "italic underline"
 			}
 		},
 		{
@@ -598,8 +588,7 @@
 				"punctuation.definition.deleted"
 			],
 			"settings": {
-				"foreground": "#ffa198",
-				"background": "#490202"
+				"foreground": "#ffa198"
 			}
 		},
 		{
@@ -617,8 +606,7 @@
 				"punctuation.definition.inserted"
 			],
 			"settings": {
-				"foreground": "#7ee787",
-				"background": "#04260f"
+				"foreground": "#7ee787"
 			}
 		},
 		{
@@ -627,8 +615,7 @@
 				"punctuation.definition.changed"
 			],
 			"settings": {
-				"foreground": "#ffa657",
-				"background": "#5a1e02"
+				"foreground": "#ffa657"
 			}
 		},
 		{
@@ -637,8 +624,7 @@
 				"markup.untracked"
 			],
 			"settings": {
-				"foreground": "#0d1117",
-				"background": "#79c0ff"
+				"foreground": "#0d1117"
 			}
 		},
 		{

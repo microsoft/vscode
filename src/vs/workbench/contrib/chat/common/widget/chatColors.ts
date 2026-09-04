@@ -76,9 +76,9 @@ export const chatEditedFileForeground = registerColor(
 
 export const chatRequestCodeBorder = registerColor('chat.requestCodeBorder', { dark: '#004972B8', light: '#0e639c40', hcDark: null, hcLight: null }, localize('chat.requestCodeBorder', 'Border color of code blocks within the chat request bubble.'), true);
 
-export const chatRequestBubbleBackground = registerColor('chat.requestBubbleBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('chat.requestBubbleBackground', "Background color of the chat request bubble."), true);
+export const chatRequestBubbleBackground = registerColor('chat.requestBubbleBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, localize('chat.requestBubbleBackground', "Background color of the chat request bubble."));
 
-export const chatRequestBubbleHoverBackground = registerColor('chat.requestBubbleHoverBackground', { dark: transparent(editorSelectionBackground, 0.6), light: transparent(editorSelectionBackground, 0.6), hcDark: null, hcLight: null }, localize('chat.requestBubbleHoverBackground', 'Background color of the chat request bubble on hover.'), true);
+export const chatRequestBubbleHoverBackground = registerColor('chat.requestBubbleHoverBackground', { dark: transparent(editorSelectionBackground, 0.6), light: transparent(editorSelectionBackground, 0.6), hcDark: null, hcLight: null }, localize('chat.requestBubbleHoverBackground', 'Background color of the chat request bubble on hover.'));
 
 export const chatCheckpointSeparator = registerColor('chat.checkpointSeparator',
 	{ dark: '#585858', light: '#a9a9a9', hcDark: '#a9a9a9', hcLight: '#a5a5a5' },
@@ -107,22 +107,22 @@ export const chatFindMatchBackground = registerColor(
 export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
-	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
+	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'));
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
 	{ dark: buttonBackground, light: buttonBackground, hcDark: '#FFFFFF', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
+	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'));
 
 export const chatInputWorkingBorderColor2 = registerColor(
 	'chat.inputWorkingBorderColor2',
 	{ dark: darken(buttonBackground, 0.5), light: darken(buttonBackground, 0.3), hcDark: '#A0A0A0', hcLight: '#555555' },
-	localize('chat.inputWorkingBorderColor2', 'Secondary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor2', 'Secondary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'));
 
 export const chatInputWorkingBorderColor3 = registerColor(
 	'chat.inputWorkingBorderColor3',
 	{ dark: lighten(buttonBackground, 0.5), light: lighten(buttonBackground, 0.3), hcDark: '#000000', hcLight: '#000000' },
-	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'), true);
+	localize('chat.inputWorkingBorderColor3', 'Tertiary accent color used by other animated chat input affordances. Not used by the in-flight chat input border.'));
 
 // --- Voice Mode ambient glow -------------------------------------------------
 // The listening / processing / speaking glows are derived from a single base

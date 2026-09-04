@@ -126,14 +126,14 @@
 		"editor.wordHighlightStrongBackground": "#0069CC26",
 		"editor.findMatchBackground": "#0069CC40",
 		"editor.findMatchHighlightBackground": "#0069CC1A",
-		"editor.findRangeHighlightBackground": "#EAEAEA",
-		"editor.hoverHighlightBackground": "#EAEAEA",
+		"editor.findRangeHighlightBackground": "#00000015",
+		"editor.hoverHighlightBackground": "#00000015",
 		"editor.lineHighlightBackground": "#EAEAEA40",
-		"editor.rangeHighlightBackground": "#EAEAEA",
+		"editor.rangeHighlightBackground": "#00000015",
 		"editorLink.activeForeground": "#0069CC",
 		"editorWhitespace.foreground": "#60606040",
-		"editorIndentGuide.background": "#F7F7F740",
-		"editorIndentGuide.activeBackground": "#EEEEEE",
+		"editorIndentGuide.background1": "#F7F7F740",
+		"editorIndentGuide.activeBackground1": "#EEEEEE",
 		"editorRuler.foreground": "#F7F7F7",
 		"editorCodeLens.foreground": "#606060",
 		"editorBracketMatch.background": "#0069CC40",
@@ -256,14 +256,6 @@
 		"gitDecoration.stageModifiedResourceForeground": "#667309",
 		"gitDecoration.stageDeletedResourceForeground": "#ad0707",
 		"commandCenter.activeBorder": "#D8D8D8",
-		"quickInput.border": "#D8D8D8",
-		"gauge.foreground": "#0069CC",
-		"gauge.background": "#0069CC40",
-		"gauge.border": "#F0F1F2",
-		"gauge.warningForeground": "#B69500",
-		"gauge.warningBackground": "#B6950040",
-		"gauge.errorForeground": "#ad0707",
-		"gauge.errorBackground": "#ad070740",
 		"statusBarItem.prominentHoverForeground": "#FFFFFF",
 		"quickInputTitle.background": "#FAFAFD",
 		"chat.requestBubbleBackground": "#EEF4FB",
@@ -472,9 +464,7 @@
 			"scope": "carriage-return",
 			"settings": {
 				"fontStyle": "italic underline",
-				"background": "#cf222e",
-				"foreground": "#f6f8fa",
-				"content": "^M"
+				"foreground": "#f6f8fa"
 			}
 		},
 		{
@@ -605,7 +595,6 @@
 				"punctuation.definition.deleted"
 			],
 			"settings": {
-				"background": "#ffebe9",
 				"foreground": "#82071e"
 			}
 		},
@@ -624,7 +613,6 @@
 				"punctuation.definition.inserted"
 			],
 			"settings": {
-				"background": "#dafbe1",
 				"foreground": "#116329"
 			}
 		},
@@ -634,7 +622,6 @@
 				"punctuation.definition.changed"
 			],
 			"settings": {
-				"background": "#ffd8b5",
 				"foreground": "#953800"
 			}
 		},
@@ -644,8 +631,7 @@
 				"markup.untracked"
 			],
 			"settings": {
-				"foreground": "#eaeef2",
-				"background": "#0550ae"
+				"foreground": "#eaeef2"
 			}
 		},
 		{
