@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -155,6 +157,44 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				['4ch', '3ch'],
 			],
 		});
+	});
+
+	test('drops row focus and selection when focus leaves the list', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		// The list has to live in the document so that focus can actually move.
+		const container = mainWindow.document.createElement('div');
+		const outside = mainWindow.document.createElement('div');
+		outside.tabIndex = 0;
+		mainWindow.document.body.append(container, outside);
+		store.add(toDisposable(() => {
+			container.remove();
+			outside.remove();
+		}));
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
+			emptySessionEntryDiff(URI.file('/file.ts'), URI.file('/file.ts')),
+		]);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService));
+
+		const row = container.querySelector<HTMLElement>('.monaco-list-row');
+		assert.ok(row);
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		const readState = () => ({ focused: row.classList.contains('focused'), selected: row.classList.contains('selected') });
+		const states = [readState()];
+
+		outside.focus();
+		// The focus tracker reports the blur on the next tick.
+		await timeout(0);
+		states.push(readState());
+
+		assert.deepStrictEqual(states, [
+			{ focused: true, selected: true },
+			{ focused: false, selected: false },
+		]);
 	});
 
 	test('opens row diffs using snapshots and missing create or delete sides', () => {
