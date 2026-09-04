@@ -301,6 +301,24 @@ suite('claudeReplayMapper', () => {
 			}
 		}
 	});
+
+	test('Fixture 5d: an Agent that spawned and then failed keeps its subagent marker', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'spawn subagent'),
+			makeAssistantToolUse('a1', 'tu1', 'Agent', { description: 'do thing' }),
+			makeUserToolResult('synthetic1', 'tu1', 'agentId: a1b2c3d4 (use SendMessage) the subagent ran and then failed', true),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		const toolCallPart = turns[0].responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
+		assert.ok(toolCallPart && toolCallPart.kind === ResponsePartKind.ToolCall);
+		if (toolCallPart.kind === ResponsePartKind.ToolCall && toolCallPart.toolCall.status === ToolCallStatus.Completed) {
+			assert.strictEqual(toolCallPart.toolCall.success, false);
+			const hasSubagentMarker = toolCallPart.toolCall.content?.some(c => c.type === ToolResultContentType.Subagent) ?? false;
+			assert.strictEqual(hasSubagentMarker, true, 'a subagent that ran still has a transcript, even when it failed');
+		}
+	});
 	test('Fixture 6: tail Turn with orphan tool_use is Cancelled', () => {
 		const messages: SessionMessage[] = [
 			makeUser('u1', 'do work'),
