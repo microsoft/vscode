@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { incrementFileName } from '../../browser/fileActions.js';
+import { incrementFileName, validateActiveFilePath } from '../../browser/fileActions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Files - Increment file name simple', () => {
 
@@ -324,6 +326,46 @@ suite('Files - Increment file name smart', () => {
 		const name = '1-test';
 		const result = incrementFileName(name, true, 'smart');
 		assert.strictEqual(result, '2-test');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Files - validateActiveFilePath', () => {
+
+	const pathService = new TestPathService();
+	const baseResource = URI.file('/workspace');
+
+	test('returns undefined for valid relative path', () => {
+		assert.strictEqual(validateActiveFilePath(pathService, baseResource, 'src/file.ts'), undefined);
+	});
+
+	test('returns undefined for simple filename', () => {
+		assert.strictEqual(validateActiveFilePath(pathService, baseResource, 'file.ts'), undefined);
+	});
+
+	test('returns undefined for empty input', () => {
+		assert.strictEqual(validateActiveFilePath(pathService, baseResource, ''), undefined);
+	});
+
+	test('returns error for absolute path starting with /', () => {
+		assert.ok(validateActiveFilePath(pathService, baseResource, '/absolute/path.ts'));
+	});
+
+	test('returns error for absolute path starting with backslash', () => {
+		assert.ok(validateActiveFilePath(pathService, baseResource, '\\absolute\\path.ts'));
+	});
+
+	test('returns error for Windows drive letter path', () => {
+		assert.ok(validateActiveFilePath(pathService, baseResource, 'C:\\Users\\file.ts'));
+	});
+
+	test('returns error for lowercase drive letter path', () => {
+		assert.ok(validateActiveFilePath(pathService, baseResource, 'c:\\Users\\file.ts'));
+	});
+
+	test('returns undefined for path with nested directories', () => {
+		assert.strictEqual(validateActiveFilePath(pathService, baseResource, 'src/deep/nested/file.ts'), undefined);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
