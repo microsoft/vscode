@@ -8,11 +8,13 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -21,6 +23,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
@@ -29,6 +32,27 @@ const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
+
+/**
+ * Whether a session type identifies a Copilot agent session.
+ *
+ * Two provider ids qualify, because two different hosts serve the Copilot
+ * agent: `copilotcli` for the agent host bundled with VS Code, and `copilot`
+ * for the Copilot host (what a cloud sandbox runs). Session types are either
+ * the bare provider id for a local session or `remote-<authority>-<provider>`
+ * for a remote one.
+ *
+ * Used to confine Copilot-specific host extensions to Copilot sessions. A
+ * remote agent host advertises every agent it hosts, so the connection alone
+ * says nothing about which agent a given session runs.
+ */
+export function isCopilotAgentSessionType(sessionType: string | undefined): boolean {
+	if (!sessionType) {
+		return false;
+	}
+	const provider = parseRemoteAgentHostHarness(sessionType) ?? sessionType;
+	return provider === CopilotCLISessionType.id || provider === CLOUD_SANDBOX_AGENT_PROVIDER;
+}
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -100,6 +124,13 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!session) {
 			return [ChatPermissionLevel.Default];
 		}
+		// A host with no `autoApprove` property drives approvals through the
+		// approve-all extension, which is a boolean — so it can offer only the
+		// two levels that boolean can express. `Assisted` has no representation
+		// there because the risk judge is not addressable over that call.
+		if (this._usesApproveAll(session)) {
+			return [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove];
+		}
 		const provider = this._getProvider(session.providerId);
 		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
@@ -137,6 +168,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
@@ -183,6 +215,15 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!this.availableLevels.includes(level)) {
 			return;
 		}
+		if (this._usesApproveAll(session)) {
+			// Nothing is recorded here — the provider records only what the host
+			// confirms, and fires its change event so the picker re-derives.
+			// A rejected call therefore leaves the chip on the previous level
+			// instead of asserting one that never took effect.
+			provider.setSessionApproveAll(session.sessionId, level === ChatPermissionLevel.AutoApprove)
+				.catch(err => this._logService.warn(`[AgentHostPermissionPicker] Failed to set approve-all: ${err}`));
+			return;
+		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
 	}
@@ -210,6 +251,13 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return ChatPermissionLevel.Default;
 		}
+		if (this._usesApproveAll(session)) {
+			// The confirmed value, not the requested one: the provider records
+			// it only after the host accepts.
+			return provider.getSessionApproveAll(session.sessionId)
+				? ChatPermissionLevel.AutoApprove
+				: ChatPermissionLevel.Default;
+		}
 		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
 		// Defensive: a legacy `autopilot` value on the autoApprove axis (from
 		// before Autopilot moved onto the mode axis) is no longer a valid
@@ -231,8 +279,41 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return false;
 		}
+		if (this._usesApproveAll(session)) {
+			return true;
+		}
 		const schema = provider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		return !!schema && isWellKnownAutoApproveSchema(schema);
+	}
+
+	/**
+	 * Whether this session's approvals are driven by the approve-all extension
+	 * rather than a config property.
+	 *
+	 * Gated on the Copilot agent specifically. The extension is a Copilot host
+	 * extension, so that is exactly the set of sessions where it means anything
+	 * — and gating positively fails closed: an agent this client has never heard
+	 * of gets no picker rather than a Copilot-shaped request it never asked for.
+	 * Agents with their own approvals axis (Claude, Codex) are excluded by the
+	 * same rule and keep their dedicated pickers.
+	 *
+	 * The schema check still runs on top, because the Copilot agent also runs on
+	 * hosts that *do* declare an approvals property — those keep the richer
+	 * config-driven level set instead of being narrowed to a boolean.
+	 *
+	 * Requires the config to be resolved first: before that the schema is
+	 * legitimately empty, and treating "not yet known" as "no approvals
+	 * property" would flash the two-level picker at a session that turns out to
+	 * offer three.
+	 */
+	private _usesApproveAll(session: IActiveSession): boolean {
+		const provider = this._getProvider(session.providerId);
+		const config = provider?.getSessionConfig(session.sessionId);
+		if (!provider || !config || !provider.canRequestSessionApproveAll() || !isCopilotAgentSessionType(session.sessionType)) {
+			return false;
+		}
+		const schema = config.schema.properties[SessionConfigKey.AutoApprove];
+		return !schema || !isWellKnownAutoApproveSchema(schema);
 	}
 
 	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {

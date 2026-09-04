@@ -207,6 +207,23 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+
+	/**
+	 * Whether this connection can issue the approve-all extension request. Named
+	 * for what it checks: it confirms the connection implements the optional
+	 * method, not that the host handles it. Callers pair it with the absence of
+	 * an approvals property in the session config schema, which is the real
+	 * discriminator.
+	 */
+	canRequestSessionApproveAll(): boolean;
+	/** The last approve-all value this client successfully applied to a session. */
+	getSessionApproveAll(sessionId: string): boolean;
+	/**
+	 * Applies approve-all to a session. Resolves once the host has accepted;
+	 * rejects otherwise, leaving the recorded value untouched so the UI keeps
+	 * showing what is actually in effect.
+	 */
+	setSessionApproveAll(sessionId: string, enabled: boolean): Promise<void>;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
 	/** Returns the persisted Agent Merge state for a running session. */

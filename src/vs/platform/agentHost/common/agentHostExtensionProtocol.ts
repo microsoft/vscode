@@ -16,6 +16,24 @@ export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconc
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 
+/**
+ * Copilot host extension that toggles a session's approve-all permission mode.
+ *
+ * Unlike the `vscode/*` methods above this one is defined by the Copilot host
+ * rather than by us, so the name keeps its `extensions/` vendor namespace
+ * verbatim. Clients use it as a fallback for a host that declares no approvals
+ * property in its session config: without such a property there is nothing for
+ * `session/configChanged` to address, so approvals cannot be driven the way
+ * they are for a host that declares one.
+ *
+ * Two limits are worth knowing before building on it. It carries a boolean, so
+ * it can express only "ask" and "approve everything" — not the richer level set
+ * a config property can. And the resulting state is not reported back in
+ * session state, so a client that wants to display the current value must
+ * remember what it last applied.
+ */
+export const SetSessionApproveAllExtensionMethod = 'extensions/setSessionApproveAll';
+
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
@@ -72,6 +90,10 @@ export interface IAgentHostExtensionCommandMap {
 	};
 	[SetAgentHostDetachedWorktreeArchivedExtensionMethod]: {
 		params: { handle: string; archived: boolean };
+		result: void;
+	};
+	[SetSessionApproveAllExtensionMethod]: {
+		params: { channel: string; enabled: boolean };
 		result: void;
 	};
 	[DeleteAgentHostDetachedWorktreeExtensionMethod]: {
