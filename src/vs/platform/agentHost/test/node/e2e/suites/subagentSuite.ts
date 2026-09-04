@@ -94,8 +94,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
 
-	// The bundled runtime currently rejects the SDK's optional displayName field; keep this executable in known-issue recording until that runtime fix ships.
-	(context.runKnownIssueTests && copilotCustomAgentTest ? test : test.skip)('custom agent without a display name completes as a subagent', async function () {
+	(copilotCustomAgentTest ? test : test.skip)('custom agent without a display name completes as a subagent', async function () {
 		this.timeout(180_000);
 
 		const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-');
@@ -114,20 +113,20 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.match(markdownText(snapshot.snapshot?.state as ChatState | undefined), /CUSTOM_AGENT_CHILD_OK/);
 	});
 
-	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent has no transcript', async function () {
+	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent', async function () {
 		this.timeout(240_000);
 
-		const sessionUri = await createCustomAgentSession('ahp-missing-custom-agent-transcript-');
+		const sessionUri = await createCustomAgentSession('ahp-custom-agent-restore-');
 		const parentChat = buildDefaultChatUri(sessionUri);
 		const setup = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
-			'turn-create-missing-subagent-transcript',
+			'turn-create-custom-subagent',
 			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".',
 			2,
 		);
 		assert.match(setup.responseText, /SETUP_DONE/);
-		assert.ok(subagentChatFromReceived(parentChat), 'the failed custom subagent should remain in the parent chat catalog');
+		assert.ok(subagentChatFromReceived(parentChat), 'the custom subagent should remain in the parent chat catalog');
 
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
 		const liveResponsePartIds = responsePartIds(liveParent.turns);
@@ -150,7 +149,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		}, 50, 100);
 
 		context.client.clearReceived();
-		dispatchTurn(context.client, sessionUri, 'turn-after-missing-subagent-transcript', 'Reply exactly "PARENT_RECOVERED".', 3);
+		dispatchTurn(context.client, sessionUri, 'turn-after-custom-subagent', 'Reply exactly "PARENT_RECOVERED".', 3);
 		const started = await context.client.waitForNotification(n => {
 			if (!isActionNotification(n, 'chat/turnStarted')) {
 				return false;
@@ -158,7 +157,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			const envelope = getActionEnvelope(n);
 			return envelope.channel === parentChat
 				&& envelope.action.type === ActionType.ChatTurnStarted
-				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+				&& envelope.action.turnId === 'turn-after-custom-subagent';
 		}, 30_000);
 		assert.strictEqual(getActionEnvelope(started).rejectionReason, undefined);
 		await context.client.waitForNotification(n => {
@@ -168,7 +167,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			const envelope = getActionEnvelope(n);
 			return envelope.channel === parentChat
 				&& envelope.action.type === ActionType.ChatTurnComplete
-				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+				&& envelope.action.turnId === 'turn-after-custom-subagent';
 		}, 90_000);
 		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
 	});
