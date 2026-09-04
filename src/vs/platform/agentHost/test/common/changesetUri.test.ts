@@ -27,6 +27,7 @@ import {
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
 	resolveChangesetUriTemplate,
+	selectDefaultChangeset,
 } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
@@ -149,6 +150,22 @@ suite('changesetUri', () => {
 	test('resolveChangesetUriTemplate does not double up separators', () => {
 		assert.strictEqual(resolveChangesetUriTemplate(sessionUri, '/changeset/branch'), `${sessionUri}/changeset/branch`);
 		assert.strictEqual(resolveChangesetUriTemplate(`${sessionUri}/`, 'changeset/branch'), `${sessionUri}/changeset/branch`);
+	});
+
+	test('selectDefaultChangeset follows the configured kind and falls back to catalogue order', () => {
+		const changesets = [
+			{ label: 'Session', changeKind: ChangesetKind.Session },
+			{ label: 'Branch', changeKind: ChangesetKind.Branch },
+		];
+		assert.deepStrictEqual({
+			implicit: selectDefaultChangeset(changesets)?.label,
+			explicit: selectDefaultChangeset(changesets, ChangesetKind.Session)?.label,
+			missing: selectDefaultChangeset(changesets, ChangesetKind.Uncommitted)?.label,
+		}, {
+			implicit: 'Branch',
+			explicit: 'Session',
+			missing: 'Session',
+		});
 	});
 
 	test('predicates match the parser semantics', () => {

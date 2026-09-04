@@ -14,12 +14,17 @@ import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -35,8 +40,12 @@ class TestChatView extends AbstractChatView {
 	layoutCount = 0;
 	primary = false;
 
-	constructor(readonly kind: ChatViewKind) {
+	constructor(
+		readonly kind: ChatViewKind,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
 		super();
+		this._register(contextKeyService.createScoped(this.element));
 		this.element.dataset.kind = kind;
 		this.element.appendChild(this._focusTarget);
 	}
@@ -61,16 +70,17 @@ class TestChatView extends AbstractChatView {
 class TestChatViewFactory extends mock<IChatViewFactory>() {
 	readonly views: TestChatView[] = [];
 
-	override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession');
+	override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
 	}
 
-	override createChatView(): AbstractChatView {
-		return this._createView('chat');
+	override createChatView(instantiationService?: IInstantiationService): AbstractChatView {
+		return this._createView('chat', instantiationService);
 	}
 
-	private _createView(kind: ChatViewKind): TestChatView {
-		const view = new TestChatView(kind);
+	private _createView(kind: ChatViewKind, instantiationService?: IInstantiationService): TestChatView {
+		assert.ok(instantiationService);
+		const view = instantiationService.createInstance(TestChatView, kind);
 		this.views.push(view);
 		return view;
 	}
@@ -222,6 +232,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
+	instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService())));
 	const sessionsProvidersService = new TestSessionsProvidersService();
 	instantiationService.stub(IChatViewFactory, chatViewFactory);
 	instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
@@ -348,6 +359,69 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			activeChat: main.resource.toString(),
 			focusedGroup: main.resource.toString(),
+		});
+	});
+
+	test('focused group publishes its rename target before the session active chat updates', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		view.focusAdjacentGroup('next');
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		const beforeOpenSettles = {
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		};
+		gate.complete();
+		await gate.p;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			beforeOpenSettles,
+			sessionActiveChatAfterOpen: session.activeChat.get().resource.toString(),
+		}, {
+			beforeOpenSettles: {
+				sessionActiveChat: main.resource.toString(),
+				focusedChat: secondary.resource.toString(),
+				focusedChatClaimsRename: true,
+			},
+			sessionActiveChatAfterOpen: secondary.resource.toString(),
+		});
+	});
+
+	test('focused DOM group remains the rename target when session reconciliation promotes another group', async () => {
+		const { instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.focusAdjacentGroup('previous');
+
+		await sessionsService.openChat(session, secondary.resource);
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusedContext = contextKeyService.getContext(mainWindow.document.activeElement);
+		assert.deepStrictEqual({
+			sessionActiveChat: session.activeChat.get().resource.toString(),
+			focusedChat: view.getFocusedChat()?.resource.toString(),
+			focusedChatClaimsRename: focusedContext.getValue<boolean>(SessionFocusedChatIsRenameTargetContext.key),
+		}, {
+			sessionActiveChat: secondary.resource.toString(),
+			focusedChat: main.resource.toString(),
+			focusedChatClaimsRename: false,
 		});
 	});
 
@@ -1087,7 +1161,9 @@ suite('Sessions - ChatGroupsView', () => {
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
 			remoteConnectionStatus.set({ kind: 'connected' }, undefined);
-			await timeout(1_000);
+			// Past the delay, so this proves the settled connection suppresses the
+			// banner rather than the threshold simply not having elapsed.
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
 		});
@@ -1102,9 +1178,9 @@ suite('Sessions - ChatGroupsView', () => {
 			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
 			view.setSession(session, options);
 
-			await timeout(500);
+			await timeout(3_000);
 			chat.status.set(SessionStatus.Error, undefined);
-			await timeout(500);
+			await timeout(3_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1119,16 +1195,16 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 6_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 12_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const banner = readBanner(view);
 			view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
 
 			assert.deepStrictEqual({ banner, reconnectNowCalls: provider.reconnectNowCalls }, {
-				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				banner: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 				reconnectNowCalls: 1,
 			});
 		});
@@ -1139,18 +1215,44 @@ suite('Sessions - ChatGroupsView', () => {
 			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 			const provider = new TestAgentHostProvider();
 			sessionsProvidersService.provider = provider;
-			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 7_000 });
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'reconnecting', nextAttemptAt: Date.now() + 13_000 });
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(5_500);
 			const beforeTick = readBanner(view);
 			await timeout(1_000);
 
 			assert.deepStrictEqual({ beforeTick, afterTick: readBanner(view) }, {
-				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 6s', action: 'Try Now' },
-				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 5s', action: 'Try Now' },
+				beforeTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 8s', action: 'Try Now' },
+				afterTick: { visible: true, message: 'Reconnecting to WSL: Ubuntu in 7s', action: 'Try Now' },
 			});
+		});
+	});
+
+	test('stays quiet while a flapping transport keeps healing itself', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'connected' });
+			const remoteConnectionStatus = session.remoteConnectionStatus;
+			assert.ok(remoteConnectionStatus);
+			view.setSession(session, options);
+			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
+
+			// Every outage heals well inside the delay, so none is worth a banner.
+			const banners: boolean[] = [];
+			for (let i = 0; i < 5; i++) {
+				remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
+				await timeout(2_100);
+				banners.push(readBanner(view).visible);
+				remoteConnectionStatus.set({ kind: 'connected' }, undefined);
+				await timeout(3_700);
+				banners.push(readBanner(view).visible);
+			}
+
+			assert.deepStrictEqual(banners, [false, false, false, false, false, false, false, false, false, false]);
 		});
 	});
 
@@ -1163,7 +1265,7 @@ suite('Sessions - ChatGroupsView', () => {
 			view.setSession(session, options);
 			chatViewFactory.views[chatViewFactory.views.length - 1].hasVisibleTranscriptContent.set(true, undefined);
 
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), {
 				visible: true,
@@ -1196,7 +1298,7 @@ suite('Sessions - ChatGroupsView', () => {
 			}
 
 			remoteConnectionStatus.set({ kind: 'reconnecting' }, undefined);
-			await timeout(1_000);
+			await timeout(6_000);
 
 			assert.deepStrictEqual({ connectCalls: provider.connectCalls, banner: readBanner(view) }, {
 				connectCalls: 1,

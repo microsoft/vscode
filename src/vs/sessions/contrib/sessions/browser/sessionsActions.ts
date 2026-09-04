@@ -19,17 +19,20 @@ import { InputFocusedContext } from '../../../../platform/contextkey/common/cont
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionHasSideChatsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -55,7 +58,8 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -535,12 +539,100 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
-// -- Chat tab navigation, new chat, & close (within the active session's tab strip) --
+// -- Chat tab navigation, rename, new chat, & close (within the active session's tab strip) --
 
 // These chords sit just above the session-level navigation/close commands so
 // they win while a multi-chat session is focused, falling back to the
 // session-level commands when the tab strip is not shown.
 const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
+interface IChatRenameContext {
+	readonly session: ISession;
+	readonly chat: IChat;
+}
+
+function getSessionsList(accessor: ServicesAccessor): SessionsList | undefined {
+	return accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
+}
+
+function getChatRenameContext(accessor: ServicesAccessor, context?: IChatRenameContext): IChatRenameContext | undefined {
+	if (context) {
+		return context;
+	}
+
+	const sessionsList = getSessionsList(accessor);
+	const focusedChat = sessionsList?.getFocusedChatItem();
+	if (focusedChat) {
+		return focusedChat;
+	}
+	if (sessionsList?.getFocusedSessions() !== undefined) {
+		return undefined;
+	}
+
+	const sessionView = accessor.get(ISessionsPartService).getFocusedSessionView();
+	const session = sessionView?.getSession();
+	const chat = sessionView?.getFocusedChat();
+	return session && chat ? { session, chat } : undefined;
+}
+
+async function renameChatWithQuickInput(accessor: ServicesAccessor, context: IChatRenameContext): Promise<void> {
+	const extUri = accessor.get(IUriIdentityService).extUri;
+	const quickInputService = accessor.get(IQuickInputService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const { session, chat } = context;
+	const resource = chat.resource;
+	const initialChat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (!initialChat || extUri.isEqual(resource, session.mainChat.get().resource) || initialChat.status.get() === SessionStatus.Untitled || !getChatCapabilities(initialChat, session, undefined).canRename) {
+		return;
+	}
+
+	const initialTitle = initialChat.title.get().trim() || localize('untitledChat', "Untitled Chat");
+	const newTitle = await quickInputService.input({
+		value: initialTitle,
+		prompt: localize('renameChat.prompt', "New chat title"),
+		validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
+	});
+	const trimmedTitle = newTitle?.trim();
+	if (!trimmedTitle || trimmedTitle === initialTitle) {
+		return;
+	}
+
+	const currentChat = session.chats.get().find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (!currentChat || extUri.isEqual(resource, session.mainChat.get().resource) || currentChat.status.get() === SessionStatus.Untitled || !getChatCapabilities(currentChat, session, undefined).canRename) {
+		return;
+	}
+
+	await sessionsManagementService.renameChat(session, resource, trimmedTitle);
+}
+
+registerAction2(class RenameChatAction extends Action2 {
+	constructor() {
+		super({
+			id: RENAME_CHAT_COMMAND_ID,
+			title: localize2('renameActiveChat', "Rename..."),
+			f1: false,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				primary: KeyCode.F2,
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(ChatContextKeys.inChatSession, SessionFocusedChatIsRenameTargetContext),
+						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext),
+					),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatRenameContext): Promise<void> {
+		const target = getChatRenameContext(accessor, context);
+		if (target) {
+			await renameChatWithQuickInput(accessor, target);
+		}
+	}
+});
 
 registerAction2(class RenameSessionListChatAction extends Action2 {
 	constructor() {
@@ -558,21 +650,10 @@ registerAction2(class RenameSessionListChatAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
-		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canRename || context.chat.status.get() === SessionStatus.Untitled) {
+		if (!context) {
 			return;
 		}
-		const quickInputService = accessor.get(IQuickInputService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const currentTitle = context.chat.title.get().trim() || localize('untitledChat', "Untitled Chat");
-		const newTitle = await quickInputService.input({
-			value: currentTitle,
-			prompt: localize('renameChat.prompt', "New chat title"),
-			validateInput: async value => value.trim() ? undefined : localize('renameChat.empty', "Title cannot be empty"),
-		});
-		const trimmedTitle = newTitle?.trim();
-		if (trimmedTitle && trimmedTitle !== currentTitle) {
-			await sessionsManagementService.renameChat(context.session, context.chat.resource, trimmedTitle);
-		}
+		await renameChatWithQuickInput(accessor, context);
 	}
 });
 

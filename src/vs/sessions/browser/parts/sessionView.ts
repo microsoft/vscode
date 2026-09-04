@@ -14,6 +14,7 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../services/sessions/common/session.js';
 import { AbstractChatView, IChatViewOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
@@ -282,6 +283,14 @@ export class SessionView extends Disposable implements ISerializableView {
 	 */
 	startTitleEditing(): boolean {
 		return this._isVisible && this._header.startTitleEditing();
+	}
+
+	getFocusedChat(): IChat | undefined {
+		return this._groupsView.getFocusedChat();
+	}
+
+	getSession(): IActiveSession | undefined {
+		return this._currentSession;
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {

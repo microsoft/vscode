@@ -4144,6 +4144,22 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "",
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,

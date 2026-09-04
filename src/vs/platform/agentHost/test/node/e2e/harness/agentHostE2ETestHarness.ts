@@ -1123,9 +1123,12 @@ export class AgentHostE2EServerLease {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		if (client) {
+			// A session left unrestored after a host restart is restored on subscribe.
+			const restoreTimeout = getAgentHostE2ETestTimeout(10_000, 30_000);
+			const disposeTimeout = getAgentHostE2ETestTimeout(30_000, 90_000);
 			for (const session of createdSessions) {
 				try {
-					const state = await fetchSessionWithChat(client, session);
+					const state = await fetchSessionWithChat(client, session, restoreTimeout);
 					if (state.activeTurn) {
 						const chat = buildDefaultChatUri(session);
 						const turnId = state.activeTurn.id;
@@ -1141,14 +1144,14 @@ export class AgentHostE2EServerLease {
 							10_000,
 						);
 					}
-					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					const root = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI }, restoreTimeout);
 					const terminals = (root.snapshot!.state as RootState).terminals ?? [];
 					for (const terminal of terminals) {
 						if (terminal.claim.kind === TerminalClaimKind.Session && terminal.claim.session === session) {
-							await client.call('disposeTerminal', { channel: terminal.resource }, getAgentHostE2ETestTimeout(30_000, 90_000));
+							await client.call('disposeTerminal', { channel: terminal.resource }, disposeTimeout);
 						}
 					}
-					await client.call('disposeSession', { channel: session }, getAgentHostE2ETestTimeout(30_000, 90_000));
+					await client.call('disposeSession', { channel: session }, disposeTimeout);
 				} catch (error) {
 					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 				}
