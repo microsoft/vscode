@@ -8,9 +8,9 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
-import { readCheckoutOperationTreeish } from '../common/meta/agentCheckoutOperationMeta.js';
+import { CheckoutOperationPreAction, checkoutOperationDirtyWorkingTreeErrorData, readCheckoutOperationPreAction, readCheckoutOperationTreeish } from '../common/meta/agentCheckoutOperationMeta.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import type { SessionState } from '../common/state/sessionState.js';
@@ -53,16 +53,26 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.checkout.branchInvalid', "Branch '{0}' is not an existing local branch.", treeish));
 		}
 		this._throwIfCancelled(token);
-		if (await this._gitService.hasUncommittedChanges(workingDirectory)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.checkout.dirty', "Commit or stash the current changes before checking out '{0}'.", treeish));
+		const preCheckoutAction = readCheckoutOperationPreAction(params);
+		if (preCheckoutAction) {
+			await this._runPreCheckoutAction(workingDirectory, treeish, preCheckoutAction);
+			this._throwIfCancelled(token);
 		}
-		this._throwIfCancelled(token);
 
 		this._logService.info(`[AgentHostCheckoutOperationHandler] Checking out ${treeish} for session ${sessionUri}`);
 		try {
 			await this._gitService.checkout(workingDirectory, treeish);
 		} catch (error) {
 			this._throwIfCancelled(token);
+
+			if (!preCheckoutAction && error instanceof CheckoutBlockedByLocalChangesError) {
+				throw new ProtocolError(
+					JsonRpcErrorCodes.InvalidParams,
+					localize('agentHost.changeset.checkout.dirty', "Your local changes would be overwritten by checkout. Commit or stash the current changes before checking out `{0}`.", treeish),
+					checkoutOperationDirtyWorkingTreeErrorData(),
+				);
+			}
+
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.checkout.failed', "Failed to check out '{0}': {1}", treeish, error instanceof Error ? error.message : String(error)));
 		}
 
@@ -73,6 +83,28 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 		}
 
 		return { message: { markdown: localize('agentHost.changeset.checkout.checkedOut', "Checked out branch `{0}`.", treeish) } };
+	}
+
+	private async _runPreCheckoutAction(workingDirectory: URI, treeish: string, preCheckoutAction: CheckoutOperationPreAction): Promise<void> {
+		try {
+			if (preCheckoutAction === CheckoutOperationPreAction.Stash) {
+				await this._gitService.createStash(workingDirectory, {
+					message: localize('agentHost.changeset.checkout.stashMessage', "WIP: Changes before checking out {0}", treeish),
+					includeUntracked: true,
+				});
+			} else {
+				await this._gitService.commitAll(workingDirectory, localize('agentHost.changeset.checkout.commitMessage', "WIP: Save changes before checking out {0}", treeish));
+			}
+		} catch (error) {
+			const action = preCheckoutAction === CheckoutOperationPreAction.Stash
+				? localize('agentHost.changeset.checkout.stashAction', "stash")
+				: localize('agentHost.changeset.checkout.commitAction', "commit");
+
+			throw new ProtocolError(
+				JsonRpcErrorCodes.InternalError,
+				localize('agentHost.changeset.checkout.preActionFailed', "Failed to {0} changes before checking out '{1}': {2}", action, treeish, error instanceof Error ? error.message : String(error)),
+			);
+		}
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

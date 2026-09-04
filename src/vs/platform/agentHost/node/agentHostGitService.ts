@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 
@@ -368,12 +368,40 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async checkout(workingDirectory: URI, treeish: string): Promise<void> {
-		await this._runGit(workingDirectory, ['checkout', '-q', treeish], { throwOnError: true });
+		try {
+			await this._runGit(workingDirectory, ['checkout', '-q', treeish], {
+				throwOnError: true,
+				env: { LANG: 'C', LC_ALL: 'C' },
+			});
+		} catch (error) {
+			if (error instanceof GitCommandError && isCheckoutBlockedByLocalChanges(error.stderr)) {
+				throw new CheckoutBlockedByLocalChangesError(error.message, { cause: error });
+			}
+			throw error;
+		}
 	}
 
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void> {
+		const args = ['stash', 'push'];
+
+		if (options?.includeUntracked) {
+			args.push('-u');
+		}
+
+		if (options?.staged) {
+			args.push('-S');
+		}
+
+		if (options?.message) {
+			args.push('-m', options.message);
+		}
+
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
@@ -1098,7 +1126,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 						this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
 					}
 					if (options?.throwOnError) {
-						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
+						reject(new GitCommandError(formatGitError(args, timeoutMs, didTimeOut, error, stderr), stderr, error));
 						return;
 					}
 					resolve(undefined);
@@ -1119,6 +1147,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+class GitCommandError extends Error {
+	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
+		super(message, { cause });
+	}
+}
+
+function isCheckoutBlockedByLocalChanges(stderr: string): boolean {
+	return /(?:local changes to the following files|untracked working tree files) would be overwritten by checkout:/i.test(stderr);
 }
 
 export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
