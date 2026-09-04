@@ -781,9 +781,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 				...options.configuration,
 			}));
 			reg.define(IListService, ListService);
