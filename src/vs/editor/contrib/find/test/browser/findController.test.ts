@@ -697,7 +697,7 @@ suite('FindController query options persistence', () => {
 			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
 			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1)]);
 
-			// Move the single selection: the scope must follow the new selection
+			// Move the scope: it must follow the new value
 			findState.change({ searchScope: [new Selection(2, 1, 3, 1)] }, false);
 			assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 1)]);
 
@@ -707,11 +707,15 @@ suite('FindController query options persistence', () => {
 			findState.change({ searchScope: [new Selection(1, 1, 2, 1)] }, false);
 			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1)]);
 
-			// Duplicate ranges must not be treated as equal to distinct ranges
+			// Duplicate ranges must not be treated as equal to distinct ranges:
+			// [A, A] must differ from [A, B] even though A matches part of it
 			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
 			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)]);
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)] }, false);
+			assert.deepStrictEqual(findState.searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
 
 			// Identical scope must not fire a change event
+			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
 			let changeEventFired = false;
 			const listener = findState.onFindReplaceStateChange(() => changeEventFired = true);
 			findState.change({ searchScope: [new Selection(1, 1, 2, 1), new Selection(1, 1, 2, 1)] }, false);
@@ -792,18 +796,35 @@ suite('FindController query options persistence', () => {
 			};
 
 			try {
+				// Create the real FindModel (controller._start wires it) so the
+				// match counts below come from actual research runs.
+				await findController.start({
+					forceRevealReplace: false,
+					seedSearchStringFromSelection: 'none',
+					seedSearchStringFromNonEmptySelection: false,
+					seedSearchStringFromGlobalClipboard: false,
+					shouldFocus: FindStartFocusAction.NoFocusChange,
+					shouldAnimate: false,
+					updateSearchScope: false,
+					loop: true
+				});
+
 				const originalScope = [new Selection(1, 1, 3, 1)];
-				findState.change({ isRevealed: true, isReplaceRevealed: true, searchScope: originalScope }, false);
+				findState.change({ isRevealed: true, isReplaceRevealed: true, searchString: 'var', searchScope: originalScope }, false);
 				assert.deepStrictEqual(findState.searchScope, originalScope);
+				// 'var' occurs once per line; the scope (1,1,3,1) covers lines
+				// 1-2 only (an end column of 1 excludes the end line).
+				assert.strictEqual(findState.matchesCount, 2);
 
 				// Simulate navigating to a match: the editor selection becomes the
 				// current match, a single line inside the original scope.
 				const currentMatch = new Selection(2, 5, 2, 6);
 				editor.setSelection(currentMatch);
-				findState.changeMatchInfo(1, 14, currentMatch);
+				findState.changeMatchInfo(1, 2, currentMatch);
 
 				const toggleSelectionFind = widget['_toggleSelectionFind'] as unknown as { checked: boolean };
 				toggleSelectionFind.checked = true;
+				const scopeUpdateScheduler = widget['_selectionScopeUpdateScheduler'] as unknown as { flush(): void };
 
 				// Focusing either find input runs _updateSearchScope: the current
 				// match must be filtered out and the multiline scope must survive.
@@ -813,10 +834,26 @@ suite('FindController query options persistence', () => {
 				await focusReplaceInputForReal();
 				assert.deepStrictEqual(findState.searchScope, originalScope, 'replace input focus must keep the active search scope');
 
-				// The scope must still follow a genuinely new multi-cursor selection.
+				// Navigating to the current match again (selection-change path)
+				// must neither shrink the scope nor change the match count: the
+				// debounced update fires and must be a no-op.
+				const countAfterFocus = findState.matchesCount;
+				editor.setSelection(currentMatch);
+				scopeUpdateScheduler.flush();
+				assert.deepStrictEqual(findState.searchScope, originalScope, 'navigation must not shrink the active search scope');
+				assert.strictEqual(findState.matchesCount, countAfterFocus, 'navigation must not change the match count');
+
+				// The scope must follow a genuinely new selection once the
+				// debounced update fires, without refocusing Find (the exact
+				// flow from the issue report).
 				editor.setSelections([new Selection(2, 1, 3, 5)]);
+				scopeUpdateScheduler.flush();
+				assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 5)], 'selection change must update the scope without refocusing Find');
+				assert.strictEqual(findState.matchesCount, 2, 'match count must follow the new scope before Find is refocused');
+
+				// And refocusing Find afterwards must keep the updated scope.
 				await focusFindInputForReal();
-				assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 5)], 'find input focus must apply a changed selection as the new scope');
+				assert.deepStrictEqual(findState.searchScope, [new Selection(2, 1, 3, 5)], 'find input focus must keep the updated search scope');
 			} finally {
 				widget.dispose();
 				widgetHolder.remove();

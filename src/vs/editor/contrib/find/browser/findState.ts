@@ -8,6 +8,10 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../common/core/range.js';
 import { MATCHES_LIMIT } from './findModel.js';
 
+function rangeToComparableKey(range: Range): string {
+	return `${range.startLineNumber}:${range.startColumn}:${range.endLineNumber}:${range.endColumn}`;
+}
+
 function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
 	if (a === b) {
 		return true;
@@ -19,16 +23,12 @@ function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
 	if (a.every((rangeA, i) => Range.equalsRange(rangeA, b[i]))) {
 		return true;
 	}
-	// Fallback: order-insensitive comparison that still counts duplicates.
-	const matched = new Array<boolean>(b.length).fill(false);
-	return a.every(rangeA => {
-		const index = b.findIndex((rangeB, i) => !matched[i] && Range.equalsRange(rangeA, rangeB));
-		if (index === -1) {
-			return false;
-		}
-		matched[index] = true;
-		return true;
-	});
+	// Fallback: order-insensitive multiset comparison that still counts
+	// duplicates. Sorted comparable keys make it O(n log n) and immune to
+	// false positives like [A, A] vs [A, B].
+	const aKeys = a.map(rangeToComparableKey).sort();
+	const bKeys = b.map(rangeToComparableKey).sort();
+	return aKeys.every((key, i) => key === bKeys[i]);
 }
 
 export interface FindReplaceStateChangedEvent {
