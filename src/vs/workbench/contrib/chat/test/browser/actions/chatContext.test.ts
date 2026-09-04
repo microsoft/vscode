@@ -31,9 +31,9 @@ function widgetWithSession(sessionResource: URI): Pick<IChatWidget, 'viewModel' 
 	});
 }
 
-function repository(remoteUrl: string): IGitRepository {
+function repository(remoteUrl: string, rootUri = URI.file(`/workspace/${remoteUrl.length}`)): IGitRepository {
 	return new class extends mock<IGitRepository>() {
-		override readonly rootUri = URI.file(`/workspace/${remoteUrl.length}`);
+		override readonly rootUri = rootUri;
 		override readonly state = observableValue('test', {
 			remotes: [{ name: 'origin', fetchUrl: remoteUrl, isReadOnly: false }],
 			mergeChanges: [],
@@ -85,20 +85,23 @@ class TestCommandService extends mock<ICommandService>() {
 }
 
 class TestGitHubContextValuePick extends GitHubContextValuePick {
-	repositoryPicks: readonly string[] | undefined;
+	repositoryPicks: readonly { readonly label: string; readonly description?: string; readonly repoId: string }[] | undefined;
 	selectedRepository: string | undefined;
 
-	protected override async pickRepository(repositories: readonly string[]): Promise<string | undefined> {
+	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId: string }[]): Promise<string | undefined> {
 		this.repositoryPicks = repositories;
 		return this.selectedRepository;
 	}
 }
 
-function workspaceContextService(folderUris: readonly URI[] = []): IWorkspaceContextService {
+function workspaceContextService(folders: readonly { readonly uri: URI; readonly name?: string }[] = []): IWorkspaceContextService {
 	return new class extends mock<IWorkspaceContextService>() {
 		override getWorkspace(): IWorkspace {
 			return upcastPartial<IWorkspace>({
-				folders: folderUris.map(uri => upcastPartial<IWorkspaceFolder>({ uri })),
+				folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({
+					uri: folder.uri,
+					name: folder.name ?? folder.uri.path.split('/').pop() ?? folder.uri.path,
+				})),
 			});
 		}
 	}();
@@ -200,15 +203,18 @@ suite('ChatContext', () => {
 	test('selects a repository before opening GitHub context picker for multiple repositories', async () => {
 		const commandService = new TestCommandService();
 		const repositories = [
-			repository('git@github.com:microsoft/vscode.git'),
-			repository('https://github.com/microsoft/typescript.git'),
+			repository('git@github.com:microsoft/vscode.git', URI.file('/workspace/vscode')),
+			repository('https://github.com/microsoft/typescript.git', URI.file('/workspace/typescript')),
 		];
 		const pick = new TestGitHubContextValuePick(
 			'pullRequest',
 			new WorkspaceLoadingGitService(repositories),
 			new class extends mock<IQuickInputService>() { }(),
 			commandService,
-			workspaceContextService(repositories.map(repository => repository.rootUri)),
+			workspaceContextService([
+				{ uri: repositories[0].rootUri, name: 'VS Code' },
+				{ uri: repositories[1].rootUri, name: 'TypeScript' },
+			]),
 		);
 		pick.selectedRepository = 'microsoft/vscode';
 
@@ -217,9 +223,38 @@ suite('ChatContext', () => {
 			repositoryPicks: pick.repositoryPicks,
 			commandRepoId: commandService.command?.repoId,
 		}, {
-			repositoryPicks: ['microsoft/typescript', 'microsoft/vscode'],
+			repositoryPicks: [
+				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
+				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript' },
+			],
 			commandRepoId: 'microsoft/vscode',
 		});
+	});
+
+	test('selects a folder before opening GitHub context for multiple roots of the same repository', async () => {
+		const commandService = new TestCommandService();
+		const repositories = [
+			repository('https://github.com/microsoft/vscode.git', URI.file('/workspace/client')),
+			repository('https://github.com/microsoft/vscode.git', URI.file('/workspace/server')),
+		];
+		const pick = new TestGitHubContextValuePick(
+			'issue',
+			new WorkspaceLoadingGitService(repositories),
+			new class extends mock<IQuickInputService>() { }(),
+			commandService,
+			workspaceContextService([
+				{ uri: repositories[0].rootUri, name: 'Client' },
+				{ uri: repositories[1].rootUri, name: 'Server' },
+			]),
+		);
+		pick.selectedRepository = 'microsoft/vscode';
+
+		await pick.asAttachment();
+
+		assert.deepStrictEqual(pick.repositoryPicks, [
+			{ label: 'Client', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
+			{ label: 'Server', description: 'microsoft/vscode', repoId: 'microsoft/vscode' },
+		]);
 	});
 
 	test('orders sessions before GitHub context picks', () => {

@@ -56,6 +56,12 @@ interface IGitHubRepositoryQuickPickItem extends IQuickPickItem {
 	readonly repoId: string;
 }
 
+interface IGitHubRepositoryPick {
+	readonly label: string;
+	readonly description?: string;
+	readonly repoId: string;
+}
+
 /**
  * Command ID that extensions can call to enable debug tools for the current
  * chat session. Sets the context key and immediately flushes tool updates so
@@ -141,11 +147,11 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
-		const repositories = await this.getRepositories();
+		const repositories = await this.getRepositoryPicks();
 		let repoId: string | undefined;
 
 		if (repositories.length === 1) {
-			repoId = repositories[0];
+			repoId = repositories[0].repoId;
 		} else if (repositories.length > 1) {
 			repoId = await this.pickRepository(repositories);
 		}
@@ -171,31 +177,45 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		};
 	}
 
-	protected async pickRepository(repositories: readonly string[]): Promise<string | undefined> {
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<string | undefined> {
 		const repository = await this.quickInputService.pick(
-			repositories.map((repoId): IGitHubRepositoryQuickPickItem => ({ label: repoId, repoId })),
+			repositories.map(({ label, description, repoId }): IGitHubRepositoryQuickPickItem => ({ label, description, repoId })),
 			{ placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository") }
 		);
 		return repository?.repoId;
 	}
 
-	private async getRepositories(): Promise<readonly string[]> {
+	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
 		const knownRepositories = Array.from(this.gitService.repositories);
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		const workspaceRepositories = workspaceFolders.length > 1 && knownRepositories.length < workspaceFolders.length
-			? await Promise.all(workspaceFolders.map(folder => this.gitService.openRepository(folder.uri)))
-			: [];
-		const repositories = new Set<string>();
-		for (const repository of [...knownRepositories, ...workspaceRepositories]) {
+		if (workspaceFolders.length > 1) {
+			const workspaceRepositories = await Promise.all(workspaceFolders.map(folder => this.gitService.openRepository(folder.uri)));
+			return workspaceRepositories.flatMap((repository, index) => {
+				if (!repository) {
+					return [];
+				}
+				const info = getGitHubRemoteInfo(repository.state.get());
+				return info ? [{
+					label: workspaceFolders[index].name,
+					description: `${info.owner}/${info.repo}`,
+					repoId: `${info.owner}/${info.repo}`,
+				}] : [];
+			});
+		}
+
+		const repositoryIds = new Set<string>();
+		for (const repository of knownRepositories) {
 			if (!repository) {
 				continue;
 			}
 			const info = getGitHubRemoteInfo(repository.state.get());
 			if (info) {
-				repositories.add(`${info.owner}/${info.repo}`);
+				repositoryIds.add(`${info.owner}/${info.repo}`);
 			}
 		}
-		return Array.from(repositories).sort();
+		return Array.from(repositoryIds)
+			.sort()
+			.map(repoId => ({ label: repoId, repoId }));
 	}
 }
 
