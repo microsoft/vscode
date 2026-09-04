@@ -50,6 +50,39 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		return textModel;
 	}
 
+	/**
+	 * Registers `<`/`>` as a *colorized* bracket pair, mirroring TypeScript/TSX's
+	 * `language-configuration.json` (used for generics and JSX tags). Kept separate from
+	 * {@link createTextModelWithColorizedBracketPairs}, which deliberately excludes `<`/`>`
+	 * from `colorizedBracketPairs` for the `colorizedBracketsVSBrackets` test below.
+	 */
+	function createTextModelWithAngleBracketColorization(store: DisposableStore, text: string): TextModel {
+		const languageId = 'testLanguageAngleBrackets';
+		const instantiationService = createModelServices(store);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		store.add(languageService.registerLanguage({
+			id: languageId,
+		}));
+
+		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(languageId);
+		const document = new TokenizedDocument([
+			new TokenInfo(text, encodedMode1, StandardTokenType.Other, true)
+		]);
+		store.add(TokenizationRegistry.register(languageId, document.getTokenizationSupport()));
+
+		store.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['<', '>']
+			],
+			colorizedBracketPairs: [
+				['<', '>']
+			]
+		}));
+		const textModel = store.add(instantiateTextModel(instantiationService, text, languageId));
+		return textModel;
+	}
+
 	test('Basic 1', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
@@ -423,6 +456,68 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 						range: '[1,15 -> 1,16]',
 					},
 				]
+			);
+		});
+	});
+
+	test('issue #329789: `<`/`>` still work as brackets in generic/type syntax', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹Array<string>²`);
+			const model = createTextModelWithAngleBracketColorization(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketPairsInRange(doc.range(1, 2))
+					.map(bracketPairToJSON)
+					.toArray(),
+				[
+					{
+						level: 0,
+						range: '[1,6 -> 1,7]',
+						openRange: '[1,6 -> 1,7]',
+						closeRange: '[1,13 -> 1,14]',
+					},
+				]
+			);
+		});
+	});
+
+	test('issue #329789: nested generic syntax (`Array<Array<string>>`) still works', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹Array<Array<string>>²`);
+			const model = createTextModelWithAngleBracketColorization(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketPairsInRange(doc.range(1, 2))
+					.map(bracketPairToJSON)
+					.toArray(),
+				[
+					{
+						level: 0,
+						range: '[1,6 -> 1,7]',
+						openRange: '[1,6 -> 1,7]',
+						closeRange: '[1,20 -> 1,21]',
+					},
+					{
+						level: 1,
+						range: '[1,12 -> 1,13]',
+						openRange: '[1,12 -> 1,13]',
+						closeRange: '[1,19 -> 1,20]',
+					},
+				]
+			);
+		});
+	});
+
+	test('issue #329789: `<<=`, `>>=` and `>>>=` do not create bracket pairs', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹x <<= 1; x >>= 1; x >>>= 1;²`);
+			const model = createTextModelWithAngleBracketColorization(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketPairsInRange(doc.range(1, 2))
+					.map(bracketPairToJSON)
+					.toArray(),
+				[]
 			);
 		});
 	});
