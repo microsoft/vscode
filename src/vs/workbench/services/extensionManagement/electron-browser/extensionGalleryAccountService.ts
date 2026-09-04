@@ -7,10 +7,11 @@ import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthProviderConfigKey } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryAuthProviderConfigKey, IMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -78,9 +79,9 @@ abstract class AbstractGalleryAccountProvider extends Disposable implements IExt
 		super();
 	}
 
-	async getAccount(): Promise<IExtensionGalleryAccount | undefined> {
+	async getAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined> {
 		try {
-			return await this.doGetAccount();
+			return await this.doGetAccount(protectedResource);
 		} catch (error) {
 			// Distinct from "no account" so the caller does not demand sign-in for a transient failure.
 			this.logService.error('[Marketplace] Unable to resolve the marketplace account', error);
@@ -89,7 +90,7 @@ abstract class AbstractGalleryAccountProvider extends Disposable implements IExt
 		}
 	}
 
-	protected abstract doGetAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	protected abstract doGetAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined>;
 
 	abstract signIn(): Promise<void>;
 
@@ -122,6 +123,7 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	}
 
 	protected override async doGetAccount(): Promise<IExtensionGalleryAccount | undefined> {
+		// Entitlement here is the account's SKU, and this path carries no bearer to scope.
 		const account = await this.defaultAccountService.getDefaultAccount();
 		if (!account) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
@@ -178,8 +180,15 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return this.productService.extensionsGallery?.accessScopes;
 	}
 
-	protected override async doGetAccount(): Promise<IExtensionGalleryAccount | undefined> {
-		const session = await this.getSession();
+	/** The resource the marketplace last advertised, if it gates its requests at all. */
+	private protectedResource: IMarketplaceProtectedResource | undefined;
+
+	protected override async doGetAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined> {
+		if (protectedResource) {
+			// Remembered so an interactive sign-in can consent to the same resource.
+			this.protectedResource = protectedResource;
+		}
+		const session = await this.getSession(protectedResource);
 		if (!session) {
 			this.setAccountStatus(ExtensionGalleryAccountStatus.SignedOut);
 			return undefined;
@@ -209,9 +218,10 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 
 	/**
 	 * Anchored to the remembered account rather than an arbitrary `sessions[0]`. Several accounts
-	 * with no preference returns `undefined` rather than guessing. Never prompts.
+	 * with no preference returns `undefined` rather than guessing. Never prompts. The account is
+	 * resolved before any resource token, so that token is minted for the identity the user chose.
 	 */
-	private async getSession(): Promise<AuthenticationSession | undefined> {
+	private async getSession(protectedResource?: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
 		const scopes = this.scopes;
 		if (!scopes) {
 			this.logService.error('[Marketplace] extensionsGallery.accessScopes is not configured — the Microsoft marketplace path cannot request a session.');
@@ -221,6 +231,37 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (sessions.length === 0) {
 			return undefined;
 		}
+		const session = this.pickSession(sessions);
+		if (!session || !protectedResource) {
+			return session;
+		}
+		return await this.getResourceSession(session, protectedResource) ?? session;
+	}
+
+	/**
+	 * Requests the resource-scoped session (RFC 8707) for the already-chosen account. The
+	 * marketplace names its own authorization server, so it is the authentication provider that
+	 * decides whether that server is one it will mint for — an unsupported one throws, and is
+	 * treated here as simply having no session.
+	 */
+	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
+		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
+		if (!resourceScopes) {
+			return undefined;
+		}
+		try {
+			const sessions = await this.authenticationService.getSessions('microsoft', resourceScopes, {
+				account: session.account,
+				authorizationServer: URI.parse(protectedResource.authorizationServer)
+			});
+			return sessions.at(0);
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to acquire a resource-scoped marketplace token', error);
+			return undefined;
+		}
+	}
+
+	private pickSession(sessions: readonly AuthenticationSession[]): AuthenticationSession | undefined {
 		const preferredId = this.readPreferredAccountId();
 		if (preferredId) {
 			const remembered = sessions.find(session => session.account.id === preferredId);
@@ -252,6 +293,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			}
 			const session = await this.authenticationService.createSession('microsoft', scopes, account ? { account } : undefined);
 			this.storePreferredAccountId(session.account.id);
+			await this.consentToProtectedResource(session);
 		};
 
 		const accounts = await this.authenticationService.getAccounts('microsoft');
@@ -273,6 +315,33 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return; // cancelled
 		}
 		await chooseAccount(pick.account);
+	}
+
+	/**
+	 * Consents to the marketplace's resource while the user is already signing in. The access check
+	 * cannot prompt, so without this a user whose tenant has not pre-consented would authenticate
+	 * and still be sent back to the sign-in prompt. Tries silently first; failure is not fatal.
+	 */
+	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
+		const protectedResource = this.protectedResource;
+		if (!protectedResource) {
+			return;
+		}
+		if (await this.getResourceSession(session, protectedResource)) {
+			return;
+		}
+		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
+		if (!resourceScopes) {
+			return;
+		}
+		try {
+			await this.authenticationService.createSession('microsoft', resourceScopes, {
+				account: session.account,
+				authorizationServer: URI.parse(protectedResource.authorizationServer)
+			});
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to consent to the marketplace resource during sign-in', error);
+		}
 	}
 
 	private readPreferredAccountId(): string | undefined {
@@ -334,8 +403,8 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		this._onDidChangeAccount.fire();
 	}
 
-	async getAccount(): Promise<IExtensionGalleryAccount | undefined> {
-		return this.provider?.getAccount();
+	async getAccount(protectedResource?: IMarketplaceProtectedResource): Promise<IExtensionGalleryAccount | undefined> {
+		return this.provider?.getAccount(protectedResource);
 	}
 
 	async signIn(): Promise<void> {

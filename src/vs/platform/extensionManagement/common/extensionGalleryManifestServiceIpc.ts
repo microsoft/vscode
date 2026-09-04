@@ -39,7 +39,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
-					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0]));
+					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0], args[1], args[2]));
 				}
 				throw new Error('Invalid call');
 			}
@@ -51,9 +51,18 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 		return this._extensionGalleryManifest ?? null;
 	}
 
-	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+	override async getAuthorizationHeaders(targetUrl: string): Promise<Record<string, string>> {
+		await this.barrier.wait();
+		return super.getAuthorizationHeaders(targetUrl);
+	}
+
+	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null, accessToken?: string, serviceIndexUrl?: string): void {
 		this.logService.trace(`[Marketplace] Setting manifest ${manifest ? 'available' : 'unavailable'}`);
 		this._extensionGalleryManifest = manifest;
+		// This process never negotiates a token itself; it applies the one the window negotiated to
+		// the marketplace requests it initiates — extension `getManifest`, VSIX download.
+		this.marketplaceAccessToken = accessToken;
+		this.marketplaceServiceIndexUrl = serviceIndexUrl;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);
 		this.barrier.open();
