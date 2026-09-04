@@ -396,6 +396,25 @@ export interface IPtyService {
 }
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 
+/**
+ * The events of {@link IPtyService} by name, kept exhaustive by the type: adding an event to the interface
+ * without adding it here does not compile.
+ *
+ * The local pty channel of the main process needs this list at runtime. A window consumes these events over
+ * a direct message port to the pty host, never over that channel, so the channel must not buffer them for a
+ * client that never comes: `onProcessData` carries raw terminal output and grows without bound otherwise.
+ * See https://github.com/microsoft/vscode/issues/328885
+ */
+export const ptyServiceEvents = Object.keys({
+	onProcessData: true,
+	onProcessReady: true,
+	onProcessReplay: true,
+	onProcessOrphanQuestion: true,
+	onDidRequestDetach: true,
+	onDidChangeProperty: true,
+	onProcessExit: true,
+} satisfies Record<Extract<keyof IPtyService, `on${string}`>, true>) as readonly Extract<keyof IPtyService, `on${string}`>[];
+
 export interface IPtyServiceContribution {
 	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void;
 	handleProcessDispose(persistentProcessId: number): void;
