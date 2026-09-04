@@ -557,7 +557,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps background-image composer controls on complete opaque surfaces', () => {
+	test('keeps background-image composer controls opaque and centered', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-chat-list-background', '#ffffff');
@@ -566,6 +566,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
+		workbench.style.setProperty('--vscode-spacing-size80', '8px');
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
@@ -577,7 +578,17 @@ suite('Sessions - Chat View', () => {
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
+		const secondaryInputToolbar = dom.append(secondaryToolbar, dom.$('.chat-secondary-input-toolbar'));
+		const iconOnlyActionItem = dom.append(secondaryInputToolbar, dom.$('.chat-input-picker-item'));
+		const iconOnlyAction = dom.append(iconOnlyActionItem, dom.$('.action-label.icon-only'));
+		const iconOnlyActionIcon = dom.append(iconOnlyAction, dom.$('.codicon'));
+		iconOnlyActionIcon.style.width = '12px';
+		iconOnlyActionIcon.style.height = '12px';
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
+		const contextUsageIcon = dom.append(contextUsage, dom.$('.icon-container'));
+		contextUsageIcon.style.width = '14px';
+		contextUsageIcon.style.height = '14px';
+		dom.append(contextUsage, dom.$('.percentage-label', undefined, '7%'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
@@ -585,13 +596,34 @@ suite('Sessions - Chat View', () => {
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainSecondaryToolbar = dom.append(plainSession, dom.$('.chat-secondary-toolbar'));
 		const plainSecondaryAction = dom.append(plainSecondaryToolbar, dom.$('.action-label'));
+		const plainSecondaryInputToolbar = dom.append(plainSecondaryToolbar, dom.$('.chat-secondary-input-toolbar'));
+		const plainIconOnlyActionItem = dom.append(plainSecondaryInputToolbar, dom.$('.chat-input-picker-item'));
+		const plainIconOnlyAction = dom.append(plainIconOnlyActionItem, dom.$('.action-label.icon-only'));
 		const plainContextUsage = dom.append(plainSecondaryToolbar, dom.$('.chat-context-usage-widget'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
 
 		const newChatStyle = dom.getWindow(newChatContent).getComputedStyle(newChatContent);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
+		const iconOnlyActionStyle = dom.getWindow(iconOnlyAction).getComputedStyle(iconOnlyAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
+		const plainIconOnlyActionStyle = dom.getWindow(plainIconOnlyAction).getComputedStyle(plainIconOnlyAction);
+		const horizontalCenterOffset = (container: HTMLElement, content: HTMLElement): number => {
+			const containerRect = container.getBoundingClientRect();
+			const contentRect = content.getBoundingClientRect();
+			return contentRect.left + contentRect.width / 2 - (containerRect.left + containerRect.width / 2);
+		};
+		const iconOnlyActionHorizontalCenterOffset = horizontalCenterOffset(iconOnlyAction, iconOnlyActionIcon);
+		const contextUsageHorizontalCenterOffset = horizontalCenterOffset(contextUsage, contextUsageIcon);
+		const contextUsageGap = contextUsageStyle.gap;
+		// The Electron unit-test window is hidden, so assert the focus guard on the loaded rule instead.
+		const chatViewStyleSheet = Array.from(contextUsage.ownerDocument.styleSheets)
+			.flatMap(styleSheet => Array.from(styleSheet.cssRules))
+			.filter((rule): rule is CSSImportRule => rule instanceof CSSImportRule)
+			.find(rule => rule.href.endsWith('/vs/sessions/contrib/chat/browser/media/chatView.css'))?.styleSheet;
+		const focusGuardedContextUsageRule = Array.from(chatViewStyleSheet?.cssRules ?? [])
+			.find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.chat-context-usage-widget:not(:hover):not(:focus)'));
+		const focusGuardedContextUsageGap = focusGuardedContextUsageRule?.style.gap;
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatBorderRadius: newChatStyle.borderRadius,
@@ -601,15 +633,24 @@ suite('Sessions - Chat View', () => {
 			secondaryActionBackgroundImage: secondaryActionStyle.backgroundImage,
 			secondaryActionBorderColor: secondaryActionStyle.borderColor,
 			secondaryActionBorderStyle: secondaryActionStyle.borderStyle,
+			iconOnlyActionJustifyContent: iconOnlyActionStyle.justifyContent,
+			iconOnlyActionPaddingLeft: iconOnlyActionStyle.paddingLeft,
+			iconOnlyActionHorizontalCenterOffset,
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
+			contextUsageGap,
+			contextUsageHorizontalCenterOffset,
+			focusGuardedContextUsageGap,
 			plainNewChatBackgroundColor: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).backgroundColor,
 			plainNewChatPadding: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).padding,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
+			plainIconOnlyActionJustifyContent: plainIconOnlyActionStyle.justifyContent,
+			plainIconOnlyActionPaddingLeft: plainIconOnlyActionStyle.paddingLeft,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
+			plainContextUsageGap: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).gap,
 		}, {
 			newChatBackgroundColor: 'color(srgb 1 1 1 / 0.86)',
 			newChatBorderRadius: '8px',
@@ -619,15 +660,24 @@ suite('Sessions - Chat View', () => {
 			secondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			secondaryActionBorderColor: 'rgb(128, 128, 128)',
 			secondaryActionBorderStyle: 'solid',
+			iconOnlyActionJustifyContent: 'center',
+			iconOnlyActionPaddingLeft: '0px',
+			iconOnlyActionHorizontalCenterOffset: 0,
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
+			contextUsageGap: '0px',
+			contextUsageHorizontalCenterOffset: 0,
+			focusGuardedContextUsageGap: '0px',
 			plainNewChatBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainNewChatPadding: '0px',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
+			plainIconOnlyActionJustifyContent: 'flex-start',
+			plainIconOnlyActionPaddingLeft: '8px',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
+			plainContextUsageGap: '4px',
 		});
 	});
 
