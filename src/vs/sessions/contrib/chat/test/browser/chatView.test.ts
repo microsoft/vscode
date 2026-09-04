@@ -217,8 +217,8 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('leaves text-only bottom-row status actions at their intrinsic width', () => {
-		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+	test('keeps text-only bottom-row status actions intrinsic and centered', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
 		const row = dom.append(widget, dom.$('.new-chat-bottom-container'));
@@ -231,11 +231,15 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			itemIsSquareIconAction: item.classList.contains('new-chat-status-icon-action'),
 			itemWiderThanCompactControl: item.getBoundingClientRect().width > 22,
+			labelHeight: label.getBoundingClientRect().height,
+			labelAlignItems: dom.getWindow(label).getComputedStyle(label).alignItems,
 			labelIsNotClipped: label.scrollWidth <= label.clientWidth,
 			text: label.textContent,
 		}, {
 			itemIsSquareIconAction: false,
 			itemWiderThanCompactControl: true,
+			labelHeight: 22,
+			labelAlignItems: 'center',
 			labelIsNotClipped: true,
 			text: 'Status',
 		});

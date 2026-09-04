@@ -208,6 +208,7 @@
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
+	align-items: center;
 	padding: 0 var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
