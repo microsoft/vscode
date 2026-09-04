@@ -859,7 +859,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
-	private readonly _initializingSessions = new Set<CopilotAgentSession>();
+	private readonly _sessionsPendingRegistration = new Set<CopilotAgentSession>();
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
@@ -1806,7 +1806,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
 		let handled = false;
-		const sessions = new Set([...this._initializingSessions, ...this._allLiveSessions()]);
+		const sessions = new Set([...this._sessionsPendingRegistration, ...this._allLiveSessions()]);
 		for (const session of sessions) {
 			const didHandle = await session.resolveMcpAuthentication(params);
 			handled ||= didHandle;
@@ -3968,8 +3968,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				resource: sessionUri,
 			});
 			const initializingSession = agentSession;
-			await this._withInitializingSession(initializingSession, async () => {
-				await initializingSession.initializeSession();
+			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
 			});
 		} catch (error) {
@@ -4521,8 +4520,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat, resource: storageScope });
 				const initializingSession = agentSession;
-				await this._withInitializingSession(initializingSession, async () => {
-					await initializingSession.initializeSession();
+				await this._initializeAndRegisterSession(initializingSession, async () => {
 					if (fork?.turnIdMapping) {
 						await initializingSession.remapTurnIds(fork.turnIdMapping);
 					}
@@ -4945,8 +4943,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				const initializingSession = agentSession;
-				await this._withInitializingSession(initializingSession, async () => {
-					await initializingSession.initializeSession();
+				await this._initializeAndRegisterSession(initializingSession, () => {
 					this._throwIfClientReplaced(client, initializingSession);
 					this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
 					this._registerLiveChat(chat, initializingSession, activeClient);
@@ -5130,7 +5127,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._isShuttingDown = true;
-			for (const session of this._initializingSessions) {
+			for (const session of this._sessionsPendingRegistration) {
 				session.dispose();
 			}
 			for (const lifetime of this._sessionLifetimes.values()) {
@@ -5433,16 +5430,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return [...this._chatEntriesBySdkId.values()].map(entry => entry.chatSession);
 	}
 
-	private async _withInitializingSession<T>(session: CopilotAgentSession, operation: () => Promise<T>): Promise<T> {
+	/** Keeps SDK callbacks routable until an initialized session becomes visible in the live-session map. */
+	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void | Promise<void>): Promise<void> {
 		if (this._isShuttingDown) {
 			session.dispose();
 			throw new CancellationError();
 		}
-		this._initializingSessions.add(session);
+		this._sessionsPendingRegistration.add(session);
 		try {
-			return await operation();
+			await session.initializeSession();
+			await register();
 		} finally {
-			this._initializingSessions.delete(session);
+			this._sessionsPendingRegistration.delete(session);
 		}
 	}
 
@@ -5536,8 +5535,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 		try {
-			await this._withInitializingSession(agentSession, async () => {
-				await agentSession.initializeSession();
+			await this._initializeAndRegisterSession(agentSession, async () => {
 				await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
 				this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);
 			});
