@@ -97,6 +97,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
+	private readonly _useCustomizationEntryPoints: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
 	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
@@ -163,6 +164,11 @@ export class NewChatWidget extends Disposable {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
 			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
+		);
+		this._useCustomizationEntryPoints = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)),
+			() => this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -798,6 +804,7 @@ export class NewChatWidget extends Disposable {
 	private _renderCustomizeTrigger(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		slot.classList.add('sessions-customize-trigger-slot');
 		const trigger = dom.append(slot, dom.$('a.action-label.sessions-customize-trigger'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
@@ -823,6 +830,12 @@ export class NewChatWidget extends Disposable {
 			content: localize('newSessionCustomizeTooltip', "Open customization overview"),
 		}));
 		store.add(autorun(reader => {
+			const enabled = this._useCustomizationEntryPoints.read(reader);
+			slot.style.display = enabled ? '' : 'none';
+			if (!enabled) {
+				trigger.classList.remove('has-migrations');
+				return;
+			}
 			const hasMigrations = this.customizationMigrationAvailabilityService.candidateCount.read(reader) > 0;
 			trigger.classList.toggle('has-migrations', hasMigrations);
 			trigger.setAttribute('aria-label', hasMigrations

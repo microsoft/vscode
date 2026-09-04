@@ -13,10 +13,11 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { CustomizationMigrationType, ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_CATEGORIES } from './customizationMigrationCategories.js';
 
 export const ICustomizationMigrationAvailabilityService = createDecorator<ICustomizationMigrationAvailabilityService>('customizationMigrationAvailabilityService');
 
@@ -49,7 +50,8 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 			this.scheduleRefresh();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (CUSTOMIZATION_MIGRATION_CATEGORIES.some(category => event.affectsConfiguration(category.enablementSetting))) {
+			if (event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)
+				|| CUSTOMIZATION_MIGRATION_CATEGORIES.some(category => event.affectsConfiguration(category.enablementSetting))) {
 				this.scheduleRefresh();
 			}
 		}));
@@ -69,7 +71,9 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 		const refreshSequence = ++this.refreshSequence;
 		const activeHarness = this.harnessService.activeHarness.get();
 		const activeSessionResource = this.harnessService.activeSessionResource.get();
-		if (!isAgentHostTarget(activeHarness) || !activeSessionResource) {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints)
+			|| !isAgentHostTarget(activeHarness)
+			|| !activeSessionResource) {
 			this.candidateCountValue.set(0, undefined);
 			return;
 		}
@@ -83,9 +87,7 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 		try {
 			const migrations = await Promise.all(categories.map(category => this.migrationService.computeMigration(
 				activeSessionResource,
-				category.id === CustomizationMigrationCategoryId.PromptFiles
-					? CustomizationMigrationType.PromptFiles
-					: CustomizationMigrationType.UserData,
+				category.migrationType,
 			)));
 			if (refreshSequence !== this.refreshSequence || activeHarness !== this.harnessService.activeHarness.get() || !isEqual(activeSessionResource, this.harnessService.activeSessionResource.get())) {
 				return;

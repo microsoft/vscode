@@ -24,6 +24,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
+import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 
 //#region Utilities
 
@@ -304,7 +307,12 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ICommandService).executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID);
+		if (accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.CustomizationEntryPoints)) {
+			await accessor.get(ICommandService).executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID);
+			return;
+		}
+		const sessionsView = await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId, false);
+		sessionsView?.focusCustomizations();
 	}
 });
 

@@ -119,6 +119,7 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 			order: 4,
 		});
 	}
+}
 
 /**
  * Renders the whole new-session composer (`NewChatView` → `NewChatWidget`) inside
@@ -407,7 +408,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, Issue/PR, and Customize pills above the chat input. Customize has a yellow migration indicator and no chevron.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left above the chat input. Customize is aligned separately to the right edge of the input, with a yellow migration indicator and no chevron.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 3 }),
 	}),
 	NewSessionAutoModel: defineComponentFixture({
@@ -422,17 +423,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, Issue/PR, and Customize pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, Issue/PR, and Customize pills. The Issue/PR pill has the active treatment after opening its picker.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The Issue/PR pill has the active treatment after opening its picker.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openGitHubContextPicker: true }),
 	}),
 	NewSessionAttachedContext: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, Issue/PR with a count badge showing 1, and Customize. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
+		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1 aligned to the left, with Customize aligned to the right edge of the input. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
 	}),
 	NewSessionPhoneAttachedContext: defineComponentFixture({
@@ -442,7 +443,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, devbox · microsoft/vscode, and Customize pills. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot and devbox · microsoft/vscode pills aligned to the left, with Customize aligned to the right edge of the input. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
 		render: context => renderNewChatWidget(context, { withRemoteWorkspace: true }),
 	}),
 	NewSessionNarrow: defineComponentFixture({

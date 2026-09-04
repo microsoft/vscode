@@ -134,10 +134,13 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	/**
-	 * Sidebar appearance — full-width row using the shared
-	 * `.sidebar-action-button` styling and `supportIcons` label rendering.
+	 * Sidebar appearance — full-width row matching the Customizations links
+	 * (`CustomizationLinkViewItem`). Same Monaco `Button` shell, same
+	 * `.sidebar-action-button` styling, same `supportIcons` label rendering.
 	 * The trailing connect indicator is rendered alongside the picker
-	 * button as a sibling control so it is not part of the picker label.
+	 * button as a sibling control, so the row visually mirrors the
+	 * Customizations rows in the toolbar above without making the
+	 * indicator part of the picker label.
 	 */
 	private _renderSidebar(): void {
 		if (!this.element) {
@@ -146,7 +149,8 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 		this.element.classList.add('sidebar-action');
 
-		// Drive the button content manually (rather than via `Button.label`)
+		// Picker button — same shell as `CustomizationLinkViewItem`. We
+		// drive the button content manually (rather than via `Button.label`)
 		// so the host name span can `flex: 1` and push the chevron all
 		// the way to the trailing edge.
 		const buttonContainer = dom.append(this.element, dom.$('.customization-link-button-container'));

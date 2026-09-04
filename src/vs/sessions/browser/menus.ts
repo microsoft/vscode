@@ -30,6 +30,7 @@ export const Menus = {
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
+	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),
 	AccountMenu: new MenuId('SessionsAccountMenu'),
 	GoMenu: new MenuId('SessionsGoMenu'),

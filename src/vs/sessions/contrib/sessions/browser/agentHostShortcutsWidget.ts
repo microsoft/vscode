@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../browser/media/sidebarActionButton.css';
 import './media/agentHostToolbar.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -19,7 +18,8 @@ export interface IAgentHostShortcutsWidgetOptions {
 
 /**
  * Sidebar toolbar that hosts the agent host picker (with embedded
- * connect/disconnect indicator) on web desktop.
+ * connect/disconnect indicator) on web desktop. Always expanded — there is
+ * no collapse affordance, unlike `AICustomizationShortcutsWidget`.
  *
  * Mounted only when `isWeb && !isPhoneLayout` (electron desktop has no host
  * picker today, and phone layout uses the mobile titlebar pill instead).
@@ -37,7 +37,9 @@ export class AgentHostShortcutsWidget extends Disposable {
 	}
 
 	private _render(parent: HTMLElement, options: IAgentHostShortcutsWidgetOptions | undefined): void {
-		// Separates the picker from the sessions list above it.
+		// Separates the picker from the customizations above it, mirroring the
+		// split view's separator between sessions and customizations — but
+		// static, since this section is not resizable.
 		DOM.append(parent, $('.agent-host-toolbar-separator'));
 
 		const container = DOM.append(parent, $('.agent-host-toolbar'));

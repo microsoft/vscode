@@ -178,6 +178,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 }
 
 interface IRenderCustomizeTriggerHarness {
+	readonly _useCustomizationEntryPoints: IObservable<boolean>;
 	readonly customizationMigrationAvailabilityService: { readonly candidateCount: IObservable<number> };
 	readonly commandService: { executeCommand(commandId: string): Promise<void> };
 	readonly hoverService: { setupDelayedHover(): IDisposable };
@@ -288,9 +289,11 @@ suite('NewChatWidget', () => {
 	});
 
 	test('Customize trigger opens the overview and reflects migration availability', () => {
+		const enabled = observableValue('customizationEntryPointsEnabled', true);
 		const migrationCount = observableValue('migrationCount', 0);
 		const commands: string[] = [];
 		const harness: IRenderCustomizeTriggerHarness = {
+			_useCustomizationEntryPoints: enabled,
 			customizationMigrationAvailabilityService: { candidateCount: migrationCount },
 			commandService: {
 				async executeCommand(commandId: string): Promise<void> {
@@ -312,8 +315,12 @@ suite('NewChatWidget', () => {
 			icon: trigger.querySelector('.codicon')?.classList.contains('codicon-tools'),
 			role: trigger.getAttribute('role'),
 			tabIndex: trigger.tabIndex,
+			rightAligned: trigger.parentElement?.classList.contains('sessions-customize-trigger-slot'),
 		};
 
+		enabled.set(false, undefined);
+		const disabledDisplay = trigger.parentElement?.style.display;
+		enabled.set(true, undefined);
 		migrationCount.set(2, undefined);
 		trigger.click();
 
@@ -323,6 +330,7 @@ suite('NewChatWidget', () => {
 				ariaLabel: trigger.getAttribute('aria-label'),
 				hasMigrations: trigger.classList.contains('has-migrations'),
 				commands,
+				disabledDisplay,
 			},
 		}, {
 			initial: {
@@ -332,11 +340,13 @@ suite('NewChatWidget', () => {
 				icon: true,
 				role: 'button',
 				tabIndex: 0,
+				rightAligned: true,
 			},
 			updated: {
 				ariaLabel: 'Customize, migrations available',
 				hasMigrations: true,
 				commands: [OPEN_CUSTOMIZATIONS_COMMAND_ID],
+				disabledDisplay: 'none',
 			},
 		});
 	});

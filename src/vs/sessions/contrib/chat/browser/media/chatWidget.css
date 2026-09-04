@@ -307,6 +307,10 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.sessions-workspace-category-picker > .sessions-customize-trigger-slot {
+	margin-left: auto;
+}
+
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }

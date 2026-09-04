@@ -6,9 +6,13 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
+import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../../base/common/color.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -25,12 +29,14 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -39,11 +45,14 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+const CUSTOMIZATIONS_MIN_HEIGHT = 129;
+const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
@@ -88,6 +97,10 @@ export function renderSessionsHeader(
 
 export class SessionsView extends ViewPane {
 
+	private viewPaneContainer: HTMLElement | undefined;
+	private sidebarSplitViewContainer: HTMLElement | undefined;
+	private sidebarSplitView: SplitView | undefined;
+	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private headerRow: HTMLElement | undefined;
@@ -95,13 +108,16 @@ export class SessionsView extends ViewPane {
 	private headerActions: HTMLElement | undefined;
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
+	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
+	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
+	private didInitializePaneSizes = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -121,6 +137,11 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)) {
+				this.updateCustomizationsPane();
+			}
+		}));
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -147,7 +168,8 @@ export class SessionsView extends ViewPane {
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
-		parent.classList.add('agent-sessions-viewpane');
+		this.viewPaneContainer = parent;
+		this.viewPaneContainer.classList.add('agent-sessions-viewpane');
 
 		this.createControls(parent);
 	}
@@ -167,9 +189,10 @@ export class SessionsView extends ViewPane {
 
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
-		const sidebarContentContainer = DOM.append(sessionsContainer, $('.agent-sessions-sidebar-content'));
+		this.sidebarSplitViewContainer = DOM.append(sessionsContainer, $('.agent-sessions-sidebar-splitview-container'));
 
-		const sessionsSection = DOM.append(sidebarContentContainer, $('.agent-sessions-section'));
+		// Sessions section (top, fills available space)
+		const sessionsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-section'));
 
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
@@ -301,7 +324,33 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
-		// Agent Host toolbar (bottom). Only rendered
+		this.sidebarSplitView = this._register(new SplitView(this.sidebarSplitViewContainer, {
+			orientation: Orientation.VERTICAL,
+			proportionalLayout: false,
+		}));
+
+		const sessionsPane: IView = {
+			element: sessionsSection,
+			minimumSize: SESSIONS_SECTION_MIN_HEIGHT,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: height => {
+				sessionsSection.style.height = `${height}px`;
+				this.sessionsControl?.layout(this.sessionsControlContainer?.offsetHeight ?? 0, this.currentBodyWidth);
+			},
+		};
+
+		this.sidebarSplitView.addView(sessionsPane, Sizing.Distribute, 0, true);
+		this.updateCustomizationsPane();
+
+		const updateSplitViewStyles = () => {
+			const borderColor = this.themeService.getColorTheme().getColor(PANEL_SECTION_BORDER);
+			this.sidebarSplitView?.style({ separatorBorder: borderColor ?? Color.transparent });
+		};
+		updateSplitViewStyles();
+		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
+
+		// Agent Host toolbar (bottom, below customizations). Only rendered
 		// in the sessions window on web desktop layouts: electron has no
 		// host picker today (gated out at the menu level), phone layout
 		// uses the mobile titlebar pill instead, and auxiliary windows do
@@ -314,12 +363,71 @@ export class SessionsView extends ViewPane {
 		))) {
 			this._register(this.instantiationService.createInstance(AgentHostShortcutsWidget, sessionsContainer, {
 				onDidChangeLayout: () => {
-					this.layoutSessionsControl();
+					this.layoutSidebarSplitView();
 				},
 			}));
 		}
 
-		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSessionsControl()));
+		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
+	}
+
+	private updateCustomizationsPane(): void {
+		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
+			return;
+		}
+		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints);
+		if (enabled === !this._customizationsWidget) {
+			return;
+		}
+		if (enabled) {
+			this.sidebarSplitView.removeView(1, Sizing.Distribute);
+			this._customizationsWidget = undefined;
+			this.customizationsPaneDisposables.clear();
+			this.layoutSidebarSplitView();
+			return;
+		}
+
+		const store = new DisposableStore();
+		this.customizationsPaneDisposables.value = store;
+		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
+		store.add(toDisposable(() => customizationsSection.remove()));
+		const customizationsWidget = this._customizationsWidget = store.add(this.instantiationService.createInstance(AICustomizationShortcutsWidget, customizationsSection, {
+			onDidChangeLayout: () => this.layoutSidebarSplitView(),
+		}));
+		const customizationsPane: IView = {
+			element: customizationsSection,
+			get minimumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : CUSTOMIZATIONS_MIN_HEIGHT; },
+			get maximumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
+			onDidChange: Event.map(customizationsWidget.onDidChangeHeight, () => this.getCustomizationsPaneHeight()),
+			layout: height => {
+				customizationsSection.style.height = `${height}px`;
+				this._customizationsWidget?.layout(height, this.currentBodyWidth);
+			},
+		};
+		this.sidebarSplitView.addView(customizationsPane, this.getCustomizationsPaneHeight(), 1, true);
+
+		let savedCustomizationsPaneHeight = this.getCustomizationsPaneHeight();
+		store.add(customizationsWidget.onDidToggleCollapsed(collapsed => {
+			if (!this.sidebarSplitView) {
+				return;
+			}
+			if (collapsed) {
+				const currentSize = this.sidebarSplitView.getViewSize(1);
+				if (currentSize > customizationsWidget.collapsedHeight) {
+					savedCustomizationsPaneHeight = currentSize;
+				}
+				this.sidebarSplitView.resizeView(1, customizationsWidget.collapsedHeight);
+			} else {
+				this.sidebarSplitView.resizeView(1, savedCustomizationsPaneHeight);
+			}
+			this.layoutSidebarSplitView();
+		}));
+		this.didInitializePaneSizes = false;
+		this.layoutSidebarSplitView();
+	}
+
+	focusCustomizations(): void {
+		this._customizationsWidget?.focus();
 	}
 
 	private restoreLastSelectedSession(): void {
@@ -494,20 +602,46 @@ export class SessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
+		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
 		this.updateHeaderLayout();
-		this.layoutSessionsControl();
-	}
+		this.layoutSidebarSplitView();
 
-	private layoutSessionsControl(): void {
-		if (!this.sessionsControl || !this.sessionsControlContainer) {
+		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {
 			return;
 		}
-		const height = this.sessionsControlContainer.offsetHeight;
-		const width = this.sessionsControlContainer.offsetWidth || this.currentBodyWidth;
-		if (height > 0 && width > 0) {
-			this.sessionsControl.layout(height, width);
+
+		this.sessionsControl.layout(this.sessionsControlContainer.offsetHeight, width);
+	}
+
+	private layoutSidebarSplitView(): void {
+		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
+			return;
 		}
+
+		const height = this.sidebarSplitViewContainer.offsetHeight || this.currentBodyHeight || this.viewPaneContainer?.offsetHeight || 0;
+		if (height <= 0) {
+			return;
+		}
+
+		if (this.sidebarSplitViewContainer.offsetHeight === 0) {
+			this.sidebarSplitViewContainer.style.height = `${height}px`;
+		}
+		this.sidebarSplitView.layout(height);
+		if (!this.didInitializePaneSizes) {
+			this.didInitializePaneSizes = true;
+			if (this._customizationsWidget) {
+				this.sidebarSplitView.resizeView(1, this.getCustomizationsPaneHeight());
+			}
+		}
+	}
+
+	private getCustomizationsPaneHeight(): number {
+		if (this._customizationsWidget?.collapsed) {
+			return this._customizationsWidget.collapsedHeight;
+		}
+		const desiredHeight = this._customizationsWidget?.desiredHeight ?? 0;
+		return Math.max(CUSTOMIZATIONS_MIN_HEIGHT, Number.isFinite(desiredHeight) ? desiredHeight : 0);
 	}
 
 	override focus(): void {
