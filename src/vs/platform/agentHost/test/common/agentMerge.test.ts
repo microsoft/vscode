@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
+import { AgentMergeConfiguration, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeEnabledNotice, evaluateAgentMerge, getNonMergeSessionConfigValues, isAgentMergePullRequestReadyForReview, readAgentMergeSessionState, shouldStopMergingAfterAgentChanges } from '../../common/agentMerge.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 
@@ -72,6 +72,62 @@ suite('Agent Merge gate', () => {
 			actions: ['addressReviews', 'fixCI'],
 			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext }),
 			context: expectedContext,
+		});
+	});
+
+	test('repairs draft pull requests without merging them', () => {
+		const repair = evaluateAgentMerge(readySnapshot({
+			draft: true,
+			reviewThreads: [{
+				id: 'thread-1',
+				isResolved: false,
+				comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+			}],
+			checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+		}), configuration, '2026-08-02T00:00:00.000Z');
+		const ready = evaluateAgentMerge(readySnapshot({ draft: true }), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual({
+			repair: repair.kind === 'prompt' ? repair.actions : repair.kind,
+			ready: ready.kind,
+		}, {
+			repair: ['addressReviews', 'fixCI'],
+			ready: 'noWork',
+		});
+	});
+
+	test('reports when required checks and review feedback are ready', () => {
+		const watermark = '2026-08-02T00:00:00.000Z';
+		assert.deepStrictEqual({
+			ready: isAgentMergePullRequestReadyForReview(readySnapshot({ draft: true }), watermark),
+			notDraft: isAgentMergePullRequestReadyForReview(readySnapshot(), watermark),
+			pendingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'IN_PROGRESS' }],
+			}), watermark),
+			failingChecks: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				checks: [{ id: 'required', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' }],
+			}), watermark),
+			reviewComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				reviewThreads: [{
+					id: 'thread-1',
+					isResolved: false,
+					comments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this' }],
+				}],
+			}), watermark),
+			newComments: isAgentMergePullRequestReadyForReview(readySnapshot({
+				draft: true,
+				topLevelComments: [{ id: 'comment-1', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this', createdAt: '2026-08-03T00:00:00.000Z' }],
+			}), watermark),
+		}, {
+			ready: true,
+			notDraft: undefined,
+			pendingChecks: false,
+			failingChecks: false,
+			reviewComments: false,
+			newComments: false,
 		});
 	});
 
@@ -215,7 +271,7 @@ suite('Agent Merge gate', () => {
 			...configuration,
 			mergePullRequest: 'never',
 		}), [
-			'Agent Merge is on for `feature`. It will wait for a pull request on this branch, then monitor it.',
+			'Agent Merge is enabled for `feature`. It will wait for a pull request on this branch, then monitor it.',
 			'It will ask the agent to address new pull request review comments.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
@@ -225,7 +281,14 @@ suite('Agent Merge gate', () => {
 		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
 	});
 
-	test('describes effective Agent Merge configuration changes', () => {
+	test('reports when Agent Merge merges a pull request', () => {
+		assert.strictEqual(
+			agentMergeDisableReasons.pullRequestMerged(123, 'https://github.com/octo/repo/pull/123').notice,
+			'Agent Merge merged pull request [#123](https://github.com/octo/repo/pull/123).',
+		);
+	});
+
+	test('describes effective Agent Merge configuration changes, and who they apply to', () => {
 		const previous: AgentMergeConfiguration = {
 			...configuration,
 			mergePullRequest: 'never',
@@ -241,15 +304,23 @@ suite('Agent Merge gate', () => {
 			mergeMethod: 'squash',
 			replyAttribution: false,
 		};
-
-		assert.strictEqual(agentMergeConfigurationChangedNotice(previous, current), [
-			'Agent Merge settings changed.',
+		const changes = [
 			'It will no longer address new pull request review comments or wait for them before merging.',
 			'It will no longer fix failing CI checks.',
 			'It will no longer resolve merge conflicts or update a behind branch.',
 			'It will now merge the pull request automatically when it is ready.',
 			'It will now squash-merge the pull request.',
-		].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'));
+		];
+		const noticeFor = (heading: string) => [heading, ...changes]
+			.map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n');
+
+		assert.deepStrictEqual({
+			session: agentMergeConfigurationChangedNotice(previous, current, 'session'),
+			global: agentMergeConfigurationChangedNotice(previous, current, 'global'),
+		}, {
+			session: noticeFor('Agent Merge settings changed for this session.'),
+			global: noticeFor('Agent Merge default settings changed for all sessions.'),
+		});
 	});
 
 	test('describes an already-bound pull request without claiming disabled review behavior', () => {
@@ -262,7 +333,7 @@ suite('Agent Merge gate', () => {
 			mergePullRequest: 'always',
 			mergeMethod: 'squash',
 		}), [
-			'Agent Merge is on for `feature` and is monitoring its pull request.',
+			'Agent Merge is enabled for `feature` and is monitoring its pull request.',
 			'It will ask the agent to fix failing CI checks.',
 			'It will ask the agent to resolve merge conflicts and update the branch when it falls behind.',
 			'After each update, it will wait for new CI results.',
@@ -273,19 +344,20 @@ suite('Agent Merge gate', () => {
 
 	test('announces reply-attribution changes only while review replies are enabled', () => {
 		assert.deepStrictEqual({
-			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }),
+			enabled: agentMergeConfigurationChangedNotice(configuration, { ...configuration, replyAttribution: false }, 'session'),
 			reviewsDisabled: agentMergeConfigurationChangedNotice(
 				{ ...configuration, addressReviews: false },
 				{ ...configuration, addressReviews: false, replyAttribution: false },
+				'session',
 			),
 		}, {
-			enabled: 'Agent Merge settings changed.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
+			enabled: 'Agent Merge settings changed for this session.\n\n- Replies it posts will no longer identify Agent Merge as the source.',
 			reviewsDisabled: undefined,
 		});
 	});
 
 	test('omits an Agent Merge configuration notice when effective behavior is unchanged', () => {
-		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }), undefined);
+		assert.strictEqual(agentMergeConfigurationChangedNotice(configuration, { ...configuration }, 'session'), undefined);
 	});
 
 	test('only merges automatically when the merge choice is not "never"', () => {
@@ -372,6 +444,7 @@ suite('Agent Merge gate', () => {
 });
 
 function readySnapshot(overrides?: {
+	readonly draft?: boolean;
 	readonly topLevelComments?: NonNullable<PullRequestSnapshot['topLevelComments']['value']>;
 	readonly submittedReviews?: NonNullable<PullRequestSnapshot['submittedReviews']['value']>;
 	readonly reviewThreads?: NonNullable<PullRequestSnapshot['reviewThreads']['value']>;
@@ -390,7 +463,7 @@ function readySnapshot(overrides?: {
 				title: 'Change',
 				url: 'https://github.com/octo/repo/pull/1',
 				state: 'open',
-				draft: false,
+				draft: overrides?.draft ?? false,
 				headSha: 'head',
 				headRef: 'feature',
 				baseSha: 'base',

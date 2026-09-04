@@ -4144,6 +4144,22 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "",
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -5236,6 +5252,16 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.searchSubagent.thoroughnessEnabled%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.searchSubagent.subagentSemanticSearchEnabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.searchSubagent.subagentSemanticSearchEnabled%",
             "tags": [
               "advanced",
               "experimental",

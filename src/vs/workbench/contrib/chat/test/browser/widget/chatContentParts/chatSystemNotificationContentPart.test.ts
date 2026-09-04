@@ -34,17 +34,36 @@ suite('ChatSystemNotificationContentPart', () => {
 			{ kind: 'systemNotification', content: new MarkdownString('Background command completed') },
 			renderer,
 		));
+		const inlineTimingPart = disposables.add(instantiationService.createInstance(
+			ChatSystemNotificationContentPart,
+			{ kind: 'systemNotification', content: new MarkdownString('Agent Merge started'), icon: Codicon.gitMerge, renderInlineTiming: true },
+			renderer,
+		));
 
 		assert.deepStrictEqual({
 			text: part.domNode.textContent,
 			hasCheck: !!part.domNode.querySelector('.codicon-check-compact'),
 			sameContent: part.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') }),
 			differentContent: part.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Different') }),
+			inlineTiming: {
+				isLayout: inlineTimingPart.domNode.classList.contains('chat-system-notification-layout'),
+				hasMergeIcon: !!inlineTimingPart.domNode.querySelector('.codicon-git-merge'),
+				hasTimingContainer: inlineTimingPart.inlineTimingContainer?.classList.contains('chat-system-notification-timing'),
+				sameContent: inlineTimingPart.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Agent Merge started'), icon: Codicon.gitMerge, renderInlineTiming: true }),
+				differentPresentation: inlineTimingPart.hasSameContent({ kind: 'systemNotification', content: new MarkdownString('Agent Merge started'), icon: Codicon.gitMerge }),
+			},
 		}, {
 			text: 'Background command completed',
 			hasCheck: true,
 			sameContent: true,
 			differentContent: false,
+			inlineTiming: {
+				isLayout: true,
+				hasMergeIcon: true,
+				hasTimingContainer: true,
+				sameContent: true,
+				differentPresentation: false,
+			},
 		});
 	});
 

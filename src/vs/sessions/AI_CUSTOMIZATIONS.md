@@ -32,6 +32,7 @@ This service supplies per-window policy to the shared editor:
 - available management sections;
 - whether the surface is in the Agents Window;
 - the active project root;
+- the active project display label;
 - welcome-page capabilities.
 
 The editor workbench resolves project context from its workspace. The Agents Window resolves it from the scoped active session.

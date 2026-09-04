@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupsView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -667,6 +667,19 @@ export class ChatGroupsView extends Themable {
 			group.view.setGroupActive(group === entry);
 		}
 		this._persistLayout();
+	}
+
+	getFocusedChat(): IChat | undefined {
+		const group = this._getFocusedGroup();
+		if (!group) {
+			return undefined;
+		}
+		const activeResource = group.activeResourceId.get();
+		return group.chats.get().find(chat => chat.resource.toString() === activeResource);
+	}
+
+	private _getFocusedGroup(): IGroupEntry | undefined {
+		return this._groups.find(group => isAncestorOfActiveElement(group.view.element));
 	}
 
 	/**

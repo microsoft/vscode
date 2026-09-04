@@ -206,6 +206,34 @@ suite('pluginParsers', () => {
 			});
 		});
 
+		test('preserves VS Code OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauth: { clientId: 'vscode-client-id' },
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'vscode-client-id' },
+				dev: undefined,
+			});
+		});
+
+		test('normalizes Copilot SDK OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauthClientId: 'sdk-client-id',
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'sdk-client-id' },
+				dev: undefined,
+			});
+		});
+
 		test('infers remote type from url without explicit type', () => {
 			const result = normalizeMcpServerConfiguration({ url: 'https://example.com' });
 			assert.ok(result);

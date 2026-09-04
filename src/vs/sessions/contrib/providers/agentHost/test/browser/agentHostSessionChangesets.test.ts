@@ -6,19 +6,20 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChangesetStatus, StateComponents, type ChangesetState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -57,6 +58,24 @@ suite('AgentHostSessionChangesets', () => {
 
 	function uris(changes: readonly ISessionFileChange[]): string[] {
 		return changes.map(change => (change as IChatSessionFileChange2).uri.toString());
+	}
+
+	function createMutableSubscription<T>(initialValue: T): { readonly object: IAgentSubscription<T>; set(value: T): void } {
+		let value = initialValue;
+		const onDidChange = disposables.add(new Emitter<T>());
+		return {
+			object: {
+				get value() { return value; },
+				get verifiedValue() { return value; },
+				onDidChange: onDidChange.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			set: newValue => {
+				value = newValue;
+				onDidChange.fire(newValue);
+			},
+		};
 	}
 
 	suite('filterChangesToPrimaryWorkingDirectory', () => {
@@ -229,6 +248,156 @@ suite('AgentHostSessionChangesets', () => {
 			assert.deepStrictEqual(
 				selectDefault(['uncommitted'], ChangesetKind.Session),
 				['uncommitted*']);
+		});
+
+		test('rejects operation invocation while disconnected', async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const options: IAgentHostAdapterOptions = {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => undefined,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			};
+			const [changeset] = createChangesets(sessionUri, options, constObservable(false), [entry(ChangesetKind.Uncommitted)]);
+
+			await assert.rejects(
+				() => changeset.invokeOperation('checkout'),
+				/agent host connection is unavailable/,
+			);
+		});
+	});
+
+	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {
+		const sessionUri = URI.parse('ahp-session:/session-1');
+		const defaultChatUri = URI.parse('ahp-session:/session-1/chat/default');
+		const modifiedAt = new Date(0).toISOString();
+		const chatSummary: ChatSummary = {
+			resource: defaultChatUri.toString(),
+			title: 'Default',
+			status: SessionStatus.Idle,
+			modifiedAt,
+		};
+		const sessionState: SessionState = {
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [chatSummary],
+			defaultChat: defaultChatUri.toString(),
+		};
+		const makeTurn = (id: string, kind: MessageKind, agentMerge = false): Turn => ({
+			id,
+			message: {
+				text: id,
+				origin: { kind },
+				...(agentMerge ? { _meta: toAgentMergeMessageMeta() } : {}),
+			},
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		});
+		const user1 = makeTurn('user-1', MessageKind.User);
+		const merge2 = makeTurn('merge-2', MessageKind.SystemNotification, true);
+		const user3 = makeTurn('user-3', MessageKind.User);
+		const merge4 = makeTurn('merge-4', MessageKind.SystemNotification, true);
+		const notice = makeTurn('notice', MessageKind.SystemNotification);
+		const automation = makeTurn('automation', MessageKind.Automation);
+		const tool = makeTurn('tool', MessageKind.Tool);
+		const merge5 = makeTurn('merge-5', MessageKind.SystemNotification, true);
+		const user6 = makeTurn('user-6', MessageKind.User);
+		const merge7 = makeTurn('merge-7', MessageKind.SystemNotification, true);
+
+		const sessionSubscription = createMutableSubscription(sessionState);
+		const chatSubscription = createMutableSubscription<ChatState>({
+			...createChatState(chatSummary),
+			turns: [user1, merge2, user3],
+		});
+		const changesetSubscription = createMutableSubscription<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [],
+		});
+		const acquiredChangesets: string[] = [];
+		const releasedChangesets: string[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(component: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				switch (component) {
+					case StateComponents.Session:
+						return { object: sessionSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+					case StateComponents.Chat:
+						return { object: chatSubscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+					case StateComponents.Changeset: {
+						const key = resource.toString();
+						acquiredChangesets.push(key);
+						return {
+							object: changesetSubscription.object as IAgentSubscription<ComponentToState[T]>,
+							dispose: () => releasedChangesets.push(key),
+						};
+					}
+					default:
+						throw new Error(`Unexpected subscription component: ${component}`);
+				}
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		const options: IAgentHostAdapterOptions = {
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+		};
+		const changeset = createChangesets(sessionUri, options, constObservable(true), [{
+			label: 'Agent Merge Changes',
+			changeKind: AGENT_MERGE_CHANGESET_ID,
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri.toString()),
+		}])[0];
+		if (!changeset) {
+			throw new Error('Expected Agent Merge changeset');
+		}
+
+		let visibleChangeCount = -1;
+		disposables.add(autorun(reader => {
+			visibleChangeCount = changeset.changes.read(reader).length;
+		}));
+
+		const repairsAfterUser3 = [user1, merge2, user3, notice, merge4, automation, tool, merge5];
+		chatSubscription.set({ ...createChatState(chatSummary), turns: repairsAfterUser3 });
+		chatSubscription.set({
+			...createChatState(chatSummary),
+			turns: repairsAfterUser3,
+			activeTurn: {
+				id: user6.id,
+				startedAt: modifiedAt,
+				message: user6.message,
+				responseParts: [],
+				usage: undefined,
+			},
+		});
+		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6] });
+		chatSubscription.set({ ...createChatState(chatSummary), turns: [...repairsAfterUser3, user6, merge7] });
+
+		const compareFromUser3 = `ahp-session:/session-1/changeset/compare/user-3/merge-5`;
+		const compareFromUser6 = `ahp-session:/session-1/changeset/compare/user-6/merge-7`;
+		assert.deepStrictEqual({
+			id: changeset.id,
+			enabled: changeset.isEnabled.get(),
+			visibleChangeCount,
+			acquiredChangesets,
+			releasedChangesets,
+		}, {
+			id: AGENT_MERGE_CHANGESET_ID,
+			enabled: true,
+			visibleChangeCount: 0,
+			acquiredChangesets: [compareFromUser3, compareFromUser6],
+			releasedChangesets: [compareFromUser3],
 		});
 	});
 

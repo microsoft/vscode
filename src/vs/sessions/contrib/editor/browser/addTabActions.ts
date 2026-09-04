@@ -122,7 +122,7 @@ export class NewBrowserTabAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
-		await editorService.openEditor(browserInput);
+		await editorService.openEditor(browserInput, { pinned: true });
 	}
 }
 

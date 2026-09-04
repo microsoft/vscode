@@ -36,6 +36,11 @@ function createCodexItem(type: AgentSessionProviders.Codex | AgentSessionProvide
 	};
 }
 
+function getMarkdownValue(value: string | IMarkdownString | HTMLElement | (() => HTMLElement) | undefined): string | undefined {
+	const resolved = typeof value === 'function' ? value() : value;
+	return typeof resolved === 'string' ? resolved : resolved instanceof HTMLElement ? resolved.textContent ?? undefined : resolved?.value;
+}
+
 interface IAvailabilityInputs {
 	readonly type: string;
 	readonly allowSignedOutWhenUsable: boolean;

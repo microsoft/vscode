@@ -347,6 +347,13 @@ class ProviderCatalogUnavailableError extends Error {
 	}
 }
 
+class SubagentTranscriptUnavailableError extends Error {
+	constructor(chat: string) {
+		super(`Subagent transcript is not available yet: ${chat}`);
+		this.name = 'SubagentTranscriptUnavailableError';
+	}
+}
+
 /**
  * Reconcile a session's working-directory set from a create-result /
  * materialization receipt. The resolved receipt is authoritative for the roots
@@ -475,12 +482,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 * durable marker write kept failing after a retry in `createChat`. The chat
 	 * itself was already created and announced successfully, so this in-process
 	 * suppression stands in for the durable marker: it is consulted by
-	 * {@link _isChatBacking} (used by external discovery) and by `listSessions`'s overlay
-	 * filter, so the backing session is still never surfaced as a standalone
-	 * top-level session for the lifetime of this process, even though its
-	 * on-disk marker never persisted. A later successful write (e.g. from a
-	 * differently-timed retry) removes the entry; a stale entry for a since
-	 * deleted session is harmless — that URI is never reachable again.
+	 * {@link _readSessionRegistrationFacts} (used by external discovery) and
+	 * by `listSessions`'s overlay filter, so the backing session is still never
+	 * surfaced as a standalone top-level session for the lifetime of this
+	 * process, even though its on-disk marker never persisted. A later
+	 * successful write (e.g. from a differently-timed retry) removes the entry;
+	 * a stale entry for a since deleted session is harmless — that URI is never
+	 * reachable again.
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
 
@@ -1796,7 +1804,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let registryChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
-		const results = await Promise.all(chats.map(({ external, ...metadata }) => discoveryLimiter.queue(async () => {
+		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
@@ -1812,10 +1820,16 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					return false;
 				}
-				if (isSubagentSession(session.toString()) || await this._isChatBacking(session)) {
+				if (isSubagentSession(session.toString())) {
 					suppressed++;
 					return false;
 				}
+				const registrationFacts = await this._readSessionRegistrationFacts(session);
+				if (registrationFacts.chatBacking) {
+					suppressed++;
+					return false;
+				}
+				const external = reportedExternal && !registrationFacts.hostCreated;
 				if (external && !readSessionEhcliAdoptable(sessionMetadata._meta) && this._isExternalSessionOlderThanMaxAge(sessionMetadata.modifiedTime, Date.now())) {
 					skippedAsStale++;
 					return false;
@@ -1968,9 +1982,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Both facts registry backfill needs about a session, from a single database
-	 * open — it asks for both per session, and a large catalogue makes the second
-	 * open the dominant cost of the pass.
+	 * Both facts discovery and registry backfill need about a session, from a
+	 * single database open — they ask for both per session, and a large catalogue
+	 * makes a second open the dominant cost of the pass.
 	 */
 	private async _readSessionRegistrationFacts(session: URI): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
@@ -2048,30 +2062,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		return known;
-	}
-
-	/**
-	 * Whether a session is marked as an internal chat backing, either durably
-	 * or in `_unpersistedChatBackings`.
-	 */
-	private async _isChatBacking(session: URI): Promise<boolean> {
-		if (this._unpersistedChatBackings.has(session.toString())) {
-			return true;
-		}
-
-		try {
-			const ref = await this._sessionDataService.tryOpenDatabase(session);
-			if (!ref) {
-				return false;
-			}
-			try {
-				return !!(await ref.object.getMetadata(CHAT_BACKING_METADATA_KEY));
-			} finally {
-				ref.dispose();
-			}
-		} catch {
-			return false;
-		}
 	}
 
 	/** Active list computations and their optional trailing refresh, shared per mode. */
@@ -3259,6 +3249,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!hasCompletedTurn && !activeTurn) {
 			throw new Error(`[AgentService] createChat: side chat source turn ${sideChat.turnId} not found in ${sourceKey}`);
 		}
+		const sourceHasProviderFork = this._stateManager.getChatOrigin(sourceChatKey)?.kind !== ChatOriginKind.Tool;
 		let anchorTurnId: string | undefined;
 		if (activeTurn) {
 			anchorTurnId = resolveLastNonLocalTurnId(sourceState?.turns ?? [], turnId => this._localTurns.isLocal(sourceChatKey, turnId));
@@ -3278,7 +3269,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(selection ? { selection } : {}),
 			},
 			sourceChat: sourceChatKey,
-			shouldFork: !activeTurn || anchorTurnId !== undefined,
+			shouldFork: sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
 			...(selection ? { selection } : {}),
 			...(anchorTurnId ? { anchorTurnId } : {}),
 		};
@@ -4872,12 +4863,21 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
+		const unavailableSubagentTranscripts = new Set<string>();
 		while (true) {
-			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel);
+			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel)?.filter(chat => !unavailableSubagentTranscripts.has(chat));
 			if (!unresolvedChats) { throw new Error('Cannot validate turn id for unknown session'); }
 			if (unresolvedChats.length === 0) { return; }
 			await Promise.all(unresolvedChats.map(async chat => {
-				if (!await this._stateManager.resolveChatState(chat)) { throw new Error('Cannot resolve peer chat for turn id validation'); }
+				try {
+					if (!await this._stateManager.resolveChatState(chat)) { throw new Error('Cannot resolve peer chat for turn id validation'); }
+				} catch (error) {
+					if (!(error instanceof SubagentTranscriptUnavailableError)) {
+						throw error;
+					}
+					unavailableSubagentTranscripts.add(chat);
+					this._logService.warn(`[AgentService] Cannot validate turn ids against unavailable subagent transcript: ${chat}`);
+				}
 			}));
 		}
 	}
@@ -5745,6 +5745,7 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		if (restoredConfig) {
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);
@@ -6113,10 +6114,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * callers (chat creation / restore) must not fail just because this
 	 * durable write did. The write is retried once; if it still fails, the
 	 * backing session is added to `_unpersistedChatBackings` so
-	 * `_isChatBacking` (external discovery) and `listSessions`'s overlay filter keep
-	 * suppressing it for the rest of this process's lifetime even without a
-	 * persisted marker. A later successful call for the same session (e.g. a
-	 * retried caller) clears any stale suppression entry.
+	 * `_readSessionRegistrationFacts` (external discovery) and `listSessions`'s
+	 * overlay filter keep suppressing it for the rest of this process's lifetime
+	 * even without a persisted marker. A later successful call for the same
+	 * session (e.g. a retried caller) clears any stale suppression entry.
 	 */
 	private async _markChatBacking(backingSession: URI, chat: URI): Promise<void> {
 		const backingSessionStr = backingSession.toString();
@@ -7198,7 +7199,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }): Promise<readonly Turn[]> {
 		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, origin);
 		if (childTurns.length === 0) {
-			throw new Error(`Subagent transcript is not available yet: ${chatUri}`);
+			throw new SubagentTranscriptUnavailableError(chatUri);
 		}
 		return this._interleaveLocalTurns(parentSession.toString(), chatUri, childTurns);
 	}

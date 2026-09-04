@@ -118,6 +118,28 @@ suite('copilotPluginConverters', () => {
 			});
 		});
 
+		test('converts remote OAuth client configuration', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'slack',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					url: 'https://mcp.slack.com/mcp',
+					oauth: { clientId: 'public-client-id' },
+				},
+				customization: stubMcpCustomization('slack'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				slack: {
+					type: 'http',
+					url: 'https://mcp.slack.com/mcp',
+					tools: ['*'],
+					oauthClientId: 'public-client-id',
+				},
+			});
+		});
+
 		test('handles empty definitions', () => {
 			const result = toSdkMcpServers([]);
 			assert.deepStrictEqual(result, {});

@@ -515,8 +515,8 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
-export function shouldReserveChatPetSpace(enabled: boolean, activeHost: boolean): boolean {
-	return enabled && activeHost;
+export function shouldReserveChatPetSpace(enabled: boolean, visible: boolean): boolean {
+	return enabled && visible;
 }
 
 export function isChatPetVisible(enabled: boolean, windowActive = true): boolean {
