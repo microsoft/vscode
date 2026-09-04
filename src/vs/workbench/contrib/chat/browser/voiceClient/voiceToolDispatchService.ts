@@ -572,12 +572,12 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		const sessionData: Array<Record<string, unknown> & { state: string; is_active: boolean; last_activity: number }> = agentSessions.map(session => {
 			const model = this.chatService.getSession(session.resource);
 			const changes = getAgentChangesSummary(session.changes);
-			const state = model?.requestNeedsInput?.get() ? 'waiting_for_input'
-				: model?.hasActiveRequest?.get() ? 'working'
-					: session.status === AgentSessionStatus.InProgress ? 'working'
-						: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
-							: session.status === AgentSessionStatus.Completed ? 'idle'
-								: 'unknown';
+			const state = model
+				? model.requestNeedsInput?.get() ? 'waiting_for_input' : model.hasActiveRequest?.get() ? 'working' : 'idle'
+				: session.status === AgentSessionStatus.InProgress ? 'working'
+					: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
+						: session.status === AgentSessionStatus.Completed ? 'idle'
+							: 'unknown';
 			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
 				id: session.resource.toString(),
