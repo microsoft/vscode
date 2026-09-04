@@ -176,21 +176,10 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 	}
 }
 
-function isGlobalAutoApproveEnabled(configService: IAgentConfigurationService): boolean {
-	return configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
-}
-
-function getEffectiveApprovalLevel(configService: IAgentConfigurationService, sessionKey: ProtocolURI): string {
-	return configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
-}
-
-function isSessionAutoApproveEnabled(configService: IAgentConfigurationService, sessionKey: ProtocolURI): boolean {
-	return getEffectiveApprovalLevel(configService, sessionKey) === 'autoApprove';
-}
-
 /** Returns whether effective platform configuration auto-approves every permission request for the session. */
 export function isAutoApproveBypassEnabled(configService: IAgentConfigurationService, sessionKey: ProtocolURI): boolean {
-	return isGlobalAutoApproveEnabled(configService) || isSessionAutoApproveEnabled(configService, sessionKey);
+	return configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true
+		|| (configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default') === 'autoApprove';
 }
 
 /**
@@ -437,16 +426,16 @@ export class SessionPermissionManager extends Disposable {
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
 	isGlobalAutoApproveEnabled(): boolean {
-		return isGlobalAutoApproveEnabled(this._configService);
+		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		return getEffectiveApprovalLevel(this._configService, sessionKey);
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
 		// `autoApprove` (Allow All) auto-approves every tool call.
-		return isSessionAutoApproveEnabled(this._configService, sessionKey);
+		return this.getEffectiveApprovalLevel(sessionKey) === 'autoApprove';
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
