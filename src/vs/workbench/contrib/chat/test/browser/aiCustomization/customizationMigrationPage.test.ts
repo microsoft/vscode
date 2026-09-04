@@ -109,6 +109,8 @@ suite('SelectableCustomizationMigrationPage', () => {
 		document.body.appendChild(container);
 		if (options.activate !== false) {
 			page.activate(container);
+			const listContainer = container.querySelector<HTMLElement>('.prompt-migration-list')!;
+			Object.defineProperty(listContainer, 'clientHeight', { configurable: true, value: 280 });
 			page.setVisible(options.visible !== false);
 		}
 		return {
