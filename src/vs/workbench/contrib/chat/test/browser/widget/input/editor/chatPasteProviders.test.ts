@@ -145,7 +145,12 @@ suite('Chat Paste Providers', () => {
 			title: edit?.title,
 			attached,
 			attachmentsAfterUndo: attachments,
-			parsedInvalidLinks: getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/discussions/1'),
+			parsedInvalidLinks: [
+				'https://github.com/microsoft/vscode/discussions/1',
+				'https://github.com/microsoft/vscode/issues/333845-not-an-issue',
+				'https://github.com/microsoft/vscode/pull/123invalid',
+				'https://github.com/microsoft/vscode/pull/123_invalid',
+			].flatMap(getGitHubIssueOrPullRequestAttachments),
 		}, {
 			insertText: text,
 			title: 'Paste GitHub Context',
