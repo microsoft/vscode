@@ -446,6 +446,8 @@
 	align-items: center;
 	min-width: 0;
 	height: var(--vscode-spacing-size280);
+	/* The row's own bottom margin would centre this half a margin above the search button. */
+	margin: var(--vscode-spacing-sizeNone);
 	padding: var(--vscode-spacing-sizeNone);
 	border: none;
 }
