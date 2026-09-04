@@ -200,8 +200,15 @@ class Widget {
 	private readonly _fixedOverflowWidgets: boolean;
 	private _contentWidth: number;
 	/**
-	 * The physical left offset of the content area inside the editor. In a right-to-left layout the
-	 * content is preceded by the minimap only, the margin having moved to the right edge.
+	 * The origin a content widget's anchor is measured from. In a left-to-right layout that is
+	 * `contentLeft`, the width of the margin strip.
+	 *
+	 * In a right-to-left layout the margin has moved to the right edge, so the content is preceded
+	 * by the minimap only - and by the width the vertical scrollbar reserves, because a right-to-left
+	 * line is inset from the right edge of the content box by `ViewLine#renderLine`'s `padding-right`
+	 * and the visible ranges the anchor comes from are measured inside that inset box. Leaving it out
+	 * places every content widget one scrollbar width away from the position it is anchored to: the
+	 * suggest widget detaches from the caret by 14px at the default scrollbar size.
 	 */
 	private _contentLeft: number;
 	private _isRtl: boolean;
@@ -236,7 +243,7 @@ class Widget {
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth : layoutInfo.contentLeft;
+		this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth + layoutInfo.verticalScrollbarWidth : layoutInfo.contentLeft;
 
 		this._affinity = null;
 		this._preference = [];
@@ -258,7 +265,7 @@ class Widget {
 		if (e.hasChanged(EditorOption.layoutInfo) || e.hasChanged(EditorOption.effectiveTextDirection)) {
 			const layoutInfo = options.get(EditorOption.layoutInfo);
 			this._isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
-			this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth : layoutInfo.contentLeft;
+			this._contentLeft = this._isRtl ? layoutInfo.minimap.minimapWidth + layoutInfo.verticalScrollbarWidth : layoutInfo.contentLeft;
 			this._contentWidth = layoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();
 		}
