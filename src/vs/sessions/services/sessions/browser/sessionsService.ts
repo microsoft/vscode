@@ -62,6 +62,12 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
+
+	/**
+	 * When `true`, opens the new session (or empty composer slot) to the side
+	 * of the active session in the grid instead of replacing it in place.
+	 */
+	readonly toSide?: boolean;
 }
 
 /**
@@ -268,9 +274,10 @@ export interface ISessionsService {
 
 	/**
 	 * Insert (or move) a session into the grid positioned next to a target
-	 * session that is already visible.
+	 * session that is already visible. Passing `undefined` operates on the
+	 * empty (new-session) slot.
 	 */
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate?: boolean): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -1080,7 +1087,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
-				this._activate(session);
+				this._activateOrInsert(session, options?.toSide);
 				return { session, trustDeclined: false };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
@@ -1096,7 +1103,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!folderUri) {
 			this._dismissCustomViewForNavigation(intent);
 		}
-		if (this._visibility.activeSession.get() === undefined) {
+		if (this._visibility.activeSession.get() === undefined && !options?.toSide) {
 			return { session: undefined, trustDeclined: false };
 		}
 		if (!folderUri) {
@@ -1113,12 +1120,38 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// a fresh workspace composer instead.
 		if (newSession?.isQuickChat?.get()) {
 			this.sessionsManagementService.discardNewSession(newSession);
-			this._activate(undefined);
+			this._activateOrInsert(undefined, options?.toSide);
 			return { session: undefined, trustDeclined: false };
 		}
 
-		this._activate(newSession ?? undefined);
-		return { session: newSession ?? undefined, trustDeclined: false };
+		const targetSession = newSession ?? undefined;
+		this._activateOrInsert(targetSession, options?.toSide);
+		return { session: targetSession, trustDeclined: false };
+	}
+
+	/**
+	 * Show `session` (or the empty new-session slot) either in place or beside
+	 * the active session.
+	 *
+	 * Inserting the empty slot is only possible while the grid has none, since
+	 * the visibility model caps the grid at a single empty slot and refuses to
+	 * relocate the existing one. When one is already present it is activated
+	 * where it sits rather than being moved next to the active session.
+	 */
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined): void {
+		if (toSide) {
+			const visible = this.visibleSessions.get();
+			// Anchor on the active session, falling back to the rightmost slot when
+			// the empty placeholder is active (it has no session id to anchor on).
+			const anchorId = this._visibility.activeSession.get()?.sessionId ?? visible[visible.length - 1]?.sessionId;
+			const sessionId = session?.sessionId;
+			const canInsertEmptySlot = sessionId !== undefined || !visible.includes(undefined);
+			if (anchorId && canInsertEmptySlot && anchorId !== sessionId) {
+				this.insertAt(session, anchorId, 'right', true);
+				return;
+			}
+		}
+		this._activate(session);
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
@@ -1182,7 +1215,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate: boolean = true): void {
 		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 

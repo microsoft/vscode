@@ -47,7 +47,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_TO_SIDE_ACTION_ID } from '../common/constants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -206,6 +206,48 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
+
+class NewChatToSideInSessionsWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: NEW_SESSION_TO_SIDE_ACTION_ID,
+			title: localize2('sessions.newSessionToSide.label', "New Session to the Side"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: EditorAreaFocusContext.negate(),
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN,
+				},
+			},
+			menu: [
+				{
+					id: Menus.NewSessionDropdown,
+					group: '1_new',
+					order: 1,
+				}
+			]
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const activeSession = sessionsService.activeSession.get();
+		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+		sessionsService.openNewSession({
+			folderUri,
+			toSide: true,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+		});
+	}
+}
+
+registerAction2(NewChatToSideInSessionsWindowAction);
 
 class SetChatBackgroundAction extends Action2 {
 

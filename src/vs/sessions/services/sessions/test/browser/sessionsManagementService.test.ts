@@ -509,6 +509,65 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openNewSession with toSide places the new-session composer beside the active session', async () => {
+		const session = stubSession({ sessionId: 'active', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active']);
+
+		await view.openNewSession({ toSide: true });
+		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active', null]);
+		assert.strictEqual(view.activeSession.get(), undefined);
+	});
+
+	test('repeated openNewSession with toSide keeps the single empty slot and re-activates it', async () => {
+		const session = stubSession({ sessionId: 'active', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		await view.openNewSession({ toSide: true });
+		// Go back to the session, then ask for a side composer again. The grid caps
+		// at one empty slot, so the existing one is re-activated rather than duplicated.
+		await view.openSession(session.resource);
+		await view.openNewSession({ toSide: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: view.activeSession.get()?.sessionId ?? null,
+		}, {
+			visible: ['active', null],
+			active: null,
+		});
+	});
+
+	test('openNewSession with toSide and folderUri places the new session beside the active session', async () => {
+		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
+			uri,
+			label: 'ws',
+			icon: Codicon.vm,
+			folders: [{ root: uri, workingDirectory: uri, name: 'ws', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		});
+		const session = stubSession({ sessionId: 'active', providerId: 'test' });
+		const folderUri = URI.file('/test/workspace');
+		const newDraftSession = stubSession({ sessionId: 'new-draft', providerId: 'test', workspace: constObservable(makeWorkspace(folderUri)) });
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(session); }
+			override resolveWorkspace(folder?: URI): ISessionWorkspace { return makeWorkspace(folder!); }
+			override createNewSession(): ISession { return newDraftSession; }
+		};
+		const { view } = createSessionsManagementService(session, disposables, provider);
+
+		await view.openSession(session.resource);
+		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active']);
+
+		await view.openNewSession({ folderUri, toSide: true });
+		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId ?? null), ['active', 'new-draft']);
+		assert.strictEqual(view.activeSession.get()?.sessionId, 'new-draft');
+	});
+
 	test('removing the active chat keeps the custom view open', async () => {
 		const sideChat: IChat = {
 			...stubChat,

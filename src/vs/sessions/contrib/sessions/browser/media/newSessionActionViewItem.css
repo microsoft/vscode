@@ -7,14 +7,11 @@
 between the sessions sidebar header and the titlebar. Selectors are intentionally
 unscoped so the widget renders identically wherever it is mounted. */
 
-.agent-sessions-compact-new-button.monaco-button {
+.agent-sessions-compact-new-button.monaco-button,
+.agent-sessions-compact-new-button.monaco-button-dropdown {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
-	padding: 2px 8px;
-	font-size: var(--vscode-fontSize-label1, 12px);
-	line-height: 18px;
 	border-radius: var(--vscode-cornerRadius-small);
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, transparent));
 	background-color: var(--vscode-agentsNewSessionButton-background, transparent);
@@ -22,19 +19,80 @@ unscoped so the widget renders identically wherever it is mounted. */
 	width: auto;
 	min-width: 0;
 	height: auto;
+	box-sizing: border-box;
 	white-space: nowrap;
 }
 
-.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+.agent-sessions-compact-new-button.monaco-button {
+	gap: 6px;
+	padding: 2px 8px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: 18px;
+}
+
+.agent-sessions-compact-new-button.monaco-button:not(.disabled),
+.agent-sessions-compact-new-button.monaco-button-dropdown:not(.disabled) > .monaco-button:not(.disabled) {
 	cursor: pointer;
 }
 
-.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
+.agent-sessions-compact-new-button.monaco-button.default-colors:hover,
+.agent-sessions-compact-new-button.monaco-button-dropdown > .monaco-button.default-colors:hover {
 	background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 }
 
-.agent-sessions-compact-new-button.monaco-button:focus {
+.agent-sessions-compact-new-button.monaco-button:focus,
+.agent-sessions-compact-new-button.monaco-button-dropdown > .monaco-button:focus {
 	outline-offset: -1px !important;
+}
+
+/* Primary ("New") half. Targeted by exclusion because the label is composed
+manually (custom label + keybinding chip) rather than through Button#label,
+so the widget never picks up the base `monaco-text-button` class. */
+.agent-sessions-compact-new-button.monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 2px 6px 2px 8px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: 18px;
+	border: none !important;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: inherit;
+	width: auto;
+	min-width: 0;
+	height: 100%;
+}
+
+.agent-sessions-compact-new-button.monaco-button-dropdown .monaco-button-dropdown-separator {
+	display: flex;
+	align-items: center;
+	padding: 2px 0;
+	background-color: transparent !important;
+	border: none !important;
+}
+
+.agent-sessions-compact-new-button.monaco-button-dropdown .monaco-button-dropdown-separator > div {
+	width: 1px;
+	height: 14px;
+	background-color: var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, rgba(128, 128, 128, 0.35))) !important;
+}
+
+.agent-sessions-compact-new-button.monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 4px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: 18px;
+	border: none !important;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+	background-color: transparent;
+	color: inherit;
+	width: auto;
+	min-width: 0;
+	height: 100%;
 }
 
 .agent-sessions-compact-new-button .new-session-button-label {

@@ -16,8 +16,12 @@ import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessi
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
-import { SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
-import '../../browser/views/sessionsViewActions.js';
+import { Action } from '../../../../../base/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NewSessionActionViewItem, SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
+import '../../../chat/browser/chat.contribution.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_TO_SIDE_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_QUICK_CHAT_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession } from './sessionsListTestUtils.js';
 
 suite('Sessions - Actions', () => {
@@ -166,5 +170,63 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(registered, [
 			{ title: 'Side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
 		]);
+	});
+
+	test('contributes actions to the New Session dropdown menu', () => {
+		const items = MenuRegistry.getMenuItems(Menus.NewSessionDropdown)
+			.filter(isIMenuItem)
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => ({
+				id: item.command.id,
+				group: item.group,
+				order: item.order,
+			}));
+
+		assert.deepStrictEqual(items, [
+			{ id: NEW_SESSION_TO_SIDE_ACTION_ID, group: '1_new', order: 1 },
+			{ id: NEW_QUICK_CHAT_COMMAND_ID, group: '1_new', order: 2 },
+			{ id: 'sessions.chatCompositeBar.addChat', group: '2_chat', order: 1 },
+		]);
+	});
+
+	test('NewSessionActionViewItem renders split button, fires primary action, and does not fire on dropdown click', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		let primaryRuns = 0;
+		const executedCommands: string[] = [];
+
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string): Promise<T | undefined> {
+				executedCommands.push(id);
+				return undefined;
+			}
+		});
+
+		const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New', undefined, true, async () => {
+			primaryRuns++;
+		}));
+
+		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'sidebar'));
+		const container = document.createElement('div');
+		item.render(container);
+
+		const primaryButton = container.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button)');
+		const dropdownButton = container.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-dropdown-button');
+
+		assert.ok(primaryButton, 'Primary button should be rendered');
+		assert.ok(dropdownButton, 'Dropdown button should be rendered');
+		assert.strictEqual(dropdownButton.getAttribute('aria-label'), 'More New Session Actions');
+		assert.strictEqual(dropdownButton.getAttribute('aria-haspopup'), 'true');
+
+		// Plain click runs the primary action in place.
+		primaryButton.click();
+		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [] });
+
+		// Alt+click opens to the side instead of in place.
+		primaryButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [NEW_SESSION_TO_SIDE_ACTION_ID] });
+
+		// The chevron must not bubble to the toolbar item and run the primary action.
+		dropdownButton.click();
+		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [NEW_SESSION_TO_SIDE_ACTION_ID] });
 	});
 });
