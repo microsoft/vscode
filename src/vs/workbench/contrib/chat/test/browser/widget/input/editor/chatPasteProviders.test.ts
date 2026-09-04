@@ -133,6 +133,7 @@ suite('Chat Paste Providers', () => {
 		await customEdit?.redo();
 		const attached = attachments.map(attachment => ({
 			id: attachment.id,
+			kind: attachment.kind,
 			name: attachment.name,
 			icon: attachment.icon?.id,
 			value: attachment.value,
@@ -151,12 +152,14 @@ suite('Chat Paste Providers', () => {
 			attached: [
 				{
 					id: 'github-context:https://github.com/microsoft/vscode/issues/334548',
+					kind: 'generic',
 					name: 'microsoft/vscode#334548',
 					icon: 'issues',
 					value: 'GitHub context: https://github.com/microsoft/vscode/issues/334548',
 				},
 				{
 					id: 'github-context:https://github.com/microsoft/vscode/pull/334544',
+					kind: 'generic',
 					name: 'microsoft/vscode#334544',
 					icon: 'git-pull-request',
 					value: 'GitHub context: https://github.com/microsoft/vscode/pull/334544',

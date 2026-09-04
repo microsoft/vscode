@@ -358,11 +358,14 @@ export function getGitHubIssueOrPullRequestAttachments(input: string, metadata?:
 			continue;
 		}
 		ids.add(id);
-		attachments.push(toPasteVariableEntry(`${owner}/${repo}#${number}`, `GitHub context: ${uri}`, {
+		attachments.push({
+			kind: 'generic',
 			id,
 			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			name: `${owner}/${repo}#${number}`,
+			value: `GitHub context: ${uri}`,
 			_meta: metadata,
-		}));
+		});
 	}
 	return attachments;
 }
