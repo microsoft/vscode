@@ -269,7 +269,7 @@ const migrateLocationSettingsLink = createMarkdownCommandLink({
 	id: AICustomizationManagementCommands.OpenEditor,
 	text: nls.localize('chat.locations.migrate', "Migrate Location Settings"),
 	tooltip: nls.localize('chat.locations.migrate.tooltip', "Open Migrate Location Settings"),
-	arguments: [{ migration: true }],
+	arguments: [{ migration: true, migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations }],
 });
 const migratePromptFilesLink = createMarkdownCommandLink({
 	id: AICustomizationManagementCommands.OpenEditor,
