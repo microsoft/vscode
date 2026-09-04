@@ -94,6 +94,26 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('configured locations only groups customization types with candidates', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agent: IPromptPath = {
+			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.ConfigWorkspace,
+		};
+
+		assert.deepStrictEqual(category.group([agent]).map(group => ({
+			key: group.key,
+			label: group.label,
+			files: group.customizations.map(customization => customization.uri.path),
+		})), [{
+			key: PromptsType.agent,
+			label: 'Agents',
+			files: ['/workspace/.custom/agents/super.agent.md'],
+		}]);
+	});
+
 
 	test('uses singular copy for one User Data customization', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.UserData);

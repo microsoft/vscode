@@ -76,6 +76,7 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/com
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/config/config.js';
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
@@ -681,6 +682,8 @@ const fixtureToolSets: readonly IToolSet[] = [
 
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
+	readonly files?: readonly IFixtureFile[];
+	readonly configuration?: Record<string, unknown>;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -797,7 +800,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
 					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
 						: undefined;
-	const fixtureFiles = allFiles
+	const fixtureFiles = (options.files ?? allFiles)
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
 		.filter(file => !(options.emptyMigrationUserSection && file.type === PromptsType.prompt && file.storage === PromptsStorage.user))
@@ -832,6 +835,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+				...options.configuration,
 			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
@@ -2071,8 +2075,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ConfiguredLocationsMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
+			files: [{
+				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				source: PromptFileSource.ConfigWorkspace,
+				name: 'SuperAgent',
+			}],
+			configuration: {
+				[PromptsConfig.AGENTS_LOCATION_KEY]: {
+					'.custom/agents': true,
+				},
+			},
 			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
 		}),
 	}),

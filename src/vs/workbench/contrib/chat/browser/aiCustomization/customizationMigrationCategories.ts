@@ -429,7 +429,7 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 				label: localize('configuredLocationsMigrationSkillsGroup', "Skills"),
 				customizations: customizations.filter(customization => customization.type === PromptsType.skill),
 			},
-		];
+		].filter(group => group.customizations.length > 0);
 	},
 
 	getShortcutAriaLabel(count) {
