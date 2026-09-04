@@ -75,6 +75,8 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n    bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
+		assertNormalized(new Position(2, 5), 'foo\n\nbar', 'foo\n\n    bar');
+		assertNormalized(new Position(2, 5), 'foo\r\rbar', 'foo\n\n    bar');
 
 		//Indentation issue with choice elements that span multiple lines #46266
 		assertNormalized(new Position(2, 5), 'a\nb${1|foo,\nbar|}', 'a\n    b${1|foo,\nbar|}');

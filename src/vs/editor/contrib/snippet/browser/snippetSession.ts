@@ -463,6 +463,9 @@ export class SnippetSession {
 					}
 				}
 				for (let i = 1; i < lines.length; i++) {
+					if (lines[i].length === 0 && i < lines.length - 1) {
+						continue;
+					}
 					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + lines[i]);
 				}
 			}
