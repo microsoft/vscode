@@ -42,7 +42,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
@@ -1588,6 +1588,67 @@ suite('Sessions - SessionsList', () => {
 				preserveFocus: false,
 				sideBySide: false,
 			}]);
+		});
+
+		test('reports a focused nested chat only while the Sessions list owns focus', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			const contextKeyService = harness.instantiationService.get(IContextKeyService);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				onChatOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.reveal(session.resource);
+			list.focus();
+			const contextTarget = container.querySelector<HTMLElement>('.monaco-list');
+			assert.ok(contextTarget);
+			const getFocusedChatItemContext = () => contextKeyService.getContext(contextTarget).getValue<boolean>(SessionsListFocusedChatItemContext.key);
+			const sessionRowValue = getFocusedChatItemContext();
+			const beforeChatFocus = list.getFocusedChatItem();
+
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent === 'Peer chat');
+			assert.ok(peerRow);
+			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			list.focus();
+			const focusedChat = list.getFocusedChatItem();
+			const chatRowValue = getFocusedChatItemContext();
+
+			const outside = mainWindow.document.createElement('button');
+			mainWindow.document.body.appendChild(outside);
+			harness.store.add({ dispose: () => outside.remove() });
+			outside.focus();
+			contextTarget.dispatchEvent(new FocusEvent('blur'));
+
+			assert.deepStrictEqual({
+				sessionRowValue,
+				beforeChatFocus,
+				focusedChat: focusedChat?.chat.resource.toString(),
+				chatRowValue,
+				afterBlur: list.getFocusedChatItem(),
+				afterBlurValue: getFocusedChatItemContext(),
+			}, {
+				sessionRowValue: false,
+				beforeChatFocus: undefined,
+				focusedChat: peer.resource.toString(),
+				chatRowValue: true,
+				afterBlur: undefined,
+				afterBlurValue: false,
+			});
 		});
 
 		test('opens a nested chat to the side with the session row modifier gesture', () => {
