@@ -2759,7 +2759,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			? repositoryIds.values().next().value
 			: currentWorkspace?.folders.length === 1 && currentWorkspace.folders[0].root.scheme === Schemas.file
 				? currentWorkspace.folders[0].root
-			: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
+				: await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
 		if (!repository) {
 			return undefined;
 		}
