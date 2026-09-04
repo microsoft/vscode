@@ -61,6 +61,36 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	type TestContribution = {
+		processedExperimentalSettings: Set<string>;
+		autoExperimentalSettings: Set<string>;
+		pendingStartupExperimentalSettings: Set<string>;
+		registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
+		configurationRegistry: IConfigurationRegistry;
+		workbenchAssignmentService: {
+			getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
+		};
+		environmentService: { isSessionsWindow: boolean };
+		processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
+	};
+
+	// Builds the contribution without running its constructor so that `processExperimentalSettings`
+	// can be driven directly, resolving treatments from the given (mutable) record.
+	function createTestContribution(treatments: Record<string, string | undefined>): TestContribution {
+		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
+		contribution.processedExperimentalSettings = new Set();
+		contribution.autoExperimentalSettings = new Set();
+		contribution.pendingStartupExperimentalSettings = new Set();
+		contribution.registeredExperimentalDefaults = new Map();
+		contribution.configurationRegistry = configurationRegistry;
+		contribution.workbenchAssignmentService = {
+			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
+		};
+		contribution.environmentService = { isSessionsWindow: false };
+		return contribution;
+	}
+
 	const firstSetting = 'test.firstAutoExperimentalSetting';
 	const secondSetting = 'test.secondAutoExperimentalSetting';
 	const configuration: IConfigurationNode = {
@@ -91,28 +121,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			testFirstAutoExperimentalSetting: 'firstTreatment',
 			testSecondAutoExperimentalSetting: 'secondTreatment',
 		};
-		type TestContribution = {
-			processedExperimentalSettings: Set<string>;
-			autoExperimentalSettings: Set<string>;
-			pendingStartupExperimentalSettings: Set<string>;
-			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
-			configurationRegistry: IConfigurationRegistry;
-			workbenchAssignmentService: {
-				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-			};
-			environmentService: { isSessionsWindow: boolean };
-			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
-		};
-		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
-		contribution.processedExperimentalSettings = new Set();
-		contribution.autoExperimentalSettings = new Set();
-		contribution.pendingStartupExperimentalSettings = new Set();
-		contribution.registeredExperimentalDefaults = new Map();
-		contribution.configurationRegistry = configurationRegistry;
-		contribution.workbenchAssignmentService = {
-			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
-		};
-		contribution.environmentService = { isSessionsWindow: false };
+		const contribution = createTestContribution(treatments);
 		configurationRegistry.registerConfiguration(configuration);
 
 		try {
@@ -166,28 +175,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			testFirstAutoExperimentalSetting: 'treatment',
 			testSecondAutoExperimentalSetting: undefined,
 		};
-		type TestContribution = {
-			processedExperimentalSettings: Set<string>;
-			autoExperimentalSettings: Set<string>;
-			pendingStartupExperimentalSettings: Set<string>;
-			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
-			configurationRegistry: IConfigurationRegistry;
-			workbenchAssignmentService: {
-				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-			};
-			environmentService: { isSessionsWindow: boolean };
-			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
-		};
-		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
-		contribution.processedExperimentalSettings = new Set();
-		contribution.autoExperimentalSettings = new Set();
-		contribution.pendingStartupExperimentalSettings = new Set();
-		contribution.registeredExperimentalDefaults = new Map();
-		contribution.configurationRegistry = configurationRegistry;
-		contribution.workbenchAssignmentService = {
-			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
-		};
-		contribution.environmentService = { isSessionsWindow: false };
+		const contribution = createTestContribution(treatments);
 		configurationRegistry.registerConfiguration(configuration);
 
 		const readDefault = () => configurationRegistry.getConfigurationProperties()[firstSetting].default;
@@ -196,9 +184,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			await contribution.processExperimentalSettings([firstSetting], false);
 			const afterInitial = readDefault();
 
-			// Assignments are refetched shortly after startup and yield the same value. The override
-			// must survive, otherwise the setting flips back to its built-in default and the
-			// workbench visibly shifts (e.g. between the classic and Modern UI layouts).
+			// A refetch that resolves to the same value must not drop the override.
 			await contribution.processExperimentalSettings([firstSetting], true);
 			const afterRefetch = readDefault();
 
@@ -235,35 +221,12 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 				}
 			}
 		};
-		// Another (non-experiment) default override is in place, as an extension or an embedder can
-		// contribute through `configurationDefaults`. It does not opt out of experiment overrides,
-		// so the control arm of the experiment must still win over it.
+		// A competing default override that has not opted out of experiment overrides.
 		const otherDefaults: IConfigurationDefaults = { overrides: { [overriddenSetting]: 'otherDefault' }, source: 'otherDefaults' };
 		const treatments: Record<string, string | undefined> = {
 			testOverriddenAutoExperimentalSetting: 'control',
 		};
-		type TestContribution = {
-			processedExperimentalSettings: Set<string>;
-			autoExperimentalSettings: Set<string>;
-			pendingStartupExperimentalSettings: Set<string>;
-			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
-			configurationRegistry: IConfigurationRegistry;
-			workbenchAssignmentService: {
-				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-			};
-			environmentService: { isSessionsWindow: boolean };
-			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
-		};
-		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
-		contribution.processedExperimentalSettings = new Set();
-		contribution.autoExperimentalSettings = new Set();
-		contribution.pendingStartupExperimentalSettings = new Set();
-		contribution.registeredExperimentalDefaults = new Map();
-		contribution.configurationRegistry = configurationRegistry;
-		contribution.workbenchAssignmentService = {
-			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
-		};
-		contribution.environmentService = { isSessionsWindow: false };
+		const contribution = createTestContribution(treatments);
 		configurationRegistry.registerConfiguration(overriddenConfiguration);
 		configurationRegistry.registerDefaultConfigurations([otherDefaults]);
 
@@ -311,28 +274,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		const treatments: Record<string, string | undefined> = {
 			testStartupExperimentalSetting: undefined,
 		};
-		type TestContribution = {
-			processedExperimentalSettings: Set<string>;
-			autoExperimentalSettings: Set<string>;
-			pendingStartupExperimentalSettings: Set<string>;
-			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
-			configurationRegistry: IConfigurationRegistry;
-			workbenchAssignmentService: {
-				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-			};
-			environmentService: { isSessionsWindow: boolean };
-			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
-		};
-		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
-		contribution.processedExperimentalSettings = new Set();
-		contribution.autoExperimentalSettings = new Set();
-		contribution.pendingStartupExperimentalSettings = new Set();
-		contribution.registeredExperimentalDefaults = new Map();
-		contribution.configurationRegistry = configurationRegistry;
-		contribution.workbenchAssignmentService = {
-			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
-		};
-		contribution.environmentService = { isSessionsWindow: false };
+		const contribution = createTestContribution(treatments);
 		configurationRegistry.registerConfiguration(startupConfiguration);
 
 		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
@@ -388,28 +330,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		const treatments: Record<string, string | undefined> = {
 			testResolvedStartupExperimentalSetting: 'treatment',
 		};
-		type TestContribution = {
-			processedExperimentalSettings: Set<string>;
-			autoExperimentalSettings: Set<string>;
-			pendingStartupExperimentalSettings: Set<string>;
-			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
-			configurationRegistry: IConfigurationRegistry;
-			workbenchAssignmentService: {
-				getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
-			};
-			environmentService: { isSessionsWindow: boolean };
-			processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void>;
-		};
-		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
-		contribution.processedExperimentalSettings = new Set();
-		contribution.autoExperimentalSettings = new Set();
-		contribution.pendingStartupExperimentalSettings = new Set();
-		contribution.registeredExperimentalDefaults = new Map();
-		contribution.configurationRegistry = configurationRegistry;
-		contribution.workbenchAssignmentService = {
-			getTreatment: async <T extends string | number | boolean>(name: string) => treatments[name] as T | undefined,
-		};
-		contribution.environmentService = { isSessionsWindow: false };
+		const contribution = createTestContribution(treatments);
 		configurationRegistry.registerConfiguration(startupConfiguration);
 
 		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;

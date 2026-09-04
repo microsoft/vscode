@@ -1439,11 +1439,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				}
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
 				if (registeredDefault && equals(registeredDefault.overrides[property], value)) {
-					// Keep an experiment that is already applied with this exact value. The
-					// configuration registry mutates `schema.default` to reflect the registered
-					// overrides, so `shouldOverride` would compare the value against itself and
-					// drop the override whenever assignments are refetched - flipping the setting
-					// back and forth (e.g. shifting the workbench in and out of the Modern UI layout).
+					// Already applied: the registry mutated `schema.default` to this value, so re-checking drops it.
 					continue;
 				}
 				if (this.shouldOverride(value, schema)) {
