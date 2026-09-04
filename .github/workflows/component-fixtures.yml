@@ -179,6 +179,7 @@ jobs:
         id: base
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           EVENT_SHA: ${{ github.sha }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -186,8 +187,8 @@ jobs:
             TARGET_REF="origin/$BASE_REF"
             git fetch --no-tags --depth=150 origin "$BASE_REF"
             if ! BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF"); then
-              echo "::warning::Unable to find a merge base between $EVENT_SHA and $TARGET_REF. The depth-150 shallow history may not contain their common ancestor; skipping screenshot comparison."
-              exit 0
+              echo "::warning::Unable to find a merge base between $EVENT_SHA and $TARGET_REF. Falling back to the pull request base SHA."
+              BASE_SHA="$EVENT_BASE_SHA"
             fi
           else
             # For push events, diff against the parent commit.
