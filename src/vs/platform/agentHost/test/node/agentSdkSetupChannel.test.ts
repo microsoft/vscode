@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -72,6 +72,7 @@ suite('AgentSdkSetupChannel', () => {
 		configuration?: TestConfigurationService;
 		downloadConsent?: boolean;
 		downloadSdk?: () => Promise<void>;
+		isSdkLocal?: () => Promise<boolean>;
 	} = {}): {
 		channel: AgentSdkSetupChannel;
 		configuration: TestConfigurationService;
@@ -100,7 +101,7 @@ suite('AgentSdkSetupChannel', () => {
 			id: 'claude',
 			sdkPackage,
 			setupInfo: {},
-			isSdkLocal: async () => false,
+			isSdkLocal: options.isSdkLocal ?? (async () => false),
 			downloadSdk: async () => {
 				downloadCalls++;
 				await options.downloadSdk?.();
@@ -136,6 +137,7 @@ suite('AgentSdkSetupChannel', () => {
 		await timeout(0);
 		downloads.fire(progress('started'));
 		downloads.fire(progress('failed'));
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			statuses: configuration.statuses,
@@ -196,6 +198,52 @@ suite('AgentSdkSetupChannel', () => {
 			downloadConsents: ['claude'],
 			downloads: 1,
 			progressInterests: ['claude'],
+			statuses: ['notDownloaded', 'downloading', 'ready'],
+		});
+	});
+
+	test('a late startup probe cannot overwrite a completed lazy download', async () => {
+		const sdkIsLocal = new DeferredPromise<boolean>();
+		const ctx = createChannel({ isSdkLocal: () => sdkIsLocal.p });
+		await timeout(0);
+
+		ctx.downloads.fire(progress('started'));
+		ctx.downloads.fire(progress('completed'));
+		await timeout(0);
+		const whileStartupProbeIsPending = [...ctx.configuration.statuses];
+
+		await sdkIsLocal.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whileStartupProbeIsPending,
+			statuses: ctx.configuration.statuses,
+			lookedAgain: ctx.lookedAgain,
+		}, {
+			whileStartupProbeIsPending: ['downloading'],
+			statuses: ['downloading', 'downloading', 'ready'],
+			lookedAgain: ['discovery', 'models'],
+		});
+	});
+
+	test('an explicit request racing lazy completion does not start a second download', async () => {
+		const ctx = createChannel();
+		await timeout(0);
+
+		ctx.downloads.fire(progress('started'));
+		ctx.downloads.fire(progress('completed'));
+		ctx.configuration.updateRootConfig({
+			[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY]: { agent: 'claude', request: 'request-1' },
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			downloads: ctx.downloadCalls(),
+			progressInterests: ctx.progressInterests,
+			statuses: ctx.configuration.statuses,
+		}, {
+			downloads: 0,
+			progressInterests: [],
 			statuses: ['notDownloaded', 'downloading', 'ready'],
 		});
 	});

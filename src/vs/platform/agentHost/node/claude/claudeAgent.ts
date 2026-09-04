@@ -948,10 +948,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
 			this._models.set(merged, undefined);
 		}
-		// Last, never first: this is a free republish of "is the SDK on disk" (some
-		// other path may have fetched it), but announcing `ready` before the catalog
-		// lands is exactly how the window renders "no account found".
-		this._sdkSetupChannel.publishWith(canAttemptNative);
+		// Last, never first: announcing `ready` before the catalog lands is exactly
+		// how the window renders "no account found".
+		this._sdkSetupChannel.refresh();
 	}
 
 	/**
