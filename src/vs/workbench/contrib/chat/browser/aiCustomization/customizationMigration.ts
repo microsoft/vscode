@@ -27,11 +27,17 @@ export interface IMigratedCustomization {
 	readonly type: PromptsType;
 }
 
+export interface IMigratedCustomizationSource {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+}
+
 export interface IMigratedCustomizationsResult {
 	readonly migratedCount: number;
 	readonly failedCustomizationFileNames: readonly string[];
 	readonly unsupportedHeaderKeys: readonly string[];
 	readonly migratedCustomizations: readonly IMigratedCustomization[];
+	readonly migratedSources: readonly IMigratedCustomizationSource[];
 }
 
 export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>;
@@ -110,6 +116,7 @@ export async function migrateCustomizations(
 	const unsupportedHeaderKeys = new Set<string>();
 	const failedCustomizationFileNames: string[] = [];
 	const migratedCustomizations: IMigratedCustomization[] = [];
+	const migratedSources: IMigratedCustomizationSource[] = [];
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
 	const customizationsBySource = new ResourceMap<MigratableConfiguration[]>();
@@ -166,6 +173,10 @@ export async function migrateCustomizations(
 				unsupportedHeaderKeys.add(key);
 			}
 			migratedCustomizations.push(...migratedSourceCustomizations);
+			migratedSources.push(...sourceCustomizations.map(customization => ({
+				uri: customization.uri,
+				storage: customization.storage,
+			})));
 			migratedCount += migratedSourceCustomizations.length;
 		} catch (error) {
 			const migrationError = error instanceof Error ? error : new Error(String(error));
@@ -182,6 +193,7 @@ export async function migrateCustomizations(
 		failedCustomizationFileNames,
 		unsupportedHeaderKeys: Array.from(unsupportedHeaderKeys).sort(),
 		migratedCustomizations,
+		migratedSources,
 	};
 }
 

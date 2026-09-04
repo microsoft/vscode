@@ -8,7 +8,6 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import type { ICustomizationMigrationDashboardItem } from './customizationMigrationDashboard.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
@@ -49,7 +48,6 @@ export interface ICustomizationMigrationCategory {
 	isCandidate(customization: MigratableConfiguration): boolean;
 	group(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationGroup[];
 	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
-	getDashboardItem(customizations: readonly MigratableConfiguration[], harnessLabel: string): Omit<ICustomizationMigrationDashboardItem, 'id' | 'label' | 'description' | 'count' | 'destinations' | 'actionLabel' | 'actionAriaLabel'>;
 	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
@@ -94,21 +92,6 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 		return customizations.length === 1
 			? localize('promptMigrationCardDescriptionSingle', "{0} will ignore this prompt file. Convert it to a skill to keep it available.", harnessLabel)
 			: localize('promptMigrationCardDescription', "{0} will ignore these prompt files. Convert them to skills to keep them available.", harnessLabel);
-	},
-
-	getDashboardItem(customizations) {
-		const { workspaceCount, userCount } = countPromptStorages(customizations);
-		const workspaceSummary = workspaceCount === 1
-			? localize('promptMigrationDashboardWorkspaceSingle', "1 workspace file")
-			: localize('promptMigrationDashboardWorkspace', "{0} workspace files", workspaceCount);
-		const userSummary = userCount === 1
-			? localize('promptMigrationDashboardUserSingle', "1 user file")
-			: localize('promptMigrationDashboardUser', "{0} user files", userCount);
-		return {
-			itemSummary: workspaceCount > 0 && userCount > 0
-				? localize('promptMigrationDashboardWorkspaceAndUser', "{0} · {1}", workspaceSummary, userSummary)
-				: workspaceCount > 0 ? workspaceSummary : userSummary,
-		};
 	},
 
 	getConfirmation(customizations) {
@@ -214,21 +197,6 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 				"{0} will ignore these instruction files. Move them to portable Copilot folders to keep them available.",
 				harnessLabel,
 			);
-	},
-
-	getDashboardItem(customizations) {
-		const { agentCount, instructionsCount } = countUserDataTypes(customizations);
-		const agentSummary = agentCount === 1
-			? localize('userDataMigrationDashboardAgentSingle', "1 agent")
-			: localize('userDataMigrationDashboardAgents', "{0} agents", agentCount);
-		const instructionSummary = instructionsCount === 1
-			? localize('userDataMigrationDashboardInstructionSingle', "1 instruction")
-			: localize('userDataMigrationDashboardInstructions', "{0} instructions", instructionsCount);
-		return {
-			itemSummary: agentCount > 0 && instructionsCount > 0
-				? localize('userDataMigrationDashboardAgentsAndInstructions', "{0} · {1}", agentSummary, instructionSummary)
-				: agentCount > 0 ? agentSummary : instructionSummary,
-		};
 	},
 
 	getConfirmation(customizations, harnessLabel, destinationLabel) {

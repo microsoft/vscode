@@ -3751,3 +3751,504 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+/* Customization health check */
+.ai-customization-management-editor .prompt-migration-content-container {
+	padding: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-list-scrollable {
+	max-width: none;
+}
+
+.ai-customization-management-editor .prompt-migration-list {
+	padding: 0 var(--vscode-spacing-size160) 0 0;
+}
+
+.ai-customization-management-editor .customization-health {
+	width: min(920px, 100%);
+	min-height: 100%;
+	margin-inline: auto;
+	color: var(--vscode-foreground);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-health-page {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	padding: var(--vscode-spacing-size360) var(--vscode-spacing-size400) calc(2 * var(--vscode-spacing-size400));
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-health-page > h1 {
+	margin: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.25;
+}
+
+.ai-customization-management-editor .customization-health-lede {
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size200);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+}
+
+.ai-customization-management-editor .customization-health-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size200);
+}
+
+.ai-customization-management-editor .customization-health-summary-pill {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.ai-customization-management-editor .customization-health-summary-pill.attention {
+	color: var(--vscode-list-warningForeground);
+}
+
+.ai-customization-management-editor .customization-health-summary-pill.healthy {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.ai-customization-management-editor .customization-health-migrations {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-health-section-header,
+.ai-customization-management-editor .customization-health-result-header,
+.ai-customization-management-editor .customization-health-scope,
+.ai-customization-management-editor .customization-health-review-row-header,
+.ai-customization-management-editor .customization-health-review-row-details,
+.ai-customization-management-editor .customization-health-review-section-heading,
+.ai-customization-management-editor .customization-health-review-footer,
+.ai-customization-management-editor .customization-health-review-footer-actions {
+	display: flex;
+	align-items: center;
+}
+
+.ai-customization-management-editor .customization-health-section-header,
+.ai-customization-management-editor .customization-health-result-header,
+.ai-customization-management-editor .customization-health-scope,
+.ai-customization-management-editor .customization-health-review-row-header,
+.ai-customization-management-editor .customization-health-review-footer {
+	justify-content: space-between;
+}
+
+.ai-customization-management-editor .customization-health-section-header {
+	align-items: flex-end;
+	gap: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .customization-health-section-heading {
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-health-section-heading h2,
+.ai-customization-management-editor .customization-health-result h2,
+.ai-customization-management-editor .customization-health-review-section h2 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .customization-health-section-heading p,
+.ai-customization-management-editor .customization-health-result p,
+.ai-customization-management-editor .customization-health-review-section-description {
+	margin: var(--vscode-spacing-size40) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.45;
+}
+
+.ai-customization-management-editor .customization-health-section-header > .monaco-button,
+.ai-customization-management-editor .customization-health-scope-actions > .monaco-button,
+.ai-customization-management-editor .customization-health-result-actions > .monaco-button,
+.ai-customization-management-editor .customization-health-review-row-details > .monaco-button,
+.ai-customization-management-editor .customization-health-review-footer > .monaco-button,
+.ai-customization-management-editor .customization-health-review-footer-actions > .monaco-button,
+.ai-customization-management-editor .customization-health-back.monaco-button {
+	width: auto;
+}
+
+.ai-customization-management-editor .customization-health-scope-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-health-scope {
+	gap: var(--vscode-spacing-size160);
+	min-height: 64px;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.vscode-high-contrast .ai-customization-management-editor .customization-health-scope,
+.vscode-high-contrast .ai-customization-management-editor .customization-health-result,
+.vscode-high-contrast .ai-customization-management-editor .customization-health-review-rows,
+.vscode-high-contrast .ai-customization-management-editor .customization-health-metric,
+.vscode-high-contrast .ai-customization-management-editor .customization-health-metadata-comparison {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.ai-customization-management-editor .customization-health-scope-heading {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.ai-customization-management-editor .customization-health-scope-heading h3 {
+	overflow: hidden;
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .customization-health-scope-heading span {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.ai-customization-management-editor .customization-health-scope-actions,
+.ai-customization-management-editor .customization-health-result-actions,
+.ai-customization-management-editor .customization-health-review-badges {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .customization-health-empty {
+	margin: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.ai-customization-management-editor .customization-health-result,
+.ai-customization-management-editor .customization-health-state {
+	margin-bottom: var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.ai-customization-management-editor .customization-health-result-header {
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .customization-health-result-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-health-state .monaco-button {
+	width: auto;
+}
+
+.ai-customization-management-editor .customization-health-back.monaco-button {
+	align-self: flex-start;
+	margin-bottom: var(--vscode-spacing-size200);
+	padding: 0;
+}
+
+.ai-customization-management-editor .customization-health-review-summary {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80);
+	margin: var(--vscode-spacing-size240) 0;
+}
+
+.ai-customization-management-editor .customization-health-metric {
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.ai-customization-management-editor .customization-health-metric strong,
+.ai-customization-management-editor .customization-health-metric span {
+	display: block;
+}
+
+.ai-customization-management-editor .customization-health-metric strong {
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .customization-health-metric span {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.ai-customization-management-editor .customization-health-review-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size240);
+}
+
+.ai-customization-management-editor .customization-health-review-section-heading {
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .customization-health-review-section-count,
+.ai-customization-management-editor .customization-health-operation-badge,
+.ai-customization-management-editor .customization-health-metadata-badge {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .customization-health-metadata-badge {
+	color: var(--vscode-list-warningForeground);
+}
+
+.ai-customization-management-editor .customization-health-review-rows {
+	margin-top: var(--vscode-spacing-size120);
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.ai-customization-management-editor .customization-health-review-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-health-review-row + .customization-health-review-row {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.ai-customization-management-editor .customization-health-review-row-header,
+.ai-customization-management-editor .customization-health-review-row-details {
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-health-review-row-leading {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+}
+
+.ai-customization-management-editor .customization-health-review-row-leading strong {
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .customization-health-paths {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .customization-health-path {
+	display: grid;
+	grid-template-columns: var(--vscode-spacing-size360) minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .customization-health-path-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-transform: uppercase;
+}
+
+.ai-customization-management-editor .customization-health-path-value,
+.ai-customization-management-editor .customization-health-metadata-path {
+	min-width: 0;
+	color: var(--vscode-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
+.ai-customization-management-editor .customization-health-metadata-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.ai-customization-management-editor .customization-health-review-footer {
+	position: sticky;
+	bottom: 0;
+	z-index: 1;
+	gap: var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size240) calc(-1 * var(--vscode-spacing-size400)) calc(-2 * var(--vscode-spacing-size400));
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size400);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	background: var(--vscode-agentsPanel-background);
+}
+
+.ai-customization-management-editor .customization-health-review-footer-actions {
+	gap: var(--vscode-spacing-size120);
+}
+
+.ai-customization-management-editor .customization-health-keep-originals {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .customization-health-metadata-path {
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .customization-health-metadata-warning {
+	margin-bottom: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-inputValidation-warningBackground);
+	color: var(--vscode-inputValidation-warningForeground);
+}
+
+.ai-customization-management-editor .customization-health-metadata-warning strong,
+.ai-customization-management-editor .customization-health-metadata-warning p {
+	display: block;
+	margin: 0;
+}
+
+.ai-customization-management-editor .customization-health-metadata-warning p {
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .customization-health-metadata-comparison {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane + .customization-health-metadata-pane {
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane h2 {
+	margin: 0;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	background: var(--vscode-editorWidget-background);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane pre {
+	min-height: 180px;
+	margin: 0;
+	padding: var(--vscode-spacing-size120);
+	overflow: auto;
+	color: var(--vscode-foreground);
+	font: var(--vscode-fontSize-label1)/1.55 var(--monaco-monospace-font);
+	white-space: pre-wrap;
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane pre span {
+	display: block;
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane pre .removed {
+	color: var(--vscode-errorForeground);
+}
+
+.ai-customization-management-editor .customization-health-metadata-pane pre .added {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-page {
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size160) calc(2 * var(--vscode-spacing-size400));
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-section-header,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-result-header,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-scope,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-row-details {
+	align-items: stretch;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-section-header > .monaco-button,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-scope-actions,
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-result-actions {
+	align-self: flex-end;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-summary {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-row-header {
+	align-items: flex-start;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-badges {
+	flex-direction: column;
+	align-items: flex-end;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-row-details > .monaco-button {
+	align-self: flex-end;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-footer {
+	align-items: stretch;
+	flex-direction: column;
+	margin: var(--vscode-spacing-size240) calc(-1 * var(--vscode-spacing-size160)) calc(-2 * var(--vscode-spacing-size400));
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-review-footer-actions {
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-metadata-comparison {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container.narrow-layout .customization-health-metadata-pane + .customization-health-metadata-pane {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-left: 0;
+}

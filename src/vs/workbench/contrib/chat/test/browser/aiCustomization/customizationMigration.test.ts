@@ -274,6 +274,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			migratedSkillHasManualInvocation: migratedSkillContent.includes('disable-model-invocation: true'),
 			migratedAgentContent: (await fileService.readFile(migratedAgentUri)).value.toString(),
@@ -290,6 +291,7 @@ suite('customizationMigration', () => {
 					{ uri: migratedAgentUri.path, type: PromptsType.agent },
 					{ uri: migratedInstructionsUri.path, type: PromptsType.instructions },
 				],
+				migratedSources: customizations.slice(0, 3).map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
 			},
 			migratedSkillHasManualInvocation: true,
 			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
@@ -324,6 +326,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			sourceExists: await fileService.exists(sourceUri),
 			workspaceTargetExists: await fileService.exists(workspaceSkillUri),
@@ -336,6 +339,10 @@ suite('customizationMigration', () => {
 				migratedCustomizations: [
 					{ uri: workspaceSkillUri.path, type: PromptsType.skill },
 					{ uri: userSkillUri.path, type: PromptsType.skill },
+				],
+				migratedSources: [
+					{ uri: sourceUri.path, storage: PromptsStorage.local },
+					{ uri: sourceUri.path, storage: PromptsStorage.user },
 				],
 			},
 			sourceExists: false,
@@ -377,11 +384,15 @@ suite('customizationMigration', () => {
 		const retriedResult = await migrateCustomizations([customization], targetFolders, fileService);
 
 		assert.deepStrictEqual({
-			failedResult,
+			failedResult: {
+				...failedResult,
+				migratedSources: failedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
+			},
 			afterFailure,
 			retriedResult: {
 				...retriedResult,
 				migratedCustomizations: retriedResult.migratedCustomizations.map(item => item.uri.path),
+				migratedSources: retriedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			afterRetry: {
 				sourceExists: await fileService.exists(sourceUri),
@@ -394,6 +405,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			afterFailure: {
 				sourceExists: true,
@@ -405,6 +417,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [targetUri.path],
+				migratedSources: [{ uri: sourceUri.path, storage: PromptsStorage.user }],
 			},
 			afterRetry: {
 				sourceExists: false,
@@ -451,6 +464,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceExists: true,
 			targetContent: 'foreign content',
