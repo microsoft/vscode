@@ -22,7 +22,7 @@ export class ViewLineOptions {
 	public readonly fontLigatures: string;
 	public readonly verticalScrollbarSize: number;
 	public readonly useGpu: boolean;
-	public readonly forceFullwidthCharacterWidth: boolean;
+	public readonly useTwoCellFullwidthCharacters: boolean;
 
 	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
@@ -44,7 +44,7 @@ export class ViewLineOptions {
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
 		this.verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
-		this.forceFullwidthCharacterWidth = options.get(EditorOption.effectiveForceFullwidthCharacterWidth);
+		this.useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -63,7 +63,7 @@ export class ViewLineOptions {
 			&& this.fontLigatures === other.fontLigatures
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.useGpu === other.useGpu
-			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
+			&& this.useTwoCellFullwidthCharacters === other.useTwoCellFullwidthCharacters
 		);
 	}
 }

@@ -45,7 +45,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
-	forceFullwidthCharacterWidth: boolean;
+	useTwoCellFullwidthCharacters: boolean;
 }
 
 export class RenderLineInput {
@@ -83,7 +83,7 @@ export class RenderLineInput {
 	/**
 	 * Whether full-width characters should be rendered centered in exactly two character cells.
 	 */
-	public readonly forceFullwidthCharacterWidth: boolean;
+	public readonly useTwoCellFullwidthCharacters: boolean;
 
 	public get isLTR(): boolean {
 		return !this.containsRTL && this.textDirection !== TextDirection.RTL;
@@ -112,7 +112,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
-		forceFullwidthCharacterWidth = false,
+		useTwoCellFullwidthCharacters = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -142,7 +142,7 @@ export class RenderLineInput {
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
-		this.forceFullwidthCharacterWidth = forceFullwidthCharacterWidth;
+		this.useTwoCellFullwidthCharacters = useTwoCellFullwidthCharacters;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 
@@ -203,7 +203,7 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
-			&& this.forceFullwidthCharacterWidth === other.forceFullwidthCharacterWidth
+			&& this.useTwoCellFullwidthCharacters === other.useTwoCellFullwidthCharacters
 		);
 	}
 }
@@ -465,7 +465,7 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
-		public readonly forceFullwidthCharacterWidth: boolean
+		public readonly useTwoCellFullwidthCharacters: boolean
 	) {
 		//
 	}
@@ -526,7 +526,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// Split the first token if it contains both leading whitespace and RTL text
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 	}
-	if (input.forceFullwidthCharacterWidth) {
+	if (input.useTwoCellFullwidthCharacters) {
 		tokens = splitFullWidthCharacters(lineContent, tokens);
 	}
 
@@ -546,7 +546,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
 		input.renderControlCharacters,
-		input.forceFullwidthCharacterWidth
+		input.useTwoCellFullwidthCharacters
 	);
 }
 
@@ -1034,7 +1034,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
-	const forceFullwidthCharacterWidth = input.forceFullwidthCharacterWidth;
+	const useTwoCellFullwidthCharacters = input.useTwoCellFullwidthCharacters;
 	const fullWidthCharacterWidth = 2 * input.spaceWidth;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
@@ -1058,7 +1058,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		const partIsFullWidth = forceFullwidthCharacterWidth && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
+		const partIsFullWidth = useTwoCellFullwidthCharacters && strings.isFullWidthCharacter(lineContent.charCodeAt(charIndex));
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');

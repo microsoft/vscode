@@ -72,54 +72,54 @@ function createEditor(context: ComponentFixtureContext, content: string, options
 	return { editor, instantiationService };
 }
 
-function renderGrid(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
-	createEditor(context, GRID, { forceFullwidthCharacterWidth });
+function renderGrid(context: ComponentFixtureContext, fullwidthCharacterWidth: 'font' | 'twoCells'): void {
+	createEditor(context, GRID, { fullwidthCharacterWidth });
 }
 
-function renderMixed(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
-	createEditor(context, MIXED, { forceFullwidthCharacterWidth });
+function renderMixed(context: ComponentFixtureContext, fullwidthCharacterWidth: 'font' | 'twoCells'): void {
+	createEditor(context, MIXED, { fullwidthCharacterWidth });
 }
 
-function renderCode(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
-	createEditor(context, CODE, { forceFullwidthCharacterWidth });
+function renderCode(context: ComponentFixtureContext, fullwidthCharacterWidth: 'font' | 'twoCells'): void {
+	createEditor(context, CODE, { fullwidthCharacterWidth });
 }
 
-function renderSelection(context: ComponentFixtureContext, forceFullwidthCharacterWidth: boolean): void {
-	const { editor } = createEditor(context, GRID, { forceFullwidthCharacterWidth });
+function renderSelection(context: ComponentFixtureContext, fullwidthCharacterWidth: 'font' | 'twoCells'): void {
+	const { editor } = createEditor(context, GRID, { fullwidthCharacterWidth });
 	editor.setSelection(new Range(2, 2, 4, 6));
 }
 
 function renderProportionalFont(context: ComponentFixtureContext): void {
-	// The setting is computed away when the font is not monospace, because the surrounding
+	// The policy is computed away when the font is not monospace, because the surrounding
 	// narrow characters do not sit on a grid to line up with in the first place.
-	createEditor(context, GRID, { forceFullwidthCharacterWidth: true, fontFamily: 'Georgia, serif' });
+	createEditor(context, GRID, { fullwidthCharacterWidth: 'twoCells', fontFamily: 'Georgia, serif' });
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
-	FullwidthCharacterWidthOff: defineComponentFixture({
+	FullwidthCharacterWidthFont: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. The left column holds four CJK characters per row and the right column holds eight narrow characters. The pipe separating the two columns is allowed to sit at a different horizontal position on the CJK rows than on the dashed border rows.'],
-		render: context => renderGrid(context, false),
+		render: context => renderGrid(context, 'font'),
 	}),
-	FullwidthCharacterWidthOn: defineComponentFixture({
+	FullwidthCharacterWidthTwoCells: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['An ASCII box drawing contains five rows. Every pipe forms one straight unbroken vertical line down the whole box, and the closing pipes line up with the plus signs of the dashed borders above and below. Each CJK character is horizontally centered over the two narrow cells it occupies, with even spacing on both sides.'],
-		render: context => renderGrid(context, true),
+		render: context => renderGrid(context, 'twoCells'),
 	}),
 	FullwidthCharacterWidthClassification: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Four rows of text each start and end with a pipe. Half-width katakana and accented Latin letters render narrow. Each hiragana base character is centered in a two-cell box independently of its following combining accent. The supplementary-plane CJK characters and their variation selectors retain their natural rendering.'],
-		render: context => renderMixed(context, true),
+		render: context => renderMixed(context, 'twoCells'),
 	}),
 	FullwidthCharacterWidthCode: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Three lines of source code mix Latin identifiers with Japanese text. The Latin code renders normally and the Japanese characters are evenly spaced, with the quotes and semicolons remaining attached to the text they belong to.'],
-		render: context => renderCode(context, true),
+		render: context => renderCode(context, 'twoCells'),
 	}),
 	FullwidthCharacterWidthSelection: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['A selection spans three rows of an ASCII box drawing. The highlighted region is a continuous block with straight vertical edges and no gaps or slivers between adjacent CJK characters. The selection starts and ends exactly on a character cell boundary rather than partway through a glyph.'],
-		render: context => renderSelection(context, true),
+		render: context => renderSelection(context, 'twoCells'),
 	}),
 	FullwidthCharacterWidthProportionalFont: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

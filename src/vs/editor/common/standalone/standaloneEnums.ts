@@ -348,8 +348,8 @@ export enum EditorOption {
 	scrollOnMiddleClick = 171,
 	effectiveAllowVariableFonts = 172,
 	doubleClickSelectsBlock = 173,
-	forceFullwidthCharacterWidth = 174,
-	effectiveForceFullwidthCharacterWidth = 175
+	fullwidthCharacterWidth = 174,
+	effectiveFullwidthCharacterWidth = 175
 }
 
 /**

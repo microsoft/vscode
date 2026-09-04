@@ -493,7 +493,7 @@ export class AdditionalLinesWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontLigatures)
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
-				|| e.hasChanged(EditorOption.effectiveForceFullwidthCharacterWidth)
+				|| e.hasChanged(EditorOption.effectiveFullwidthCharacterWidth)
 		));
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;
@@ -641,7 +641,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 	const fontLigatures = opts.get(EditorOption.fontLigatures);
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
-	const forceFullwidthCharacterWidth = opts.get(EditorOption.effectiveForceFullwidthCharacterWidth);
+	const useTwoCellFullwidthCharacters = opts.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 	let classNames = 'suggest-preview-text';
 	if (isClickable) {
@@ -686,7 +686,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 			null,
 			0,
 			false,
-			forceFullwidthCharacterWidth
+			useTwoCellFullwidthCharacters
 		), sb);
 
 		sb.appendString('</div>');

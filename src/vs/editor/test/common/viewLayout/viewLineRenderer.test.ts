@@ -78,7 +78,7 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	textDirection: null,
 	verticalScrollbarSize: 14,
 	renderNewLineWhenEmpty: false,
-	forceFullwidthCharacterWidth: false
+	useTwoCellFullwidthCharacters: false
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -113,7 +113,7 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.textDirection,
 		options.verticalScrollbarSize,
 		options.renderNewLineWhenEmpty,
-		options.forceFullwidthCharacterWidth
+		options.useTwoCellFullwidthCharacters
 	);
 }
 
@@ -1650,7 +1650,7 @@ suite('renderViewLine2', () => {
 	});
 });
 
-suite('renderViewLine - forceFullwidthCharacterWidth', () => {
+suite('renderViewLine - useTwoCellFullwidthCharacters', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1667,7 +1667,7 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 			isBasicASCII: strings.isBasicASCII(lineContent),
 			containsRTL: strings.containsRTL(lineContent),
 			lineTokens: createViewLineTokens([createPart(lineContent.length, 1)]),
-			forceFullwidthCharacterWidth: true,
+			useTwoCellFullwidthCharacters: true,
 			...opts
 		}));
 		return inflateRenderLineOutput(actual).html;
@@ -1752,7 +1752,7 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 	});
 
 	test('nothing changes when the setting is off', () => {
-		assert.deepStrictEqual(render('ab漢cd', { forceFullwidthCharacterWidth: false }), [
+		assert.deepStrictEqual(render('ab漢cd', { useTwoCellFullwidthCharacters: false }), [
 			`<span class="mtk1">ab漢cd</span>`
 		]);
 	});
@@ -1864,7 +1864,7 @@ suite('renderViewLine - forceFullwidthCharacterWidth', () => {
 			lineContent: 'a漢b',
 			isBasicASCII: false,
 			lineTokens: createViewLineTokens([createPart(3, 1)]),
-			forceFullwidthCharacterWidth: true
+			useTwoCellFullwidthCharacters: true
 		}));
 
 		assertCharacterMapping3(actual.characterMapping, [

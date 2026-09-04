@@ -122,7 +122,7 @@ export class RenderOptions {
 			modifiedEditorOptions.get(EditorOption.renderControlCharacters),
 			modifiedEditorOptions.get(EditorOption.fontLigatures),
 			modifiedEditorOptions.get(EditorOption.scrollbar).verticalScrollbarSize,
-			modifiedEditorOptions.get(EditorOption.effectiveForceFullwidthCharacterWidth),
+			modifiedEditorOptions.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells',
 		);
 	}
 
@@ -139,7 +139,7 @@ export class RenderOptions {
 		public readonly renderControlCharacters: boolean,
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
 		public readonly verticalScrollbarSize: number,
-		public readonly forceFullwidthCharacterWidth: boolean = false,
+		public readonly useTwoCellFullwidthCharacters: boolean = false,
 		public readonly setWidth = true,
 	) { }
 
@@ -157,7 +157,7 @@ export class RenderOptions {
 			this.renderControlCharacters,
 			this.fontLigatures,
 			this.verticalScrollbarSize,
-			this.forceFullwidthCharacterWidth,
+			this.useTwoCellFullwidthCharacters,
 			setWidth,
 		);
 	}
@@ -176,7 +176,7 @@ export class RenderOptions {
 			this.renderControlCharacters,
 			this.fontLigatures,
 			this.verticalScrollbarSize,
-			this.forceFullwidthCharacterWidth,
+			this.useTwoCellFullwidthCharacters,
 			this.setWidth,
 		);
 	}
@@ -312,7 +312,7 @@ function renderOriginalLine(
 		null,
 		options.verticalScrollbarSize,
 		false,
-		options.forceFullwidthCharacterWidth
+		options.useTwoCellFullwidthCharacters
 	), sb);
 
 	sb.appendString('</div>');

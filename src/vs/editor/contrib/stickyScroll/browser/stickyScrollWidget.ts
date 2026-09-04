@@ -470,7 +470,7 @@ class RenderedStickyLine {
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 			fontInfo.spaceWidth, 1, 1, 500, 'none', true, true, null,
 			textDirection, verticalScrollbarSize, false,
-			editor.getOption(EditorOption.effectiveForceFullwidthCharacterWidth)
+			editor.getOption(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells'
 		);
 
 		const sb = new StringBuilder(2000);

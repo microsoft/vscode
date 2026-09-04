@@ -512,7 +512,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			|| event.hasChanged(EditorOption.folding)
 			|| event.hasChanged(EditorOption.showFoldingControls)
 			|| event.hasChanged(EditorOption.fontInfo)
-			|| event.hasChanged(EditorOption.effectiveForceFullwidthCharacterWidth)
+			|| event.hasChanged(EditorOption.effectiveFullwidthCharacterWidth)
 		) {
 			this._renderStickyScroll(0);
 		}

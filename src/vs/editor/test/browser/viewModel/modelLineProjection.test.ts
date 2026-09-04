@@ -102,7 +102,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 		const wordBreak = config.options.get(EditorOption.wordBreak);
 		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
-		const forceFullwidthCharacterWidth = config.options.get(EditorOption.effectiveForceFullwidthCharacterWidth);
+		const useTwoCellFullwidthCharacters = config.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = createTextModel(text);
@@ -119,7 +119,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			wrappingIndent,
 			wordBreak,
 			wrapOnEscapedLineFeeds,
-			forceFullwidthCharacterWidth
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(model, linesCollection);
@@ -953,7 +953,7 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 		const wordBreak = configuration.options.get(EditorOption.wordBreak);
-		const forceFullwidthCharacterWidth = configuration.options.get(EditorOption.effectiveForceFullwidthCharacterWidth);
+		const useTwoCellFullwidthCharacters = configuration.options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -969,7 +969,7 @@ suite('SplitLinesCollection', () => {
 			wrappingIndent,
 			wordBreak,
 			wrapOnEscapedLineFeeds,
-			forceFullwidthCharacterWidth
+			useTwoCellFullwidthCharacters
 		);
 
 		callback(linesCollection);

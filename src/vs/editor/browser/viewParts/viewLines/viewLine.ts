@@ -172,7 +172,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize,
 			false,
-			options.forceFullwidthCharacterWidth
+			options.useTwoCellFullwidthCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -645,7 +645,7 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
-		if (this.input.forceFullwidthCharacterWidth) {
+		if (this.input.useTwoCellFullwidthCharacters) {
 			const target = this._getReadingTarget(domNode);
 			// The first branch needs the left edge of the character to the right
 			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {

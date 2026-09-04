@@ -215,7 +215,7 @@ export class ViewGpuContext extends Disposable {
 			reasons.push('maxColumn > maxGpuCols');
 		}
 		if (requiresDomFullwidthCharacterRendering(options, data.content)) {
-			reasons.push('forceFullwidthCharacterWidth');
+			reasons.push('useTwoCellFullwidthCharacters');
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
@@ -263,7 +263,7 @@ export class ViewGpuContext extends Disposable {
 }
 
 function requiresDomFullwidthCharacterRendering(options: ViewLineOptions, content: string): boolean {
-	if (!options.forceFullwidthCharacterWidth) {
+	if (!options.useTwoCellFullwidthCharacters) {
 		return false;
 	}
 	const limit = options.stopRenderingLineAfter === -1 ? content.length : Math.min(options.stopRenderingLineAfter, content.length);

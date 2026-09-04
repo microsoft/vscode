@@ -45,7 +45,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, forceFullwidthCharacterWidth: boolean = false): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null, injectedText: LineInjectedText[] | null = null, useTwoCellFullwidthCharacters: boolean = false): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -72,7 +72,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return injectedText;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds, forceFullwidthCharacterWidth);
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds, useTwoCellFullwidthCharacters);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
@@ -470,90 +470,90 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
 	});
 
-	test('MonospaceLineBreaksComputer - forced full-width character width', () => {
+	test('MonospaceLineBreaksComputer - two-cell full-width character width', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const text = '\u3042\u3042\u3042\u3042';
-		const wrapWith = (columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, columnsForFullWidthChar, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const wrapWith = (columnsForFullWidthChar: number, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, columnsForFullWidthChar, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
 
 		assert.deepStrictEqual({
 			lyingFont: wrapWith(3, false),
-			lyingFontForced: wrapWith(3, true),
+			lyingFontTwoCells: wrapWith(3, true),
 			gridAlignedFont: wrapWith(2, false)
 		}, {
 			lyingFont: '\u3042|\u3042|\u3042|\u3042',
-			lyingFontForced: '\u3042\u3042|\u3042\u3042',
+			lyingFontTwoCells: '\u3042\u3042|\u3042\u3042',
 			gridAlignedFont: '\u3042\u3042|\u3042\u3042'
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width determines whether continuation indentation fits', () => {
+	test('MonospaceLineBreaksComputer - two-cell width determines whether continuation indentation fits', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
 		const text = '    \u3042\u3042\u3042';
-		const wrappedIndentWith = (lineText: string, breakAfter: number, columnsForFullWidthChar: number, forceFullwidthCharacterWidth: boolean) =>
-			getLineBreakData(factory, 4, breakAfter, columnsForFullWidthChar, WrappingIndent.Same, 'normal', false, lineText, null, null, forceFullwidthCharacterWidth)?.wrappedTextIndentLength;
+		const wrappedIndentWith = (lineText: string, breakAfter: number, columnsForFullWidthChar: number, useTwoCellFullwidthCharacters: boolean) =>
+			getLineBreakData(factory, 4, breakAfter, columnsForFullWidthChar, WrappingIndent.Same, 'normal', false, lineText, null, null, useTwoCellFullwidthCharacters)?.wrappedTextIndentLength;
 
 		assert.deepStrictEqual({
 			wideNatural: wrappedIndentWith(text, 6, 3, false),
-			wideForced: wrappedIndentWith(text, 6, 3, true),
+			wideTwoCells: wrappedIndentWith(text, 6, 3, true),
 			narrowNatural: wrappedIndentWith(text, 5, 1, false),
-			narrowForced: wrappedIndentWith(text, 5, 1, true),
+			narrowTwoCells: wrappedIndentWith(text, 5, 1, true),
 		}, {
 			wideNatural: 0,
-			wideForced: 4,
+			wideTwoCells: 4,
 			narrowNatural: 4,
-			narrowForced: 0,
+			narrowTwoCells: 0,
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width uses shared full-width classification', () => {
+	test('MonospaceLineBreaksComputer - two-cell width uses shared full-width classification', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
-		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 5, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
 		const fullwidthAscii = '\uFF21'.repeat(4);
 		const vaiSyllables = '\uA500'.repeat(4);
 
 		assert.deepStrictEqual({
 			fullwidthAsciiNatural: wrapWith(fullwidthAscii, false),
-			fullwidthAsciiForced: wrapWith(fullwidthAscii, true),
+			fullwidthAsciiTwoCells: wrapWith(fullwidthAscii, true),
 			vaiNatural: wrapWith(vaiSyllables, false),
-			vaiForced: wrapWith(vaiSyllables, true),
+			vaiTwoCells: wrapWith(vaiSyllables, true),
 		}, {
 			fullwidthAsciiNatural: '\uFF21|\uFF21|\uFF21|\uFF21',
-			fullwidthAsciiForced: '\uFF21\uFF21|\uFF21\uFF21',
+			fullwidthAsciiTwoCells: '\uFF21\uFF21|\uFF21\uFF21',
 			vaiNatural: '\uA500|\uA500|\uA500|\uA500',
-			vaiForced: '\uA500\uA500|\uA500\uA500',
+			vaiTwoCells: '\uA500\uA500|\uA500\uA500',
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width preserves natural control-character metrics', () => {
+	test('MonospaceLineBreaksComputer - two-cell width preserves natural control-character metrics', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
-		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
 		const controlCharacters = '\u0001\u0001';
 		const controlCharacterWithTab = '\u0001\t';
 
 		assert.deepStrictEqual({
 			controlNatural: wrapWith(controlCharacters, false),
-			controlForced: wrapWith(controlCharacters, true),
+			controlTwoCells: wrapWith(controlCharacters, true),
 			controlWithTabNaturalColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, false)?.breakOffsetsVisibleColumn,
-			controlWithTabForcedColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, true)?.breakOffsetsVisibleColumn,
+			controlWithTabTwoCellsColumns: getLineBreakData(factory, 4, 3, 3, WrappingIndent.None, 'normal', false, controlCharacterWithTab, null, null, true)?.breakOffsetsVisibleColumn,
 		}, {
 			controlNatural: '\u0001|\u0001',
-			controlForced: '\u0001|\u0001',
+			controlTwoCells: '\u0001|\u0001',
 			controlWithTabNaturalColumns: [3, 4],
-			controlWithTabForcedColumns: [3, 4],
+			controlWithTabTwoCellsColumns: [3, 4],
 		});
 	});
 
-	test('MonospaceLineBreaksComputer - forced width treats combining marks independently', () => {
+	test('MonospaceLineBreaksComputer - two-cell width treats combining marks independently', () => {
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
-		const wrapWith = (text: string, forceFullwidthCharacterWidth: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, forceFullwidthCharacterWidth));
+		const wrapWith = (text: string, useTwoCellFullwidthCharacters: boolean) => toAnnotatedText(text, getLineBreakData(factory, 4, 4, 3, WrappingIndent.None, 'normal', false, text, null, null, useTwoCellFullwidthCharacters));
 		const combinedCharacter = '\u3042\u0301aa';
 
 		assert.deepStrictEqual({
 			combinedNatural: wrapWith(combinedCharacter, false),
-			combinedForced: wrapWith(combinedCharacter, true),
+			combinedTwoCells: wrapWith(combinedCharacter, true),
 		}, {
 			combinedNatural: '\u3042|\u0301aa',
-			combinedForced: '\u3042|\u0301aa',
+			combinedTwoCells: '\u3042|\u0301aa',
 		});
 	});
 
