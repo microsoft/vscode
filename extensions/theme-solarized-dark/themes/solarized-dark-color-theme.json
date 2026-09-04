@@ -449,7 +449,7 @@
 
 		// Workbench: Title
 		"titleBar.activeBackground": "#002C39",
-		// "titleBar.inactiveBackground": "",
+		"titleBar.inactiveBackground": "#0E2931",
 		// "titleBar.activeForeground": "",
 		// "titleBar.inactiveForeground": "",
 
@@ -491,6 +491,7 @@
 		// Workbench: Status Bar
 		"statusBar.foreground": "#93A1A1",
 		"statusBar.background": "#00212B",
+		"statusBar.inactiveBackground": "#0E2931",
 		"statusBar.debuggingBackground": "#00212B",
 		"statusBar.noFolderBackground": "#00212B",
 		"statusBarItem.remoteBackground": "#2AA19899",

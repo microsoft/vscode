@@ -102,6 +102,7 @@
 		"sideBarSectionHeader.foreground": "#3B3B3B",
 		"sideBarTitle.foreground": "#3B3B3B",
 		"statusBar.background": "#F8F8F8",
+		"statusBar.inactiveBackground": "#F8F8F8",
 		"statusBar.foreground": "#3B3B3B",
 		"statusBar.border": "#E5E5E5",
 		"statusBarItem.hoverBackground": "#1F1F1F11",

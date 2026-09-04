@@ -183,6 +183,7 @@
 		"panelTitle.activeForeground": "#202020",
 		"panelTitle.inactiveForeground": "#606060",
 		"statusBar.background": "#FAFAFD",
+		"statusBar.inactiveBackground": "#FAFAFD",
 		"statusBar.foreground": "#606060",
 		"statusBar.border": "#F0F1F2",
 		"statusBar.focusBorder": "#0069CC",

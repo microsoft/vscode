@@ -376,7 +376,7 @@
 		// Workbench: Title
 		"titleBar.activeBackground": "#10192c",
 		// "titleBar.activeForeground": "",
-		// "titleBar.inactiveBackground": "",
+		"titleBar.inactiveBackground": "#181D29",
 		// "titleBar.inactiveForeground": "",
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
@@ -410,6 +410,7 @@
 		"sideBarSectionHeader.border": "#2b2b4a",
 		// Workbench: Status Bar
 		"statusBar.background": "#10192c",
+		"statusBar.inactiveBackground": "#181D29",
 		"statusBar.noFolderBackground": "#10192c",
 		"statusBar.debuggingBackground": "#10192c",
 		// "statusBar.foreground": "",
