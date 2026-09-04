@@ -23,6 +23,7 @@ import { BrowserEditorInput } from '../../../../browserView/common/browserEditor
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -654,32 +655,39 @@ suite('AgentHostSessionInputPills', () => {
 			accessor.get(IEditorService),
 			accessor.get(IOpenerService),
 		] as const);
-		const renderPills = (resource: URI) => {
-			const persistentContent = document.createElement('div');
-			document.body.appendChild(persistentContent);
-			store.add(toDisposable(() => persistentContent.remove()));
-			let persistentContentHeight: number | undefined;
-			const widget = upcastPartial<ChatWidget>({
-				inputPart: upcastPartial<ChatInputPart>({
-					persistentContentContainerElement: persistentContent,
-					registerChatPetHorizontalPlatformProvider: () => Disposable.None,
-				}),
-				onDidChangeViewModel: Event.None,
-				viewModel: upcastPartial<ChatViewModel>({ sessionResource: resource }),
-				setPersistentContentHeight: height => persistentContentHeight = height,
-			});
-			store.add(new AgentHostSessionInputPills(
-				widget,
-				false,
-				connectionsService,
-				browserViewService,
-				clipboardService,
-				configurationService,
-				editorService,
-				instantiationService,
-				openerService,
-				visibility,
-			));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		let persistentContentHeight: number | undefined;
+		// The chat editor keeps one pills instance while its widget navigates
+		// between the session and one of its subagent chats.
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: height => persistentContentHeight = height,
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+		const showChat = (resource: URI) => {
+			const previousSessionResource = viewModel.sessionResource;
+			viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
+			viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
 			return {
 				pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
 				hidden: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden'),
@@ -690,15 +698,17 @@ suite('AgentHostSessionInputPills', () => {
 		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, subagentChat);
 
 		assert.deepStrictEqual({
-			session: renderPills(sessionResource),
+			session: showChat(sessionResource),
 			// The subagent editor addresses its chat by query parameter, and by
 			// fragment alone once the session state resolves the chat id.
-			explicitSubagent: renderPills(sessionResource.with({ fragment: 'subagent/tool-1', query: explicitQuery.toString() })),
-			canonicalSubagent: renderPills(sessionResource.with({ fragment: 'subagent/tool-1' })),
+			explicitSubagent: showChat(sessionResource.with({ fragment: 'subagent/tool-1', query: explicitQuery.toString() })),
+			canonicalSubagent: showChat(sessionResource.with({ fragment: 'subagent/tool-1' })),
+			backToSession: showChat(sessionResource),
 		}, {
 			session: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 			explicitSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
+			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 		});
 	});
 });

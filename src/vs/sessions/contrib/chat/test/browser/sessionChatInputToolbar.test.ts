@@ -202,10 +202,16 @@ suite('SessionChatInputToolbar', () => {
 			status: constObservable(SessionStatus.InProgress),
 			origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
 		});
+		const forkedChat = upcastPartial<IChat>({
+			resource: URI.parse('chat:fork'),
+			title: constObservable('Fork'),
+			status: constObservable(SessionStatus.InProgress),
+			origin: { kind: ChatOriginKind.Fork, parentChat: chat.resource },
+		});
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'provider:session',
 			resource: URI.parse('session:1'),
-			chats: constObservable([chat, subagentChat]),
+			chats: constObservable([chat, subagentChat, forkedChat]),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 			changesets: constObservable([]),
 			changes: constObservable([{
@@ -239,10 +245,13 @@ suite('SessionChatInputToolbar', () => {
 		toolbar.setSession(session, chat);
 		const main = read();
 		toolbar.setSession(session, subagentChat);
+		const subagent = read();
+		toolbar.setSession(session, forkedChat);
 
-		assert.deepStrictEqual({ main, subagent: read() }, {
+		assert.deepStrictEqual({ main, subagent, fork: read() }, {
 			main: { pills: ['1 File', 'Subagent'], visible: true },
 			subagent: { pills: [], visible: false },
+			fork: { pills: ['1 File'], visible: true },
 		});
 	});
 });
