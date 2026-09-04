@@ -666,7 +666,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
 		return this._sessionOpenTelemetry.withSdkResume(
 			session,
-			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
+			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, {
+				...config,
+				// Opening a chat must restore resume state without making the session recently modified.
+				suppressResumeEvent: true,
+			})),
 		);
 	}
 
