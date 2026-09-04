@@ -156,7 +156,7 @@ suite('Sessions - Chat View', () => {
 	});
 
 	test('centers compact bottom-row picker glyphs inside their action item', () => {
-		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		const widget = dom.append(workbench, dom.$('.new-chat-widget-container.revealed'));
