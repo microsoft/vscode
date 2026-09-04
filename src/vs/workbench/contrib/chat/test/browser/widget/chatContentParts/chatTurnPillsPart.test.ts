@@ -27,7 +27,6 @@ suite('ChatTurnPillsContentPart', () => {
 			registerProvider: () => Disposable.None,
 			getChangesForRequest: () => diffs,
 			getFileEditsForRequest: () => undefined,
-			getChangeStatsForRequest: () => undefined,
 			openChangesForRequest: () => { },
 		});
 
@@ -71,19 +70,17 @@ suite('ChatTurnPillsContentPart', () => {
 		]);
 	});
 
-	test('renders only authoritative changed-file and line counts', () => {
+	test('renders changed-file and line counts from the request diffs', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const stats = observableValue('turnChangeStats', { files: 2, insertions: 8, deletions: 3 });
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('turnChanges', [
+			{ ...emptySessionEntryDiff(URI.file('/file1.ts'), URI.file('/file1.ts')), added: 5, removed: 2 },
+			{ ...emptySessionEntryDiff(URI.file('/file2.ts'), URI.file('/file2.ts')), added: 3, removed: 1 },
+		]);
 		instantiationService.stub(IChatResponseFileChangesService, {
 			_serviceBrand: undefined,
 			registerProvider: () => Disposable.None,
-			getChangesForRequest: () => observableValue('fallbackTurnChanges', [
-				{ ...emptySessionEntryDiff(URI.file('/outside.md'), URI.file('/outside.md')), added: 100, removed: 50 },
-			]),
-			getFileEditsForRequest: () => {
-				throw new Error('outside-workspace file edits must not be rendered');
-			},
-			getChangeStatsForRequest: () => stats,
+			getChangesForRequest: () => diffs,
+			getFileEditsForRequest: () => undefined,
 			openChangesForRequest: () => { },
 		});
 
@@ -108,7 +105,9 @@ suite('ChatTurnPillsContentPart', () => {
 			hasPreview: part.domNode.querySelector('.chat-turn-preview') !== null,
 		});
 		const before = readState();
-		stats.set({ files: 0, insertions: 0, deletions: 0 }, undefined);
+		diffs.set([
+			{ ...emptySessionEntryDiff(URI.file('/file3.ts'), URI.file('/file3.ts')), added: 1, removed: 1 },
+		], undefined);
 
 		assert.deepStrictEqual({ before, after: readState() }, {
 			before: {
@@ -121,11 +120,11 @@ suite('ChatTurnPillsContentPart', () => {
 				hasPreview: false,
 			},
 			after: {
-				display: 'none',
-				files: '0 files changed',
-				additions: '+0',
-				deletions: '-0',
-				ariaLabel: 'View all file changes: 0 files changed, 0 lines added, 0 lines deleted',
+				display: '',
+				files: '1 file changed',
+				additions: '+1',
+				deletions: '-1',
+				ariaLabel: 'View all file changes: 1 file changed, 1 line added, 1 line deleted',
 				hasDisclosure: true,
 				hasPreview: false,
 			},
@@ -143,7 +142,6 @@ suite('ChatTurnPillsContentPart', () => {
 				{ ...emptySessionEntryDiff(URI.file('/file2.ts'), URI.file('/file2.ts')), added: 3, removed: 1 },
 			]),
 			getFileEditsForRequest: () => undefined,
-			getChangeStatsForRequest: () => undefined,
 			openChangesForRequest: () => { openChangesCount++; },
 		});
 
