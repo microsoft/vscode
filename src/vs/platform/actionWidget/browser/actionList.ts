@@ -1091,13 +1091,29 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _toggleSection(section: string): void {
-		if (this._collapsedSections.has(section)) {
+		const expanding = this._collapsedSections.has(section);
+		if (expanding) {
 			this._collapsedSections.delete(section);
 		} else {
 			this._collapsedSections.add(section);
 		}
 		this._options?.onDidToggleSection?.(section, this._collapsedSections.has(section));
 		this._applyFilter();
+		if (expanding) {
+			// A popup that keeps one height cannot grow, so the new rows would sit unseen
+			// below the fold.
+			this._revealFirstItemOfSection(section);
+		}
+	}
+
+	private _revealFirstItemOfSection(section: string): void {
+		for (let index = 0; index < this._list.length; index++) {
+			const item = this._list.element(index);
+			if (item.section === section && !item.isSectionToggle) {
+				this._list.reveal(index);
+				return;
+			}
+		}
 	}
 
 	private _applyOrUpdateFilter(): void {
@@ -1500,11 +1516,20 @@ export class ActionListWidget<T> extends Disposable {
 	 * Computes the total height of all items (including collapsed/filtered items).
 	 */
 	computeFullHeight(): number {
-		let fullHeight = 0;
-		for (const item of this._allMenuItems) {
-			fullHeight += this._getItemHeight(item);
+		return this.computeHeightForItems(this._allMenuItems);
+	}
+
+	/** Height the list would need for `items`, leaving out anything in a collapsed section. */
+	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections?: ReadonlySet<string>): number {
+		let height = 0;
+		for (const item of items) {
+			// The toggle is the row that reopens its own section, so it stays on screen.
+			if (collapsedSections && item.section && !item.isSectionToggle && collapsedSections.has(item.section)) {
+				continue;
+			}
+			height += this._getItemHeight(item);
 		}
-		return fullHeight;
+		return height;
 	}
 
 	/**
@@ -2236,6 +2261,8 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	/** Height to size against instead of the current contents. Survives re-layouts. */
+	private _fixedContentHeight: number | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 	private readonly _widgetClassName: string | undefined;
 
@@ -2359,6 +2386,11 @@ export class ActionList<T> extends Disposable {
 		this._widget.updateItems(items, focusItemId);
 	}
 
+	/** Height the list would need for `items`, for a caller sizing against other contents. */
+	computeHeightForItems(items: readonly IActionListItem<T>[], collapsedSections?: ReadonlySet<string>): number {
+		return this._widget.computeHeightForItems(items, collapsedSections);
+	}
+
 	focusItemById(itemId: string): void {
 		this._widget.focusItemById(itemId);
 	}
@@ -2379,7 +2411,7 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private computeHeight(): number {
-		const listHeight = this._widget.computeListHeight();
+		const listHeight = this._fixedContentHeight ?? this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
@@ -2400,9 +2432,11 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
+				// A pinned height decides the direction too, so a later tab cannot flip it.
+				const fullHeight = this._fixedContentHeight ?? this._widget.computeFullHeight();
 				this._showAbove = this._preferredAnchorPosition !== undefined
 					? this._preferredAnchorPosition === AnchorPosition.ABOVE
-					: (chromeHeight + this._widget.computeFullHeight() > spaceBelow && spaceAbove > spaceBelow);
+					: (chromeHeight + fullHeight > spaceBelow && spaceAbove > spaceBelow);
 			}
 			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
@@ -2424,9 +2458,12 @@ export class ActionList<T> extends Disposable {
 		return height - chromeHeight;
 	}
 
-	layout(minWidth: number): number {
+	layout(minWidth: number, fixedContentHeight?: number): number {
 		this._hasLaidOut = true;
 		this._lastMinWidth = minWidth;
+		if (fixedContentHeight !== undefined) {
+			this._fixedContentHeight = fixedContentHeight;
+		}
 
 		const listHeight = this.computeHeight();
 		this._widget.layout(listHeight);
