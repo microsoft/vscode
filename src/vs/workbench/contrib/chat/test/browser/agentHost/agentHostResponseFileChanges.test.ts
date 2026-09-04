@@ -199,6 +199,51 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		], [1, 1]);
 	});
 
+	test('waits for the authoritative turn changeset instead of replacing provisional response stats', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(createProvider(conn));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(defaultChatUri.toString(), {
+			turns: [{
+				id: 't1',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/repo/file.ts').toString(), content: { uri: 'git-blob://provisional' } },
+							diff: { added: 77, removed: 33 },
+						}],
+					},
+				}],
+			}],
+		} as unknown as ChatState);
+
+		const { latest } = observe(provider, ds);
+		const states = [latest().map(diff => ({ added: diff.added, removed: diff.removed }))];
+		conn.setState(turnChangesetUri('t1'), {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: '1',
+				edit: {
+					after: { uri: URI.file('/repo/file.ts').toString(), content: { uri: 'git-blob://authoritative' } },
+					diff: { added: 76, removed: 32 },
+				},
+			}],
+		} satisfies ChangesetState);
+		states.push(latest().map(diff => ({ added: diff.added, removed: diff.removed })));
+
+		assert.deepStrictEqual(states, [
+			[],
+			[{ added: 76, removed: 32 }],
+		]);
+	});
+
 	test('falls back to the owning peer chat file edits when a turn checkpoint is unavailable', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
@@ -251,14 +296,14 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		);
 	});
 
-	test('includes deleted response edits when a turn checkpoint is unavailable', () => {
+	test('includes deleted response edits when a turn checkpoint fails', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
 		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
 		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
-		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t1'), new Error('checkpoint unavailable'));
 		conn.setState(defaultChatUri.toString(), {
 			turns: [{
 				id: 't1',
@@ -347,7 +392,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		];
 
 		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
-		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t1'), new Error('checkpoint unavailable'));
 		conn.setState(defaultChatUri.toString(), {
 			turns: [{ id: 't1', responseParts: responseParts.slice(0, 3) }],
 		} as unknown as ChatState);

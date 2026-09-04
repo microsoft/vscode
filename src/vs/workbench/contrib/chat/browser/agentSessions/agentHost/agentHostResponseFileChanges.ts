@@ -41,7 +41,7 @@ const REQUEST_CACHE_CAPACITY = 1000;
  * Where a turn's diffs came from, for tracing. `retained` means every source
  * was momentarily empty and the previous result was kept instead.
  */
-type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'branchFallback' | 'retained';
+type TurnDiffSource = 'unsupported' | 'loading' | 'changeset' | 'authoritativeEmpty' | 'response' | 'branchFallback' | 'retained';
 
 interface IResponseFileEdits {
 	readonly diffs: readonly IChatResponseFileEdit[];
@@ -187,6 +187,8 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 
 		const changesetStateObs = this._subscribe<ChangesetState>(StateComponents.Changeset, turnChangesetUriObs);
 		const responseFileEditsObs = this._createFileEditDiffsObservable(backendSession, backendChat, requestId);
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const isPeerChat = backendChat !== undefined && !isEqual(backendChat, defaultChatUri);
 		// Migrated legacy Copilot CLI sessions have no per-turn checkpoints, so
 		// their turn changeset is always empty even when the session committed
 		// real work on its branch. Fall back to the session-wide branch changeset
@@ -238,6 +240,10 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			}
 			if (changeset?.status === ChangesetStatus.Ready && retained.length === 0) {
 				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset.status);
+			}
+			// Default chats wait for their checkpoint so restored response edits never flash different stats.
+			if (!isPeerChat && (changesetState === undefined || changeset?.status === ChangesetStatus.Computing)) {
+				return select('loading', retained, changeset?.status);
 			}
 
 			const responseFileEdits = responseFileEditsObs.read(reader);

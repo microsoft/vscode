@@ -56,15 +56,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return diffs.length > 0 || diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? diffs : (lastValue ?? diffs);
 		});
 
-		const providedStats = this._chatResponseFileChangesService.getChangeStatsForRequest?.(
-			_content.sessionResource,
-			_content.requestId,
-			{ isLastTurn: _content.isLastTurn },
-		);
 		const stats = derivedObservableWithCache<IDiffStats>(this, (reader, lastValue) => {
-			if (providedStats) {
-				return providedStats.read(reader);
-			}
 			const diffs = this._diffs.read(reader);
 			if (diffs.length === 0) {
 				return diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? EMPTY_DIFF_STATS : (lastValue ?? EMPTY_DIFF_STATS);
