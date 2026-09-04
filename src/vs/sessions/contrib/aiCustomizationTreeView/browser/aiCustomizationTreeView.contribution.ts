@@ -27,6 +27,7 @@ import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.j
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 //#region Utilities
 
@@ -297,12 +298,12 @@ registerAction2(class extends Action2 {
 			id: FOCUS_AI_CUSTOMIZATION_VIEW_ID,
 			title: localize2('openCustomizations', "Open Chat Customizations"),
 			category: AI_CUSTOMIZATION_CATEGORY,
-			precondition: IsSessionsWindowContext,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, TerminalContextKeys.focus.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, TerminalContextKeys.focus.negate()),
 			},
 		});
 	}

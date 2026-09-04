@@ -51,14 +51,20 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)
-				|| CUSTOMIZATION_MIGRATION_CATEGORIES.some(category => event.affectsConfiguration(category.enablementSetting))) {
+				|| CUSTOMIZATION_MIGRATION_CATEGORIES.some(category =>
+					event.affectsConfiguration(category.enablementSetting)
+					|| category.configurationSettingIds?.some(settingId => event.affectsConfiguration(settingId))
+				)) {
 				this.scheduleRefresh();
 			}
 		}));
 		this._register(Event.any(
 			this.harnessService.onDidChangeSlashCommands,
 			this.harnessService.onDidChangeCustomAgents,
+			this.promptsService.onDidChangeSlashCommands,
+			this.promptsService.onDidChangeCustomAgents,
 			this.promptsService.onDidChangeInstructions,
+			this.promptsService.onDidChangeAgentInstructions,
 		)(() => this.scheduleRefresh()));
 	}
 
