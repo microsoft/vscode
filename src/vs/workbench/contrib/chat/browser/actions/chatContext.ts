@@ -163,8 +163,8 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 			return undefined;
 		}
 
-		const repoId = repository?.repoId ?? this.getRepositoryId(repository?.folderUri);
-		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repoId);
+		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
 		if (!selection) {
 			return undefined;
 		}

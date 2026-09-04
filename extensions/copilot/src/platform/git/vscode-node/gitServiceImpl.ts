@@ -197,6 +197,25 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	async getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined> {
 		this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] URI: ${uri.toString()}`);
 
+		if (uri.scheme === 'file') {
+			try {
+				const uriStat = await vscode.workspace.fs.stat(uri);
+				if (uriStat.type === vscode.FileType.Directory) {
+					const buffer = await vscode.workspace.fs.readFile(URI.file(path.join(uri.fsPath, '.git', 'config')));
+					const remotes = {
+						rootUri: uri,
+						remoteFetchUrls: parseGitRemotes(buffer.toString()).map(remote => remote.fetchUrl),
+					};
+					if (remotes.remoteFetchUrls.length > 0) {
+						this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (direct .git/config): ${JSON.stringify(remotes)}`);
+						return remotes;
+					}
+				}
+			} catch (error) {
+				this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Could not read remotes directly from .git/config: ${error.message}`);
+			}
+		}
+
 		// Answering before discovery settles reports the file as belonging to no repository, which
 		// content exclusion reads as "no repository rules apply to this file".
 		await this.waitForInitialDiscovery();
@@ -209,8 +228,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		// Query opened repositories
 		const repository = gitAPI.getRepository(uri);
 		if (repository) {
-			await this.waitForRepositoryState(repository);
-
 			const remotes = {
 				rootUri: repository.rootUri,
 				remoteFetchUrls: repository.state.remotes.map(r => r.fetchUrl),

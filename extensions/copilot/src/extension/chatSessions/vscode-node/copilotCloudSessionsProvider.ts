@@ -14,7 +14,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
-import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
+import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem } from '../../../platform/github/common/githubAPI';
 import { CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
 import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
@@ -245,6 +245,21 @@ export function parseGitHubContextUrl(value: string, kind: 'issue' | 'pullReques
 		url: `https://github.com/${repoId}/${resource}/${match.groups.number}`,
 		label: `${repoId}#${match.groups.number}`,
 	};
+}
+
+export async function resolveGitHubContextRepository(gitService: IGitService, repository: string | vscode.Uri | undefined): Promise<string | undefined> {
+	if (!repository || typeof repository === 'string') {
+		return repository;
+	}
+
+	const repositoryInfo = await gitService.getRepositoryFetchUrls(repository);
+	for (const remoteUrl of repositoryInfo?.remoteFetchUrls ?? []) {
+		const repositoryId = remoteUrl && getGithubRepoIdFromFetchUrl(remoteUrl);
+		if (repositoryId) {
+			return toGithubNwo(repositoryId);
+		}
+	}
+	return undefined;
 }
 
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
@@ -767,8 +782,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}));
 			});
 		};
-		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, (repoId?: string) => openGitHubContext('issue', repoId)));
-		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, (repoId?: string) => openGitHubContext('pullRequest', repoId)));
+		this._register(vscode.commands.registerCommand(OPEN_ISSUE_COMMAND_ID, async (repository?: string | vscode.Uri) =>
+			openGitHubContext('issue', await resolveGitHubContextRepository(this._gitService, repository))));
+		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_COMMAND_ID, async (repository?: string | vscode.Uri) =>
+			openGitHubContext('pullRequest', await resolveGitHubContextRepository(this._gitService, repository))));
 
 		this._register(vscode.commands.registerCommand(CLEAR_CACHES_COMMAND_ID, () => {
 			this.logService.debug('copilotCloudSessionsProvider#clearCaches: clearing all cloud agent caches');

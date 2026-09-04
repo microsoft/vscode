@@ -59,10 +59,10 @@ class TestGitService extends mock<IGitService>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	result: object | undefined;
-	command: { id: string; repoId: string | undefined } | undefined;
+	command: { id: string; repository: string | URI | undefined } | undefined;
 
-	override async executeCommand<T>(id: string, repoId?: string): Promise<T> {
-		this.command = { id, repoId };
+	override async executeCommand<T>(id: string, repository?: string | URI): Promise<T> {
+		this.command = { id, repository };
 		return this.result as T;
 	}
 }
@@ -73,7 +73,7 @@ class TestGitHubContextValuePick extends GitHubContextValuePick {
 
 	protected override async pickRepository(repositories: readonly { readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI }[]): Promise<{ readonly label: string; readonly description?: string; readonly repoId?: string; readonly folderUri?: URI } | undefined> {
 		this.repositoryPicks = repositories;
-		return repositories.find(repository => repository.repoId === this.selectedRepository);
+		return repositories.find(repository => (repository.repoId ?? repository.folderUri?.toString()) === this.selectedRepository);
 	}
 }
 
@@ -144,7 +144,7 @@ suite('ChatContext', () => {
 			enabled: true,
 			command: {
 				id: 'github.copilot.chat.cloudSessions.openIssue',
-				repoId: undefined,
+				repository: undefined,
 			},
 		});
 	});
@@ -176,7 +176,7 @@ suite('ChatContext', () => {
 		}, {
 			command: {
 				id: 'github.copilot.chat.cloudSessions.openIssue',
-				repoId: 'microsoft/vscode',
+				repository: 'microsoft/vscode',
 			},
 			attachment: {
 				id: 'https://github.com/microsoft/vscode/issues/123',
@@ -209,14 +209,14 @@ suite('ChatContext', () => {
 		await pick.asAttachment();
 		assert.deepStrictEqual({
 			repositoryPicks: pick.repositoryPicks,
-			commandRepoId: commandService.command?.repoId,
+			commandRepository: commandService.command?.repository,
 			openRepositoryCalls: gitService.openRepositoryCalls,
 		}, {
 			repositoryPicks: [
 				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositories[0].rootUri },
 				{ label: 'TypeScript', description: 'microsoft/typescript', repoId: 'microsoft/typescript', folderUri: repositories[1].rootUri },
 			],
-			commandRepoId: 'microsoft/vscode',
+			commandRepository: 'microsoft/vscode',
 			openRepositoryCalls: [],
 		});
 	});
@@ -263,13 +263,20 @@ suite('ChatContext', () => {
 				{ uri: docsRoot, name: 'Docs' },
 			]),
 		);
+		pick.selectedRepository = docsRoot.toString();
 
 		await pick.asAttachment();
 
-		assert.deepStrictEqual(pick.repositoryPicks, [
-			{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositoryRoot },
-			{ label: 'Docs', folderUri: docsRoot },
-		]);
+		assert.deepStrictEqual({
+			repositoryPicks: pick.repositoryPicks,
+			commandRepository: commandService.command?.repository,
+		}, {
+			repositoryPicks: [
+				{ label: 'VS Code', description: 'microsoft/vscode', repoId: 'microsoft/vscode', folderUri: repositoryRoot },
+				{ label: 'Docs', folderUri: docsRoot },
+			],
+			commandRepository: docsRoot,
+		});
 	});
 
 	test('orders sessions before GitHub context picks', () => {

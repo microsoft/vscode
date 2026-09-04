@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -79,6 +79,22 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			},
 			wrongPicker: undefined,
 			unrelated: undefined,
+		});
+	});
+
+	it('resolves a GitHub context repository from the selected workspace folder', async () => {
+		const gitService = new TestGitService();
+		gitService.getRepositoryFetchUrls = vi.fn(async () => ({
+			rootUri: vscode.Uri.file('/workspace/docs'),
+			remoteFetchUrls: ['https://github.com/microsoft/vscode-docs.git'],
+		}));
+
+		expect({
+			folder: await resolveGitHubContextRepository(gitService, vscode.Uri.file('/workspace/docs')),
+			repository: await resolveGitHubContextRepository(gitService, 'microsoft/vscode'),
+		}).toEqual({
+			folder: 'microsoft/vscode-docs',
+			repository: 'microsoft/vscode',
 		});
 	});
 
