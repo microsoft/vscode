@@ -6,7 +6,7 @@
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
-import { mkdir, rename, rm, stat, writeFile } from 'fs/promises';
+import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -41,6 +41,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
+import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -240,7 +241,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			throw new CancellationError();
 		}
 		const [environment, nativeRequire] = await Promise.all([
-			this._resolveShellEnvironment(),
+			this._resolveDevContainerEnvironment(),
 			this._getNativeRequire(),
 		]);
 		if (token.isCancellationRequested) {
@@ -431,24 +432,48 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
 		const content = certificates.join(process.platform === 'win32' ? '\r\n' : '\n');
 		const hash = createHash('sha256').update(content).digest('hex');
-		const directory = join(this._environmentService.tmpDir.fsPath, 'vscode-dev-container');
+		const directory = this._getCertificatesDirectory();
+		await prepareOwnerOnlyDirectory(directory);
 		const path = join(directory, `certificates-${hash}.pem`);
-		if (await this._isFile(path)) {
+		if (await this._isSecureCacheFile(path)) {
 			return path;
 		}
-		await mkdir(directory, { recursive: true });
 		const temporaryPath = `${path}-${randomUUID()}`;
-		await writeFile(temporaryPath, content);
+		await writeFile(temporaryPath, content, { mode: 0o600 });
 		try {
-			await rename(temporaryPath, path);
+			await this._renameCertificateFile(temporaryPath, path);
 		} catch (error) {
-			if (!await this._isFile(path)) {
+			if (!await this._isSecureCacheFile(path)) {
 				await rm(temporaryPath, { force: true });
 				throw error;
 			}
 			await rm(temporaryPath, { force: true });
 		}
 		return path;
+	}
+
+	protected _getCertificatesDirectory(): string {
+		const owner = process.getuid?.().toString()
+			?? createHash('sha256').update(this._environmentService.userDataPath).digest('hex').slice(0, 12);
+		return join(this._environmentService.tmpDir.fsPath, `vscode-dev-container-${owner}`);
+	}
+
+	protected async _isSecureCacheFile(path: string): Promise<boolean> {
+		try {
+			const fileStat = await lstat(path);
+			return fileStat.isFile() && !fileStat.isSymbolicLink()
+				&& (!process.getuid || fileStat.uid === process.getuid());
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'ENOTDIR') {
+				return false;
+			}
+			throw error;
+		}
+	}
+
+	protected _renameCertificateFile(from: string, to: string): Promise<void> {
+		return rename(from, to);
 	}
 
 	protected _reportOutput(connectionId: string, data: string): void {
