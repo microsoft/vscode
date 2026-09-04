@@ -29,7 +29,6 @@ export const enum BYOKUtilityModelDefault {
 export const enum CustomizationMigrationHintMode {
 	Never = 'never',
 	Once = 'once',
-	Summary = 'summary',
 	Always = 'always',
 }
 

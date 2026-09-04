@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -16,7 +15,7 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -37,12 +36,10 @@ class TestPromptsService extends MockPromptsService {
 
 class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>() {
 	readonly requestedSourceFolderTypes: PromptsType[] = [];
-	customizationToken: CancellationToken | undefined;
 
 	constructor(
 		private readonly sessionType = SessionType.AgentHostCopilot,
 		private readonly harnessLabel = 'Copilot',
-		private readonly customizations: readonly ICustomizationItem[] = [],
 	) {
 		super();
 	}
@@ -57,10 +54,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 			icon: Codicon.copilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async (_sessionResource, token) => {
-					this.customizationToken = token;
-					return [...this.customizations];
-				},
+				provideChatSessionCustomizations: async () => [],
 				provideSourceFolders: async (_sessionResource, type) => {
 					this.requestedSourceFolderTypes.push(type);
 					switch (type) {
@@ -311,31 +305,14 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('summarizes available customizations and migration candidates by storage', async () => {
+	test('summarizes migration candidates by storage', async () => {
 		const promptsService = store.add(new TestPromptsService([
 			{ uri: URI.file('/workspace/.github/prompts/one.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/workspace/.github/prompts/two.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/user-data/prompts/three.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
 			{ uri: URI.file('/user-data/prompts/four.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
 		]));
-		const createCustomization = (type: PromptsType, index: number, enabled = true): ICustomizationItem => ({
-			uri: URI.file(`/customizations/${type}/${index}`),
-			type,
-			name: `${type}-${index}`,
-			source: PromptsStorage.local,
-			extensionId: undefined,
-			pluginUri: undefined,
-			enabled,
-		});
-		const customizations = [
-			...Array.from({ length: 4 }, (_, index) => createCustomization(PromptsType.instructions, index)),
-			...Array.from({ length: 10 }, (_, index) => createCustomization(PromptsType.skill, index)),
-			...Array.from({ length: 4 }, (_, index) => createCustomization(PromptsType.agent, index)),
-			createCustomization(PromptsType.instructions, 100, false),
-			createCustomization(PromptsType.skill, 100, false),
-			createCustomization(PromptsType.agent, 100, false),
-		];
-		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude', customizations);
+		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude');
 		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 			override acquireMcpServerSupportScope() { return undefined; }
 		}();
@@ -344,45 +321,11 @@ suite('CustomizationMigrationService', () => {
 		}();
 		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
 
-		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }), true, CancellationToken.Cancelled);
-
-		assert.deepStrictEqual({
-			hint,
-			forwardedCancellationToken: harnessService.customizationToken === CancellationToken.Cancelled,
-		}, {
-			hint: {
-				message: '4 instructions, 10 skills, and 4 agents available to the agent. Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
-				target: CustomizationMigrationHintTarget.FileMigrations,
-			},
-			forwardedCancellationToken: true,
-		});
-	});
-
-	test('targets the general customization view for a summary without migrations', async () => {
-		const promptsService = store.add(new TestPromptsService([]));
-		const customization: ICustomizationItem = {
-			uri: URI.file('/customizations/instructions/one'),
-			type: PromptsType.instructions,
-			name: 'one',
-			source: PromptsStorage.local,
-			extensionId: undefined,
-			pluginUri: undefined,
-			enabled: true,
-		};
-		const harnessService = new TestCustomizationHarnessService(SessionType.AgentHostClaude, 'Claude', [customization]);
-		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
-			override acquireMcpServerSupportScope() { return undefined; }
-		}();
-		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
-			override getWorkingDirectories() { return []; }
-		}();
-		const service = new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService);
-
-		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }), true);
+		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
 		assert.deepStrictEqual(hint, {
-			message: '1 instruction, 0 skills, and 0 agents available to the agent.',
-			target: CustomizationMigrationHintTarget.Customizations,
+			message: 'Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
 		});
 	});
 

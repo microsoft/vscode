@@ -70,20 +70,17 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		]);
 	}
 
-	async computeMigrationHint(sessionResource: URI, includeCustomizationSummary = false, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
+	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
 		}
 
-		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration, customizations] = await Promise.all([
+		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
-			includeCustomizationSummary
-				? harness.itemProvider?.provideChatSessionCustomizations(sessionResource, token)
-				: undefined,
 		]);
 		const fileCandidates = [...userDataMigration.candidates, ...promptFilesMigration.candidates, ...configuredLocationsMigration.candidates];
 		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
@@ -98,34 +95,10 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		const migrationHint = fileHint && mcpHint
 			? localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint)
 			: fileHint ?? mcpHint;
-		if (!includeCustomizationSummary) {
-			return migrationHint ? {
-				message: migrationHint,
-				target: fileHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
-			} : undefined;
-		}
-
-		const enabledCustomizations = customizations?.filter(customization => customization.enabled !== false) ?? [];
-		const instructionCount = enabledCustomizations.filter(customization => customization.type === PromptsType.instructions).length;
-		const skillCount = enabledCustomizations.filter(customization => customization.type === PromptsType.skill).length;
-		const agentCount = enabledCustomizations.filter(customization => customization.type === PromptsType.agent).length;
-		const summary = localize(
-			'customizationAvailabilitySummary',
-			"{0}, {1}, and {2} available to the agent.",
-			this.formatCustomizationCount(instructionCount, localize('instructionSingle', "instruction"), localize('instructionPlural', "instructions")),
-			this.formatCustomizationCount(skillCount, localize('skillSingle', "skill"), localize('skillPlural', "skills")),
-			this.formatCustomizationCount(agentCount, localize('agentSingle', "agent"), localize('agentPlural', "agents")),
-		);
-		return {
-			message: migrationHint
-				? localize('customizationSummaryWithMigrationHint', "{0} {1}", summary, migrationHint)
-				: summary,
-			target: fileHint
-				? CustomizationMigrationHintTarget.FileMigrations
-				: mcpHint
-					? CustomizationMigrationHintTarget.McpServers
-					: CustomizationMigrationHintTarget.Customizations,
-		};
+		return migrationHint ? {
+			message: migrationHint,
+			target: fileHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
+		} : undefined;
 	}
 
 	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
@@ -142,10 +115,6 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		return fileCount === 1
 			? localize('customizationMigrationHintSingle', "Found {0} customization file that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
 			: localize('customizationMigrationHintMultiple', "Found {0} customizations that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
-	}
-
-	private formatCustomizationCount(count: number, singular: string, plural: string): string {
-		return localize('customizationCount', "{0} {1}", count, count === 1 ? singular : plural);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {

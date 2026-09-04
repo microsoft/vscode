@@ -80,7 +80,6 @@ export interface McpServerCustomizationMigration {
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
 export const enum CustomizationMigrationHintTarget {
-	Customizations = 'customizations',
 	FileMigrations = 'fileMigrations',
 	McpServers = 'mcpServers',
 }
@@ -96,5 +95,5 @@ export interface ICustomizationMigrationService {
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
-	computeMigrationHint(sessionResource: URI, includeCustomizationSummary?: boolean, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
+	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }
