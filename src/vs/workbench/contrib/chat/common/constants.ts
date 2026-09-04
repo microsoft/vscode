@@ -106,9 +106,7 @@ export enum ChatConfiguration {
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
-	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
-	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
-	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
+	ChatCustomizationsMigrationEnabled = 'chat.customizations.migration.enabled',
 	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',

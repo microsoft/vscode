@@ -334,12 +334,10 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('gates each migration category on its own experimental setting', () => {
+	test('gates all migration categories on the migration setting', () => {
 		const welcomePageCalls: ICustomizationMigrationCategorySummary[][] = [];
 		const configurationService = createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: false,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: false,
 		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
 		const editor = createTestEditor(undefined, configurationService);
 		editor.customizationsByMigrationCategory = new Map([
@@ -367,18 +365,12 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 
 		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled, true);
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
-		editor.refreshCustomizationMigrationUi();
-		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
 		configurationService.setValue('chat.agentFilesLocations', { '/workspace/custom-agents': true });
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		editor.refreshCustomizationMigrationUi();
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
 			[],
-			[CustomizationMigrationCategoryId.UserData],
-			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.ConfiguredLocations],
 		]);
 		editor.editorPreviewDisposables.dispose();
@@ -386,7 +378,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('tracks migration selection by URI and storage', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const sharedUri = URI.file('/home/user/shared.prompt.md');
 		const workspacePrompt: MigratableConfiguration = {
@@ -506,7 +498,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const agentSettingId = 'chat.agentFilesLocations';
 		const instructionsSettingId = 'chat.instructionsFilesLocations';
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 			[agentSettingId]: { '/custom/agents': true },
 			[instructionsSettingId]: { '/custom/instructions': true },
 		}));
@@ -608,8 +600,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const userDataCustomizations = [
 			{
@@ -695,7 +686,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('opens a migration candidate through the shared Button widget', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFile: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -746,7 +737,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('virtualized migration rows keep checkbox selection and keyboard traversal aligned', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = Array.from({ length: 6 }, (_, index): MigratableConfiguration => ({
 			uri: URI.file(`/workspace/.github/prompts/workspace-${index}.prompt.md`),
@@ -791,7 +782,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('group migration selection retains keyboard focus', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
@@ -877,7 +868,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('customization migration groups render as flat source sections', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
@@ -943,7 +934,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('unchecking every item in a migration group unchecks the group checkbox', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
 		const promptFiles = [
 			{
