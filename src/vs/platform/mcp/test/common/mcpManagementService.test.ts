@@ -1180,6 +1180,51 @@ suite('McpResourceManagementService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reads and writes mcpServers configuration files', async () => {
+		const resources = [
+			{ resource: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.mcp.json' }), target: ConfigurationTarget.WORKSPACE_FOLDER },
+			{ resource: URI.from({ scheme: Schemas.inMemory, path: '/home/.copilot/mcp-config.json' }), target: ConfigurationTarget.USER },
+		] as const;
+		const results = [];
+
+		for (const { resource, target } of resources) {
+			await scannerService.addMcpServers([{
+				name: 'new-server',
+				config: {
+					type: McpServerType.LOCAL,
+					command: 'node',
+					args: ['server.js'],
+				},
+			}], resource, target);
+
+			const scanned = await scannerService.scanMcpServers(resource, target);
+			const persisted = JSON.parse((await fileService.readFile(resource)).value.toString());
+			results.push({
+				resource: resource.path,
+				scannedServers: scanned.servers,
+				persisted,
+			});
+		}
+
+		const expectedServer = {
+			type: McpServerType.LOCAL,
+			command: 'node',
+			args: ['server.js'],
+		};
+		assert.deepStrictEqual(results, [
+			{
+				resource: '/workspace/.mcp.json',
+				scannedServers: { 'new-server': expectedServer },
+				persisted: { mcpServers: { 'new-server': expectedServer } },
+			},
+			{
+				resource: '/home/.copilot/mcp-config.json',
+				scannedServers: { 'new-server': expectedServer },
+				persisted: { mcpServers: { 'new-server': expectedServer } },
+			},
+		]);
+	});
+
 	test('fires update when root sandbox changes', async () => {
 		const initial = await service.getInstalled();
 		assert.strictEqual(initial.length, 1);

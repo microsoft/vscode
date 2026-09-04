@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
+import { getWorkspaceMcpConfigurationResource, isMcpServersConfigurationResource } from '../../../../platform/mcp/common/mcpConfigPaths.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -808,6 +809,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private getUserMcpConfigPath(mcpResource: URI): IMcpConfigPath {
+		const usesMcpServersProperty = isMcpServersConfigurationResource(mcpResource);
 		return {
 			id: USER_CONFIG_ID,
 			key: 'userLocalValue',
@@ -816,11 +818,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			scope: StorageScope.PROFILE,
 			order: McpCollectionSortOrder.User,
 			uri: mcpResource,
-			section: [],
+			section: usesMcpServersProperty ? undefined : [],
+			serversKey: usesMcpServersProperty ? 'mcpServers' : undefined,
 		};
 	}
 
 	private getRemoteMcpConfigPath(mcpResource: URI): IMcpConfigPath {
+		const usesMcpServersProperty = isMcpServersConfigurationResource(mcpResource);
 		return {
 			id: REMOTE_USER_CONFIG_ID,
 			key: 'userRemoteValue',
@@ -830,7 +834,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			order: McpCollectionSortOrder.User + McpCollectionSortOrder.RemoteBoost,
 			remoteAuthority: this.environmentService.remoteAuthority,
 			uri: mcpResource,
-			section: [],
+			section: usesMcpServersProperty ? undefined : [],
+			serversKey: usesMcpServersProperty ? 'mcpServers' : undefined,
 		};
 	}
 
@@ -853,16 +858,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const workspaceFolders = workspace.folders;
 		for (let index = 0; index < workspaceFolders.length; index++) {
 			const workspaceFolder = workspaceFolders[index];
-			if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), mcpResource)) {
+			const workspaceDotMcpResource = getWorkspaceMcpConfigurationResource(workspaceFolder.uri);
+			const workspaceMcpResource = this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]);
+			if (this.uriIdentityService.extUri.isEqual(workspaceDotMcpResource, mcpResource) || this.uriIdentityService.extUri.isEqual(workspaceMcpResource, mcpResource)) {
+				const usesMcpServersProperty = isMcpServersConfigurationResource(mcpResource);
 				return {
 					id: `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`,
 					key: 'workspaceFolderValue',
 					target: ConfigurationTarget.WORKSPACE_FOLDER,
-					label: `${workspaceFolder.name}/.vscode/mcp.json`,
+					label: `${workspaceFolder.name}/${usesMcpServersProperty ? '.mcp.json' : '.vscode/mcp.json'}`,
 					scope: StorageScope.WORKSPACE,
 					remoteAuthority: this.environmentService.remoteAuthority,
 					order: McpCollectionSortOrder.WorkspaceFolder,
 					uri: mcpResource,
+					serversKey: usesMcpServersProperty ? 'mcpServers' : undefined,
 					workspaceFolder,
 				};
 			}

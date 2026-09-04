@@ -21,17 +21,19 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { getGlobalMcpConfigurationResource, getWorkspaceMcpConfigurationResource } from '../../../../platform/mcp/common/mcpConfigPaths.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
@@ -54,7 +56,8 @@ export const enum AddConfigurationType {
 
 type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.NuGetPackage | AddConfigurationType.DockerImage;
 
-type McpInstallTarget = { kind: 'local'; target: ConfigurationTarget | IWorkspaceFolder } | { kind: 'agentHost'; session: URI };
+type McpConfigurationTarget = ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | IWorkspaceFolder;
+type McpInstallTarget = { kind: 'local'; target: McpConfigurationTarget } | { kind: 'agentHost'; session: URI };
 
 export const AssistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
@@ -138,7 +141,7 @@ type AssistedServerConfiguration = {
 
 export class McpAddConfigurationCommand {
 	constructor(
-		private readonly workspaceFolder: IWorkspaceFolder | undefined,
+		private readonly configurationTarget: McpConfigurationTarget | undefined,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchMcpManagementService private readonly _mcpManagementService: IWorkbenchMcpManagementService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
@@ -155,6 +158,7 @@ export class McpAddConfigurationCommand {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IPathService private readonly _pathService: IPathService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -280,8 +284,8 @@ export class McpAddConfigurationCommand {
 		return id;
 	}
 
-	private async getConfigurationTarget(): Promise<ConfigurationTarget | IWorkspaceFolder | undefined> {
-		const options: (IQuickPickItem & { target?: ConfigurationTarget | IWorkspaceFolder })[] = [
+	private async getConfigurationTarget(): Promise<McpConfigurationTarget | undefined> {
+		const options: (IQuickPickItem & { target: McpConfigurationTarget })[] = [
 			{ target: ConfigurationTarget.USER_LOCAL, label: localize('mcp.target.user', "Global"), description: localize('mcp.target.user.description', "Available in all workspaces, runs locally") }
 		];
 
@@ -290,13 +294,13 @@ export class McpAddConfigurationCommand {
 			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "Remote"), description: localize('mcp.target..remote.description', "Available on this remote machine, runs on {0}", raLabel) });
 		}
 
-		const workbenchState = this._workspaceService.getWorkbenchState();
-		if (workbenchState !== WorkbenchState.EMPTY) {
-			const target = workbenchState === WorkbenchState.FOLDER ? this._workspaceService.getWorkspace().folders[0] : ConfigurationTarget.WORKSPACE;
+		const workspaceFolders = this._workspaceService.getWorkspace().folders;
+		for (const workspaceFolder of workspaceFolders) {
+			const label = workspaceFolders.length === 1 ? localize('mcp.target.workspace', "Workspace") : workspaceFolder.name;
 			if (this._environmentService.remoteAuthority) {
-				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
+				options.push({ target: workspaceFolder, label, description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
 			} else {
-				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
+				options.push({ target: workspaceFolder, label, description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
 			}
 		}
 
@@ -316,8 +320,8 @@ export class McpAddConfigurationCommand {
 		const session = this._chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		const hasAgentHostSession = !!session && isAgentHostTarget(getChatSessionType(session));
 
-		if (this.workspaceFolder) {
-			return { kind: 'local', target: this.workspaceFolder };
+		if (this.configurationTarget) {
+			return { kind: 'local', target: this.configurationTarget };
 		}
 
 		if (session && hasAgentHostSession) {
@@ -359,6 +363,17 @@ export class McpAddConfigurationCommand {
 
 		const target = await this.getConfigurationTarget();
 		return target ? { kind: 'local', target } : undefined;
+	}
+
+	private async getConfigurationResource(target: McpConfigurationTarget): Promise<URI> {
+		if (isWorkspaceFolder(target)) {
+			return getWorkspaceMcpConfigurationResource(target.uri);
+		}
+
+		const userHome = target === ConfigurationTarget.USER_REMOTE
+			? await this._pathService.userHome()
+			: this._pathService.userHome({ preferLocal: true });
+		return getGlobalMcpConfigurationResource(userHome);
 	}
 
 	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name?: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
@@ -575,7 +590,8 @@ export class McpAddConfigurationCommand {
 		}
 
 		const { target } = installTarget;
-		await this._mcpManagementService.install({ name, config, inputs }, { target });
+		const mcpResource = await this.getConfigurationResource(target);
+		await this._mcpManagementService.install({ name, config, inputs }, { target, mcpResource });
 
 		if (inputValues) {
 			for (const [key, value] of Object.entries(inputValues)) {
@@ -588,7 +604,7 @@ export class McpAddConfigurationCommand {
 			this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
 				packageType,
 				serverType: config.type,
-				target: target === ConfigurationTarget.WORKSPACE ? 'workspace' : 'user'
+				target: isWorkspaceFolder(target) ? 'workspace' : 'user'
 			});
 		}
 
@@ -670,6 +686,7 @@ export class McpInstallFromManifestCommand {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkbenchMcpManagementService private readonly _mcpManagementService: IWorkbenchMcpManagementService,
 		@ILogService private readonly _logService: ILogService,
+		@IPathService private readonly _pathService: IPathService,
 	) { }
 
 	async run(): Promise<void> {
@@ -749,7 +766,8 @@ export class McpInstallFromManifestCommand {
 
 		// Step 5: Install to user settings
 		try {
-			await this._mcpManagementService.install({ name, config, inputs });
+			const mcpResource = getGlobalMcpConfigurationResource(this._pathService.userHome({ preferLocal: true }));
+			await this._mcpManagementService.install({ name, config, inputs }, { target: ConfigurationTarget.USER_LOCAL, mcpResource });
 			this._notificationService.info(localize('mcp.installFromManifest.success', "MCP server '{0}' installed successfully", name));
 		} catch (e) {
 			this._notificationService.error(localize('mcp.installFromManifest.installError', "Failed to install MCP server: {0}", e.message));
