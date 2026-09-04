@@ -58,7 +58,6 @@ export enum ChatConfiguration {
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
 	PasteAsAttachmentThreshold = 'chat.pasteAsAttachmentThreshold',
-	PasteGitHubLinksAsReferences = 'chat.pasteGitHubLinksAsReferences',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',

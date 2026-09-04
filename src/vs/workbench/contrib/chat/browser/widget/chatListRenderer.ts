@@ -1207,7 +1207,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), user, hoverContent, hoverOptions));
 		templateDisposables.add(dom.addDisposableListener(user, dom.EventType.KEY_DOWN, e => {
 			const ev = new StandardKeyboardEvent(e);
-			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
+			if ((ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) && !isAnchorTarget(e.target)) {
 				const content = hoverContent();
 				if (content) {
 					this.hoverService.showInstantHover({ content, target: user, trapFocus: true, actions: hoverOptions.actions }, true);
@@ -2141,7 +2141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
-				if ((ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) && !isAnchorTarget(e.target)) {
+				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
 					if (this.viewModel?.editing?.id !== element.id) {
 						ev.preventDefault();
 						ev.stopPropagation();
