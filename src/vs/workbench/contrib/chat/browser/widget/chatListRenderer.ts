@@ -663,10 +663,6 @@ function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation
 	}
 }
 
-export function isAnchorTarget(target: EventTarget | null): boolean {
-	return dom.isHTMLElement(target) && !!target.closest('a');
-}
-
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
@@ -2141,7 +2137,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
-				if ((ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) && !isAnchorTarget(e.target)) {
+				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
 					if (this.viewModel?.editing?.id !== element.id) {
 						ev.preventDefault();
 						ev.stopPropagation();
@@ -4568,10 +4564,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return;
 					}
 
-					if (isAnchorTarget(e.target)) {
+					// Don't handle clicks on links
+					const clickedElement = e.target as HTMLElement;
+					if (clickedElement.tagName === 'A') {
 						return;
 					}
-					const clickedElement = e.target as HTMLElement;
 
 					// Don't handle if there's a text selection in the window
 					const selection = dom.getWindow(templateData.rowContainer).getSelection();
