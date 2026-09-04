@@ -608,4 +608,97 @@ suite('AgentHostSessionInputPills', () => {
 			empty: false,
 		});
 	});
+
+	test('hides the session pills in a subagent chat', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const defaultChat = buildDefaultChatUri(backendSession);
+		const subagentChat = buildSubagentChatUri(backendSession, 'tool-1');
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat,
+				chats: [{
+					resource: subagentChat,
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-1' },
+				}],
+				_meta: withSessionArtifacts(undefined, [{
+					id: 'preview',
+					type: SessionArtifactType.Website,
+					label: 'Preview',
+					link: 'https://example.com/preview',
+					isArtifact: true,
+				}]),
+			} as unknown as SessionState],
+		]));
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
+			readHiddenKinds: () => new Set(),
+			isVisible: () => true,
+			hide: () => { },
+			toggle: () => { },
+		});
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const renderPills = (resource: URI) => {
+			const persistentContent = document.createElement('div');
+			document.body.appendChild(persistentContent);
+			store.add(toDisposable(() => persistentContent.remove()));
+			let persistentContentHeight: number | undefined;
+			const widget = upcastPartial<ChatWidget>({
+				inputPart: upcastPartial<ChatInputPart>({
+					persistentContentContainerElement: persistentContent,
+					registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+				}),
+				onDidChangeViewModel: Event.None,
+				viewModel: upcastPartial<ChatViewModel>({ sessionResource: resource }),
+				setPersistentContentHeight: height => persistentContentHeight = height,
+			});
+			store.add(new AgentHostSessionInputPills(
+				widget,
+				false,
+				connectionsService,
+				browserViewService,
+				clipboardService,
+				configurationService,
+				editorService,
+				instantiationService,
+				openerService,
+				visibility,
+			));
+			return {
+				pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
+				hidden: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden'),
+				persistentContentHeight,
+			};
+		};
+		const explicitQuery = new URLSearchParams();
+		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, subagentChat);
+
+		assert.deepStrictEqual({
+			session: renderPills(sessionResource),
+			// The subagent editor addresses its chat by query parameter, and by
+			// fragment alone once the session state resolves the chat id.
+			explicitSubagent: renderPills(sessionResource.with({ fragment: 'subagent/tool-1', query: explicitQuery.toString() })),
+			canonicalSubagent: renderPills(sessionResource.with({ fragment: 'subagent/tool-1' })),
+		}, {
+			session: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
+			explicitSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
+			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
+		});
+	});
 });
