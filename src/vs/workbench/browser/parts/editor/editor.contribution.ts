@@ -425,7 +425,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	title: localize('diffView', "Diff View"),
 	group: '1_diff',
 	order: 10,
-	when: ContextKeyExpr.has('isInDiffEditor'),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('isInDiffEditor'), IsSessionsWindowContext.toNegated()),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) },
