@@ -91,12 +91,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly omitHostFromWorkspaceLabel?: boolean;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
-	/**
-	 * Forces this host's sessions read-only whenever it is not connected. Set by hosts that cannot
-	 * accept work offline — a cloud sandbox has to be resumed before it can be sent to, so a
-	 * composer would take input that nothing will ever deliver. Hosts left with the default keep
-	 * their sessions writable while disconnected, queuing the input for the reconnect.
-	 */
+	/** Keeps unavailable and initially connecting sessions read-only, but permits self-healing reconnects. */
 	readonly readOnlyWhenDisconnected?: boolean;
 	/** See {@link IAgentHostAdapterOptions.defaultChangesetKind}. */
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
@@ -148,14 +143,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
-	/**
-	 * Whether every session on this host is read-only, which hides the composer.
-	 *
-	 * Only ever true for hosts configured with
-	 * {@link IRemoteAgentHostSessionsProviderConfig.readOnlyWhenDisconnected}, and only while they
-	 * are disconnected: elsewhere a dropped host keeps its sessions writable so the input queues
-	 * for the reconnect.
-	 */
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
@@ -256,13 +243,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._readOnly = config.readOnlyWhenDisconnected
-			// Deliberately not `!isConnected`: that would include `reconnecting`, which is the
-			// protocol client restoring a dropped transport while the host itself is up. Input
-			// sent then is delivered once the transport returns, so hiding the composer would
-			// interrupt a conversation mid-sentence over a blip the user should not notice.
 			? derived(this, reader => {
 				const status = this._connectionStatus.read(reader);
 				return RemoteAgentHostConnectionStatus.isDisconnected(status)
+					|| RemoteAgentHostConnectionStatus.isConnecting(status)
 					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
 			})
 			: constObservable(false);

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -31,7 +33,7 @@ import {
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -156,6 +158,7 @@ const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
 	readonly configurationService: TestConfigurationService;
+	setEnabled(enabled: boolean): Promise<void>;
 	/** Discovery's answer, mutable so a test can change what a later pass reports. */
 	discovered: readonly ICloudSandboxDiscoveredSession[];
 	/** Runs a discovery pass and waits for it to reconcile. */
@@ -170,6 +173,7 @@ interface ITestHarness {
 	activate(environmentId: string): Promise<boolean>;
 	readonly created: ICloudSandboxCreateSessionRequest[];
 	readonly connectedTo: string[];
+	readonly historyRequests: string[];
 	/** Host groups currently declared to the filter service. */
 	readonly hostGroups: IAgentHostGroup[];
 }
@@ -182,6 +186,7 @@ interface ITestHarness {
 async function createContribution(store: Pick<DisposableStore, 'add'>, sessions: readonly ICloudSandboxDiscoveredSession[], options?: {
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
+	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
 }): Promise<ITestHarness> {
@@ -191,13 +196,24 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const instantiationService = store.add(new TestInstantiationService());
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
+	const historyRequests: string[] = [];
 	const harness: ITestHarness = {
 		discovered: sessions,
 		environmentStatus: 'offline',
 		readOnlySessionTypes,
 		created,
 		connectedTo,
+		historyRequests,
 		hostGroups,
+		setEnabled: async (enabled: boolean) => {
+			await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === CloudSandboxEnabledSettingId,
+				affectedKeys: new Set([CloudSandboxEnabledSettingId]),
+				change: { keys: [CloudSandboxEnabledSettingId], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		},
 		runDiscovery: async () => { await Promise.all(discoveryHandlers.map(handler => handler())); },
 		activate: async (environmentId: string) => {
 			const sessionType = remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER);
@@ -209,10 +225,14 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		override async listSessions(_token: CancellationToken): Promise<ICloudSandboxDiscoveryResult> {
 			return { kind: 'complete', sessions: harness.discovered };
 		}
-		override async getEnvironment(id: string): Promise<ICloudSandboxEnvironmentRecord> {
+		override async getEnvironment(id: string, token: CancellationToken): Promise<ICloudSandboxEnvironmentRecord> {
+			if (options?.getEnvironment) {
+				return options.getEnvironment(id, token);
+			}
 			return { id, status: harness.environmentStatus };
 		}
-		override async getSessionHistory(): Promise<IReplayedTaskHistory> {
+		override async getSessionHistory(taskId: string): Promise<IReplayedTaskHistory> {
+			historyRequests.push(taskId);
 			return { sessions: [], truncated: false };
 		}
 		override async createSession(request: ICloudSandboxCreateSessionRequest): Promise<ICloudSandboxCreatedSession> {
@@ -414,13 +434,120 @@ suite('CloudSandboxAgentHostContribution', () => {
 	});
 
 	test('does not wake an environment whose state could not be read', async () => {
-		// A Mission Control blip must cost a click, not an unrequested resume.
-		const harness = await createContribution(store, [discoveredSession()]);
-		harness.environmentStatus = 'degraded';
+		const harness = await createContribution(store, [discoveredSession()], {
+			getEnvironment: async () => { throw new Error('Expected environment lookup failure'); },
+		});
 
 		const opened = await harness.activate('env-1');
 
-		assert.deepStrictEqual({ opened, connectedTo: harness.connectedTo }, { opened: true, connectedTo: [] });
+		assert.deepStrictEqual({
+			opened,
+			connectedTo: harness.connectedTo,
+			historyRequests: harness.historyRequests,
+			servedFromHistory: harness.readOnlySessionTypes.length,
+		}, { opened: true, connectedTo: [], historyRequests: ['task-1'], servedFromHistory: 1 });
+	});
+
+	for (const reenable of [false, true]) {
+		test(`abandons a cancelled environment lookup when the feature is ${reenable ? 're-enabled' : 'disabled'}`, async () => {
+			const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
+			const requestedToken = new DeferredPromise<CancellationToken>();
+			const harness = await createContribution(store, [discoveredSession()], {
+				getEnvironment: (_id, token) => {
+					void requestedToken.complete(token);
+					return environment.p;
+				},
+			});
+			const activation = harness.activate('env-1');
+			const token = await requestedToken.p;
+
+			await harness.setEnabled(false);
+			if (reenable) {
+				await harness.setEnabled(true);
+				await harness.runDiscovery();
+			}
+			await environment.error(new CancellationError());
+
+			assert.deepStrictEqual({
+				opened: await activation,
+				cancelled: token.isCancellationRequested,
+				connectedTo: harness.connectedTo,
+				historyRequests: harness.historyRequests,
+				readOnlySessionTypes: harness.readOnlySessionTypes,
+			}, { opened: false, cancelled: true, connectedTo: [], historyRequests: [], readOnlySessionTypes: [] });
+		});
+	}
+
+	for (const status of ['online', 'offline'] as const) {
+		test(`does not reactivate a removed environment after a late ${status} record`, async () => {
+			const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
+			const harness = await createContribution(store, [discoveredSession()], {
+				getEnvironment: () => environment.p,
+			});
+			const activation = harness.activate('env-1');
+			harness.discovered = [];
+			await harness.runDiscovery();
+			await environment.complete({ id: 'env-1', status });
+
+			assert.deepStrictEqual({
+				opened: await activation,
+				connectedTo: harness.connectedTo,
+				historyRequests: harness.historyRequests,
+				readOnlySessionTypes: harness.readOnlySessionTypes,
+			}, { opened: false, connectedTo: [], historyRequests: [], readOnlySessionTypes: [] });
+		});
+	}
+
+	test('does not register old history against a replacement provider at the same address', async () => {
+		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
+		const harness = await createContribution(store, [discoveredSession()], {
+			getEnvironment: () => environment.p,
+		});
+		const activation = harness.activate('env-1');
+		harness.discovered = [];
+		await harness.runDiscovery();
+		harness.discovered = [discoveredSession({ taskId: 'task-2' })];
+		await harness.runDiscovery();
+		await environment.complete({ id: 'env-1', status: 'offline' });
+
+		assert.deepStrictEqual({
+			opened: await activation,
+			historyRequests: harness.historyRequests,
+			readOnlySessionTypes: harness.readOnlySessionTypes,
+		}, { opened: false, historyRequests: [], readOnlySessionTypes: [] });
+	});
+
+	test('keeps activation valid across a discovery refresh of the same provider', async () => {
+		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
+		const harness = await createContribution(store, [discoveredSession()], {
+			getEnvironment: () => environment.p,
+		});
+		const activation = harness.activate('env-1');
+		await harness.runDiscovery();
+		await environment.complete({ id: 'env-1', status: 'offline' });
+
+		assert.deepStrictEqual({
+			opened: await activation,
+			connectedTo: harness.connectedTo,
+			historyRequests: harness.historyRequests,
+		}, { opened: true, connectedTo: [], historyRequests: ['task-1'] });
+	});
+
+	test('does not restore history after an old connect fails across disable and re-enable', async () => {
+		const harness = await createContribution(store, [discoveredSession()]);
+		harness.environmentStatus = 'online';
+		harness.onConnect = async () => {
+			await harness.setEnabled(false);
+			await harness.setEnabled(true);
+			await harness.runDiscovery();
+			throw new Error('Expected connection failure after teardown');
+		};
+
+		assert.deepStrictEqual({
+			opened: await harness.activate('env-1'),
+			historyRequests: harness.historyRequests,
+			readOnlySessionTypes: harness.readOnlySessionTypes,
+		}, { opened: false, historyRequests: [], readOnlySessionTypes: [] });
 	});
 
 	test('connects a dormant environment that has no history to fall back on', async () => {

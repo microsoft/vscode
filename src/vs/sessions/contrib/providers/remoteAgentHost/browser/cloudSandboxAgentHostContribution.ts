@@ -463,44 +463,45 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		return authority ? byAuthority.get(authority) : undefined;
 	}
 
-	/**
-	 * Async-activation hook for a sandbox session type: make the session openable, either by
-	 * connecting to an environment that is already online — resolving once the host advertises the
-	 * agent backing this session type, so the chat can load — or by serving its persisted history
-	 * read-only. Returns false only when the environment is unknown, or nothing can be shown at
-	 * all: no live host and no history to fall back on.
-	 */
+	/** Opens an online environment through its host, or an offline session from persisted history. */
 	protected async _waitForActivation(sessionType: string): Promise<boolean> {
 		const address = this._findAddressForSessionType(sessionType);
 		const env = address ? this._environments.get(address) : undefined;
-		if (!address || !env) {
+		const provider = address ? this._providerInstances.get(address) : undefined;
+		if (!address || !env || !provider) {
 			return false;
 		}
-		// Resuming is a side effect the user has to ask for. Mission Control wakes the environment
-		// behind `/connect`, and it cannot say in advance whether a dormant one will come back, so
-		// opening a session must not gamble minutes of wake on the guess. Read the environment's
-		// state first and dial only what is already online; anything else opens from history with
-		// the connection banner offering the connect.
-		//
-		// Without a task there is no history to serve, and refusing to open would leave the
-		// session unreachable entirely — so fall through to the connect, which is the only way
-		// such a session can show anything at all.
-		if (env.taskId && !await this._isEnvironmentOnline(env)) {
+		const token = this._enabledCts.token;
+		const isCurrentActivation = () => {
+			const current = !token.isCancellationRequested
+				&& this._isEnabled()
+				&& this._environments.has(address)
+				&& this._providerInstances.get(address) === provider;
+			if (!current) {
+				this._logService.trace(`${LOG_PREFIX} Abandoning activation for ${address} after teardown.`);
+			}
+			return current;
+		};
+
+		// Without a task there is no history fallback, so connecting is the only way to open it.
+		const shouldConnect = !env.taskId || await this._isEnvironmentOnline(env, token);
+		if (!isCurrentActivation()) {
+			return false;
+		}
+		if (!shouldConnect) {
 			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
-			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env));
+			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 
 		const connectError = await this
 			.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name })
 			.then(() => undefined, (error: unknown) => error ?? new Error('connect failed'));
+		if (!isCurrentActivation()) {
+			return false;
+		}
 		if (connectError !== undefined) {
 			this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
-			// Serve history whatever the reason: `/connect` fails in several ways for a deleted
-			// sandbox, so gating on any one of them would leave the rest with no history.
-			if (this._isEnabled() && !this._enabledCts.token.isCancellationRequested) {
-				return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env));
-			}
-			return false;
+			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 		const authority = agentHostAuthority(address);
 		while (true) {
@@ -519,16 +520,10 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		}
 	}
 
-	/**
-	 * Whether the environment currently has a daemon listening on the relay. Only `online` does, so
-	 * only `online` can be dialled without triggering a resume.
-	 *
-	 * An unreadable record answers `false`: this gates a side effect the user has not asked for, so
-	 * a Mission Control blip must cost a click rather than an unrequested wake.
-	 */
-	private async _isEnvironmentOnline(env: ICloudSandboxEnvironment): Promise<boolean> {
+	/** An unreadable record must not trigger an automatic resume. */
+	private async _isEnvironmentOnline(env: ICloudSandboxEnvironment, token: CancellationToken): Promise<boolean> {
 		try {
-			const record = await this._apiService.getEnvironment(env.environmentId, this._enabledCts.token);
+			const record = await this._apiService.getEnvironment(env.environmentId, token);
 			return record.status === 'online';
 		} catch (error) {
 			this._logService.trace(`${LOG_PREFIX} Could not read the state of ${env.environmentId}; treating it as not online: ${error instanceof Error ? error.message : String(error)}`);
@@ -536,17 +531,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		}
 	}
 
-	/**
-	 * A task's persisted history, or `undefined` when there is no task or the read failed. Served
-	 * by Mission Control rather than the sandbox, so it stays readable while the environment is
-	 * asleep or gone. Never rejects.
-	 */
-	private _fetchTaskHistory(env: ICloudSandboxEnvironment): Promise<IReplayedTaskHistory | undefined> | undefined {
+	/** Reads history from Mission Control without connecting to the sandbox. */
+	private _fetchTaskHistory(env: ICloudSandboxEnvironment, token: CancellationToken): Promise<IReplayedTaskHistory | undefined> | undefined {
 		const taskId = env.taskId;
 		if (!taskId) {
 			return undefined;
 		}
-		const token = this._enabledCts.token;
 		return this._apiService.getSessionHistory(taskId, token).catch((error: unknown) => {
 			this._logService.trace(`${LOG_PREFIX} History read for ${env.environmentId} did not complete: ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;

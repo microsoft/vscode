@@ -484,28 +484,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('keeps the composer during a self-healing reconnect on a host that is read-only when disconnected', () => {
-		// `reconnecting` is the protocol client restoring a dropped transport while the host is
-		// still up, so input sent then is delivered once it returns. Treating it as read-only
-		// would pull the composer — and the user's focus — mid-conversation over a blip.
+	test('keeps initial connections read-only but permits self-healing reconnects', () => {
 		const provider = createProvider(disposables, connection, { readOnlyWhenDisconnected: true });
-		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 		provider.seedSessions([createSession('sandbox-session')]);
 		const chat = provider.getSessions()[0].mainChat.get();
-		const interactivity = [chat.interactivity.get()];
-
-		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
-		interactivity.push(chat.interactivity.get());
-		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
-		interactivity.push(chat.interactivity.get());
-		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
-		interactivity.push(chat.interactivity.get());
+		const statuses = [
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.reconnecting,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.incompatible('Protocol version mismatch', ['1']),
+			RemoteAgentHostConnectionStatus.connected,
+		];
+		const interactivity = statuses.map(status => {
+			provider.setConnectionStatus(status);
+			return { status: status.kind, interactivity: chat.interactivity.get() };
+		});
 
 		assert.deepStrictEqual(interactivity, [
-			ChatInteractivity.Full,
-			ChatInteractivity.Full,
-			ChatInteractivity.ReadOnly,
-			ChatInteractivity.Full,
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connecting', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connected', interactivity: ChatInteractivity.Full },
+			{ status: 'reconnecting', interactivity: ChatInteractivity.Full },
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connecting', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'incompatible', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connected', interactivity: ChatInteractivity.Full },
 		]);
 	});
 
