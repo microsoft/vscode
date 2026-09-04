@@ -1281,7 +1281,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.promptsContentContainer) {
 			this.promptsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPromptsSection ? '' : 'none';
 		}
-		this.migrationWidget?.setVisible(isMigrationMode);
+		this.migrationWidget?.setVisible(this.isVisible() && isMigrationMode);
 		if (this.modelsContentContainer) {
 			this.modelsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isModelsSection ? '' : 'none';
 		}
@@ -1522,6 +1522,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
+		this.migrationWidget?.setVisible(visible && this.viewMode === 'migration');
 		if (visible && this.dimension) {
 			this.layout(this.dimension);
 		}

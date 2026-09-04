@@ -29,6 +29,7 @@ export interface ICustomizationMigrationFlow {
 	refresh(): Promise<void>;
 	refreshFromPromptChange(): void;
 	focus(): void;
+	setVisible(visible: boolean): void;
 	layout(): void;
 	isEnabled(): boolean;
 }
@@ -45,6 +46,7 @@ export class CustomizationMigrationWidget extends Disposable {
 
 	private readonly flows: readonly ICustomizationMigrationFlow[];
 	private activeFlow: ICustomizationMigrationFlow | undefined;
+	private visible = false;
 
 	constructor(
 		navigationDelegate: ICustomizationMigrationNavigationDelegate,
@@ -99,12 +101,14 @@ export class CustomizationMigrationWidget extends Disposable {
 		}
 
 		if (this.activeFlow !== flow) {
+			this.activeFlow?.setVisible(false);
 			this.activeFlow?.deactivate();
 			this.activeFlow = flow;
 			flow.activate(this.element);
 		} else {
 			flow.activate(this.element);
 		}
+		flow.setVisible(this.visible);
 		return true;
 	}
 
@@ -113,7 +117,9 @@ export class CustomizationMigrationWidget extends Disposable {
 	}
 
 	setVisible(visible: boolean): void {
+		this.visible = visible;
 		this.element.style.display = visible ? '' : 'none';
+		this.activeFlow?.setVisible(visible);
 	}
 
 	focus(): void {

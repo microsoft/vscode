@@ -208,6 +208,10 @@ export class FileCustomizationMigrationFlow extends Disposable implements ICusto
 		this.page.focus();
 	}
 
+	setVisible(visible: boolean): void {
+		this.page.setVisible(visible);
+	}
+
 	layout(): void {
 		this.page.layout();
 	}

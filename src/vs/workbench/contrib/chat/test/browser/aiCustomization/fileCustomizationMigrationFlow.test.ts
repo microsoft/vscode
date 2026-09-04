@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,7 +15,6 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -26,6 +26,7 @@ import { PromptsStorage } from '../../../common/promptSyntax/service/promptsServ
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { CustomizationMigrationRunCoordinator, FileCustomizationMigrationFlow, ICustomizationMigrationRunCoordinator } from '../../../browser/aiCustomization/fileCustomizationMigrationFlow.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 interface ITestFlowOptions {
 	readonly candidates?: readonly MigratableConfiguration[];
@@ -43,6 +44,7 @@ suite('FileCustomizationMigrationFlow', () => {
 		const values = new Map<string, unknown>([[category.enablementSetting, options.enabled ?? true]]);
 		const configurationService = {
 			getValue: (key: string) => values.get(key),
+			onDidChangeConfiguration: Event.None,
 		} as IConfigurationService;
 		const activeHarness = observableValue('activeHarness', 'agent-host-test');
 		const activeSessionResource = observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a'));
@@ -110,7 +112,7 @@ suite('FileCustomizationMigrationFlow', () => {
 		const runCoordinator = options.runCoordinator ?? store.add(new CustomizationMigrationRunCoordinator());
 		const opened: MigratableConfiguration[] = [];
 		const revealed: (readonly { uri: URI; type: PromptsType }[])[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);

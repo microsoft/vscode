@@ -1113,6 +1113,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		instantiationService.createInstance(AICustomizationManagementEditor, createMockEditorGroup())
 	);
 	editor.create(ctx.container);
+	editor.setVisible(true);
 	editor.layout(new Dimension(width, height));
 
 	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
