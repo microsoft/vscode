@@ -568,9 +568,14 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		// The content area is bounded by the margin strip on one side and by the minimap on the other,
+		// and a right-to-left layout swaps which is which: the strip moves to the right edge and the
+		// minimap to the left, with the vertical scrollbar staying between the content and the strip.
+		const isRtlLayout = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 
-		const xLeftBoundary = layoutInfo.contentLeft;
+		const xLeftBoundary = isRtlLayout ? layoutInfo.minimap.minimapWidth : layoutInfo.contentLeft;
 		if (e.relativePos.x <= xLeftBoundary) {
 			const outsideDistance = xLeftBoundary - e.relativePos.x;
 			const isRtl = model.getTextDirection(possibleLineNumber) === TextDirection.RTL;
@@ -578,9 +583,11 @@ class MouseDownOperation extends Disposable {
 		}
 
 		const contentRight = (
-			layoutInfo.minimap.minimapLeft === 0
-				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
-				: layoutInfo.minimap.minimapLeft
+			isRtlLayout
+				? layoutInfo.width - layoutInfo.contentLeft - layoutInfo.verticalScrollbarWidth
+				: layoutInfo.minimap.minimapLeft === 0
+					? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
+					: layoutInfo.minimap.minimapLeft
 		);
 		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {

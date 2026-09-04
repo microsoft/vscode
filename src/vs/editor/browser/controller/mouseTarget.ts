@@ -728,25 +728,39 @@ export class MouseTargetFactory {
 				offsetX: offset
 			};
 
-			offset -= ctx.layoutInfo.glyphMarginLeft;
+			// The strip holds the glyph margin, the line numbers and the decorations, and which of them
+			// comes first is mirrored in a right-to-left layout, so walk them in the order their own
+			// offsets put them rather than in a fixed one. In a left-to-right layout this is the order
+			// they are declared in, and the arithmetic below is the arithmetic this always did.
+			const children: { left: number; width: number; type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS }[] = [
+				{ left: ctx.layoutInfo.glyphMarginLeft, width: ctx.layoutInfo.glyphMarginWidth, type: MouseTargetType.GUTTER_GLYPH_MARGIN },
+				{ left: ctx.layoutInfo.lineNumbersLeft, width: ctx.layoutInfo.lineNumbersWidth, type: MouseTargetType.GUTTER_LINE_NUMBERS },
+				{ left: ctx.layoutInfo.decorationsLeft, width: ctx.layoutInfo.decorationsWidth, type: MouseTargetType.GUTTER_LINE_DECORATIONS },
+			];
+			children.sort((a, b) => a.left - b.left);
 
-			if (offset <= ctx.layoutInfo.glyphMarginWidth) {
-				// On the glyph margin
+			offset -= children[0].left;
+
+			for (let i = 0; i < children.length - 1; i++) {
+				const child = children[i];
+				if (offset <= child.width) {
+					if (child.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
+						const modelCoordinate = ctx.viewModel.coordinatesConverter.convertViewPositionToModelPosition(res.range.getStartPosition());
+						const lanes = ctx.viewModel.glyphLanes.getLanesAtLine(modelCoordinate.lineNumber);
+						detail.glyphMarginLane = lanes[Math.floor(offset / ctx.lineHeight)];
+					}
+					return request.fulfillMargin(child.type, pos, res.range, detail);
+				}
+				offset -= child.width;
+			}
+
+			const last = children[children.length - 1];
+			if (last.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 				const modelCoordinate = ctx.viewModel.coordinatesConverter.convertViewPositionToModelPosition(res.range.getStartPosition());
 				const lanes = ctx.viewModel.glyphLanes.getLanesAtLine(modelCoordinate.lineNumber);
 				detail.glyphMarginLane = lanes[Math.floor(offset / ctx.lineHeight)];
-				return request.fulfillMargin(MouseTargetType.GUTTER_GLYPH_MARGIN, pos, res.range, detail);
 			}
-			offset -= ctx.layoutInfo.glyphMarginWidth;
-
-			if (offset <= ctx.layoutInfo.lineNumbersWidth) {
-				// On the line numbers
-				return request.fulfillMargin(MouseTargetType.GUTTER_LINE_NUMBERS, pos, res.range, detail);
-			}
-			offset -= ctx.layoutInfo.lineNumbersWidth;
-
-			// On the line decorations
-			return request.fulfillMargin(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, detail);
+			return request.fulfillMargin(last.type, pos, res.range, detail);
 		}
 		return null;
 	}

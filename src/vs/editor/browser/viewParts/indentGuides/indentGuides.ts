@@ -31,6 +31,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _renderResult: string[] | null;
 	private _maxIndentLeft: number;
 	private _bracketPairGuideOptions: InternalGuidesOptions;
+	private _isRtlLayout: boolean;
 
 	constructor(context: ViewContext) {
 		super();
@@ -44,6 +45,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
+		this._isRtlLayout = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 
 		this._renderResult = null;
 
@@ -66,6 +68,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._spaceWidth = fontInfo.spaceWidth;
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
 		this._bracketPairGuideOptions = options.get(EditorOption.guides);
+		this._isRtlLayout = options.get(EditorOption.effectiveTextDirection) === 'rtl';
 
 		return true;
 	}
@@ -96,7 +99,9 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;// || e.scrollWidthChanged;
+		// A right-to-left line starts at the right edge of the content box, so its guides move when the
+		// content grows wider - the same reason `Rulers` listens for it.
+		return e.scrollTopChanged || (this._isRtlLayout && e.scrollWidthChanged);
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;

@@ -3240,17 +3240,24 @@ declare namespace monaco.editor {
 		 */
 		tabIndex?: number;
 		/**
-		 * Controls the text direction of the editor contents.
-		 *  - `'auto'`: the direction of each line is derived from its decorations (current behavior).
-		 *  - `'ltr'`: every line is laid out left-to-right.
-		 *  - `'rtl'`: every line is laid out right-to-left and the editor mirrors its own layout
-		 *    (line numbers and glyph margin on the right, minimap on the left).
-		 *  - `'uiLanguage'`: `'rtl'` when the user interface is displayed in a right-to-left
-		 *    language, `'ltr'` otherwise.
-		 * Lines whose direction is declared by a decoration are unaffected by this setting.
+		 * Controls the text direction of the editor contents. A line whose direction is declared by a
+		 * decoration keeps that direction under every value below.
+		 *  - `'auto'`: lay out lines left-to-right (the behavior before this setting existed).
+		 *  - `'ltr'`: lay out lines left-to-right. The same as `'auto'` today; it is the explicit
+		 *    counterpart of `'rtl'`, and the value to reach for to opt a language out of a broader `'rtl'`.
+		 *  - `'rtl'`: lay out lines right-to-left and mirror the editor's own layout - line numbers and
+		 *    glyph margin to the right, minimap to the left.
+		 *  - `'uiLanguage'`: follow the display language - `'rtl'` when the user interface is itself
+		 *    displayed in a right-to-left language, `'ltr'` otherwise.
 		 * Defaults to 'auto'.
 		 */
 		textDirection?: 'auto' | 'ltr' | 'rtl' | 'uiLanguage';
+		/**
+		 * Overrides `textDirection` for this editor only. Written by the Change Editor Text Direction
+		 * command, which keeps it per file and in memory rather than in the settings.
+		 * Defaults to 'inherit'.
+		 */
+		textDirectionOverride?: 'inherit' | 'auto' | 'ltr' | 'rtl';
 		/**
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
@@ -5238,40 +5245,41 @@ declare namespace monaco.editor {
 		tabCompletion = 139,
 		tabIndex = 140,
 		textDirection = 141,
-		trimWhitespaceOnDelete = 142,
-		unicodeHighlighting = 143,
-		unusualLineTerminators = 144,
-		useShadowDOM = 145,
-		useTabStops = 146,
-		wordBreak = 147,
-		wordSegmenterLocales = 148,
-		wordSeparators = 149,
-		wordWrap = 150,
-		wordWrapBreakAfterCharacters = 151,
-		wordWrapBreakBeforeCharacters = 152,
-		wordWrapColumn = 153,
-		wordWrapOverride1 = 154,
-		wordWrapOverride2 = 155,
-		wrappingIndent = 156,
-		wrappingStrategy = 157,
-		showDeprecated = 158,
-		inertialScroll = 159,
-		inlayHints = 160,
-		wrapOnEscapedLineFeeds = 161,
-		effectiveCursorStyle = 162,
-		effectiveTextDirection = 163,
-		editorClassName = 164,
-		pixelRatio = 165,
-		tabFocusMode = 166,
-		layoutInfo = 167,
-		wrappingInfo = 168,
-		defaultColorDecorators = 169,
-		colorDecoratorsActivatedOn = 170,
-		inlineCompletionsAccessibilityVerbose = 171,
-		effectiveEditContext = 172,
-		scrollOnMiddleClick = 173,
-		effectiveAllowVariableFonts = 174,
-		doubleClickSelectsBlock = 175
+		textDirectionOverride = 142,
+		trimWhitespaceOnDelete = 143,
+		unicodeHighlighting = 144,
+		unusualLineTerminators = 145,
+		useShadowDOM = 146,
+		useTabStops = 147,
+		wordBreak = 148,
+		wordSegmenterLocales = 149,
+		wordSeparators = 150,
+		wordWrap = 151,
+		wordWrapBreakAfterCharacters = 152,
+		wordWrapBreakBeforeCharacters = 153,
+		wordWrapColumn = 154,
+		wordWrapOverride1 = 155,
+		wordWrapOverride2 = 156,
+		wrappingIndent = 157,
+		wrappingStrategy = 158,
+		showDeprecated = 159,
+		inertialScroll = 160,
+		inlayHints = 161,
+		wrapOnEscapedLineFeeds = 162,
+		effectiveCursorStyle = 163,
+		effectiveTextDirection = 164,
+		editorClassName = 165,
+		pixelRatio = 166,
+		tabFocusMode = 167,
+		layoutInfo = 168,
+		wrappingInfo = 169,
+		defaultColorDecorators = 170,
+		colorDecoratorsActivatedOn = 171,
+		inlineCompletionsAccessibilityVerbose = 172,
+		effectiveEditContext = 173,
+		scrollOnMiddleClick = 174,
+		effectiveAllowVariableFonts = 175,
+		doubleClickSelectsBlock = 176
 	}
 
 	export const EditorOptions: {
@@ -5424,6 +5432,7 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		textDirection: IEditorOption<EditorOption.textDirection, 'auto' | 'ltr' | 'rtl' | 'uiLanguage'>;
+		textDirectionOverride: IEditorOption<EditorOption.textDirectionOverride, 'auto' | 'ltr' | 'rtl' | 'inherit'>;
 		trimWhitespaceOnDelete: IEditorOption<EditorOption.trimWhitespaceOnDelete, boolean>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
@@ -5436,8 +5445,8 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
-		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
+		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'inherit' | 'on' | 'off'>;
+		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'inherit' | 'on' | 'off'>;
 		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
 		effectiveCursorStyle: IEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle>;
 		effectiveTextDirection: IEditorOption<EditorOption.effectiveTextDirection, 'ltr' | 'rtl'>;

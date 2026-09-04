@@ -85,17 +85,24 @@ export interface IEditorOptions {
 	 */
 	tabIndex?: number;
 	/**
-	 * Controls the text direction of the editor contents.
-	 *  - `'auto'`: the direction of each line is derived from its decorations (current behavior).
-	 *  - `'ltr'`: every line is laid out left-to-right.
-	 *  - `'rtl'`: every line is laid out right-to-left and the editor mirrors its own layout
-	 *    (line numbers and glyph margin on the right, minimap on the left).
-	 *  - `'uiLanguage'`: `'rtl'` when the user interface is displayed in a right-to-left
-	 *    language, `'ltr'` otherwise.
-	 * Lines whose direction is declared by a decoration are unaffected by this setting.
+	 * Controls the text direction of the editor contents. A line whose direction is declared by a
+	 * decoration keeps that direction under every value below.
+	 *  - `'auto'`: lay out lines left-to-right (the behavior before this setting existed).
+	 *  - `'ltr'`: lay out lines left-to-right. The same as `'auto'` today; it is the explicit
+	 *    counterpart of `'rtl'`, and the value to reach for to opt a language out of a broader `'rtl'`.
+	 *  - `'rtl'`: lay out lines right-to-left and mirror the editor's own layout - line numbers and
+	 *    glyph margin to the right, minimap to the left.
+	 *  - `'uiLanguage'`: follow the display language - `'rtl'` when the user interface is itself
+	 *    displayed in a right-to-left language, `'ltr'` otherwise.
 	 * Defaults to 'auto'.
 	 */
 	textDirection?: 'auto' | 'ltr' | 'rtl' | 'uiLanguage';
+	/**
+	 * Overrides `textDirection` for this editor only. Written by the Change Editor Text Direction
+	 * command, which keeps it per file and in memory rather than in the settings.
+	 * Defaults to 'inherit'.
+	 */
+	textDirectionOverride?: 'inherit' | 'auto' | 'ltr' | 'rtl';
 	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
@@ -2110,13 +2117,16 @@ class EffectiveTextDirection extends ComputedEditorOption<EditorOption.effective
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: 'ltr' | 'rtl'): 'ltr' | 'rtl' {
-		const textDirection = options.get(EditorOption.textDirection);
+		// A per-file override set from the View menu wins over the setting, which expresses a lasting
+		// preference for a language. It is never written to settings, so `inherit` is the usual value.
+		const override = options.get(EditorOption.textDirectionOverride);
+		const textDirection = override === 'inherit' ? options.get(EditorOption.textDirection) : override;
 		if (textDirection === 'uiLanguage') {
 			return isRtlLanguage(platform.language) ? 'rtl' : 'ltr';
 		}
 		if (textDirection === 'auto') {
-			// Unchanged from before this setting existed: a line takes the direction its decorations
-			// declare, and every other line is laid out left-to-right.
+			// 'auto' resolves to a left-to-right layout, which is what the editor did before this
+			// setting existed. Decorations still override it per line, as they do for every value.
 			return 'ltr';
 		}
 		return textDirection;
@@ -3577,7 +3587,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'string',
 					enum: ['left', 'right'],
 					default: defaults.side,
-					description: nls.localize('minimap.side', "Controls the side where to render the minimap.")
+					description: nls.localize('minimap.side', "Controls the side where to render the minimap. Not honored when `#editor.textDirection#` is `rtl`, where the minimap is always rendered opposite the line numbers.")
 				},
 				'editor.minimap.showSlider': {
 					type: 'string',
@@ -6030,6 +6040,7 @@ export const enum EditorOption {
 	tabCompletion,
 	tabIndex,
 	textDirection,
+	textDirectionOverride,
 	trimWhitespaceOnDelete,
 	unicodeHighlighting,
 	unusualLineTerminators,
@@ -6847,13 +6858,19 @@ export const EditorOptions = {
 		['auto', 'ltr', 'rtl', 'uiLanguage'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('textDirection.auto', "Lay out every line left-to-right, unless a line declares its own direction."),
-				nls.localize('textDirection.ltr', "Every line is laid out left-to-right."),
-				nls.localize('textDirection.rtl', "Every line is laid out right-to-left and the editor mirrors its layout: line numbers and glyph margin move to the right, the minimap to the left."),
-				nls.localize('textDirection.uiLanguage', "Use 'rtl' when the user interface is displayed in a right-to-left language, 'ltr' otherwise."),
+				nls.localize('textDirection.auto', "Lay out lines left-to-right, unless an extension declares the direction of a line."),
+				nls.localize('textDirection.ltr', "Lay out lines left-to-right. An extension can still declare the direction of a line, as with `auto`."),
+				nls.localize('textDirection.rtl', "Lay out lines right-to-left, for text in a script such as Arabic, Hebrew, Persian or Urdu. Line numbers and the glyph margin move to the right edge, and the minimap to the left."),
+				nls.localize('textDirection.uiLanguage', "Follow the display language: right-to-left when the user interface is itself displayed in a right-to-left language, left-to-right otherwise."),
 			],
-			markdownDescription: nls.localize('textDirection', "Controls the text direction of the editor contents. Set to `rtl` when writing text in a right-to-left script such as Arabic, Hebrew, Persian or Urdu: each line then flows from the right, so punctuation and brackets at the end of a line move to the left of it, and the editor mirrors its own layout. Because that is a property of what a file contains rather than of the window, it is usually set per language, for example `\"[markdown]\": { \"editor.textDirection\": \"rtl\" }`. The layout of the window itself is unchanged.")
+			markdownDescription: nls.localize('textDirection', "Controls the text direction of the editor contents, for right-to-left and bidirectional (RTL) text. Because direction is a property of what a file contains rather than of the window, this is usually set per language, for example `\"[markdown]\": { \"editor.textDirection\": \"rtl\" }`. The direction of the window itself is not affected.")
 		}
+	)),
+	textDirectionOverride: register(new EditorStringEnumOption(
+		EditorOption.textDirectionOverride, 'textDirectionOverride',
+		'inherit' as 'inherit' | 'auto' | 'ltr' | 'rtl',
+		['inherit', 'auto', 'ltr', 'rtl'] as const,
+		{ description: nls.localize('textDirectionOverride', "Overrides `editor.textDirection` for a single editor. Set by the Change Editor Text Direction command; not meant to be set in settings.") }
 	)),
 	trimWhitespaceOnDelete: register(new EditorBooleanOption(
 		EditorOption.trimWhitespaceOnDelete, 'trimWhitespaceOnDelete', false,

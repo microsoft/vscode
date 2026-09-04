@@ -191,7 +191,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const lineNumbersWidth = layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
 		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
-		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
+		// The line numbers of a sticky line have to sit above the real ones. In a left-to-right layout
+		// that means starting at the editor's left edge and stopping short of the vertical scrollbar; in
+		// a mirrored one the strip is flush with the right edge, so the widget has to reach it.
+		const isRtl = this._editor.getOption(EditorOption.effectiveTextDirection) === 'rtl';
+		this._rootDomNode.style.width = `${isRtl ? layoutInfo.width : layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
 	private _useFoldingOpacityTransition(requireTransitions: boolean) {
@@ -491,8 +495,14 @@ class RenderedStickyLine {
 		lineHTMLNode.className = 'sticky-line-content';
 		// A sticky line carries the direction of the line it stands for, which a decoration can declare
 		// against the editor's own layout. `renderViewLine` does not write the attribute for us here as
-		// it does for the lines of the editor, so set it from the same `textDirection`.
-		lineHTMLNode.setAttribute('dir', textDirection === TextDirection.RTL ? 'rtl' : 'ltr');
+		// it does for the lines of the editor, so write it on the same terms `ViewLine#renderLine` does -
+		// including leaving it unset, so that a line that had no `dir` before this setting existed still
+		// has none and keeps inheriting from the document.
+		if (textDirection === TextDirection.RTL) {
+			lineHTMLNode.setAttribute('dir', 'rtl');
+		} else if (lineRenderingData.containsRTL) {
+			lineHTMLNode.setAttribute('dir', 'ltr');
+		}
 		lineHTMLNode.classList.add(`stickyLine${lineNumber}`);
 		lineHTMLNode.style.lineHeight = `${lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
