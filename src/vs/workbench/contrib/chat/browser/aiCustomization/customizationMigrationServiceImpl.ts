@@ -96,7 +96,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return { migratedCount: 0, failures: [] };
 		}
 
-		const roots = this.getVerifiedWorkingDirectoryUris(sessionResource);
+		const roots = this.getWorkingDirectoryUris(sessionResource);
 		const contextGeneration = this.activeContextGeneration;
 		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
 			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
@@ -292,17 +292,10 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		});
 	}
 
-	private getVerifiedWorkingDirectoryUris(sessionResource: URI): readonly URI[] {
-		return this.agentHostCustomizationService.getVerifiedWorkingDirectories(sessionResource).map(value => {
-			const parsed = URI.parse(value);
-			return parsed.scheme ? parsed : URI.file(value);
-		});
-	}
-
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
 		return isEqual(sessionResource, this.customizationHarnessService.activeSessionResource.get())
 			&& generation === this.activeContextGeneration
-			&& this.areRootsEqual(roots, this.getVerifiedWorkingDirectoryUris(sessionResource));
+			&& this.areRootsEqual(roots, this.getWorkingDirectoryUris(sessionResource));
 	}
 
 	private areRootsEqual(first: readonly URI[], second: readonly URI[]): boolean {

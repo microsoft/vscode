@@ -7,7 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -58,11 +58,6 @@ export interface IAgentHostCustomizationService {
 	 * Returns an empty array for sessions with no working directory.
 	 */
 	getWorkingDirectories(sessionResource: URI): readonly string[];
-
-	/**
-	 * The server-confirmed working-directory roots for a session.
-	 */
-	getVerifiedWorkingDirectories(sessionResource: URI): readonly string[];
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
@@ -120,9 +115,6 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 		return undefined;
 	}
 	getWorkingDirectories(_sessionResource: URI): readonly string[] {
-		return [];
-	}
-	getVerifiedWorkingDirectories(_sessionResource: URI): readonly string[] {
 		return [];
 	}
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
@@ -203,10 +195,6 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getWorkingDirectories(sessionResource: URI): readonly string[] {
 		return this._resolveTarget(sessionResource)?.workingDirectories ?? [];
-	}
-
-	getVerifiedWorkingDirectories(sessionResource: URI): readonly string[] {
-		return [];
 	}
 
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
@@ -449,7 +437,6 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
-	private readonly _verifiedWorkingDirectories = new ResourceMap<{ readonly backendSession: string; readonly roots: readonly string[] }>();
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -476,7 +463,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			const currentBackend = this._provisionalSessionService.get(sessionResource);
 			if (existing && existing.backendSession.toString() !== currentBackend?.toString()) {
 				this._disposeMcpDiagnostics(sessionResource);
-				this._verifiedWorkingDirectories.delete(sessionResource);
 			}
 			this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
 			this._fireCustomizationsChanged();
@@ -485,7 +471,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				this._sessionStateSubscriptions.deleteAndDispose(sessionResource);
-				this._verifiedWorkingDirectories.delete(sessionResource);
 				this._disposeMcpDiagnostics(sessionResource);
 			}
 			this._fireCustomizationsChanged();
@@ -500,17 +485,10 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		}
 		const subscription = this._ensureSessionStateSubscription(sessionResource, target)?.sub;
 		const subscriptionValue = subscription?.value;
-		const verifiedSessionState = subscription?.verifiedValue;
-		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : verifiedSessionState;
-		const verifiedWorkingDirectories = this._getVerifiedWorkingDirectories(sessionResource, target, verifiedSessionState);
-		let workingDirectories: readonly string[];
-		if (sessionState) {
-			workingDirectories = this._mapWorkingDirectories(target, sessionState.workingDirectories ?? []);
-		} else {
-			workingDirectories = verifiedWorkingDirectories
-				?? this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => target.connection.resourceUris.fromAgentHost(root).toString())
-				?? [];
-		}
+		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
+		const workingDirectories = sessionState
+			? this._mapWorkingDirectories(target, sessionState.workingDirectories ?? [])
+			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => target.connection.resourceUris.fromAgentHost(root).toString()) ?? [];
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -552,32 +530,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		};
 	}
 
-	override getVerifiedWorkingDirectories(sessionResource: URI): readonly string[] {
-		const target = this._resolveSessionTarget(sessionResource);
-		if (!target) {
-			return [];
-		}
-		const verifiedSessionState = this._ensureSessionStateSubscription(sessionResource, target)?.sub.verifiedValue;
-		return this._getVerifiedWorkingDirectories(sessionResource, target, verifiedSessionState) ?? [];
-	}
-
-	private _getVerifiedWorkingDirectories(
-		sessionResource: URI,
-		target: IAgentHostSessionResolution,
-		verifiedSessionState: SessionState | undefined,
-	): readonly string[] | undefined {
-		if (verifiedSessionState) {
-			const roots = this._mapWorkingDirectories(target, verifiedSessionState.workingDirectories ?? []);
-			this._verifiedWorkingDirectories.set(sessionResource, {
-				backendSession: target.backendSession.toString(),
-				roots,
-			});
-			return roots;
-		}
-		const verified = this._verifiedWorkingDirectories.get(sessionResource);
-		return verified?.backendSession === target.backendSession.toString() ? verified.roots : undefined;
-	}
-
 	private _mapWorkingDirectories(target: IAgentHostSessionResolution, roots: readonly string[]): readonly string[] {
 		return roots.map(root => target.connection.resourceUris.fromAgentHost(URI.parse(root)).toString());
 	}
@@ -586,9 +538,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const existing = this._sessionStateSubscriptions.get(sessionResource);
 		if (existing?.backendSession.toString() === target.backendSession.toString() && existing.connection === target.connection) {
 			return existing;
-		}
-		if (existing) {
-			this._verifiedWorkingDirectories.delete(sessionResource);
 		}
 
 		const ref = target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService');

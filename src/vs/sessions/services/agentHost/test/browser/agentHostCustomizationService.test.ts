@@ -57,10 +57,7 @@ suite('AgentHostCustomizationService', () => {
 				return undefined;
 			}
 			override getWorkingDirectories(): readonly string[] {
-				return ['vscode-agent-host://remote/optimistic'];
-			}
-			override getVerifiedWorkingDirectories(): readonly string[] {
-				return ['vscode-agent-host://remote/verified'];
+				return [];
 			}
 			override getRootConfig() {
 				return undefined;
@@ -114,17 +111,7 @@ suite('AgentHostCustomizationService', () => {
 		));
 
 		const [mcpServer] = service.getMcpServers(sessionResource);
-		const workingDirectories = service.getWorkingDirectories(sessionResource);
-		const verifiedWorkingDirectories = service.getVerifiedWorkingDirectories(sessionResource);
 
-		assert.deepStrictEqual({
-			isClientBundled: mcpServer.isClientBundled,
-			workingDirectories,
-			verifiedWorkingDirectories,
-		}, {
-			isClientBundled: true,
-			workingDirectories: ['vscode-agent-host://remote/optimistic'],
-			verifiedWorkingDirectories: ['vscode-agent-host://remote/verified'],
-		});
+		assert.deepStrictEqual({ isClientBundled: mcpServer.isClientBundled }, { isClientBundled: true });
 	});
 });

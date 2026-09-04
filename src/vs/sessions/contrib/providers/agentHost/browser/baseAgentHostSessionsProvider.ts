@@ -1981,7 +1981,7 @@ interface INewSessionConstructionContext {
 	 * this sentinel because the running-session subscription pipeline
 	 * takes over ownership of the same `sessionId` key.
 	 */
-	readonly onSessionState?: (sessionId: string, state: SessionState | undefined, verifiedState: SessionState | undefined) => void;
+	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
 	readonly activeClientScope: IAgentCustomizationScope;
 }
 
@@ -2102,7 +2102,7 @@ class NewSession extends Disposable {
 	 * republishing from then on, and the two never race.
 	 */
 	private readonly _activeClientPublisher = this._register(new MutableDisposable());
-	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined, verifiedState: SessionState | undefined) => void) | undefined;
+	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
@@ -2566,11 +2566,11 @@ class NewSession extends Disposable {
 				const initial = ref.object.value;
 				if (initial && !(initial instanceof Error)) {
 					this.updateChangesets(initial.changesets);
-					onSessionState(this.sessionId, initial, ref.object.verifiedValue);
+					onSessionState(this.sessionId, initial);
 				}
 				this._stateListener.value = ref.object.onDidChange(state => {
 					this.updateChangesets(state.changesets);
-					onSessionState(this.sessionId, state, ref.object.verifiedValue);
+					onSessionState(this.sessionId, state);
 				});
 			}
 
@@ -2653,7 +2653,7 @@ class NewSession extends Disposable {
 		this._stateListener.clear();
 		this._activeClientPublisher.clear();
 		if (hadListener) {
-			this._onSessionState?.(this.sessionId, undefined, undefined);
+			this._onSessionState?.(this.sessionId, undefined);
 		}
 
 		this._subscription?.dispose();
@@ -2743,7 +2743,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `customizations` and `activeClient.customizations` for the picker.
 	 */
 	protected readonly _lastSessionStates = new Map<string, SessionState>();
-	protected readonly _lastVerifiedWorkingDirectories = new Map<string, readonly string[]>();
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
@@ -3573,9 +3572,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				instantiationService: this._instantiationService,
-				onSessionState: (id, state, verifiedState) => state === undefined
+				onSessionState: (id, state) => state === undefined
 					? this._handleNewSessionStateGone(id)
-					: this._handleNewSessionStateUpdate(id, state, verifiedState),
+					: this._handleNewSessionStateUpdate(id, state),
 				activeClientScope,
 			}, {
 				icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
@@ -4399,7 +4398,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getWorkingDirectory(sessionId: string): string | undefined {
-		return this.getWorkingDirectories(sessionId)[0];
+		const sessionState = this._lastSessionStates.get(sessionId);
+		return sessionState?.workingDirectories?.[0];
 	}
 
 	getBackendChatResource(chatResource: URI): URI | undefined {
@@ -4430,16 +4430,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return this._mapWorkingDirectories(sessionState?.workingDirectories ?? []);
-	}
-
-	getVerifiedWorkingDirectories(sessionId: string): readonly string[] {
-		return this._mapWorkingDirectories(this._lastVerifiedWorkingDirectories.get(sessionId) ?? []);
-	}
-
-	private _mapWorkingDirectories(roots: readonly string[]): readonly string[] {
-		const resourceUris = this.connection?.resourceUris;
-		return resourceUris ? roots.map(root => resourceUris.fromAgentHost(URI.parse(root)).toString()) : [];
+		return sessionState?.workingDirectories ?? [];
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
@@ -5227,10 +5218,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const store = new DisposableStore();
 		store.add(ref);
-		store.add(ref.object.onDidChange(state => {
-			const verifiedRootsChanged = this._updateVerifiedWorkingDirectories(sessionId, ref.object.verifiedValue);
-			this._applySessionStateUpdate(sessionId, state, verifiedRootsChanged);
-		}));
+		store.add(ref.object.onDidChange(state => this._applySessionStateUpdate(sessionId, state)));
 		const onDidError = ref.object.onDidError;
 		if (onDidError) {
 			store.add(onDidError(() => {
@@ -5243,8 +5231,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._agentMergeSessionStateSubscriptions.set(sessionId, store);
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
-			const verifiedRootsChanged = this._updateVerifiedWorkingDirectories(sessionId, ref.object.verifiedValue);
-			this._applySessionStateUpdate(sessionId, value, verifiedRootsChanged);
+			this._applySessionStateUpdate(sessionId, value);
 		}
 	}
 
@@ -5380,8 +5367,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
-			const verifiedRootsChanged = this._updateVerifiedWorkingDirectories(sessionId, ref.object.verifiedValue);
-			this._applySessionStateUpdate(sessionId, state, verifiedRootsChanged);
+			this._applySessionStateUpdate(sessionId, state);
 		}));
 		// A subscribe that fails after this point settles via `onDidError`, never `onDidChange`.
 		const onDidError = ref.object.onDidError;
@@ -5396,8 +5382,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const value = ref.object.value;
 		if (value && !(value instanceof Error)) {
-			const verifiedRootsChanged = this._updateVerifiedWorkingDirectories(sessionId, ref.object.verifiedValue);
-			this._applySessionStateUpdate(sessionId, value, verifiedRootsChanged);
+			this._applySessionStateUpdate(sessionId, value);
 		}
 
 		this._hydrateAgentFromDraft(connection, cached, sessionId, sessionUri, store);
@@ -5487,7 +5472,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * session config and the cached adapter's `_meta` (e.g. git state) in
 	 * sync.
 	 */
-	private _applySessionStateUpdate(sessionId: string, state: SessionState, verifiedRootsChanged = false): void {
+	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
 		const previousAgentMerge = readAgentMergeSessionState(previous?.config?.values);
@@ -5505,7 +5490,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 		}
 		if (didCustomizationsChange
-			|| verifiedRootsChanged
 			|| !arrayEquals(previous?.workingDirectories ?? [], state.workingDirectories ?? [])) {
 			this._onDidChangeCustomizations.fire();
 		}
@@ -5590,17 +5574,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * workspace. Skips {@link _seedRunningConfigFromState} because NewSession
 	 * owns its own config via `NewSession._config`.
 	 */
-	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState, verifiedState: SessionState | undefined): void {
+	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		const verifiedRootsChanged = this._updateVerifiedWorkingDirectories(sessionId, verifiedState);
 		this._newSessions.get(sessionId)?.applySessionMeta(state._meta);
 		const didCustomizationsChange = !previous || customizationsChanged(previous, state);
 		if (didCustomizationsChange) {
 			this._onDidChangeCustomAgents.fire();
 		}
 		if (didCustomizationsChange
-			|| verifiedRootsChanged
 			|| !arrayEquals(previous?.workingDirectories ?? [], state.workingDirectories ?? [])) {
 			this._onDidChangeCustomizations.fire();
 		}
@@ -5613,21 +5595,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * back to the empty list rather than rendering stale agents.
 	 */
 	private _handleNewSessionStateGone(sessionId: string): void {
-		this._lastVerifiedWorkingDirectories.delete(sessionId);
 		if (this._lastSessionStates.delete(sessionId)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
-	}
-
-	private _updateVerifiedWorkingDirectories(sessionId: string, state: SessionState | undefined): boolean {
-		if (!state) {
-			return false;
-		}
-		const roots = state.workingDirectories ?? [];
-		const previous = this._lastVerifiedWorkingDirectories.get(sessionId);
-		this._lastVerifiedWorkingDirectories.set(sessionId, roots);
-		return !previous || !arrayEquals(previous, roots);
 	}
 
 	private _applySessionMetadataFromState(sessionId: string, state: SessionState, previous: SessionState | undefined): void {
@@ -6166,7 +6137,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._agentMergeSessionStateObservables.delete(stateOwner.sessionId);
 		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
-		this._lastVerifiedWorkingDirectories.delete(stateOwner.sessionId);
 		return cached;
 	}
 

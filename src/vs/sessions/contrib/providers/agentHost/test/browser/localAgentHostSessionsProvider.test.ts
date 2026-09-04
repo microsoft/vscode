@@ -18,7 +18,6 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -73,7 +72,6 @@ type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationS
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
-	override readonly resourceUris = identityAgentHostResourceUriMapper;
 
 	private _onDidAction = new Emitter<ActionEnvelope>();
 	override get onDidAction(): Event<ActionEnvelope> { return this._onDidAction.event; }
@@ -2329,31 +2327,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// First-seen wins for the duplicate `agent://shared` URI.
 			{ type: CustomizationType.Agent, id: 'agent://shared', uri: 'agent://shared', name: 'shared', description: 'from session' },
 		]);
-	});
-
-	test('tracks server-confirmed working directories separately', () => {
-		const provider = createProvider(disposables, agentHost);
-		fireSessionAdded(agentHost, 'verified-roots', { title: 'Verified Roots' });
-		const session = provider.getSessions().find(s => s.title.get() === 'Verified Roots');
-		assert.ok(session);
-		agentHost.setSessionState('verified-roots', 'copilotcli', {
-			provider: 'copilotcli',
-			title: 'Verified Roots',
-			status: ProtocolSessionStatus.Idle,
-			lifecycle: SessionLifecycle.Ready,
-			activeClients: [],
-			chats: [],
-			workingDirectories: ['file:///verified'],
-		});
-		provider.getSessionConfig(session.sessionId);
-
-		assert.deepStrictEqual({
-			workingDirectories: provider.getWorkingDirectories(session.sessionId),
-			verifiedWorkingDirectories: provider.getVerifiedWorkingDirectories(session.sessionId),
-		}, {
-			workingDirectories: ['file:///verified'],
-			verifiedWorkingDirectories: ['file:///verified'],
-		});
 	});
 
 	test('getMcpServers dispatches MCP lifecycle requests', async () => {

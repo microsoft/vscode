@@ -282,11 +282,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getWorkingDirectories(sessionId: string): readonly string[];
 
 	/**
-	 * Returns the server-confirmed working-directory roots for the session.
-	 */
-	getVerifiedWorkingDirectories(sessionId: string): readonly string[];
-
-	/**
 	 * Returns the MCP servers exposed by the session as rich objects whose
 	 * methods dispatch protocol-level toggle and lifecycle actions.
 	 * Returns an empty array when the session is unknown or exposes no MCP
