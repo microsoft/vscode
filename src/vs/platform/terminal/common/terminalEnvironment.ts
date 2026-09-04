@@ -7,9 +7,11 @@ import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
 
 /**
- * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
- * escaping inaccurately to be careful about possible script injection via the file path. For
- * example, we're trying to prevent this sort of attack: `/foo/file$(echo evil)`.
+ * Escape non-windows paths to prepare for being sent to a shell. The path is wrapped in
+ * appropriate shell quotes so that shell-special characters in file names (e.g. `~`, `#`, `$`,
+ * `&`, `|`, `;`, etc.) are treated as literals rather than being silently dropped. Quote wrapping
+ * also prevents script injection, e.g. a path like `/foo/file$(echo evil)` becomes the safe
+ * string `'/foo/file$(echo evil)'` where `$(…)` is never evaluated by the shell.
  */
 export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType): string {
 	let newPath = path;
@@ -64,10 +66,6 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			};
 			break;
 	}
-
-	// Remove dangerous characters except single and double quotes, which we'll escape properly
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
-	newPath = newPath.replace(bannedChars, '');
 
 	// Apply shell-specific escaping based on quote content
 	if (newPath.includes('\'') && newPath.includes('"')) {
