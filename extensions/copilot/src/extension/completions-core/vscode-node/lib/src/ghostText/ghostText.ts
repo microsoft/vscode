@@ -378,6 +378,7 @@ export class GhostTextComputer {
 				stop: ghostTextStrategy.stop,
 				maxTokens: ghostTextStrategy.maxTokens,
 				afterAccept: hasAcceptedCurrentCompletion,
+				customModel: engineInfo.customModel,
 			};
 			// Add headers to identify async completions and speculative requests
 			requestContext.headers = {

@@ -7,6 +7,8 @@ import { IAuthenticationService } from '../../../../../../platform/authenticatio
 import { CopilotAnnotations, StreamCopilotAnnotations } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
 import { IEnvService } from '../../../../../../platform/env/common/envService';
 import { Completion } from '../../../../../../platform/nesFetch/common/completionsAPI';
+import { ByokCompletionModel } from '../../../../../byok/common/byokCompletionModels';
+import { sanitizeCustomRequestHeaders } from '../../../../../byok/common/sanitizeCustomHeaders';
 import { Completions, ICompletionsFetchService } from '../../../../../../platform/nesFetch/common/completionsFetchService';
 import { ResponseStream } from '../../../../../../platform/nesFetch/common/responseStream';
 import { RequestId, getRequestId } from '../../../../../../platform/networking/common/fetch';
@@ -86,6 +88,8 @@ type CompletionFetchRequestFields = {
 	logprobs?: number;
 	/** Likelihood of specified tokens appearing in the completion. */
 	logit_bias?: { [key: string]: number };
+	/** The model to use for the completion. Required for custom (BYOK) endpoints. */
+	model?: string;
 
 	/** Copilot-only: NWO of repository, if any */
 	nwo?: string;
@@ -99,8 +103,8 @@ type CompletionFetchRequestFields = {
 /** OAI API completion request, along with additional fields specific to Copilot. */
 export type CompletionRequest = BaseFetchRequest &
 	CompletionFetchRequestFields & {
-		/** Copilot-only: extra arguments for completion processing. */
-		extra: Partial<CompletionRequestExtra>;
+		/** Copilot-only: extra arguments for completion processing. Omitted for custom (BYOK) endpoints. */
+		extra?: Partial<CompletionRequestExtra>;
 	};
 
 /**
@@ -162,6 +166,18 @@ function uiKindToIntent(uiKind: CopilotUiKind): string | undefined {
 			return 'copilot-panel';
 	}
 }
+
+/**
+ * Copilot-proxy headers that only exist on the completions path and must never
+ * be forwarded from user configuration to a custom (BYOK) endpoint. They extend
+ * the shared reserved set used by {@link sanitizeCustomRequestHeaders}.
+ */
+const COMPLETIONS_FORBIDDEN_CUSTOM_HEADERS: ReadonlySet<string> = new Set([
+	'openai-organization',
+	'x-policy-id',
+	'x-copilot-async',
+	'x-copilot-speculative',
+]);
 
 // Request methods
 
@@ -236,6 +252,11 @@ export interface CompletionParams extends InternalFetchParams {
 	requestLogProbs?: boolean;
 	postOptions?: PostOptions;
 	extra: Partial<CompletionRequestExtra>;
+	/**
+	 * When set, the request is sent to a custom (BYOK) OpenAI-compatible FIM endpoint
+	 * instead of the Copilot proxy: no Copilot token is used and the URL is used verbatim.
+	 */
+	customModel?: ByokCompletionModel;
 }
 
 /**
@@ -308,7 +329,7 @@ export function sanitizeRequestOptionTelemetry(
 
 		let valueToLog = value as unknown;
 
-		if (key === 'extra' && extraKeys) {
+		if (key === 'extra' && extraKeys && valueToLog !== undefined) {
 			const extra = { ...(valueToLog as CompletionRequestExtra) };
 			for (const extraKey of extraKeys) {
 				delete extra[extraKey];
@@ -353,7 +374,13 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			return { type: 'canceled', reason: this.#disabledReason };
 		}
 		const endpoint = 'completions';
-		const copilotToken = this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
+		const customModel = params.customModel;
+
+		// Custom (BYOK) endpoints are contacted directly with the user's own API key —
+		// no Copilot token is fetched, which makes completions fully offline-capable.
+		const copilotToken = customModel
+			? undefined
+			: (this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken());
 
 		const request: CompletionRequest = {
 			prompt: params.prompt.prefix,
@@ -373,17 +400,39 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 				request.logprobs = 2; // Request that logprobs of 2 tokens (i.e. including the best alternative) be returned
 			}
 
-			const githubNWO = tryGetGitHubNWO(params.repoInfo);
-			if (githubNWO !== undefined) {
-				request.nwo = githubNWO;
+			if (customModel) {
+				// BYOK: send the standard OpenAI FIM fields only. Copilot-specific fields
+				// (`extra`, `nwo`, `code_annotations`) are omitted; `stop` is kept verbatim
+				// so single-/multi-line modes work as they do against the Copilot proxy.
+				// `n` is forced to 1 below (after postOptions are merged): most
+				// OpenAI-compatible FIM endpoints (e.g. DeepSeek, SiliconFlow) reject n > 1.
+				// Multiple candidates still work: cycling (Alt+]) fires a new request
+				// whenever the local cache holds <= 1 candidate (see ghostText.ts) and merges
+				// the fresh sample with the cached ones — the cycling sampling temperature
+				// (0.2) is kept in completionsFromNetwork so consecutive requests produce
+				// different completions.
+				request.model = customModel.model;
+				delete request.extra;
+			} else {
+				const githubNWO = tryGetGitHubNWO(params.repoInfo);
+				if (githubNWO !== undefined) {
+					request.nwo = githubNWO;
+				}
 			}
 
 			if (params.postOptions) {
 				Object.assign(request, params.postOptions);
 			}
 
-			if (params.prompt.context && params.prompt.context.length > 0) {
-				request.extra.context = params.prompt.context;
+			if (customModel) {
+				// postOptions may carry `n` (e.g. cycling requests pass n=3) and
+				// `code_annotations: false` (Copilot-only); force `n` back to 1 AFTER the
+				// merge and drop the Copilot-only fields for BYOK endpoints.
+				request.n = 1;
+				delete request.extra;
+				delete request.code_annotations;
+			} else if (params.prompt.context && params.prompt.context.length > 0) {
+				request.extra!.context = params.prompt.context;
 			}
 
 			// Give a final opportunity to cancel the request before we send the request
@@ -401,7 +450,9 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			const telemetryExp = baseTelemetryData;
 			const uiKind = params.uiKind;
 			const headers = params.headers;
-			const uri = this.instantiationService.invokeFunction(getProxyEngineUrl, copilotToken, engineModelId, endpoint);
+			const uri = customModel
+				? customModel.completionsUrl // Used verbatim — the user is responsible for the URL
+				: this.instantiationService.invokeFunction(getProxyEngineUrl, copilotToken!, engineModelId, endpoint);
 
 			const telemetryData = telemetryExp.extendedBy(
 				{
@@ -426,7 +477,16 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 
 			let fullHeaders: Record<string, string>;
 
-			{
+			if (customModel) {
+				// Content-Type, X-Request-Id and Authorization (Bearer <apiKey>) are added
+				// by the fetch service. User-configured requestHeaders (e.g. x-api-key,
+				// APIM subscription keys) are sanitized and forwarded so custom auth
+				// schemes keep working.
+				fullHeaders = sanitizeCustomRequestHeaders(customModel.requestHeaders, {
+					modelId: customModel.id,
+					extraForbiddenHeaders: COMPLETIONS_FORBIDDEN_CUSTOM_HEADERS,
+				});
+			} else {
 				fullHeaders = {
 					...headers,
 					...this.instantiationService.invokeFunction(editorVersionHeaders),
@@ -445,13 +505,15 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 
 			const requestSw = new StopWatch();
 			const cancelToken = cancel ?? CancellationToken.None;
+			const secretKey = customModel ? (customModel.apiKey ?? '') : copilotToken!.token;
 			const res = await this.fetchService.fetch(
 				uri,
-				copilotToken.token,
+				secretKey,
 				request,
 				ourRequestId,
 				cancelToken,
 				fullHeaders,
+				customModel !== undefined,
 			).then(response => {
 				if (response.isError() && response.err instanceof Completions.Unexpected && isInterruptedNetworkError(response.err.error)) {
 					// disconnect and retry the request once if the connection was reset
@@ -459,11 +521,12 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 					return this.fetchService.disconnectAll().then(() => {
 						return this.fetchService.fetch(
 							uri,
-							copilotToken.token,
-							request,
-							ourRequestId,
-							cancelToken,
-							fullHeaders,
+						secretKey,
+						request,
+						ourRequestId,
+						cancelToken,
+						fullHeaders,
+						customModel !== undefined,
 						);
 					});
 				} else {
@@ -507,7 +570,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 							status: err.status,
 							text: err.text,
 							headers: err.headers,
-						}, copilotToken);
+						}, copilotToken, customModel);
 					} else if (err instanceof Completions.Unexpected) {
 
 						const error = err.error;
@@ -794,9 +857,62 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 		statusReporter: ICompletionsStatusReporter,
 		telemetryData: TelemetryData,
 		response: { status: number; text(): Promise<string>; headers: IHeaders },
-		copilotToken: CopilotToken
+		copilotToken: CopilotToken | undefined,
+		customModel?: ByokCompletionModel
 	): Promise<CompletionError> {
 		const text = await response.text();
+
+		if (customModel) {
+			// Custom (BYOK) endpoints have no Copilot-specific error semantics (quota,
+			// token refresh, proxy/firewall detection). Handle the common cases directly —
+			// including 402, which for OpenAI-compatible providers signals billing/quota
+			// issues rather than the Copilot free-tier quota handled below.
+			if (response.status === 401 || response.status === 403) {
+				const message = `Custom completions endpoint rejected the API key (${response.status}). Check the apiKey configured for "${customModel.groupName}" in chatLanguageModels.json.`;
+				statusReporter.setError(message);
+				telemetryData.properties.error = message;
+				telemetryData.properties.status = String(response.status);
+				return { type: 'failed', reason: message };
+			}
+			if (response.status === 402) {
+				// 402 Payment Required: OpenAI-compatible providers (e.g. DeepSeek,
+				// SiliconFlow) return this when the provider account has billing or quota
+				// problems (typically insufficient balance). This is NOT the Copilot
+				// free-tier quota, so do not apply the quota-exhausted state or command.
+				const message = `Custom completions endpoint returned 402 (Payment Required). Check the billing/quota status of the provider account for "${customModel.groupName}". Response: ${text}`;
+				statusReporter.setWarning(message);
+				logger.warn(this.logTargetService, `Custom completions (${customModel.id}) request failed: ${message}`);
+				telemetryData.properties.error = message;
+				telemetryData.properties.status = String(response.status);
+				return { type: 'failed', reason: message };
+			}
+			if (response.status === 404) {
+				const message = `Custom completions endpoint returned 404 for <${customModel.completionsUrl}>. Check the completionsUrl configured for "${customModel.groupName}" in chatLanguageModels.json.`;
+				statusReporter.setWarning(message);
+				telemetryData.properties.error = message;
+				telemetryData.properties.status = String(response.status);
+				return { type: 'failed', reason: message };
+			}
+			if (response.status === 429) {
+				const rateLimitSeconds = 10;
+				setTimeout(() => {
+					this.#disabledReason = undefined;
+				}, rateLimitSeconds * 1000);
+				this.#disabledReason = 'rate limited';
+				const message = 'Custom completions endpoint rate limited. Denying completions for 10 seconds.';
+				statusReporter.setWarning(message);
+				logger.warn(this.logTargetService, message);
+				return { type: 'failed', reason: this.#disabledReason };
+			}
+			const message = `Custom completions endpoint for "${customModel.id}" (${customModel.groupName}) returned ${response.status}: ${text}`;
+			statusReporter.setWarning(message);
+			logger.warn(this.logTargetService, `Custom completions (${customModel.id}) request failed: ${message}`);
+			telemetryData.properties.error = message;
+			telemetryData.properties.status = String(response.status);
+			this.instantiationService.invokeFunction(telemetry, 'request.shownWarning', telemetryData);
+			return { type: 'failed', reason: `unhandled status from server: ${response.status} ${text}` };
+		}
+
 		if (response.status === 402) {
 			this.#disabledReason = 'monthly free code completions exhausted';
 			const message = 'Completions limit reached';

@@ -7,6 +7,7 @@ import { CancellationToken, commands, LanguageModelChatInformation, LanguageMode
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
+import { updateByokCompletionModelConfig } from '../common/byokCompletionModels';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
@@ -58,7 +59,15 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		await commands.executeCommand('lm.migrateLanguageModelsProviderGroup', { vendor: this._id, name, ...configuration });
 	}
 
-	async provideLanguageModelChatInformation({ silent, configuration }: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
+	async provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
+		const { silent, configuration } = options;
+		// Feed the resolved group configuration (api keys are already decoded from
+		// secret storage by the language models service) to the inline completions
+		// BYOK pipeline, enabling OpenAI-compatible FIM endpoints for code completions.
+		// Note: `group` is not part of the public API type yet but is forwarded at runtime
+		// (see extHostLanguageModels.ts), allowing multiple groups per vendor to coexist.
+		const extendedOptions = options as PrepareLanguageModelChatModelOptions & { group?: string; configuration?: IStringDictionary<unknown> };
+		updateByokCompletionModelConfig(this._id, extendedOptions.group, extendedOptions.configuration);
 		let apiKey: string | undefined = (configuration as C)?.apiKey;
 		if (!apiKey) {
 			apiKey = await this.configureDefaultGroupWithApiKeyOnly();

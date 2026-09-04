@@ -14,6 +14,7 @@ import { SessionStoreTracker } from '../../chronicle/vscode-node/sessionStoreTra
 import * as sessionSyncContribution from '../../chronicle/vscode-node/sessionSync.contribution';
 import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/chatBlockLanguageFeatures.contribution';
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
+import { ByokCompletionBridgeContribution } from '../../completions/vscode-node/byokCompletionBridgeContribution';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
 import { InternalConfigurationInformationCommandContribution } from '../../configuration/vscode-node/internalConfigurationInformationCommand';
@@ -85,6 +86,9 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	// replaced by JointCompletionsProviderContribution
 	// asContributionFactory(InlineEditProviderFeatureContribution),
 	// asContributionFactory(CompletionsCoreContribution),
+	// Bridges chatLanguageModels.json BYOK models into the completions pipeline
+	// regardless of which completions provider mode is active.
+	asContributionFactory(ByokCompletionBridgeContribution),
 	asContributionFactory(SettingsSchemaFeature),
 	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),

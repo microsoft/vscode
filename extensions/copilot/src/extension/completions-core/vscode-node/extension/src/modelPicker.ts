@@ -45,7 +45,10 @@ export class ModelPickerManager {
 	private readonly MODELS_INFO_URL = 'https://aka.ms/CopilotCompletionsModelPickerLearnMore';
 
 	get models(): ModelItem[] {
-		return this._modelManager.getGenericCompletionModels();
+		return [
+			...this._modelManager.getGenericCompletionModels(),
+			...this._modelManager.getCustomCompletionModels(),
+		];
 	}
 
 	hasMultipleModels(): boolean {
@@ -122,10 +125,11 @@ export class ModelPickerManager {
 	private modelsForModelPicker(): [string | null, ModelPickerItem[]] {
 		const currentModelSelection = this._instantiationService.invokeFunction(getUserSelectedModelConfiguration);
 		const items: ModelPickerItem[] = this.models.map(model => {
+			const groupLabel = model.custom ? `${model.customGroup} • ` : '';
 			return {
 				modelId: model.modelId,
 				label: `${model.label}${model.preview ? ' (Preview)' : ''}`,
-				description: `(${model.modelId})`,
+				description: `${groupLabel}(${model.modelId})`,
 				alwaysShow: model.modelId === this.getDefaultModelId(),
 				type: 'model' as const,
 			};
