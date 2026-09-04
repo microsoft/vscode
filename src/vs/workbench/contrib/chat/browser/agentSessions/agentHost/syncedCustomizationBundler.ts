@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../../../../base/common/async.js';
+import { Limiter, SequencerByKey } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
@@ -29,6 +30,7 @@ export { SYNCED_CUSTOMIZATION_SCHEME };
 const DISPLAY_NAME = 'VS Code Synced Data';
 const FILE_OPERATION_CONCURRENCY = 10;
 const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
+const bundleSequencer = new SequencerByKey<string>();
 
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
@@ -61,6 +63,9 @@ async function collectDirectoryFiles(fileService: IFileService, logService: ILog
 		try {
 			return await queueFileOperation(() => fileService.stat(child.resource));
 		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
 			logService.trace('[SyncedCustomizationBundler] Failed to stat skill resource', child.resource.toString(), error);
 			return undefined;
 		}
@@ -154,10 +159,11 @@ interface IBundleResult {
  */
 export class SyncedCustomizationBundler extends Disposable {
 
-	private readonly _fileOperationLimiter = this._register(new Limiter<unknown>(FILE_OPERATION_CONCURRENCY));
+	private readonly _fileOperationLimiter = this._register(new MutableDisposable<Limiter<unknown>>());
 	private readonly _authority: string;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
+	private _isDisposed = false;
 	/** Maps a synced (destination) URI string back to its original source location. Rebuilt on every {@link bundle}. */
 	private _originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 
@@ -168,6 +174,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._fileOperationLimiter.value = new Limiter<unknown>(FILE_OPERATION_CONCURRENCY);
 		this._authority = authority;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
@@ -182,7 +189,18 @@ export class SyncedCustomizationBundler extends Disposable {
 	}
 
 	private _queueFileOperation<T>(operation: () => Promise<T>): Promise<T> {
-		return this._fileOperationLimiter.queue(operation) as Promise<T>;
+		this._throwIfDisposed();
+		const limiter = this._fileOperationLimiter.value;
+		if (!limiter) {
+			throw new CancellationError();
+		}
+		return limiter.queue(operation) as Promise<T>;
+	}
+
+	private _throwIfDisposed(): void {
+		if (this._isDisposed) {
+			throw new CancellationError();
+		}
 	}
 
 	/**
@@ -195,6 +213,12 @@ export class SyncedCustomizationBundler extends Disposable {
 	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
 	async bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []): Promise<IBundleResult | undefined> {
+		this._throwIfDisposed();
+		return bundleSequencer.queue(this._authority, () => this._bundle(files, mcpServers));
+	}
+
+	private async _bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[]): Promise<IBundleResult | undefined> {
+		this._throwIfDisposed();
 		const syncable = files.filter(f => pluginDirForType(f.type) !== undefined);
 		if (syncable.length === 0 && mcpServers.length === 0) {
 			return undefined;
@@ -246,6 +270,7 @@ export class SyncedCustomizationBundler extends Disposable {
 				addEntry(file, source, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
+		this._throwIfDisposed();
 
 		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
 		// adapter reads this file relative to the plugin root. Servers are
@@ -278,6 +303,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Stable nonce: sort so file ordering doesn't matter.
 		hashParts.sort();
 		const nonce = String(hash(hashParts.join('\n')));
+		this._throwIfDisposed();
 
 		// Nothing changed since the last successful bundle — reuse it and skip
 		// reading file contents and rewriting the in-memory plugin tree.
@@ -298,7 +324,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			destUri: entry.destUri,
 			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
-		this._originByDest = originByDest;
+		this._throwIfDisposed();
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
@@ -308,21 +334,26 @@ export class SyncedCustomizationBundler extends Disposable {
 		}
 
 		// Write the manifest
+		this._throwIfDisposed();
 		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
 		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
 
 		// Write each source file into the correct plugin directory.
 		for (const entry of fileContents) {
+			this._throwIfDisposed();
 			await this._fileService.writeFile(entry.destUri, entry.content);
 		}
 
 		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
 		// adapter reads this file relative to the plugin root.
 		if (mcpContent !== undefined) {
+			this._throwIfDisposed();
 			const mcpUri = URI.joinPath(this._rootUri, '.mcp.json');
 			await this._fileService.writeFile(mcpUri, VSBuffer.fromString(mcpContent));
 		}
 
+		this._throwIfDisposed();
+		this._originByDest = originByDest;
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
@@ -364,5 +395,23 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
 		return this._originByDest.get(syncedUri);
+	}
+
+	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		// Keep the limiter alive until file operations queued before disposal have settled.
+		const limiter = this._fileOperationLimiter.clearAndLeak();
+		super.dispose();
+		if (!limiter) {
+			return;
+		}
+		if (limiter.size === 0) {
+			limiter.dispose();
+		} else {
+			void limiter.whenIdle().then(() => limiter.dispose());
+		}
 	}
 }
