@@ -3755,7 +3755,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private async _autoAuthenticateMcpServer(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): Promise<boolean> {
 		const key = JSON.stringify([
-			sessionResource.toString(),
+			extUriBiasedIgnorePathCase.getComparisonKey(sessionResource),
 			agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
 			[...(server.requiredScopes ?? [])].sort(),
 			server.oauthClient?.clientId,

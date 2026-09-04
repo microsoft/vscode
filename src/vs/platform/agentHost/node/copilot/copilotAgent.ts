@@ -5430,7 +5430,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Keeps SDK callbacks routable until ownership transfers to the live-session map. */
-	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, prepare?: () => void | Promise<void>): Promise<void> {
+	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, beforeRegistration?: () => void | Promise<void>): Promise<void> {
 		if (this._isShuttingDown) {
 			session.dispose();
 			throw new CancellationError();
@@ -5438,7 +5438,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionsPendingRegistration.add(session);
 		try {
 			await session.initializeSession();
-			await prepare?.();
+			await beforeRegistration?.();
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}
