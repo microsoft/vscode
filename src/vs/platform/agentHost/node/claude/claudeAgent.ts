@@ -174,7 +174,8 @@ export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentM
 		// ids are SDK format end to end; `toSdkModelId` is identity at this seam.
 		id: m.value,
 		name: m.displayName,
-		supportsVision: false,
+		// The transport's answer, not the model's: every row it offers takes image input.
+		supportsVision: true,
 		...(configSchema ? { configSchema } : {}),
 	};
 }
