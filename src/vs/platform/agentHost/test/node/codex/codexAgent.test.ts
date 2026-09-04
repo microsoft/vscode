@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type AuthenticateParams, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -83,6 +83,14 @@ interface ICodexAuthenticateHarness {
 	authenticate(resource: string, token: string): Promise<boolean>;
 }
 
+interface ICodexMcpAuthenticationHarness {
+	readonly _mcpAuthTokens: Map<string, Map<string, string>>;
+	readonly _mcpAuthServerUrlsByResource: Map<string, Map<string, Set<string>>>;
+	readonly _logService: NullLogService;
+	_configuredHttpServerNamesForUrl(url: string): Set<string>;
+	_reconnectSessionsForMcpAuth(urls: ReadonlySet<string>): Promise<void>;
+}
+
 interface ICodexGuardianWarningHarness {
 	readonly _logService: NullLogService;
 }
@@ -127,6 +135,14 @@ function handleMcpRequest(harness: ICodexMcpRequestHarness, chat: URI): Promise<
 		handleMcpRequest(this: ICodexMcpRequestHarness, chat: URI, serverName: string, method: string, params: undefined): Promise<unknown>;
 	}).handleMcpRequest;
 	return handler.call(harness, chat, 'server', 'tools/list', undefined);
+}
+
+function handleMcpAuthenticationToken(harness: ICodexMcpAuthenticationHarness, params: AuthenticateParams): Promise<boolean> {
+	const handler = CodexAgent.prototype.handleAuthenticationToken as unknown as (
+		this: ICodexMcpAuthenticationHarness,
+		params: AuthenticateParams,
+	) => Promise<boolean>;
+	return handler.call(harness, params);
 }
 
 function handleGuardianWarning(harness: ICodexGuardianWarningHarness, session: ICodexGuardianWarningSession, params: GuardianWarningNotification): ChatAction[] {
@@ -363,6 +379,47 @@ suite('CodexAgent', () => {
 			configuration: undefined,
 			proxyTokens: [''],
 			reconciliations: 1,
+		});
+
+		test('isolates same-resource MCP tokens by server name', async () => {
+			const serverUrl = 'https://mcp.example.com/';
+			const harness: ICodexMcpAuthenticationHarness = {
+				_mcpAuthTokens: new Map(),
+				_mcpAuthServerUrlsByResource: new Map([
+					[serverUrl, new Map([
+						['first', new Set([serverUrl])],
+						['second', new Set([serverUrl])],
+					])],
+				]),
+				_logService: new NullLogService(),
+				_configuredHttpServerNamesForUrl: () => new Set(),
+				_reconnectSessionsForMcpAuth: async () => { },
+			};
+
+			const first = await handleMcpAuthenticationToken(harness, {
+				resource: serverUrl,
+				scopes: ['read'],
+				serverName: 'first',
+				token: 'first-token',
+			});
+			const second = await handleMcpAuthenticationToken(harness, {
+				resource: serverUrl,
+				scopes: ['read'],
+				serverName: 'second',
+				token: 'second-token',
+			});
+
+			assert.deepStrictEqual({
+				first,
+				second,
+				firstToken: harness._mcpAuthTokens.get('first')?.get(serverUrl),
+				secondToken: harness._mcpAuthTokens.get('second')?.get(serverUrl),
+			}, {
+				first: true,
+				second: true,
+				firstToken: 'first-token',
+				secondToken: 'second-token',
+			});
 		});
 	});
 

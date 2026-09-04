@@ -12,6 +12,7 @@ import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthToke
 export interface IAgentHostAuthTokenChangeEvent {
 	readonly resource: string;
 	readonly scopes: readonly string[];
+	readonly serverName?: string;
 	readonly token: string | undefined;
 }
 
@@ -33,6 +34,7 @@ export interface IAgentHostAuthenticationController {
 interface IStoredAuthToken {
 	readonly resource: string;
 	readonly scopes: readonly string[];
+	readonly serverName?: string;
 	readonly token: string;
 }
 
@@ -59,9 +61,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		// failures are isolated -- one provider rejecting (e.g. proxy
 		// server bind failure) MUST NOT prevent another provider from
 		// accepting the same token.
-		const matching = providerList.filter(
-			p => p.getProtectedResources().some(r => r.resource === params.resource),
-		);
+		const matching = params.serverName === undefined
+			? providerList.filter(p => p.getProtectedResources().some(r => r.resource === params.resource))
+			: [];
 		const settled = await Promise.allSettled(
 			matching.map(p => p.authenticate(params.resource, params.token)),
 		);
@@ -96,7 +98,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 		}
 		const scopes = this._normalizeScopes(params.scopes);
-		const key = this._key(params.resource, scopes);
+		const key = this._key(params.resource, scopes, params.serverName);
 		const previousToken = this._tokens.get(key)?.token;
 		if (!authenticated && !rejected) {
 			authenticated = this._tokens.get(key)?.token === params.token;
@@ -106,11 +108,11 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			// while clearing its own live state.
 			this._tokens.delete(key);
 		} else if (authenticated) {
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+			this._tokens.set(key, { resource: params.resource, scopes, serverName: params.serverName, token: params.token });
 		}
 		const token = this._tokens.get(key)?.token;
 		if (previousToken !== token) {
-			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
+			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, serverName: params.serverName, token });
 		}
 		return { authenticated };
 	}
@@ -118,8 +120,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	async replay(provider: IAgent): Promise<void> {
 		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
 		for (const stored of this._tokens.values()) {
-			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token };
-			if (protectedResources.has(stored.resource)) {
+			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, serverName: stored.serverName, token: stored.token };
+			if (stored.serverName === undefined && protectedResources.has(stored.resource)) {
 				try {
 					await provider.authenticate(stored.resource, stored.token);
 				} catch (error) {
@@ -138,7 +140,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
 		const scopes = this._normalizeScopes(request.scopes);
-		const exact = this._tokens.get(this._key(request.resource, scopes));
+		const exact = this._tokens.get(this._key(request.resource, scopes, request.serverName));
 		if (exact) {
 			return exact.token;
 		}
@@ -149,7 +151,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const requested = new Set(scopes);
 		let best: IStoredAuthToken | undefined;
 		for (const candidate of this._tokens.values()) {
-			if (candidate.resource !== request.resource || candidate.scopes.length === 0) {
+			if (candidate.resource !== request.resource || candidate.serverName !== request.serverName || candidate.scopes.length === 0) {
 				continue;
 			}
 			if (!this._containsAll(candidate.scopes, requested)) {
@@ -165,7 +167,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 		// Compatibility for clients that resolved the right token before scopes
 		// were forwarded through the authenticate command.
-		return this._tokens.get(this._key(request.resource, []))?.token;
+		return this._tokens.get(this._key(request.resource, [], request.serverName))?.token;
 	}
 
 	private _containsAll(scopes: readonly string[], requested: ReadonlySet<string>): boolean {
@@ -177,8 +179,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		return true;
 	}
 
-	private _key(resource: string, scopes: readonly string[]): string {
-		return `${resource}\x00${scopes.join('\x00')}`;
+	private _key(resource: string, scopes: readonly string[], serverName?: string): string {
+		return `${serverName === undefined ? '0' : `1${serverName}`}\x00${resource}\x00${scopes.join('\x00')}`;
 	}
 
 	private _normalizeScopes(scopes: readonly string[] | undefined): readonly string[] {

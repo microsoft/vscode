@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
-import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider } from '../../common/authentication.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -342,6 +343,128 @@ suite('AuthenticationService', () => {
 			const noMatchResult = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, otherResourceServer);
 			assert.strictEqual(noMatchResult, undefined);
 		});
+
+		test('getOrActivateProviderIdForServer - should distinguish dynamic providers by configured client id', async () => {
+			const authorizationServer = URI.parse('https://auth.example.com');
+			const resource = { resource: 'https://mcp.example.com' };
+			const resourceServer = URI.parse(resource.resource);
+
+			disposables.add(authenticationService.registerAuthenticationProviderHostDelegate({
+				priority: 0,
+				create: async (providerId, server) => {
+					authenticationService.registerAuthenticationProvider(providerId, createProvider({
+						id: providerId,
+						authorizationServers: [server],
+						resourceServer,
+					}));
+					return providerId;
+				},
+			}));
+
+			const first = await authenticationService.createDynamicAuthenticationProvider(
+				authorizationServer,
+				{ issuer: authorizationServer.toString(), response_types_supported: ['code'] },
+				resource,
+				'first-client',
+			);
+			const second = await authenticationService.createDynamicAuthenticationProvider(
+				authorizationServer,
+				{ issuer: authorizationServer.toString(), response_types_supported: ['code'] },
+				resource,
+				'second-client',
+			);
+
+			assert.ok(first);
+			assert.ok(second);
+			assert.notStrictEqual(first.id, second.id);
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, 'first-client'),
+				first.id,
+			);
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, 'second-client'),
+				second.id,
+			);
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, null),
+				undefined,
+			);
+
+			const legacyProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+			const restored = await authenticationService.createDynamicAuthenticationProvider(
+				authorizationServer,
+				{ issuer: authorizationServer.toString(), response_types_supported: ['code'] },
+				resource,
+				'persisted-dcr-client',
+				'persisted-secret',
+				legacyProviderId,
+			);
+			assert.strictEqual(restored?.id, legacyProviderId);
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, null),
+				legacyProviderId,
+			);
+		});
+
+		test('getOrActivateProviderIdForServer - should not use a built-in provider for a configured client id', async () => {
+			const authorizationServer = URI.parse('https://auth.example.com');
+			const resourceServer = URI.parse('https://mcp.example.com');
+			const provider = createProvider({
+				id: 'built-in',
+				authorizationServers: [authorizationServer],
+				resourceServer,
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, 'configured-client'),
+				undefined,
+			);
+			assert.strictEqual(
+				await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, null),
+				provider.id,
+			);
+		});
+
+		test('createDynamicAuthenticationProvider - should deduplicate concurrent creation by provider identity', async () => {
+			const authorizationServer = URI.parse('https://auth.example.com');
+			const resource = { resource: 'https://mcp.example.com' };
+			const creationStarted = new DeferredPromise<void>();
+			const creationGate = new DeferredPromise<void>();
+			let createCalls = 0;
+
+			disposables.add(authenticationService.registerAuthenticationProviderHostDelegate({
+				priority: 0,
+				create: async (providerId, server) => {
+					createCalls++;
+					creationStarted.complete();
+					await creationGate.p;
+					authenticationService.registerAuthenticationProvider(providerId, createProvider({
+						id: providerId,
+						authorizationServers: [server],
+						resourceServer: URI.parse(resource.resource),
+					}));
+					return providerId;
+				},
+			}));
+
+			const create = () => authenticationService.createDynamicAuthenticationProvider(
+				authorizationServer,
+				{ issuer: authorizationServer.toString(), response_types_supported: ['code'] },
+				resource,
+				'client-id',
+			);
+			const first = create();
+			await creationStarted.p;
+			const second = create();
+			assert.strictEqual(createCalls, 1);
+			creationGate.complete();
+
+			const [firstProvider, secondProvider] = await Promise.all([first, second]);
+			assert.ok(firstProvider);
+			assert.strictEqual(secondProvider, firstProvider);
+			assert.strictEqual(createCalls, 1);
+		});
 	});
 
 	suite('authenticationSessions', () => {
@@ -358,6 +481,23 @@ suite('AuthenticationService', () => {
 
 			assert.equal(sessions.length, 1);
 			assert.ok(isCalled);
+		});
+
+		test('getSessions - allows client context for an explicitly selected provider', async () => {
+			const authorizationServer = URI.parse('https://identity.example.com');
+			const provider = createProvider({
+				id: 'xaa:https://identity.example.com',
+				authorizationServers: [authorizationServer],
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+			const sessions = await authenticationService.getSessions(provider.id, [], {
+				authorizationServer,
+				clientId: 'resource-client-id',
+				resource: 'https://mcp.example.com',
+			});
+
+			assert.deepStrictEqual(sessions, []);
 		});
 
 		test('getSessions - authorization server is not registered', async () => {

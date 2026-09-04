@@ -21,6 +21,13 @@ type Ctor<T> = new (...args: any[]) => T;
  */
 export const IDP_SCOPES: readonly string[] = ['openid', 'offline_access'];
 
+export function resolveConfiguredResourceClientSecret(value: unknown): { configured: false } | { configured: true; clientSecret: string | undefined } {
+	if (typeof value !== 'string') {
+		return { configured: false };
+	}
+	return { configured: true, clientSecret: value.length > 0 ? value : undefined };
+}
+
 interface IResourceCacheEntry {
 	readonly resource: string;
 	readonly scopes: readonly string[];
@@ -241,11 +248,15 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 			// user. We pass `undefined` if the user leaves the prompt blank — that's valid for
 			// clients registered with `token_endpoint_auth_method=none`.
 			let resourceClientSecret: string | undefined = this._clientSecret;
-			const configuredResourceClientSecret = typeof options.clientSecret === 'string' && options.clientSecret.length > 0 ? options.clientSecret : undefined;
+			const configuredResourceClientSecret = resolveConfiguredResourceClientSecret(options.clientSecret);
 			const secretCacheKey = this._resourceClientSecretKey(resource, resourceClientId);
-			if (configuredResourceClientSecret) {
-				resourceClientSecret = configuredResourceClientSecret;
-				this._resourceClientSecrets.set(secretCacheKey, configuredResourceClientSecret);
+			if (configuredResourceClientSecret.configured) {
+				resourceClientSecret = configuredResourceClientSecret.clientSecret;
+				if (resourceClientSecret === undefined) {
+					this._resourceClientSecrets.delete(secretCacheKey);
+				} else {
+					this._resourceClientSecrets.set(secretCacheKey, resourceClientSecret);
+				}
 			} else if (resourceClientIdFromJag) {
 				if (this._resourceClientSecrets.has(secretCacheKey)) {
 					resourceClientSecret = this._resourceClientSecrets.get(secretCacheKey);

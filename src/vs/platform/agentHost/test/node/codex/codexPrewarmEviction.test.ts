@@ -623,8 +623,8 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_mcpPublisherSessionIdByConfiguration'].set(configurationKey, 'runtime');
 		agent['_publishedMcpTopLevelIdsByConfiguration'].set(configurationKey, new Set(['mcp']));
 		agent['_pendingMcpStartupStatuses'].set('thread', []);
-		agent['_mcpAuthTokens'].set('https://example.com/mcp', 'token');
-		agent['_mcpAuthServerUrlsByResource'].set('https://example.com/', new Set(['https://example.com/mcp']));
+		agent['_mcpAuthTokens'].set('mcp', new Map([['https://example.com/mcp', 'token']]));
+		agent['_mcpAuthServerUrlsByResource'].set('https://example.com/', new Map([['mcp', new Set(['https://example.com/mcp'])]]));
 		agent.getOrCreateActiveClient(chat, { configurationResource, resource: chat }, { clientId: 'client' });
 
 		await agent.shutdown();

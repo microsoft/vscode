@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -22,10 +23,10 @@ import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, Mc
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationService, IAuthenticationWwwAuthenticateRequest } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationService, IAuthenticationWwwAuthenticateRequest } from '../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
-import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
+import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker, resolveMcpOAuthClientSecretMigration } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
@@ -133,7 +134,9 @@ suite('MainThreadMcp - launch', () => {
 			new class extends mock<IAuthenticationMcpService>() { },
 			new class extends mock<IAuthenticationMcpAccessService>() { },
 			new class extends mock<IAuthenticationMcpUsageService>() { },
-			new class extends mock<IDynamicAuthenticationProviderStorageService>() { },
+			new class extends mock<IDynamicAuthenticationProviderStorageService>() {
+				override async getClientRegistration(): Promise<undefined> { return undefined; }
+			},
 			new TestExtensionService(),
 			new class extends mock<IContextKeyService>() { },
 			new class extends mock<ITelemetryService>() { },
@@ -174,6 +177,251 @@ suite('MainThreadMcp - launch', () => {
 		capturedDelegate.start(collection, serverDefinition, launch, {});
 		assert.ok(startOptions?.defaultCwd);
 		assert.strictEqual(URI.revive(startOptions.defaultCwd).toString(), defaultCwd.toString());
+	});
+});
+
+suite('MainThreadMcp - authentication', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('persists a matching confidential secret while migrating a legacy provider', () => {
+		assert.deepStrictEqual(
+			resolveMcpOAuthClientSecretMigration(
+				'client-id',
+				undefined,
+				undefined,
+				{ clientId: 'client-id', clientSecret: 'client-secret' },
+			),
+			{ clientSecret: 'client-secret', shouldPersist: true },
+		);
+		assert.deepStrictEqual(
+			resolveMcpOAuthClientSecretMigration(
+				'client-id',
+				undefined,
+				{ clientId: 'client-id', clientSecret: 'client-secret' },
+				{ clientId: 'client-id', clientSecret: 'legacy-secret' },
+			),
+			{ clientSecret: 'client-secret', shouldPersist: true },
+		);
+		assert.deepStrictEqual(
+			resolveMcpOAuthClientSecretMigration(
+				'client-id',
+				'',
+				undefined,
+				{ clientId: 'client-id', clientSecret: 'legacy-secret' },
+			),
+			{ clientSecret: '', shouldPersist: false },
+		);
+	});
+
+	test('keeps configured and default OAuth clients separate for servers sharing auth metadata', async () => {
+		const authorizationServer = URI.parse('https://auth.example.com');
+		const resource = 'https://mcp.example.com';
+		const providers = new Map<string, { clientId: string | undefined; provider: IAuthenticationProvider }>();
+		const providerCreations: Array<string | undefined> = [];
+		const lookupClientIds: Array<string | null | undefined> = [];
+		const unregisteredProviders: string[] = [];
+		const accountMigrations: Array<{ serverId: string; fromProviderId: string; toProviderId: string }> = [];
+		const accessMigrations: Array<{ fromProviderId: string; toProviderId: string; accountName: string; serverId: string }> = [];
+
+		const authenticationService = new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+
+			override async getOrActivateProviderIdForServer(_authorizationServer: URI, _resourceServer?: URI, clientId?: string | null): Promise<string | undefined> {
+				lookupClientIds.push(clientId);
+				if (clientId !== undefined) {
+					const configuredClientId = clientId ?? undefined;
+					return Array.from(providers.entries()).find(([, value]) => value.clientId === configuredClientId)?.[0];
+				}
+				return providers.keys().next().value;
+			}
+
+			override async createDynamicAuthenticationProvider(
+				_authorizationServer: URI,
+				_serverMetadata: IAuthorizationServerMetadata,
+				_resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
+				clientId?: string,
+			): Promise<IAuthenticationProvider | undefined> {
+				const id = getDynamicAuthenticationProviderId(_authorizationServer, _resourceMetadata, clientId);
+				const provider: IAuthenticationProvider = {
+					id,
+					label: clientId ?? 'default',
+					supportsMultipleAccounts: false,
+					onDidChangeSessions: Event.None,
+					getSessions: async () => [],
+					createSession: async () => { throw new Error('Unexpected provider createSession call'); },
+					removeSession: async () => { },
+				};
+				providers.set(id, { clientId, provider });
+				providerCreations.push(clientId);
+				return provider;
+			}
+
+			override isDynamicAuthenticationProvider(id: string): boolean {
+				return providers.has(id);
+			}
+
+			override getProvider(id: string): IAuthenticationProvider {
+				const entry = providers.get(id);
+				assert.ok(entry);
+				return entry.provider;
+			}
+
+			override async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
+				const entry = providers.get(id);
+				assert.ok(entry);
+				return [{
+					id: `${entry.clientId}-session`,
+					accessToken: `${entry.clientId}-token`,
+					account: { id: `${entry.clientId}-account`, label: 'Slack Account' },
+					scopes: [],
+				}];
+			}
+
+			override unregisterAuthenticationProvider(id: string): void {
+				unregisteredProviders.push(id);
+				providers.delete(id);
+			}
+		};
+
+		const proxy: Partial<ExtHostMcpShape> = {
+			$startMcp() { },
+			$stopMcp() { },
+			$sendMessage() { },
+			$onDidChangeMcpServerDefinitions() { },
+		};
+
+		let capturedDelegate: IMcpHostDelegate | undefined;
+		const mcpRegistry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(delegate: IMcpHostDelegate) {
+				capturedDelegate = delegate;
+				return { dispose() { } };
+			}
+		};
+
+		const mainThreadMcp = disposables.add(new MainThreadMcp(
+			SingleProxyRPCProtocol(proxy),
+			mcpRegistry,
+			new class extends mock<IDialogService>() { },
+			authenticationService,
+			new class extends mock<IAuthenticationMcpService>() {
+				override getAccountPreference(): string | undefined { return undefined; }
+				override migrateAccountPreference(serverId: string, fromProviderId: string, toProviderId: string): void {
+					accountMigrations.push({ serverId, fromProviderId, toProviderId });
+				}
+			},
+			new class extends mock<IAuthenticationMcpAccessService>() {
+				override isAccessAllowedForUrl(): boolean { return true; }
+				override migrateAllowedMcpServer(fromProviderId: string, toProviderId: string, accountName: string, serverId: string): void {
+					accessMigrations.push({ fromProviderId, toProviderId, accountName, serverId });
+				}
+			},
+			new class extends mock<IAuthenticationMcpUsageService>() {
+				override addAccountUsage(): void { }
+			},
+			new class extends mock<IDynamicAuthenticationProviderStorageService>() {
+				override async getClientRegistration(providerId: string): Promise<{ clientId?: string; clientSecret?: string } | undefined> {
+					const entry = providers.get(providerId);
+					return entry ? { clientId: entry.clientId } : undefined;
+				}
+				override async removeDynamicProvider(): Promise<void> { }
+			},
+			new TestExtensionService(),
+			new class extends mock<IContextKeyService>() { },
+			new class extends mock<ITelemetryService>() { },
+			new class extends mock<IWorkbenchMcpGatewayService>() { },
+			new class extends mock<IConfigurationService>() { },
+			new class extends mock<ISecretStorageService>() {
+				override async get(): Promise<string | undefined> { return undefined; }
+			},
+		));
+
+		const createServer = (id: string, clientId?: string): McpServerDefinition => ({
+			id,
+			label: id,
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://mcp.example.com'),
+				headers: [],
+				...(clientId ? { oauth: { clientId } } : {}),
+			},
+			cacheNonce: clientId ?? 'default',
+		});
+		const firstServer = createServer('first-slack', 'first-client');
+		const secondServer = createServer('second-slack', 'second-client');
+		const defaultServer = createServer('default-slack');
+		const collection: McpCollectionDefinition = {
+			remoteAuthority: null,
+			id: 'collection-1',
+			label: 'Collection',
+			serverDefinitions: observableValue('serverDefinitions', [firstServer, secondServer, defaultServer]),
+			trustBehavior: McpServerTrust.Kind.Trusted,
+			scope: StorageScope.WORKSPACE,
+			configTarget: ConfigurationTarget.USER,
+			order: McpCollectionSortOrder.Workspace,
+		};
+
+		assert.ok(capturedDelegate);
+		capturedDelegate.start(collection, firstServer, firstServer.launch, {});
+		capturedDelegate.start(collection, secondServer, secondServer.launch, {});
+		capturedDelegate.start(collection, defaultServer, defaultServer.launch, {});
+
+		const authDetails = (clientId?: string): IMcpAuthenticationDetails => ({
+			authorizationServer,
+			authorizationServerMetadata: {
+				issuer: authorizationServer.toString(),
+				response_types_supported: ['code'],
+				scopes_supported: [],
+			},
+			resourceMetadata: { resource, scopes_supported: [] },
+			scopes: [],
+			...(clientId ? { clientId } : {}),
+		});
+
+		const firstToken = await mainThreadMcp.$getTokenFromServerMetadata(1, authDetails('first-client'), {});
+		const secondToken = await mainThreadMcp.$getTokenFromServerMetadata(2, authDetails('second-client'), {});
+		const defaultToken = await mainThreadMcp.$getTokenFromServerMetadata(3, authDetails(), {});
+
+		assert.deepStrictEqual({
+			lookupClientIds,
+			providerCreations,
+			unregisteredProviders,
+			accountMigrations,
+			accessMigrations,
+			tokens: [firstToken, secondToken, defaultToken],
+		}, {
+			lookupClientIds: ['first-client', 'second-client', null],
+			providerCreations: ['first-client', 'second-client', undefined],
+			unregisteredProviders: [],
+			accountMigrations: [
+				{
+					serverId: 'first-slack',
+					fromProviderId: 'https://auth.example.com/ https://mcp.example.com',
+					toProviderId: 'https://auth.example.com/ https://mcp.example.com clientId=first-client',
+				},
+				{
+					serverId: 'second-slack',
+					fromProviderId: 'https://auth.example.com/ https://mcp.example.com',
+					toProviderId: 'https://auth.example.com/ https://mcp.example.com clientId=second-client',
+				},
+			],
+			accessMigrations: [
+				{
+					fromProviderId: 'https://auth.example.com/ https://mcp.example.com',
+					toProviderId: 'https://auth.example.com/ https://mcp.example.com clientId=first-client',
+					accountName: 'Slack Account',
+					serverId: 'first-slack',
+				},
+				{
+					fromProviderId: 'https://auth.example.com/ https://mcp.example.com',
+					toProviderId: 'https://auth.example.com/ https://mcp.example.com clientId=second-client',
+					accountName: 'Slack Account',
+					serverId: 'second-slack',
+				},
+			],
+			tokens: ['first-client-token', 'second-client-token', 'undefined-token'],
+		});
 	});
 });
 
@@ -256,7 +504,9 @@ suite('MainThreadMcp - re-validation', () => {
 			new class extends mock<IAuthenticationMcpUsageService>() {
 				override addAccountUsage(): void { }
 			},
-			new class extends mock<IDynamicAuthenticationProviderStorageService>() { },
+			new class extends mock<IDynamicAuthenticationProviderStorageService>() {
+				override async getClientRegistration(): Promise<undefined> { return undefined; }
+			},
 			new TestExtensionService(),
 			new class extends mock<IContextKeyService>() { },
 			new class extends mock<ITelemetryService>() { },

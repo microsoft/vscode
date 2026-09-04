@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderClientId, getDynamicAuthenticationProviderId, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -108,6 +108,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
 	private _dynamicAuthenticationProviderIds = new Set<string>();
+	private readonly _dynamicAuthenticationProviderCreations = new Map<string, Promise<IAuthenticationProvider | undefined>>();
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
@@ -286,7 +287,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			if (server) {
 				// Skip the resource server check since the auth provider id contains a specific resource server
 				// TODO@TylerLeonhardt: this can change when we have providers that support multiple resource servers
-				if (!this.matchesProvider(authProvider, server)) {
+				const resourceServer = options?.resource ? URI.parse(options.resource) : undefined;
+				if (!this.matchesProvider(authProvider, server, resourceServer)) {
 					throw new Error(`The authentication provider '${id}' does not support the authorization server '${server.toString(true)}'.`);
 				}
 			}
@@ -340,9 +342,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI, configuredClientId?: string | null): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (this.matchesProvider(provider, authorizationServer, resourceServer)) {
+			if (this.matchesProvider(provider, authorizationServer, resourceServer, configuredClientId)) {
 				return provider.id;
 			}
 		}
@@ -357,28 +359,43 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
-			if (this.matchesProvider(activeProvider, authorizationServer, resourceServer)) {
+			if (this.matchesProvider(activeProvider, authorizationServer, resourceServer, configuredClientId)) {
 				return activeProvider.id;
 			}
 		}
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<IAuthenticationProvider | undefined> {
+		const expectedProviderId = providerId ?? getDynamicAuthenticationProviderId(authorizationServer, resource, clientId);
+		const pending = this._dynamicAuthenticationProviderCreations.get(expectedProviderId);
+		if (pending) {
+			return pending;
+		}
+		const existing = this._authenticationProviders.get(expectedProviderId);
+		if (existing && this._dynamicAuthenticationProviderIds.has(expectedProviderId)) {
+			return existing;
+		}
+
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret);
-		const provider = this._authenticationProviders.get(providerId);
-		if (provider) {
-			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
-			this._dynamicAuthenticationProviderIds.add(providerId);
-			return provider;
-		}
-		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
-		return undefined;
+
+		const creation = (async () => {
+			const createdProviderId = await delegate.create(expectedProviderId, authorizationServer, serverMetadata, resource, clientId, clientSecret);
+			const provider = this._authenticationProviders.get(createdProviderId);
+			if (provider) {
+				this._logService.debug(`Created dynamic authentication provider: ${createdProviderId}`);
+				this._dynamicAuthenticationProviderIds.add(createdProviderId);
+				return provider;
+			}
+			this._logService.error(`Failed to create dynamic authentication provider: ${createdProviderId}`);
+			return undefined;
+		})().finally(() => this._dynamicAuthenticationProviderCreations.delete(expectedProviderId));
+		this._dynamicAuthenticationProviderCreations.set(expectedProviderId, creation);
+		return creation;
 	}
 
 	async createOrGetXaaProvider(issuer: URI): Promise<string | undefined> {
@@ -414,8 +431,20 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		};
 	}
 
-	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI, resourceServer?: URI): boolean {
-		// If a resourceServer is provided and the provider has a resourceServer defined, they must match
+	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI, resourceServer?: URI, configuredClientId?: string | null): boolean {
+		if (configuredClientId !== undefined) {
+			const isDynamicProvider = this._dynamicAuthenticationProviderIds.has(provider.id);
+			if (configuredClientId !== null && !isDynamicProvider) {
+				return false;
+			}
+			if (isDynamicProvider) {
+				const providerClientId = getDynamicAuthenticationProviderClientId(provider.id);
+				if (configuredClientId === null ? providerClientId !== undefined : providerClientId !== configuredClientId) {
+					return false;
+				}
+			}
+		}
+
 		if (resourceServer && provider.resourceServer) {
 			const resourceServerStr = resourceServer.toString(true);
 			const providerResourceServerStr = provider.resourceServer.toString(true);

@@ -7,6 +7,7 @@ import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { match } from '../../../../../../base/common/glob.js';
+import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -17,9 +18,9 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../../nls.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
-import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpService, migrateMcpAuthenticationState } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, getDynamicAuthenticationProviderId, getLegacyDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
@@ -72,11 +73,11 @@ export class AgentHostAuthTokenCache {
 	private _globalGeneration = 0;
 
 	/**
-	 * Forwards a token once per resource/scope pair. Same-token callers share
-	 * and await an in-flight authentication.
+	 * Forwards a token once per server/resource/scope tuple. Provider-level tokens
+	 * omit the server name. Same-token callers share and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>): Promise<boolean> {
-		const key = this._key(resource, scopes);
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, serverName?: string): Promise<boolean> {
+		const key = this._key(resource, scopes, serverName);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
 		const pending = this._pendingAuthentications.get(key);
@@ -97,7 +98,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate);
+			return this.authenticate(resource, scopes, token, authenticate, serverName);
 		}
 
 		if (this._completedTokens.get(key) === token) {
@@ -127,19 +128,20 @@ export class AgentHostAuthTokenCache {
 	 * or all resources if no argument is given. Call after a failed `authenticate`
 	 * RPC or when the agent host process restarts.
 	 */
-	clear(resource?: string, scopes?: readonly string[]): void {
+	clear(resource?: string, scopes?: readonly string[], serverName?: string): void {
 		if (resource !== undefined) {
-			if (scopes !== undefined) {
-				const key = this._key(resource, scopes);
+			if (scopes !== undefined && serverName !== undefined) {
+				const key = this._key(resource, scopes, serverName);
 				this._invalidateKey(key);
 				this._completedTokens.delete(key);
 				this._pendingAuthentications.delete(key);
 				return;
 			}
-			const prefix = `${resource}\x00`;
+			const normalizedScopes = scopes ? JSON.stringify([...new Set(scopes)].sort()) : undefined;
 			const keys = new Set([...this._completedTokens.keys(), ...this._pendingAuthentications.keys(), ...this._keyGenerations.keys()]);
 			for (const key of keys) {
-				if (key.startsWith(prefix)) {
+				const [, keyResource, keyScopes] = key.split('\x00', 3);
+				if (keyResource === resource && (normalizedScopes === undefined || keyScopes === normalizedScopes)) {
 					this._invalidateKey(key);
 					this._completedTokens.delete(key);
 					this._pendingAuthentications.delete(key);
@@ -161,8 +163,8 @@ export class AgentHostAuthTokenCache {
 		return this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
 	}
 
-	private _key(resource: string, scopes: readonly string[] | undefined): string {
-		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+	private _key(resource: string, scopes: readonly string[] | undefined, serverName?: string): string {
+		return `${serverName === undefined ? '0' : `1${serverName}`}\x00${resource}\x00${JSON.stringify(scopes ? [...new Set(scopes)].sort() : [])}`;
 	}
 }
 
@@ -370,6 +372,7 @@ async function resolveAuthenticationTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	readonly serverName?: string;
 	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
@@ -403,15 +406,15 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 }
 
 async function forwardAuthenticationToken(
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> & { readonly mcpServerName?: string },
 	resource: string,
 	scopes: readonly string[],
 	token: string,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
-	const request = { resource, scopes, token };
+	const request = { resource, scopes, token, ...(options.mcpServerName !== undefined ? { serverName: options.mcpServerName } : {}) };
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes, token, () => options.authenticate(request));
+		return options.authTokenCache.authenticate(resource, scopes, token, () => options.authenticate(request), options.mcpServerName);
 	}
 	await options.authenticate(request);
 	return true;
@@ -526,13 +529,33 @@ async function resourceMatchesAuthenticationProvider(
 	logService: ILogService,
 	logPrefix: string,
 ): Promise<boolean> {
+	let provider: IAuthenticationProvider;
+	try {
+		provider = authenticationService.getProvider(providerId);
+	} catch (error) {
+		logService.trace(`${logPrefix} Unable to inspect authentication provider for session removal: ${providerId}; falling back to provider lookup`, error);
+		for (const authorizationServer of resource.authorization_servers ?? []) {
+			try {
+				if (await authenticationService.getOrActivateProviderIdForServer(URI.parse(authorizationServer), URI.parse(resource.resource)) === providerId) {
+					return true;
+				}
+			} catch (lookupError) {
+				logService.trace(`${logPrefix} Unable to resolve authentication provider for session removal: ${authorizationServer}`, lookupError);
+			}
+		}
+		return false;
+	}
+
+	if (provider.resourceServer && !equalsIgnoreCase(provider.resourceServer.toString(true), URI.parse(resource.resource).toString(true))) {
+		return false;
+	}
 	for (const authorizationServer of resource.authorization_servers ?? []) {
-		try {
-			if (await authenticationService.getOrActivateProviderIdForServer(URI.parse(authorizationServer), URI.parse(resource.resource)) === providerId) {
+		const authorizationServerUri = URI.parse(authorizationServer).toString(true);
+		for (const supportedAuthorizationServer of provider.authorizationServers ?? []) {
+			const supported = supportedAuthorizationServer.toString(true);
+			if (equalsIgnoreCase(supported, authorizationServerUri) || match(supported, authorizationServerUri, { ignoreCase: true })) {
 				return true;
 			}
-		} catch (error) {
-			logService.trace(`${logPrefix} Unable to resolve authentication provider for session removal: ${authorizationServer}`, error);
 		}
 	}
 	return false;
@@ -703,7 +726,7 @@ export async function resolveMcpServerAuthentication(
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient?.clientId);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
 			const providerId = await getOrCreateProviderForMcpResource(
 				authorizationServerUri,
@@ -729,6 +752,10 @@ export async function resolveMcpServerAuthentication(
 				...oauthClientOptions,
 				silent: !options.allowInteraction,
 			}, true);
+			const legacyProviderId = getLegacyDynamicAuthenticationProviderId(providerId);
+			if (legacyProviderId) {
+				migrateMcpAuthenticationState(authenticationMcpService, authenticationMcpAccessService, sessions, options.mcpServerId, legacyProviderId, providerId);
+			}
 			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
 			if (allowedSession) {
 				await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
@@ -787,13 +814,38 @@ async function getOrCreateProviderForMcpResource(
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
-	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource, oauthClient?.clientId);
 	let clientId = oauthClient?.clientId;
 	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
-		const isProviderActive = authenticationService.isDynamicAuthenticationProvider(dynamicProviderId);
-		const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
-		const clientMatches = registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret;
+		const configuredClientId = oauthClient.clientId;
+		const legacyProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+		let isProviderActive = authenticationService.isDynamicAuthenticationProvider(dynamicProviderId);
+		let registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		// Do not move credentials out from under an active legacy provider. The scoped
+		// provider will establish its own session while that provider remains live.
+		if (!isProviderActive && !registeredClient && !authenticationService.isDynamicAuthenticationProvider(legacyProviderId)) {
+			await dynamicAuthenticationProviderStorageService.migrateDynamicProvider(legacyProviderId, dynamicProviderId, configuredClientId);
+			registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+		}
+		if (registeredClient
+			&& registeredClient.clientId === configuredClientId
+			&& registeredClient.clientSecret !== clientSecret) {
+			if (isProviderActive) {
+				authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+				isProviderActive = false;
+			}
+			await dynamicAuthenticationProviderStorageService.storeClientRegistration(
+				dynamicProviderId,
+				authorizationServer.toString(true),
+				configuredClientId,
+				clientSecret,
+			);
+			registeredClient = { clientId: configuredClientId, clientSecret };
+		}
+		const clientMatches = registeredClient !== undefined
+			&& registeredClient.clientId === configuredClientId
+			&& registeredClient.clientSecret === clientSecret;
 		if (clientMatches) {
 			if (isProviderActive) {
 				return dynamicProviderId;
@@ -808,7 +860,7 @@ async function getOrCreateProviderForMcpResource(
 			}
 		}
 	} else {
-		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
+		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri, null);
 		if (existing) {
 			return existing;
 		}
@@ -822,7 +874,14 @@ async function getOrCreateProviderForMcpResource(
 
 	try {
 		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret);
+		const provider = await authenticationService.createDynamicAuthenticationProvider(
+			authorizationServer,
+			metadata,
+			protectedResource,
+			clientId,
+			clientSecret,
+			dynamicProviderId,
+		);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);

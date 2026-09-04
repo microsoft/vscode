@@ -11,6 +11,7 @@ import {
 	cacheKey,
 	IDP_SCOPES,
 	isExpired,
+	resolveConfiguredResourceClientSecret,
 	toSession,
 } from '../../common/extHostXaaAuthProvider.js';
 
@@ -61,6 +62,12 @@ suite('XaaAuthProvider helpers', () => {
 
 	test('IDP_SCOPES requests an OpenID session with refresh', () => {
 		assert.deepStrictEqual([...IDP_SCOPES].sort(), ['offline_access', 'openid']);
+	});
+
+	test('an empty configured resource secret is an authoritative secretless tombstone', () => {
+		assert.deepStrictEqual(resolveConfiguredResourceClientSecret(undefined), { configured: false });
+		assert.deepStrictEqual(resolveConfiguredResourceClientSecret('secret'), { configured: true, clientSecret: 'secret' });
+		assert.deepStrictEqual(resolveConfiguredResourceClientSecret(''), { configured: true, clientSecret: undefined });
 	});
 });
 
