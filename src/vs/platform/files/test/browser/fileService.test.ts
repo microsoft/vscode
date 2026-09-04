@@ -13,10 +13,12 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from '../../common/files.js';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType, IFileCopyProgress } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IProgress } from '../../../progress/common/progress.js';
+import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
 
 suite('File Service', () => {
 
@@ -417,6 +419,41 @@ suite('File Service', () => {
 		assert.strictEqual(atomicReadCounter, 2);
 		assert.strictEqual(atomicWriteCounter, 3);
 		assert.strictEqual(atomicDeleteCounter, 1);
+	});
+
+	test('copy reports progress for buffered cross-provider copies', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+
+		const sourceProvider = disposables.add(new InMemoryFileSystemProvider());
+		const targetProvider = disposables.add(new InMemoryFileSystemProvider());
+
+		disposables.add(service.registerProvider('source', sourceProvider));
+		disposables.add(service.registerProvider('target', targetProvider));
+
+		const source = URI.parse('source://test/source.txt');
+		const target = URI.parse('target://test/target.txt');
+
+		const contents = VSBuffer.fromString('hello world');
+
+		await sourceProvider.writeFile(
+			source,
+			contents.buffer,
+			{ create: true, overwrite: true, unlock: false, atomic: false }
+		);
+
+		const reports: IFileCopyProgress[] = [];
+		const progress: IProgress<IFileCopyProgress> = {
+			report: value => reports.push(value)
+		};
+
+		await service.copy(source, target, true, progress);
+
+		assert.ok(reports.length > 0);
+
+		const lastReport = reports.at(-1);
+		assert.ok(lastReport);
+		assert.strictEqual(lastReport.bytes, contents.byteLength);
+		assert.strictEqual(lastReport.total, contents.byteLength);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
