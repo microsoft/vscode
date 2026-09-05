@@ -28,7 +28,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationHandle, INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
@@ -554,6 +554,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				}
 				this._state = WebviewState.Ready;
 
+				// The document became ready, so service worker registration
+				// succeeded and content was served for it: the webview is
+				// genuinely working again. Future registration failures must
+				// start from a fresh retry budget.
+				this._serviceWorkerReloadAttempt = 0;
+
 				subscription.dispose();
 			}
 		}));
@@ -634,8 +640,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private static readonly _serviceWorkerReloadDelays = [1000, 1000, 2000, 3000, 5000];
 	private _serviceWorkerReloadAttempt = 0;
-	private _serviceWorkerLastFailureTime = 0;
 	private readonly _serviceWorkerReloadTimeout = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * The notification shown when service worker registration terminally failed,
+	 * so that it can be closed when the webview is disposed or reinitialized,
+	 * instead of keeping the disposed webview alive through its action closure.
+	 */
+	private readonly _serviceWorkerErrorNotification = this._register(new MutableDisposable<INotificationHandle>());
 	/**
 	 * Whether service worker registration has terminally failed for the
 	 * current document. Further registration errors are suppressed until
@@ -679,12 +690,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				return;
 			}
 
-			// If the webview has been working since the last failure, start a
-			// fresh retry cycle so that sporadic failures keep self-healing
-			if (Date.now() - this._serviceWorkerLastFailureTime > 60_000) {
-				this._serviceWorkerReloadAttempt = 0;
-			}
-			this._serviceWorkerLastFailureTime = Date.now();
+			// The retry budget is only reset when a new document successfully
+			// becomes ready (see the 'webview-ready' handling in
+			// _registerMessageHandler), never based on elapsed time between
+			// failures: a registration that rejects only after running longer
+			// than the gap to the previous failure must not reset the budget,
+			// or the host could reload forever without ever surfacing the
+			// terminal error.
 
 			if (this._serviceWorkerReloadAttempt < WebviewElement._serviceWorkerReloadDelays.length && !this._disposed && this.element?.parentElement) {
 				const attempt = ++this._serviceWorkerReloadAttempt;
@@ -711,14 +723,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 			this._serviceWorkerTerminalFailure = true;
 			this._logService.error(`Webview(${this.id}): service worker registration failed after ${this._serviceWorkerReloadAttempt} reload retries (${message})`);
-			this._notificationService.prompt(Severity.Error,
+			// Track the notification so it can be closed when the webview is
+			// disposed or reinitialized; otherwise its action closure would
+			// keep the disposed webview's object graph alive until the user
+			// manually dismissed it.
+			this._serviceWorkerErrorNotification.value = this._notificationService.prompt(Severity.Error,
 				localize('fatalErrorMessage', "Error loading webview: {0}", message),
 				[{
 					label: localize('reloadWebview', "Reload Webview"),
 					run: () => {
-						// The notification can outlive the webview, e.g. when
-						// its editor gets closed. Do not act on a disposed or
-						// detached webview.
+						// The notification may still be open while the webview
+						// has been detached from its parent. Do not act then.
 						if (this._disposed || !this.element?.parentElement) {
 							return;
 						}
@@ -744,6 +759,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// pending. Cancel it so it does not fire later and reload the newly
 		// initialized document again, interrupting its content and messages.
 		this._serviceWorkerReloadTimeout.clear();
+
+		// Any terminal failure notification from the previous document is
+		// stale now that a fresh document is being created
+		this._serviceWorkerErrorNotification.clear();
 
 		// A fresh document gets a fresh service worker retry cycle, so clear
 		// any terminal registration failure from the previous document

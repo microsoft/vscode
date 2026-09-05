@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-u7VQXHfzdvLSCfctDMQDjq5/9EXC9LfxRSkXqqtQbBU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-8/S4t1vjOzZC2yL50bdHzKxIqHo1Bv7+ofuhTFI4TS8=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -361,7 +361,12 @@
 						// here nor the host reloading the document can fix it. Report it
 						// in the period-terminated form so that the host does not
 						// classify it as retryable and burn its reload budget.
-						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+						if (!onElectron) {
+							return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+						}
+						// The third-party cookie guidance only applies to browsers;
+						// report the denial without it on desktop.
+						return reject(new Error(`Could not register service worker. Permission to register service workers was denied: ${error}`));
 					}
 					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
