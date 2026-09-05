@@ -244,10 +244,45 @@ suite('ActionListWidget', () => {
 		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		const pressed = {
+			focused: widget.getFocusedElement()?.item?.id,
+			visiblyFocused: row.classList.contains('focused'),
+			selected: [...selected],
+		};
 		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 		row.click();
-		assert.deepStrictEqual(selected, ['second']);
+		assert.deepStrictEqual({ pressed, selected }, {
+			pressed: { focused: 'second', visiblyFocused: true, selected: [] },
+			selected: ['second'],
+		});
 	});
+
+	for (const disabled of [false, true]) {
+		test(`initial press only changes focus on an enabled row (disabled: ${disabled})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), { ...action('second'), disabled, hover: { content: 'Details' } }],
+				onSelect: item => selected.push(item.id),
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+			row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			await timeout(500);
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			assert.deepStrictEqual({
+				focused: widget.getFocusedElement()?.item?.id,
+				selected,
+				previewDisplay: panel.style.display,
+				rowRetained: row === widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1],
+			}, {
+				focused: disabled ? 'first' : 'second',
+				selected: [],
+				previewDisplay: 'none',
+				rowRetained: true,
+			});
+		}));
+	}
 
 	test('initial pointer movement and clicks do not select disabled items', () => {
 		const selected: string[] = [];

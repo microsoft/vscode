@@ -969,7 +969,24 @@ export class ActionListWidget<T> extends Disposable {
 				this.onListHover(e);
 			}
 		}));
-		this._register(this._list.onMouseDown(() => this._enableHover()));
+		this._register(this._list.onMouseDown(e => {
+			const ignoreInitialHover = this._ignoreInitialHover;
+			this._enableHover();
+			if (ignoreInitialHover && e.browserEvent.button === 0 && e.element && this.focusCondition(e.element) && typeof e.index === 'number') {
+				const target = e.browserEvent.target;
+				if (dom.isHTMLElement(target) && target.closest('.action-list-item-toolbar')) {
+					return;
+				}
+				// Focus the pressed row without opening a preview or rebuilding it before click.
+				const suppressHover = this._suppressHover;
+				this._suppressHover = true;
+				try {
+					this._list.setFocus([e.index]);
+				} finally {
+					this._suppressHover = suppressHover;
+				}
+			}
+		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		if (this._options?.persistentHover) {
