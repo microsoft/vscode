@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, AgentSdkDownloadStatus, IAgentSdkSetupInfo, agentSdkSetupStatusKey, isAgentSdkSetupRequestFor } from '../common/agentSdkSetup.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentSdkDownloader, IAgentSdkPackage } from './agentSdkDownloader.js';
+import { IAgentSdkDownloader, type IAgentSdkDownloadProgress, type IAgentSdkPackage } from './agentSdkDownloader.js';
 
 /** The per-agent half of {@link AgentSdkSetupChannel}. */
 export interface IAgentSdkSetupChannelAgent {
@@ -21,7 +22,7 @@ export interface IAgentSdkSetupChannelAgent {
 	/** Whether the SDK can be loaded without a network fetch. */
 	isSdkLocal(): Promise<boolean>;
 
-	/** Fetch the SDK. Only ever called for the explicit gesture. */
+	/** Fetch the SDK. */
 	downloadSdk(): Promise<void>;
 
 	/** Restart chat discovery, which defers itself while there is no SDK to read a catalog from. */
@@ -33,24 +34,16 @@ export interface IAgentSdkSetupChannelAgent {
 
 /**
  * One agent's side of the SDK setup channel: publishes whether its SDK is on
- * disk, performs the download the workbench asks for, and looks again when it
- * asks for that. Every agent needs the same nonce handling, latching and publish
- * ordering, so only the calls in {@link IAgentSdkSetupChannelAgent} differ.
+ * disk, tracks first-use and explicit downloads, and handles setup requests.
  */
 export class AgentSdkSetupChannel extends Disposable {
 
 	/** Consumed request nonce per request key, so a root-config change we caused isn't re-handled. */
 	private readonly _lastRequests = new Map<string, string>();
+	private readonly _operations = new Sequencer();
 
-	/**
-	 * Latched while the *explicit* download runs. {@link IAgentSdkSetupChannelAgent.isSdkLocal}
-	 * stays false throughout, so without this the channel could only ever report
-	 * `notDownloaded` and the banner would keep offering a button for work already
-	 * underway. Deliberately not a query on the downloader, which would also latch
-	 * for background fetches — those are the ones the user never asked for and so
-	 * must stay invisible.
-	 */
-	private _downloadInFlight = false;
+	private _downloadActivity: 'idle' | 'explicit' | 'lazy' = 'idle';
+	private _downloadFailed = false;
 
 	constructor(
 		private readonly _agent: IAgentSdkSetupChannelAgent,
@@ -62,34 +55,78 @@ export class AgentSdkSetupChannel extends Disposable {
 		// The workbench addresses the agent through the root config bag. The key is
 		// cleared as it is consumed so a later identical press still lands.
 		this._register(this._configurationService.onDidRootConfigChange(() => this._handleRequest()));
-		queueMicrotask(() => { void this.publish(); });
+		this._register(this._downloader.onDidDownloadProgress(progress => this._handleDownloadProgress(progress)));
+		this.refresh();
 	}
 
-	/** Publish the current status, paying for the is-local probe. */
-	async publish(): Promise<void> {
-		this.publishWith(await this._agent.isSdkLocal());
+	/** Recompute the host's SDK status after an outside state change. */
+	refresh(): void {
+		this._queue('failed to refresh agent SDK setup', async () => this._publish(await this._agent.isSdkLocal()));
 	}
 
-	/** The synchronous half, for callers that have just paid for the probe. */
-	publishWith(sdkIsLocal: boolean): void {
-		const download: AgentSdkDownloadStatus = this._downloadInFlight
+	private _publish(sdkIsLocal: boolean): void {
+		const download: AgentSdkDownloadStatus = this._downloadActivity !== 'idle'
 			? 'downloading'
-			: sdkIsLocal ? 'ready' : 'notDownloaded';
+			: sdkIsLocal
+				? 'ready'
+				: this._hasDownloadConsent() && !this._downloadFailed ? 'downloadOnUse' : 'notDownloaded';
 		const info: Omit<IAgentSdkSetupInfo, 'agent'> = { ...this._agent.setupInfo, download };
 		this._configurationService.publishRootTransientValues?.({ [agentSdkSetupStatusKey(this._agent.id)]: info });
+	}
+
+	private _handleDownloadProgress(progress: IAgentSdkDownloadProgress): void {
+		if (progress.packageId !== this._agent.sdkPackage.id) {
+			return;
+		}
+		switch (progress.phase) {
+			case 'started':
+				if (this._downloadActivity === 'idle') {
+					this._downloadActivity = 'lazy';
+					this._downloadFailed = false;
+					this._publish(false);
+					this._queue('failed to record agent SDK download consent', () => this._recordDownloadConsent());
+				}
+				break;
+			case 'completed':
+				if (this._downloadActivity === 'lazy') {
+					this._queue('refresh after agent SDK download failed', () => this._finishLazyDownload());
+				}
+				break;
+			case 'failed':
+				if (this._downloadActivity === 'lazy') {
+					this._downloadActivity = 'idle';
+					this._downloadFailed = true;
+					this._publish(false);
+				}
+				break;
+		}
 	}
 
 	private _handleRequest(): void {
 		const values = this._configurationService.getRootConfigValues?.() ?? {};
 		if (this._takeRequest(values, AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY)) {
-			void this._download();
+			if (this._downloadActivity === 'idle') {
+				this._downloadActivity = 'explicit';
+				this._downloadFailed = false;
+				this._publish(false);
+				this._queue('explicit agent SDK download failed', async () => {
+					await this._recordDownloadConsent();
+					await this._download();
+				});
+			}
 		}
 		if (this._takeRequest(values, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY)) {
-			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: reloading the agent's configuration at the user's request`);
-			// Nothing to publish: the SDK is already on disk either way, and what the
-			// banner reads is the catalog the re-look republishes.
-			void this._lookAgain();
+			this._queue('agent SDK configuration reload failed', async () => {
+				this._logService.info(`[AgentSdkSetup] ${this._agent.id}: reloading the agent's configuration at the user's request`);
+				await this._lookAgain();
+			});
 		}
+	}
+
+	private _queue(failureMessage: string, operation: () => Promise<void>): void {
+		void this._operations.queue(operation).catch(error => {
+			this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: ${failureMessage}`);
+		});
 	}
 
 	/** Claim one request addressed to this agent, clearing the key so a repeat press still lands. */
@@ -103,28 +140,51 @@ export class AgentSdkSetupChannel extends Disposable {
 		return true;
 	}
 
-	/**
-	 * The explicit download gesture. Acquiring progress interest is what makes the
-	 * fetch visible: the downloader only emits frames for a session that asked or an
-	 * explicitly-registered interest, and this download belongs to no session.
-	 */
+	private _hasDownloadConsent(): boolean {
+		return this._downloader.hasDownloadConsent(this._agent.sdkPackage);
+	}
+
+	private async _recordDownloadConsent(): Promise<void> {
+		try {
+			await this._downloader.recordDownloadConsent(this._agent.sdkPackage);
+		} catch (error) {
+			this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: failed to persist agent SDK download consent`);
+		}
+	}
+
+	/** Download requested explicitly through the setup UI. */
 	private async _download(): Promise<void> {
-		if (this._downloadInFlight) {
+		if (this._downloadActivity !== 'explicit') {
 			return;
 		}
 		const progressInterest = this._downloader.acquireDownloadProgressInterest(this._agent.sdkPackage);
-		this._downloadInFlight = true;
-		this.publishWith(false);
+		let downloaded = false;
 		try {
 			this._logService.info(`[AgentSdkSetup] ${this._agent.id}: downloading the agent SDK at the user's request`);
-			await this._agent.downloadSdk();
-		} catch (error) {
-			this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: agent SDK download failed`);
+			try {
+				await this._agent.downloadSdk();
+				downloaded = true;
+			} catch (error) {
+				this._downloadFailed = true;
+				this._logService.error(error, `[AgentSdkSetup] ${this._agent.id}: agent SDK download failed`);
+			}
+			if (downloaded) {
+				await this._lookAgain();
+			}
 		} finally {
-			this._downloadInFlight = false;
+			this._downloadActivity = 'idle';
 			progressInterest.dispose();
+			this._publish(downloaded);
 		}
-		await this._lookAgain();
+	}
+
+	private async _finishLazyDownload(): Promise<void> {
+		try {
+			await this._lookAgain();
+		} finally {
+			this._downloadActivity = 'idle';
+			this._publish(true);
+		}
 	}
 
 	/**

@@ -37,6 +37,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -45,7 +46,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
-import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
@@ -1087,6 +1088,132 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('dragging a grouped session out of its group', () => {
+		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
+
+		interface IDropHarness {
+			readonly container: HTMLElement;
+			/** Session ids passed to `removeFromGroup`, in call order. */
+			readonly removedFromGroup: string[];
+			readonly sortChanges: readonly ISortChangeRecord[];
+		}
+
+		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>): IDropHarness {
+			const removedFromGroup: string[] = [];
+			const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
+			const harness = createListHarness(disposables, sessions, instantiationService => {
+				instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+					override readonly onDidChange = onDidChange.event;
+					override getGroups() { return [group]; }
+					override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
+					override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+					override getSessionIdsInGroup(groupId: string) {
+						return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
+					}
+					override removeFromGroup(sessionId: string) {
+						if (!memberships.delete(sessionId)) {
+							return;
+						}
+						removedFromGroup.push(sessionId);
+						onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
+					}
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			return { container, removedFromGroup, sortChanges: harness.sortChanges };
+		}
+
+		function sessionRow(container: HTMLElement, title: string): HTMLElement {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-title')]
+				.find(element => element.textContent === title)
+				?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row, `no session row for "${title}"`);
+			return row;
+		}
+
+		function sectionRow(container: HTMLElement, label: string): HTMLElement {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-section-label')]
+				.find(element => element.textContent === label)
+				?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(row, `no section row for "${label}"`);
+			return row;
+		}
+
+		/** Labels of the section/group headers currently highlighted as drop targets. */
+		function highlightedHeaders(container: HTMLElement): string[] {
+			return [...container.querySelectorAll<HTMLElement>('.session-header-drop-target')]
+				.map(header => header.querySelector('.session-section-label')?.textContent ?? '');
+		}
+
+		/** Drag `source` onto `target`, returning the headers highlighted while hovering. */
+		function drag(source: HTMLElement, target: HTMLElement, container: HTMLElement): string[] {
+			const dataTransfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			const highlighted = highlightedHeaders(container);
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+			return highlighted;
+		}
+
+		test('drops onto its own workspace section header and leaves the group', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
+			const memberships = new Map([[grouped.sessionId, group.id]]);
+			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+
+			const highlighted = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
+
+			assert.deepStrictEqual({ highlighted, removedFromGroup, reordered: sortChanges.length }, {
+				highlighted: ['vscode'],
+				removedFromGroup: [grouped.sessionId],
+				reordered: 0,
+			});
+		});
+
+		test('drops between the sessions of its own workspace section', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
+			const memberships = new Map([[grouped.sessionId, group.id]]);
+			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+
+			const highlighted = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Ordinary'), container);
+
+			assert.deepStrictEqual({
+				highlighted,
+				removedFromGroup,
+				reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+			}, {
+				highlighted: ['vscode'],
+				removedFromGroup: [grouped.sessionId],
+				reordered: [[grouped.sessionId]],
+			});
+		});
+
+		test('refuses an unrelated workspace section and its sessions', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const other = createTestSession('Other', { workspaceLabel: 'monaco' }).session;
+			const memberships = new Map([[grouped.sessionId, group.id]]);
+			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, other], memberships);
+
+			const ontoSection = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'monaco'), container);
+			const ontoSession = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Other'), container);
+
+			assert.deepStrictEqual({ ontoSection, ontoSession, removedFromGroup, reordered: sortChanges.length }, {
+				ontoSection: [],
+				ontoSession: [],
+				removedFromGroup: [],
+				reordered: 0,
 			});
 		});
 	});
