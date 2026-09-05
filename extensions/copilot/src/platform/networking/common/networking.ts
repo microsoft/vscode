@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestMetadata } from '@vscode/copilot-api';
+import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
 import type { CancellationToken } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
@@ -15,6 +15,7 @@ import { Source } from '../../chat/common/chatMLFetcher';
 import type { ChatLocation, ChatResponse } from '../../chat/common/commonTypes';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { CustomModel, EndpointEditToolName } from '../../endpoint/common/endpointProvider';
+import { IEnvService, getEditorVersionHeaders } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
@@ -490,6 +491,7 @@ function networkRequest(
 	const fetcher = accessor.get(IFetcherService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const capiClientService = accessor.get(ICAPIClientService);
+	const envService = accessor.get(IEnvService);
 	const { requestType, endpointOrUrl, secretKey, intent, requestId, body, additionalHeaders, cancelToken, useFetcher, canRetryOnce = true, location } = options;
 
 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
@@ -516,6 +518,16 @@ function networkRequest(
 	};
 	headers['X-Interaction-Type'] = agentInteractionType;
 	headers['X-Agent-Task-Id'] = requestId;
+
+	// The @vscode/copilot-api mixin (`_mixinHeaders` inside `CAPIClient.makeRequest`) only stamps
+	// editor identity headers for its allow-listed request types and silently skips `Proxy*` types
+	// (used by xtab/NES inference). Inject the real editor identity here for those types so it is sent.
+	// Allow-listed types get these headers from the mixin; raw-URL/BYOK requests take the
+	// `fetcher.fetch` branch below and are intentionally left untouched.
+	const requestMetadata = endpoint.urlOrRequestMetadata;
+	if (isCAPIRequestMetadata(requestMetadata) && (requestMetadata.type === RequestType.ProxyChatCompletions || requestMetadata.type === RequestType.ProxyCompletions)) {
+		Object.assign(headers, getEditorVersionHeaders(envService));
+	}
 
 	if (endpoint.interceptBody) {
 		endpoint.interceptBody(body);
