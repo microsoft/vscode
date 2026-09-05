@@ -12,7 +12,7 @@ import {
 	IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, InstallOptions,
 	UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult,
 	UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata, UninstallExtensionInfo,
-	IAllowedExtensionsService
+	IAllowedExtensionsService, InstallExtensionProgressEvent
 } from './extensionManagement.js';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -48,6 +48,7 @@ function transformOutgoingExtension(extension: ILocalExtension, transformer: IUR
 export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext | string> implements IServerChannel<TContext> {
 
 	readonly onInstallExtension: Event<InstallExtensionEvent>;
+	readonly onInstallExtensionProgress: Event<InstallExtensionProgressEvent>;
 	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	readonly onUninstallExtension: Event<UninstallExtensionEvent>;
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
@@ -55,6 +56,7 @@ export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext 
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
 		this.onInstallExtension = Event.buffer(service.onInstallExtension, 'onInstallExtension', true);
+		this.onInstallExtensionProgress = Event.buffer(service.onInstallExtensionProgress, 'onInstallExtensionProgress', true);
 		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, 'onDidInstallExtensions', true);
 		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, 'onUninstallExtension', true);
 		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, 'onDidUninstallExtension', true);
@@ -72,6 +74,12 @@ export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext 
 						profileLocation: e.profileLocation ? transformOutgoingURI(e.profileLocation, uriTransformer) : e.profileLocation
 					};
 				});
+			}
+			case 'onInstallExtensionProgress': {
+				return Event.map<InstallExtensionProgressEvent, InstallExtensionProgressEvent>(this.onInstallExtensionProgress, e => ({
+					...e,
+					profileLocation: transformOutgoingURI(e.profileLocation, uriTransformer)
+				}));
 			}
 			case 'onDidInstallExtensions': {
 				return Event.map<readonly InstallExtensionResult[], readonly InstallExtensionResult[]>(this.onDidInstallExtensions, results =>
@@ -194,6 +202,9 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 	protected readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
 	get onInstallExtension() { return this._onInstallExtension.event; }
 
+	protected readonly _onInstallExtensionProgress = this._register(new Emitter<InstallExtensionProgressEvent>());
+	get onInstallExtensionProgress() { return this._onInstallExtensionProgress.event; }
+
 	protected readonly _onDidInstallExtensions = this._register(new Emitter<readonly InstallExtensionResult[]>());
 	get onDidInstallExtensions() { return this._onDidInstallExtensions.event; }
 
@@ -213,6 +224,7 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 	) {
 		super(productService, allowedExtensionsService);
 		this._register(this.channel.listen<InstallExtensionEvent>('onInstallExtension')(e => this.onInstallExtensionEvent({ ...e, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source, profileLocation: URI.revive(e.profileLocation) })));
+		this._register(this.channel.listen<InstallExtensionProgressEvent>('onInstallExtensionProgress')(e => this._onInstallExtensionProgress.fire({ ...e, profileLocation: URI.revive(e.profileLocation) })));
 		this._register(this.channel.listen<readonly InstallExtensionResult[]>('onDidInstallExtensions')(results => this.onDidInstallExtensionsEvent(results.map(e => ({ ...e, local: e.local ? transformIncomingExtension(e.local, null) : e.local, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source, profileLocation: URI.revive(e.profileLocation) })))));
 		this._register(this.channel.listen<UninstallExtensionEvent>('onUninstallExtension')(e => this.onUninstallExtensionEvent({ ...e, profileLocation: URI.revive(e.profileLocation) })));
 		this._register(this.channel.listen<DidUninstallExtensionEvent>('onDidUninstallExtension')(e => this.onDidUninstallExtensionEvent({ ...e, profileLocation: URI.revive(e.profileLocation) })));
