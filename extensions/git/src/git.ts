@@ -12,7 +12,7 @@ import which from 'which';
 import { EventEmitter } from 'events';
 import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
-import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
+import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace, window, l10n } from 'vscode';
 import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
 import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
@@ -238,11 +238,11 @@ async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToke
 			on(child.stdout!, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stdout!, 'close', () => c(Buffer.concat(buffers)));
 		}),
-		new Promise<string>(c => {
-			const buffers: Buffer[] = [];
-			on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
-		})
+	new Promise<string>(c => {
+		const buffers: Buffer[] = [];
+		on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
+		once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
+	})
 	]) as Promise<[number, Buffer, string]>;
 
 	if (cancellationToken) {
@@ -627,14 +627,25 @@ export class Git {
 		const startExec = Date.now();
 		let bufferResult: IExecutionResult<Buffer>;
 
+		const isRemoteOperation = ['fetch', 'push', 'pull'].includes(args[0]);
+
+		let securityKeyAuthenticationHintTimer: NodeJS.Timeout | undefined;
+		if (isRemoteOperation) {
+			securityKeyAuthenticationHintTimer = setTimeout(() => {
+				void window.showInformationMessage(
+					l10n.t('Git may be waiting for SSH authentication. If you use a security key, touch it to continue.')
+				);
+			}, 3000);
+		}
+
 		try {
 			bufferResult = await exec(child, options.cancellationToken);
 		} catch (ex) {
-			if (ex instanceof CancellationError) {
-				this.log(`> git ${args.join(' ')} [${Date.now() - startExec}ms] (cancelled)\n`);
-			}
-
 			throw ex;
+		} finally {
+			if (securityKeyAuthenticationHintTimer) {
+				clearTimeout(securityKeyAuthenticationHintTimer);
+			}
 		}
 
 		if (options.log !== false) {
