@@ -25,8 +25,33 @@ import {
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { formatGenericToolInput } from '../../common/streamingToolCallDisplay.js';
+import { SUBAGENT_ID_SUFFIX_REGEX, SUBAGENT_TOOL_NAMES } from './claudeSubagentRegistry.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+
+/**
+ * One `tool_use` seen during replay. `resultSeen` and `agentId` are written
+ * when the matching `tool_result` lands; everything else is fixed at announce time.
+ */
+export interface IClaudeReplayToolUse {
+	readonly toolUseId: string;
+	readonly turnId: string;
+	readonly toolName: string;
+	readonly isClientTool: boolean;
+	readonly parsedInput: Record<string, unknown> | undefined;
+	readonly isSubagentSpawn: boolean;
+	resultSeen: boolean;
+	agentId?: string;
+}
+
+/**
+ * The replay builder's cross-turn tool-use index, kept so a restored session
+ * can re-seed its live attribution state from durable transcript data.
+ */
+export interface IClaudeReplayAttribution {
+	readonly entries: ReadonlyMap<string, IClaudeReplayToolUse>;
+	readonly tailTurnId: string | undefined;
+}
 
 /**
  * Phase 13 — replay mapper. Reduces a flat `SessionMessage[]` (the SDK's
@@ -44,11 +69,11 @@ import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTool
  * `'user'` envelope and must resolve back to the announcing `tool_use`'s
  * turn. This mapper builds an equivalent local map during its single pass.
  */
-export function mapSessionMessagesToTurns(
+export function replaySessionMessages(
 	messages: readonly SessionMessage[],
 	session: URI,
 	logService: ILogService,
-): readonly Turn[] {
+): { readonly turns: readonly Turn[]; readonly attribution: IClaudeReplayAttribution } {
 	const builder = new ReplayBuilder(session, logService);
 	for (const msg of messages) {
 		const parsed = parseSessionMessage(msg);
@@ -58,6 +83,15 @@ export function mapSessionMessagesToTurns(
 		builder.consume(parsed);
 	}
 	return builder.finish();
+}
+
+/** Turns-only view of {@link replaySessionMessages} for callers that do not need the attribution index. */
+export function mapSessionMessagesToTurns(
+	messages: readonly SessionMessage[],
+	session: URI,
+	logService: ILogService,
+): readonly Turn[] {
+	return replaySessionMessages(messages, session, logService).turns;
 }
 
 /**
@@ -258,16 +292,10 @@ class ReplayBuilder {
 	private readonly _turns: Turn[] = [];
 	private _active: InProgressTurn | undefined;
 	/**
-	 * Cross-turn tool-use tracking. Keyed by `tool_use_id`:
-	 * - `turnId` — the announcing turn (so a late `tool_result` in a
-	 *   later `user` envelope can attach back to the right turn per M7).
-	 * - `parsedInput` — the original `tool_use.input`, looked up at
-	 *   `_attachToolResult` so the past-tense message can include the
-	 *   original parameters. Mirrors the live mapper's `_toolCallInfo`
-	 *   pattern but simpler (replay has the full input synchronously on
-	 *   the `tool_use` block).
+	 * Cross-turn tool-use index keyed by `tool_use_id`, so a late `tool_result`
+	 * attaches to its announcing turn (M7). Handed out by {@link finish}.
 	 */
-	private readonly _toolUses = new Map<string, { readonly turnId: string; readonly parsedInput: Record<string, unknown> | undefined; readonly isClientTool: boolean }>();
+	private readonly _toolUses = new Map<string, IClaudeReplayToolUse>();
 
 	/** Turns opened from a leading assistant envelope because the prompt was missing. Reported once by {@link finish}. */
 	private _recoveredPromptlessTurns = 0;
@@ -319,7 +347,7 @@ class ReplayBuilder {
 		}
 	}
 
-	finish(): readonly Turn[] {
+	finish(): { readonly turns: readonly Turn[]; readonly attribution: IClaudeReplayAttribution } {
 		this._closeActive();
 		// One summary line per replay instead of one warn per envelope: a
 		// truncated transcript produces these by the hundred, and the
@@ -328,7 +356,8 @@ class ReplayBuilder {
 		if (this._recoveredPromptlessTurns > 0 || this._orphanToolResults > 0) {
 			this._logService.warn(`[claudeReplayMapper] incomplete transcript for ${this._session.toString()}: ${this._recoveredPromptlessTurns} turn(s) recovered without their prompt, ${this._orphanToolResults} orphaned tool_result(s)`);
 		}
-		return this._turns;
+		const tailTurnId = this._turns.at(-1)?.id;
+		return { turns: this._turns, attribution: { entries: this._toolUses, tailTurnId } };
 	}
 
 	private _consumeAssistant(msg: ParsedSessionMessage & { kind: 'assistant' }): void {
@@ -413,7 +442,15 @@ class ReplayBuilder {
 		this._active.responseParts.push(part);
 		this._active.toolCallParts.set(toolUseId, part);
 		this._active.pendingToolUseIds.add(toolUseId);
-		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput, isClientTool });
+		this._toolUses.set(toolUseId, {
+			toolUseId,
+			turnId: this._active.id,
+			toolName,
+			isClientTool,
+			parsedInput,
+			isSubagentSpawn: !isClientTool && SUBAGENT_TOOL_NAMES.has(toolName),
+			resultSeen: false,
+		});
 	}
 
 	private _attachToolResult(block: UserToolResultBlock): string | undefined {
@@ -422,6 +459,7 @@ class ReplayBuilder {
 			this._orphanToolResults++;
 			return undefined;
 		}
+		entry.resultSeen = true;
 		const announcingTurnId = entry.turnId;
 		// Find the part — it lives on the announcing turn (which may be `_active` or one already pushed to `_turns`).
 		const part = this._findToolCallPart(announcingTurnId, block.tool_use_id);
@@ -432,6 +470,10 @@ class ReplayBuilder {
 		const previousState = part.toolCall;
 		const isSubagent = readToolCallMeta(previousState).toolKind === 'subagent';
 		const content: ToolResultContent[] = extractToolResultContent(block.content) ?? [];
+		const agentId = entry.isSubagentSpawn ? readSubagentIdSuffix(content) : undefined;
+		if (agentId !== undefined) {
+			entry.agentId = agentId;
+		}
 		const resultText = content
 			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
@@ -624,6 +666,21 @@ function extractToolResultContent(content: unknown): { type: ToolResultContentTy
 		}
 	}
 	return out.length > 0 ? out : undefined;
+}
+
+/** Mirrors the registry's `extractAgentIdPair` scan: the last text block carrying the SDK's `agentId:` suffix wins. */
+function readSubagentIdSuffix(content: readonly ToolResultContent[]): string | undefined {
+	for (let i = content.length - 1; i >= 0; i--) {
+		const block = content[i];
+		if (block.type !== ToolResultContentType.Text) {
+			continue;
+		}
+		const match = SUBAGENT_ID_SUFFIX_REGEX.exec(block.text);
+		if (match) {
+			return match[1];
+		}
+	}
+	return undefined;
 }
 
 function safeStringify(v: unknown): string | undefined {
