@@ -135,6 +135,7 @@ import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
+import './telemetry/chatEditorTopologyTelemetry.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
@@ -1038,7 +1039,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions."),
+			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that need input or have an unvisited completion."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {

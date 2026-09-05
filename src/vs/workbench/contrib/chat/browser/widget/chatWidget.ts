@@ -60,6 +60,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
+import { isChatModelIdle } from '../../common/model/chatModelIdle.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -305,15 +306,16 @@ export const chatPersistentContentHeightVariable = '--vscode-chat-persistent-con
 /** Computes the visual session state and whether its latest completion remains unvisited. */
 export function computeChatSessionStateIndicatorState(input: {
 	readonly requestNeedsInput: boolean;
-	readonly requestInProgress: boolean;
+	readonly isIdle: boolean;
 	readonly containsFocus: boolean;
 	readonly requestWasActive: boolean;
+	readonly requestBecameActive: boolean;
 	readonly hasUnvisitedCompletion: boolean;
 }) {
-	const state = input.requestNeedsInput ? 'needsInput' : input.requestInProgress ? 'inProgress' : 'idle';
+	const state = input.requestNeedsInput ? 'needsInput' : input.isIdle ? 'idle' : 'inProgress';
 	const requestActive = state !== 'idle';
 	let hasUnvisitedCompletion = input.containsFocus ? false : input.hasUnvisitedCompletion;
-	if (!requestActive && input.requestWasActive) {
+	if (!requestActive && (input.requestWasActive || input.requestBecameActive)) {
 		hasUnvisitedCompletion = !input.containsFocus;
 	}
 
@@ -976,8 +978,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) === true
 			&& !this.accessibilityService.isMotionReduced()
-			&& !isInlineChat(this)
-			&& !this.isSessionStateIndicatorEnabled();
+			&& !isInlineChat(this);
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
 		const working = enabled && inProgress;
 		inputContainer.classList.toggle('working', working);
@@ -993,18 +994,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/** Updates the whole-widget session state indicator. */
-	private updateSessionStateIndicator(): void {
+	private updateSessionStateIndicator(requestBecameActive = false): void {
 		if (!this.container) {
 			return;
 		}
 
 		const enabled = this.isSessionStateIndicatorEnabled();
-		const modelNeedsInput = !!this.viewModel?.model.requestNeedsInput.get();
+		const model = this.viewModel?.model;
+		const modelNeedsInput = !!model?.requestNeedsInput.get();
 		const indicatorState = computeChatSessionStateIndicatorState({
 			requestNeedsInput: modelNeedsInput,
-			requestInProgress: !!this.viewModel?.model.requestInProgress.get(),
-			containsFocus: dom.isAncestorOfActiveElement(this.container),
+			isIdle: !model || isChatModelIdle(model),
+			containsFocus: this.container.ownerDocument.hasFocus() && dom.isAncestorOfActiveElement(this.container),
 			requestWasActive: this._requestActiveForStateIndicator,
+			requestBecameActive,
 			hasUnvisitedCompletion: this._hasUnvisitedCompletion,
 		});
 		this._requestActiveForStateIndicator = indicatorState.requestActive;
@@ -1020,6 +1023,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.classList.toggle('chat-state-in-progress', inProgress);
 		this.container.classList.toggle('chat-state-idle', idle);
 		this.container.classList.toggle('chat-state-idle-unvisited', idleUnvisited);
+	}
+
+	private markSessionStateIndicatorVisited(): void {
+		if (!this._hasUnvisitedCompletion) {
+			return;
+		}
+
+		this._hasUnvisitedCompletion = false;
+		this.updateSessionStateIndicator();
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -1081,12 +1093,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderInputToolbarBelowInput = this.viewOptions.renderInputToolbarBelowInput ?? false;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		const targetWindow = dom.getWindow(this.container);
 		const focusTracker = this._register(dom.trackFocus(this.container));
-		this._register(focusTracker.onDidFocus(() => {
-			if (this._hasUnvisitedCompletion) {
-				this.updateSessionStateIndicator();
-			}
-		}));
+		this._register(focusTracker.onDidFocus(() => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => this.markSessionStateIndicatorVisited()));
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, () => this.updateSessionStateIndicator()));
 		this.updateSessionStateIndicator();
 		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
@@ -2801,7 +2812,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 			this.updateWorkingProgressBorder();
-			this.updateSessionStateIndicator();
+			this.updateSessionStateIndicator(events?.some(e => e?.kind === 'addRequest') ?? false);
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
