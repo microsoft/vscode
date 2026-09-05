@@ -270,6 +270,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 			this._webviewEvents.add(webview.onFatalError(x => { this._onFatalError.fire(x); }));
+			this._webviewEvents.add(webview.onFatalErrorResolved(() => { this._onFatalErrorResolved.fire(); }));
 			this._webviewEvents.add(autorun(reader => {
 				this.intrinsicContentSize.set(reader.readObservable(webview.intrinsicContentSize), undefined, undefined);
 			}));
@@ -372,6 +373,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public onFatalError = this._onFatalError.event;
+
+	private readonly _onFatalErrorResolved = this._register(new Emitter<void>());
+	public onFatalErrorResolved = this._onFatalErrorResolved.event;
 
 	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 

@@ -150,6 +150,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
+
+	private readonly _onFatalErrorResolved = this._register(new Emitter<void>());
+	public readonly onFatalErrorResolved: Event<void> = this._onFatalErrorResolved.event;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -602,6 +605,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		this._register(this.webview.onFatalError(e => {
 			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
+
+		// The webview element can recover from a fatal error later (e.g. the
+		// user triggers its Reload Webview action), but the initialize
+		// promise above has already been rejected by then. Surface the
+		// recovery so that owners caching the rejection can retry against
+		// the same webview.
+		this._register(this.webview.onFatalErrorResolved(() => {
+			this._onFatalErrorResolved.fire();
 		}));
 
 		this._register(this.webview.onMessage(async (message) => {

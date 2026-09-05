@@ -259,6 +259,14 @@ export interface IWebview extends IDisposable {
 	 * Fired when the webview cannot be loaded or is now in a non-functional state.
 	 */
 	readonly onFatalError: Event<{ readonly message: string }>;
+
+	/**
+	 * Fired when the webview has recovered after a previous `onFatalError`,
+	 * e.g. because it was reinitialized and its new document is serving
+	 * content again. Consumers that gave up on the webview when the fatal
+	 * error was fired can retry their initialization.
+	 */
+	readonly onFatalErrorResolved: Event<void>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
 	readonly onMessage: Event<WebviewMessageReceivedEvent>;

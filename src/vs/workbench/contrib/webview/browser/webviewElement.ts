@@ -8,13 +8,14 @@ import { addDisposableListener, EventType, getWindow, getWindowById } from '../.
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
-import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
+import { disposableTimeout, promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import Severity from '../../../../base/common/severity.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -47,7 +48,7 @@ interface WebviewContent {
 }
 
 namespace WebviewState {
-	export const enum Type { Initializing, Ready }
+	export const enum Type { Initializing, Ready, Failed }
 
 	export class Initializing {
 		readonly type = Type.Initializing;
@@ -64,7 +65,16 @@ namespace WebviewState {
 
 	export const Ready = { type: Type.Ready } as const;
 
-	export type State = typeof Ready | Initializing;
+	/**
+	 * Terminal state entered when a fatal error has given up on the
+	 * webview (e.g. a service worker registration failure that exhausted
+	 * its reload budget). Queued messages are settled when entering this
+	 * state and further sends resolve as not delivered. Reinitializing
+	 * the webview returns it to the Initializing state.
+	 */
+	export const Failed = { type: Type.Failed } as const;
+
+	export type State = typeof Ready | typeof Failed | Initializing;
 }
 
 interface WebviewActionContext {
@@ -169,7 +179,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@INotificationService notificationService: INotificationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
@@ -245,8 +255,40 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('fatal-error', (e) => {
-			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
-			this._onFatalError.fire({ message: e.message });
+			this.handleFatalError(e.message);
+		}));
+
+		this._register(this.on('worker-ready', () => {
+			// 'webview-ready' only hands over the message port; this signal
+			// arrives once service worker registration actually succeeded.
+			// Messages are held until then, so they cannot be lost when a
+			// failing document has to be replaced.
+			if (!this._messagePort) {
+				return;
+			}
+
+			this.perfMark('worker-ready');
+			this._logService.trace(`Webview(${this.id}): service worker ready`);
+
+			if (this._state.type === WebviewState.Type.Initializing) {
+				this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
+			}
+			this._state = WebviewState.Ready;
+
+			// The document successfully registered its service worker and is
+			// serving content: the webview is genuinely working again, so
+			// future registration failures must start from a fresh retry
+			// budget.
+			this._serviceWorkerReloadAttempt = 0;
+
+			// If a fatal error was previously fired for this webview (e.g.
+			// the retry budget was exhausted before this document
+			// succeeded), let consumers that gave up on it retry their
+			// initialization.
+			if (this._fatalErrorFired) {
+				this._fatalErrorFired = false;
+				this._onFatalErrorResolved.fire();
+			}
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
@@ -395,6 +437,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public readonly onFatalError = this._onFatalError.event;
 
+	/**
+	 * Fired when the webview has recovered after a previous `onFatalError`:
+	 * it was reinitialized and the fresh document successfully registered
+	 * its service worker. Consumers that gave up on the webview when the
+	 * fatal error fired can retry their initialization.
+	 */
+	private readonly _onFatalErrorResolved = this._register(new Emitter<void>());
+	public readonly onFatalErrorResolved = this._onFatalErrorResolved.event;
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
@@ -407,6 +458,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			const { promise, resolve } = promiseWithResolvers<boolean>();
 			this._state.pendingMessages.push({ channel, data, transferable: _createElement, resolve });
 			return promise;
+		} else if (this._state.type === WebviewState.Type.Failed) {
+			// The webview terminally failed and is not expected to recover
+			// on its own. Settle the send as not delivered instead of
+			// queueing it indefinitely.
+			return false;
 		} else {
 			return this.doPostMessage(channel, data, _createElement);
 		}
@@ -471,10 +527,21 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
+	/**
+	 * Listeners that are scoped to a single mount. `mountTo` can be called
+	 * repeatedly over the lifetime of the webview (e.g. when retrying a
+	 * failed service worker registration), so these are replaced on each
+	 * mount instead of accumulating.
+	 */
+	private readonly _mountListeners = this._register(new DisposableStore());
+
 	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
 		}
+
+		// Drop listeners from any previous mount before re-registering them
+		this._mountListeners.clear();
 
 		this._windowId = targetWindow.vscodeWindowId;
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
@@ -490,13 +557,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		for (const eventName of [EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP]) {
-			this._register(addDisposableListener(element, eventName, () => {
+			this._mountListeners.add(addDisposableListener(element, eventName, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
 
 		for (const node of [element, targetWindow]) {
-			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
+			this._mountListeners.add(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
 		}
@@ -508,7 +575,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		// Scoped to the current mount, like the other mount listeners: a failed
+		// document never sends webview-ready, so registering on the element's
+		// lifetime would retain one listener per remount.
+		const subscription = this._mountListeners.add(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -538,10 +608,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 				this.element?.classList.add('ready');
 
-				if (this._state.type === WebviewState.Type.Initializing) {
-					this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
-				}
-				this._state = WebviewState.Ready;
+				// The state intentionally stays Initializing here: the port
+				// being handed over says nothing about service worker
+				// registration. Content and other messages are only flushed
+				// once the document reports 'worker-ready', so they are not
+				// lost if this document ends up being replaced because
+				// registration failed.
 
 				subscription.dispose();
 			}
@@ -621,12 +693,187 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	private static readonly _serviceWorkerReloadDelays = [1000, 1000, 2000, 3000, 5000];
+	private _serviceWorkerReloadAttempt = 0;
+	private readonly _serviceWorkerReloadTimeout = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * The notification shown when service worker registration terminally failed,
+	 * so that it can be closed when the webview is disposed or reinitialized,
+	 * instead of keeping the disposed webview alive through its action closure.
+	 * Stored as an IDisposable that closes the handle, since the notification
+	 * handle itself only exposes close(), not dispose().
+	 */
+	private readonly _serviceWorkerErrorNotification = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * Whether service worker registration has terminally failed for the
+	 * current document. Further registration errors are suppressed until
+	 * the webview is reinitialized with a fresh document.
+	 */
+	private _serviceWorkerTerminalFailure = false;
+	/**
+	 * Whether `onFatalError` has fired for this webview without it
+	 * recovering since. Used to fire `onFatalErrorResolved` exactly once
+	 * when a reinitialized document reports that it is working again.
+	 */
+	private _fatalErrorFired = false;
+
+	/**
+	 * Marks the webview as terminally failed: settles every queued message
+	 * as not delivered, makes further sends resolve as not delivered, and
+	 * cuts the connection to the failed document. Reinitializing the
+	 * webview returns it to the Initializing state.
+	 */
+	private enterTerminalFailureState(): void {
+		if (this._state.type === WebviewState.Type.Initializing) {
+			this._state.pendingMessages.forEach(({ resolve }) => resolve(false));
+			this._state.pendingMessages = [];
+		}
+		this._state = WebviewState.Failed;
+		this._messagePort?.close();
+		this._messagePort = undefined;
+	}
+
+	/**
+	 * Handles a fatal error reported by the webview. Service worker registration
+	 * failures are often transient (e.g. the webview's document may not have
+	 * been fully active when registration was attempted, a state which can
+	 * never recover without a new document), so before surfacing the error to
+	 * the user we retry by reloading the webview, which creates a fresh
+	 * document and re-attempts registration.
+	 */
+	private handleFatalError(message: string): void {
+		// The webview document reports the rejection of `workerReady` using
+		// `error + ''`, which serializes through `Error.prototype.toString` as
+		// "Error: Could not register service worker: ...". Accept that prefix,
+		// but keep the trailing colon: the non-retryable third-party cookie
+		// variant ("Could not register service worker. Please make sure...")
+		// must still fail fast without triggering a reload.
+		// A permission denial ("user denied permission") is a permanent condition
+		// that a document reload cannot fix either, so even if one arrives in the
+		// retryable form do not burn the reload budget on it.
+		if (
+			/^(?:Error: )?Could not register service worker:/.test(message)
+			&& !message.includes('user denied permission')
+			&& !message.includes('Service Workers are not enabled')
+		) {
+			// A failed document reports its registration failure once, when
+			// its workerReady promise rejects. Ignore duplicate reports while
+			// a reload is already scheduled (e.g. if the content handler
+			// backstop also fires): each report would otherwise replace the
+			// pending reload and exhaust the retry budget without ever
+			// reloading.
+			if (this._serviceWorkerReloadTimeout.value) {
+				return;
+			}
+
+			// Once the reload retry budget is exhausted, the failed document
+			// reports the same registration error for every subsequent
+			// content update. Suppress those duplicates so the error is not
+			// relogged, the notification is not recreated, and onFatalError
+			// does not refire, until the webview is reinitialized.
+			if (this._serviceWorkerTerminalFailure) {
+				return;
+			}
+
+			// The retry budget is only reset when a new document reports
+			// that service worker registration succeeded ('worker-ready',
+			// see the handler registered in the constructor), never based
+			// on elapsed time between failures: a registration that rejects
+			// only after running longer than the gap to the previous failure
+			// must not reset the budget, or the host could reload forever
+			// without ever surfacing the terminal error.
+
+			if (this._serviceWorkerReloadAttempt < WebviewElement._serviceWorkerReloadDelays.length && !this._disposed && this.element?.parentElement) {
+				const attempt = ++this._serviceWorkerReloadAttempt;
+				const delay = WebviewElement._serviceWorkerReloadDelays[attempt - 1];
+				this._logService.warn(`Webview(${this.id}): service worker registration failed (${message}). Reloading webview in ${delay}ms (retry ${attempt} of ${WebviewElement._serviceWorkerReloadDelays.length})`);
+
+				// Stop delivering messages to the failed document's port right
+				// away. Otherwise messages sent while the reload is pending
+				// would be written to the dead port and silently dropped when
+				// the webview is reinitialized. Queued messages are preserved
+				// across the reload and replayed once the new document
+				// becomes ready.
+				const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
+				this._state = new WebviewState.Initializing(pendingMessages);
+				this._messagePort?.close();
+				this._messagePort = undefined;
+
+				this._serviceWorkerReloadTimeout.value = disposableTimeout(() => {
+					this._serviceWorkerReloadTimeout.clear();
+					this.reinitializeAfterDismount();
+				}, delay);
+				return;
+			}
+
+			this._serviceWorkerTerminalFailure = true;
+			this._logService.error(`Webview(${this.id}): service worker registration failed after ${this._serviceWorkerReloadAttempt} reload retries (${message})`);
+			// Settle queued sends as not delivered and stop queueing new
+			// ones: the webview is not expected to recover on its own.
+			// Reinitializing (e.g. through the reload action below)
+			// returns it to the Initializing state.
+			this.enterTerminalFailureState();
+			// Track the notification so it can be closed when the webview is
+			// disposed or reinitialized; otherwise its action closure would
+			// keep the disposed webview's object graph alive until the user
+			// manually dismissed it. The handle only exposes close() rather
+			// than dispose(), so wrap it in an IDisposable.
+			const notificationHandle = this._notificationService.prompt(Severity.Error,
+				localize('fatalErrorMessage', "Error loading webview: {0}", message),
+				[{
+					label: localize('reloadWebview', "Reload Webview"),
+					run: () => {
+						// The notification may still be open while the webview
+						// has been detached from its parent. Do not act then.
+						if (this._disposed || !this.element?.parentElement) {
+							return;
+						}
+						this._serviceWorkerReloadAttempt = 0;
+						this.reinitializeAfterDismount();
+					}
+				}]);
+			this._serviceWorkerErrorNotification.value = toDisposable(() => notificationHandle.close());
+			this._fatalErrorFired = true;
+			this._onFatalError.fire({ message });
+			return;
+		}
+
+		this.enterTerminalFailureState();
+		this._fatalErrorFired = true;
+		this._notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", message));
+		this._onFatalError.fire({ message });
+	}
+
 	public reload(): void {
 		this.doUpdateContent(this._content);
 	}
 
 	public reinitializeAfterDismount(): void {
-		this._state = new WebviewState.Initializing([]);
+		// This can also be called by external callers, e.g. remounting an
+		// overlay webview, while a service worker retry backoff is still
+		// pending. Cancel it so it does not fire later and reload the newly
+		// initialized document again, interrupting its content and messages.
+		this._serviceWorkerReloadTimeout.clear();
+
+		// Any terminal failure notification from the previous document is
+		// stale now that a fresh document is being created
+		this._serviceWorkerErrorNotification.clear();
+
+		// A fresh document gets a fresh service worker retry cycle, so clear
+		// any terminal registration failure from the previous document
+		this._serviceWorkerTerminalFailure = false;
+
+		// Messages are held host-side until the document reports that
+		// service worker registration succeeded ('worker-ready'), so
+		// everything sent to the previous (failed) document — before or
+		// after its failure — is still queued in the Initializing state.
+		// Carry it over so it is replayed once the fresh document becomes
+		// ready instead of being dropped. (After a terminal failure the
+		// queue was already settled as not delivered, so the fresh
+		// document starts empty; the content posted below is requeued.)
+		const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
+		this._state = new WebviewState.Initializing(pendingMessages);
+		this._messagePort?.close();
 		this._messagePort = undefined;
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));

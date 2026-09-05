@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-EzDj/aU+QVZCdeBdI3/J89FrdxdGLov2WwjCh9qp8Jw=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -242,6 +242,84 @@
 				`;
 		}
 
+		// Registration of the webview service worker can transiently fail
+		// (e.g. due to temporary browser storage errors), so retry a few
+		// times before giving up and reporting a fatal error.
+		const registerRetryDelays = [1000, 1000, 2000, 3000, 5000];
+
+		/**
+		 * Best effort cleanup of potentially corrupted service worker state
+		 * before retrying the registration.
+		 *
+		 * This is only a last resort: cache storage and service worker
+		 * registrations are scoped to the webview's origin, and a single
+		 * origin can be shared by many webview instances at once (e.g. all
+		 * notebook webviews of one view type, or all chat output webviews
+		 * of one renderer). Clearing them evicts resources for those other
+		 * webviews too, so it must only happen once the registration is
+		 * about to give up entirely, never for a transient first failure.
+		 * In the browser, service workers and cache storage are shared
+		 * across all webviews on the main origin, so they are never
+		 * cleared here.
+		 *
+		 * @param {boolean} isFinalAttempt
+		 */
+		const cleanupServiceWorkerState = async (isFinalAttempt) => {
+			if (!onElectron || !isFinalAttempt) {
+				return;
+			}
+			try {
+				if (typeof caches !== 'undefined') {
+					const keys = await caches.keys();
+					await Promise.all(keys.map(key => caches.delete(key)));
+				}
+			} catch (e) {
+				console.warn(`Failed to clear webview caches: ${e}`);
+			}
+			try {
+				const registrations = await navigator.serviceWorker.getRegistrations();
+				await Promise.all(registrations.map(registration => registration.unregister()));
+			} catch (e) {
+				console.warn(`Failed to unregister webview service workers: ${e}`);
+			}
+		};
+
+		/**
+		 * @param {string} swPath
+		 * @return {Promise<ServiceWorkerRegistration>}
+		 */
+		const registerWithRetry = async (swPath) => {
+			for (let attempt = 0; ; ++attempt) {
+				try {
+					return await navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' });
+				} catch (error) {
+					if (
+						error instanceof Error
+						&& error.message.includes('user denied permission')
+					) {
+						// Permanent condition; retrying will not help
+						throw error;
+					}
+					if (
+						error instanceof DOMException
+						&& error.name === 'InvalidStateError'
+					) {
+						// The document is not fully active (e.g. it was re-parented or
+						// navigated mid-registration). This document can never recover;
+						// fail fast so that the host can reload us into a fresh document.
+						throw error;
+					}
+					if (attempt >= registerRetryDelays.length) {
+						throw new Error(`${error} (gave up after ${attempt + 1} attempts)`);
+					}
+					const delay = registerRetryDelays[attempt];
+					console.warn(`Failed to register service worker (attempt ${attempt + 1} of ${registerRetryDelays.length + 1}): ${error}. Retrying in ${delay}ms`);
+					await new Promise(resolve => setTimeout(resolve, delay));
+					await cleanupServiceWorkerState(attempt >= registerRetryDelays.length - 1);
+				}
+			}
+		};
+
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
 			if (disableServiceWorker) {
@@ -253,7 +331,7 @@
 			}
 
 			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}&platform=${searchParams.get('platform')}`);
-			navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' })
+			registerWithRetry(swPath)
 				.then(async registration => {
 					if (navigator.serviceWorker.controller) {
 						// A previous SW is already controlling. Force an update
@@ -278,8 +356,17 @@
 
 					return resolve();
 				}).catch(error => {
-					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
-						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					if (error instanceof Error && error.message.includes('user denied permission')) {
+						// A permission denial is a permanent condition; neither retrying
+						// here nor the host reloading the document can fix it. Report it
+						// in the period-terminated form so that the host does not
+						// classify it as retryable and burn its reload budget.
+						if (!onElectron) {
+							return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+						}
+						// The third-party cookie guidance only applies to browsers;
+						// report the denial without it on desktop.
+						return reject(new Error(`Could not register service worker. Permission to register service workers was denied: ${error}`));
 					}
 					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
@@ -361,6 +448,17 @@
 				throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
 			}
 		}();
+
+		// Report the outcome of service worker registration to the host
+		// directly. The host only flushes queued messages (including the
+		// initial content) once registration has succeeded, so the content
+		// handler cannot be relied on to surface registration failures.
+		workerReady.then(() => {
+			hostMessaging.postMessage('worker-ready', undefined);
+		}, (/** @type {any} */ error) => {
+			console.error(`Webview fatal error: ${error}`);
+			hostMessaging.postMessage('fatal-error', { message: error + '' });
+		});
 
 		const unloadMonitor = new class {
 
@@ -969,6 +1067,10 @@
 					await workerReady;
 					perfMark('content/workerReady');
 				} catch (e) {
+					// Backstop: the host holds content back until registration
+					// succeeded ('worker-ready'), so this should not normally
+					// fire. Report rather than render into a broken document
+					// if it somehow does.
 					console.error(`Webview fatal error: ${e}`);
 					hostMessaging.postMessage('fatal-error', { message: e + '' });
 					return;

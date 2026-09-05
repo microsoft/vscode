@@ -1460,6 +1460,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			fontFamily: this._generateFontFamily()
 		}, this.notebookRendererMessaging.getScoped(this._uuid));
 
+		// When the webview terminally fails, `createWebview` rejects and
+		// `_resolveWebview` caches the rejection. The webview can still
+		// recover afterwards (e.g. via its Reload Webview action). Once it
+		// has, serve future `_resolveWebview` lookups from the recovered
+		// webview instead of the stale rejection; initialization state is
+		// resynchronized by the 'initialized' message that the recovered
+		// webview's content posts.
+		this._localStore.add(this._webview.onFatalErrorResolved(() => {
+			if (this._webview) {
+				this._webviewResolvePromise = Promise.resolve(this._webview);
+			}
+		}));
+
 		this._webview.element.style.width = '100%';
 
 		// attach the webview container to the DOM tree first
