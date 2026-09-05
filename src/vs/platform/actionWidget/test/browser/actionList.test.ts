@@ -166,6 +166,40 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const eventType of ['mousemove', 'mousedown']) {
+		test(`hover presentation stays suppressed until ${eventType}`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second'), action('third')],
+				listOptions: { showFilter: false },
+			});
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[2];
+			const getHoverPresentation = () => {
+				const rules = Array.from(widget.domNode.querySelector('style')!.sheet!.cssRules)
+					.filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
+					.filter(rule => rule.selectorText.includes('.monaco-list-row:hover'));
+				return {
+					suppressed: widget.domNode.classList.contains('ignore-initial-hover'),
+					properties: rules.flatMap(rule => Array.from(rule.style)).sort(),
+				};
+			};
+			const initial = getHoverPresentation();
+
+			widget.focus();
+			widget.focusNext();
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			const afterKeyboardFocus = getHoverPresentation();
+
+			row.dispatchEvent(new MouseEvent(eventType, { bubbles: true }));
+			const afterPointerInteraction = getHoverPresentation();
+
+			assert.deepStrictEqual({ initial, afterKeyboardFocus, afterPointerInteraction }, {
+				initial: { suppressed: true, properties: [] },
+				afterKeyboardFocus: { suppressed: true, properties: [] },
+				afterPointerInteraction: { suppressed: false, properties: ['background-color', 'color', 'outline-color', 'outline-offset', 'outline-style', 'outline-width'] },
+			});
+		});
+	}
+
 	test('opening under a stationary pointer preserves keyboard focus and selection', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {

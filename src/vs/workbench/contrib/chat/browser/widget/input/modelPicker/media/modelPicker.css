@@ -564,7 +564,7 @@
 	opacity: 0.6;
 }
 
-.action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action:hover,
+.action-widget.auto-enabled .chat-model-picker-tabbed:not(.ignore-initial-hover) > .monaco-list .monaco-list-row.action:hover,
 .action-widget.auto-enabled .chat-model-picker-tabbed .monaco-list-row.action.focused,
 .action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover,
 .action-widget.auto-enabled .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
@@ -705,7 +705,7 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action:hover .action-list-submenu-indicator.has-submenu,
+.action-widget .chat-model-picker-tabbed:not(.ignore-initial-hover) > .monaco-list .monaco-list-row.action:hover .action-list-submenu-indicator.has-submenu,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action.focused .action-list-submenu-indicator.has-submenu {
 	visibility: visible;
 }

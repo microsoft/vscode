@@ -784,7 +784,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._visibleMenuItems = items;
 		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
-		this.domNode.classList.add('actionList');
+		this.domNode.classList.add('actionList', 'ignore-initial-hover');
 		if (this._options?.inlineDescription) {
 			this.domNode.classList.add('inline-description');
 		}
@@ -948,7 +948,13 @@ export class ActionListWidget<T> extends Disposable {
 			},
 		}));
 
-		this._list.style(defaultListStyles);
+		// Native :hover styling must wait for pointer intent just like hover-driven focus.
+		this._list.style({
+			...defaultListStyles,
+			listHoverBackground: undefined,
+			listHoverForeground: undefined,
+			listHoverOutline: undefined,
+		});
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		// Opening below a stationary pointer must not override keyboard focus.
@@ -959,13 +965,11 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		this._register(this._list.onMouseMove(e => {
 			if (this._ignoreInitialHover) {
-				this._ignoreInitialHover = false;
+				this._enableHover();
 				this.onListHover(e);
 			}
 		}));
-		this._register(this._list.onMouseDown(() => {
-			this._ignoreInitialHover = false;
-		}));
+		this._register(this._list.onMouseDown(() => this._enableHover()));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		if (this._options?.persistentHover) {
@@ -2343,6 +2347,14 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._submenuShowTimeout !== undefined) {
 			clearTimeout(this._submenuShowTimeout);
 			this._submenuShowTimeout = undefined;
+		}
+	}
+
+	private _enableHover(): void {
+		if (this._ignoreInitialHover) {
+			this._ignoreInitialHover = false;
+			this.domNode.classList.remove('ignore-initial-hover');
+			this._list.style(defaultListStyles);
 		}
 	}
 

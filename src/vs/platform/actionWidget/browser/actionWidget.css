@@ -410,7 +410,7 @@
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
-.action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
+.action-widget .actionList:not(.ignore-initial-hover) > .monaco-list .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	visibility: visible;
 }
