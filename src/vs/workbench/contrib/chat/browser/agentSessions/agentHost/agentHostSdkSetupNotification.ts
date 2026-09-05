@@ -184,7 +184,7 @@ export function hasAgentSdkSetupNotification(chatInputNotificationService: IChat
  * never tie the SDK to an account: it is the same SDK behind the Copilot proxy,
  * a subscription or a BYO key.
  */
-export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displayName: string, state: AgentSdkSetupState | undefined): IChatInputNotification | undefined {
+export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displayName: string, state: AgentSdkSetupState | undefined, hasModels = false): IChatInputNotification | undefined {
 	// Nothing to ask of a user who is already set up. An empty `displayName` means
 	// the host has not described this agent yet, and "Download the  Agent" is worse
 	// than none; the next root-state change is moments away.
@@ -209,7 +209,9 @@ export function createAgentSdkSetupNotification(setup: IAgentSdkSetupInfo, displ
 		return {
 			...base,
 			message: localize('agentHost.sdkSetup.download', "Download the {0} Agent", displayName),
-			description: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName),
+			description: hasModels
+				? localize('agentHost.sdkSetup.downloadDescription.withModels', "Click Download or send a message to download the {0} Agent SDK.", displayName)
+				: localize('agentHost.sdkSetup.downloadDescription', "To use the {0} Agent, we need to download the {0} Agent SDK.", displayName),
 			actions: [action(localize('agentHost.sdkSetup.downloadAction', "Download"), AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID)],
 		};
 	}
@@ -323,13 +325,14 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 			if (!displayName) {
 				continue;
 			}
+			const hasModels = hasAnyModelTargetingSessionType(this._languageModelsService, agentSdkSetupSessionType(setup.agent));
 			const state = getAgentSdkSetupState({
 				allowSignedOutWhenUsable,
 				signedIn,
 				entitlementResolved,
 				download: setup.download,
 				downloadRequested: this._agentSdkSetupService.isDownloadPending(setup.agent),
-				hasModels: hasAnyModelTargetingSessionType(this._languageModelsService, agentSdkSetupSessionType(setup.agent)),
+				hasModels,
 			});
 			// Before the render decision below, because `resolved` — the step the
 			// funnel exists to count — is exactly the state that renders nothing.
@@ -338,7 +341,7 @@ export class AgentHostSdkSetupNotificationContribution extends Disposable implem
 				this._lastReported.set(setup.agent, toReport);
 				this._agentSdkSetupService.reportSetupState(setup.agent, toReport);
 			}
-			const notification = createAgentSdkSetupNotification(setup, displayName, state);
+			const notification = createAgentSdkSetupNotification(setup, displayName, state, hasModels);
 			if (!notification) {
 				continue;
 			}
