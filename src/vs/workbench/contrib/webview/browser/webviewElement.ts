@@ -652,7 +652,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	 * document and re-attempts registration.
 	 */
 	private handleFatalError(message: string): void {
-		if (/^Could not register service worker:/.test(message)) {
+		// The webview document reports the rejection of `workerReady` using
+		// `error + ''`, which serializes through `Error.prototype.toString` as
+		// "Error: Could not register service worker: ...". Accept that prefix,
+		// but keep the trailing colon: the non-retryable third-party cookie
+		// variant ("Could not register service worker. Please make sure...")
+		// must still fail fast without triggering a reload.
+		if (/^(?:Error: )?Could not register service worker:/.test(message)) {
 			// A failed document reports the registration failure for every
 			// content event, so ignore duplicates while a reload is already
 			// scheduled. Otherwise each report would replace the pending
