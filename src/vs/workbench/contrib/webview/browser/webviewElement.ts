@@ -697,7 +697,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// A permission denial ("user denied permission") is a permanent condition
 		// that a document reload cannot fix either, so even if one arrives in the
 		// retryable form do not burn the reload budget on it.
-		if (/^(?:Error: )?Could not register service worker:/.test(message) && !message.includes('user denied permission')) {
+		if (
+			/^(?:Error: )?Could not register service worker:/.test(message)
+			&& !message.includes('user denied permission')
+			&& !message.includes('Service Workers are not enabled')
+		) {
 			// A failed document reports its registration failure once, when
 			// its workerReady promise rejects. Ignore duplicate reports while
 			// a reload is already scheduled (e.g. if the content handler
