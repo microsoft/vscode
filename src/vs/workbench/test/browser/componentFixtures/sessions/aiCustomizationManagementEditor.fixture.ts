@@ -1014,6 +1014,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override async activateCollections() { }
 				override readonly enablementModel = {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
 					readProfileEnabled: () => true,

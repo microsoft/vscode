@@ -153,10 +153,16 @@ type McpAccessTestWidget = {
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
+	mcpService: IMcpService;
+	notificationService: { error(message: string): void };
+	activationResult: Promise<void>;
+	activationCount: number;
+	activationErrors: string[];
 	queryCount: number;
 	refreshCount: number;
 	queryMcpSearch(): Promise<void>;
 	refresh(): Promise<void>;
+	setVisible(visible: boolean): void;
 	updateAccessState(): void;
 };
 
@@ -186,6 +192,18 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.activationResult = Promise.resolve();
+	widget.activationCount = 0;
+	widget.activationErrors = [];
+	widget.mcpService = {
+		activateCollections: () => {
+			widget.activationCount++;
+			return widget.activationResult;
+		},
+	} as unknown as IMcpService;
+	widget.notificationService = {
+		error: message => widget.activationErrors.push(message),
+	};
 	widget.queryCount = 0;
 	widget.refreshCount = 0;
 	widget.queryMcpSearch = async () => { widget.queryCount++; };
@@ -294,6 +312,37 @@ suite('mcpListWidget', () => {
 		], [false, true, false, false, false]);
 	});
 
+	test('activates MCP collections when the section becomes visible', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+
+		widget.setVisible(true);
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			activationCount: 1,
+			refreshCount: 1,
+		});
+	});
+
+	test('does not activate MCP collections while access is disabled', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
+		widget.updateAccessState();
+
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			activationCount: 0,
+			refreshCount: 1,
+		});
+	});
+
 	test('shows access-disabled UI before gallery work starts', () => {
 		const widget = createMcpAccessTestWidget(McpAccessValue.None, McpAccessValue.None, disposables);
 
@@ -345,12 +394,25 @@ suite('mcpListWidget', () => {
 		widget.updateAccessState();
 
 		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
 			queryCount: widget.queryCount,
 			refreshCount: widget.refreshCount,
 		}, {
+			activationCount: 1,
 			queryCount: 1,
 			refreshCount: 0,
 		});
+	});
+
+	test('reports MCP collection activation failures', async () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+		widget.activationResult = Promise.reject(new Error('provider activation failed'));
+
+		widget.setVisible(true);
+		await widget.activationResult.catch(() => undefined);
+
+		assert.deepStrictEqual(widget.activationErrors, ['Unable to load MCP servers: provider activation failed']);
 	});
 
 	test('uses durable enablement for the primary MCP switch', () => {
