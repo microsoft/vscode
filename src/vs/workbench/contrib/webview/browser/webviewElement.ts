@@ -730,6 +730,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	public reinitializeAfterDismount(): void {
+		// This can also be called by external callers, e.g. remounting an
+		// overlay webview, while a service worker retry backoff is still
+		// pending. Cancel it so it does not fire later and reload the newly
+		// initialized document again, interrupting its content and messages.
+		this._serviceWorkerReloadTimeout.clear();
+
 		// A fresh document gets a fresh service worker retry cycle, so clear
 		// any terminal registration failure from the previous document
 		this._serviceWorkerTerminalFailure = false;
