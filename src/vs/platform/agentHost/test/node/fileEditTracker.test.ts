@@ -8,9 +8,10 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -91,6 +92,84 @@ suite('FileEditTracker', () => {
 		assert.ok(content);
 		assert.strictEqual(new TextDecoder().decode(content.beforeContent), 'original content\nline 2');
 		assert.strictEqual(new TextDecoder().decode(content.afterContent), 'modified content\nline 2\nline 3');
+	});
+
+	test('scopes same-file snapshots by operation id', async () => {
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('original'));
+
+		await tracker.trackEditStart('/workspace/scoped.txt', undefined, 'tc-first');
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('intermediate'));
+		await tracker.trackEditStart('/workspace/scoped.txt', undefined, 'tc-second');
+		tracker.discardEdit('/workspace/scoped.txt', 'tc-first');
+		await fileService.writeFile(URI.file('/workspace/scoped.txt'), VSBuffer.fromString('final'));
+		await tracker.completeEdit('/workspace/scoped.txt', 'tc-second');
+		await tracker.takeCompletedEdit('turn-1', 'tc-second', '/workspace/scoped.txt', '', undefined, undefined, undefined, 'tc-second');
+
+		const content = await db.readFileEditContent('tc-second', '/workspace/scoped.txt');
+		assert.deepStrictEqual(content && {
+			before: new TextDecoder().decode(content.beforeContent),
+			after: new TextDecoder().decode(content.afterContent),
+		}, {
+			before: 'intermediate',
+			after: 'final',
+		});
+	});
+
+	test('discard during completion prevents repopulating completed state', async () => {
+		const afterReadStarted = new DeferredPromise<void>();
+		const releaseAfterRead = new DeferredPromise<void>();
+		let content = 'before';
+		let readCount = 0;
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, upcastPartial<IFileService>({
+			_serviceBrand: undefined,
+			readFile: async () => {
+				readCount++;
+				if (readCount === 2) {
+					afterReadStarted.complete();
+					await releaseAfterRead.p;
+				}
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(content) });
+			},
+		}));
+		services.set(IDiffComputeService, new TestDiffComputeService());
+		services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const localTracker = instantiationService.createInstance(FileEditTracker, 'copilot:/discard-race', db);
+
+		await localTracker.trackEditStart('/workspace/race.txt', undefined, 'tc-race');
+		content = 'after';
+		const completion = localTracker.completeEdit('/workspace/race.txt', 'tc-race');
+		await afterReadStarted.p;
+		localTracker.discardEdit('/workspace/race.txt', 'tc-race');
+		releaseAfterRead.complete();
+		await completion;
+
+		const result = await localTracker.takeCompletedEdit('turn-1', 'tc-race', '/workspace/race.txt', '', undefined, undefined, undefined, 'tc-race');
+		assert.strictEqual(result, undefined);
+	});
+
+	test('replaces an orphaned pending snapshot by default', async () => {
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('original'));
+
+		await tracker.trackEditStart('/workspace/replaced.txt');
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('intermediate'));
+		await tracker.trackEditStart('/workspace/replaced.txt');
+		await fileService.writeFile(URI.file('/workspace/replaced.txt'), VSBuffer.fromString('final'));
+		await tracker.completeEdit('/workspace/replaced.txt');
+		await tracker.takeCompletedEdit('turn-1', 'tc-replaced', '/workspace/replaced.txt', '', undefined, undefined);
+
+		const content = await db.readFileEditContent('tc-replaced', '/workspace/replaced.txt');
+		assert.deepStrictEqual(content && {
+			before: new TextDecoder().decode(content.beforeContent),
+			after: new TextDecoder().decode(content.afterContent),
+		}, {
+			before: 'intermediate',
+			after: 'final',
+		});
 	});
 
 	test('tracks edit for newly created file (no before content)', async () => {

@@ -30,7 +30,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -664,9 +664,10 @@ type ISessionInternalsForTest = {
 	_onDidSessionProgress: { fire(event: AgentSignal): void };
 	_agentMergeTurn: boolean;
 	_editTracker: {
-		trackEditStart(path: string): Promise<void>;
-		completeEdit(path: string): Promise<void>;
-		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined>;
+		trackEditStart(path: string, mode?: string, operationId?: string): Promise<void>;
+		completeEdit(path: string, operationId?: string): Promise<void>;
+		discardEdit(path: string, operationId?: string): void;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, operationId?: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		register(toolCallId: string): Promise<ToolResultObject>;
@@ -8241,6 +8242,267 @@ Use the attached image as context.
 			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
+		});
+
+		test('tool lifecycle events preserve file edits when resumed hooks are skipped', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const filePath = join(workingDirectory.fsPath, 'edit.ts');
+			const beforeContentUri = URI.parse('session-db:/before');
+			const afterContentUri = URI.parse('session-db:/after');
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const started: Array<{ path: string; operationId: string | undefined }> = [];
+			const completed: Array<{ path: string; operationId: string | undefined }> = [];
+			const taken: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async (path, _mode, operationId) => { started.push({ path, operationId }); };
+			sessionInternals._editTracker.completeEdit = async (path, operationId) => { completed.push({ path, operationId }); };
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return {
+					type: ToolResultContentType.FileEdit,
+					before: { uri: URI.file(path).toString(), content: { uri: beforeContentUri.toString() } },
+					after: { uri: URI.file(path).toString(), content: { uri: afterContentUri.toString() } },
+				};
+			};
+			session.resetTurnState('turn-resumed-edit');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: edit.ts',
+				'@@',
+				'-before',
+				'+after',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-resumed-edit',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+			await timeout(0);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-resumed-edit',
+				success: true,
+				result: { content: 'Done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal =>
+				isAction(signal, ActionType.ChatToolCallComplete)
+				&& (signal.action as ChatToolCallCompleteAction).toolCallId === 'tc-resumed-edit'
+				&& (signal.action as ChatToolCallCompleteAction).result.content?.some(content => content.type === ToolResultContentType.FileEdit) === true
+			);
+
+			const complete = getActions(signals)
+				.find((action): action is ChatToolCallCompleteAction =>
+					action.type === ActionType.ChatToolCallComplete
+					&& action.toolCallId === 'tc-resumed-edit'
+					&& action.result.content?.some(content => content.type === ToolResultContentType.FileEdit) === true
+				);
+			const edit = complete?.result.content?.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+
+			assert.deepStrictEqual({
+				started,
+				completed,
+				taken,
+				contentTypes: complete?.result.content?.map(content => content.type),
+				editUri: edit?.after?.uri,
+				beforeContentUri: edit?.before?.content.uri,
+				afterContentUri: edit?.after?.content.uri,
+			}, {
+				started: [{ path: filePath, operationId: 'tc-resumed-edit' }],
+				completed: [{ path: filePath, operationId: 'tc-resumed-edit' }],
+				taken: [filePath],
+				contentTypes: [ToolResultContentType.Text, ToolResultContentType.FileEdit],
+				editUri: URI.file(filePath).toString(),
+				beforeContentUri: beforeContentUri.toString(),
+				afterContentUri: afterContentUri.toString(),
+			});
+		});
+
+		test('failed edit lifecycle discards its snapshot without emitting a file edit', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const filePath = join(workingDirectory.fsPath, 'edit.ts');
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const started: Array<{ path: string; operationId: string | undefined }> = [];
+			const completed: Array<{ path: string; operationId: string | undefined }> = [];
+			const discarded: Array<{ path: string; operationId: string | undefined }> = [];
+			const taken: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async (path, _mode, operationId) => { started.push({ path, operationId }); };
+			sessionInternals._editTracker.completeEdit = async (path, operationId) => { completed.push({ path, operationId }); };
+			sessionInternals._editTracker.discardEdit = (path, operationId) => { discarded.push({ path, operationId }); };
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
+			session.resetTurnState('turn-failed-edit');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: edit.ts',
+				'@@',
+				'-before',
+				'+after',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-failed-edit',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+			await timeout(0);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-failed-edit',
+				success: false,
+				error: { message: 'Patch failed' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal =>
+				isAction(signal, ActionType.ChatToolCallComplete)
+				&& (signal.action as ChatToolCallCompleteAction).toolCallId === 'tc-failed-edit'
+				&& (signal.action as ChatToolCallCompleteAction).result.success === false
+			);
+
+			const complete = getActions(signals)
+				.find((action): action is ChatToolCallCompleteAction =>
+					action.type === ActionType.ChatToolCallComplete
+					&& action.toolCallId === 'tc-failed-edit'
+					&& action.result.success === false
+				);
+
+			assert.deepStrictEqual({
+				started,
+				completed,
+				discarded,
+				taken,
+				contentTypes: complete?.result.content?.map(content => content.type),
+			}, {
+				started: [{ path: filePath, operationId: 'tc-failed-edit' }],
+				completed: [],
+				discarded: [{ path: filePath, operationId: 'tc-failed-edit' }],
+				taken: [],
+				contentTypes: [ToolResultContentType.Text],
+			});
+		});
+
+		test('parallel same-file edit lifecycles keep their snapshots isolated', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const filePath = join(workingDirectory.fsPath, 'edit.ts');
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const completed: Array<{ path: string; operationId: string | undefined }> = [];
+			const discarded: Array<{ path: string; operationId: string | undefined }> = [];
+			sessionInternals._editTracker.trackEditStart = async () => { };
+			sessionInternals._editTracker.completeEdit = async (path, operationId) => { completed.push({ path, operationId }); };
+			sessionInternals._editTracker.discardEdit = (path, operationId) => { discarded.push({ path, operationId }); };
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, path) => ({
+				type: ToolResultContentType.FileEdit,
+				before: { uri: URI.file(path).toString(), content: { uri: `session-db:/${toolCallId}/before` } },
+				after: { uri: URI.file(path).toString(), content: { uri: `session-db:/${toolCallId}/after` } },
+			});
+			session.resetTurnState('turn-parallel-edit');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: edit.ts',
+				'@@',
+				'-before',
+				'+after',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-first-edit',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-second-edit',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+			await timeout(0);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-first-edit',
+				success: false,
+				error: { message: 'First patch failed' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-second-edit',
+				success: true,
+				result: { content: 'Done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal =>
+				isAction(signal, ActionType.ChatToolCallComplete)
+				&& (signal.action as ChatToolCallCompleteAction).toolCallId === 'tc-second-edit'
+				&& (signal.action as ChatToolCallCompleteAction).result.content?.some(content => content.type === ToolResultContentType.FileEdit) === true
+			);
+
+			assert.deepStrictEqual({
+				completed,
+				discarded,
+			}, {
+				completed: [{ path: filePath, operationId: 'tc-second-edit' }],
+				discarded: [{ path: filePath, operationId: 'tc-first-edit' }],
+			});
+		});
+
+		test('aborting while edit finalization is suspended prevents completion', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const filePath = join(workingDirectory.fsPath, 'edit.ts');
+			const { session, mockSession, signals } = await createAgentSession(disposables, { workingDirectory, resume: true });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const releaseSnapshot = new DeferredPromise<void>();
+			const completed: Array<{ path: string; operationId: string | undefined }> = [];
+			const discarded: Array<{ path: string; operationId: string | undefined }> = [];
+			const taken: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async () => releaseSnapshot.p;
+			sessionInternals._editTracker.completeEdit = async (path, operationId) => { completed.push({ path, operationId }); };
+			sessionInternals._editTracker.discardEdit = (path, operationId) => { discarded.push({ path, operationId }); };
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
+			session.resetTurnState('turn-aborted-edit');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-aborted-edit',
+				toolName: 'apply_patch',
+				arguments: [
+					'*** Begin Patch',
+					'*** Update File: edit.ts',
+					'@@',
+					'-before',
+					'+after',
+					'*** End Patch',
+				].join('\n'),
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+			await timeout(0);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-aborted-edit',
+				success: true,
+				result: { content: 'Done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await timeout(0);
+			await session.abort();
+			releaseSnapshot.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				completed,
+				discarded,
+				taken,
+				fileEditCompletions: getActions(signals).filter(action =>
+					action.type === ActionType.ChatToolCallComplete
+					&& action.toolCallId === 'tc-aborted-edit'
+					&& action.result.content?.some(content => content.type === ToolResultContentType.FileEdit) === true
+				).length,
+			}, {
+				completed: [],
+				discarded: [
+					{ path: filePath, operationId: 'tc-aborted-edit' },
+					{ path: filePath, operationId: 'tc-aborted-edit' },
+				],
+				taken: [],
+				fileEditCompletions: 0,
+			});
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
