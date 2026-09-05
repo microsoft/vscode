@@ -26,6 +26,7 @@ import { IEditorDecorationsCollection, ScrollType } from '../../../../editor/com
 import { OverviewRulerLane } from '../../../../editor/common/model.js';
 import * as nls from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -528,10 +529,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		const acceptButton = buttonStore.add(new Button(buttonBar, {
 			title: acceptTooltip,
-			buttonBackground: 'var(--vscode-charts-purple)',
-			buttonHoverBackground: 'color-mix(in srgb, var(--vscode-charts-purple) 85%, var(--vscode-foreground))',
-			buttonForeground: 'var(--vscode-button-foreground)',
-			buttonBorder: 'var(--vscode-charts-purple)',
+			...defaultButtonStyles,
 		}));
 		acceptButton.label = nls.localize('acceptFeedbackButton', "Accept");
 		buttonStore.add(acceptButton.onDidClick(() => {
