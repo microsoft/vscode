@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
-import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -26,14 +23,14 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
-import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
@@ -49,22 +46,12 @@ class ViewAllChangesAction extends Action2 {
 			title: localize2('agentSessions.changes', 'Changes'),
 			icon: Codicon.diffMultiple,
 			f1: false,
-			// Diff stats shown in the session header meta row
-			// (vs/sessions/browser/parts/sessionHeader.ts). Rendered with a
-			// custom action view item that shows the live +/- counts.
-			menu: {
-				id: Menus.SessionHeaderMeta,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(SessionHasChangesContext, IsQuickChatSessionContext.negate())
-			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const changesViewService = accessor.get(IChangesViewService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
@@ -75,20 +62,13 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// The header pill reflects the session's default changeset, so reset any
-		// Changes-view selection to the default before opening so the diff editor
-		// (a shared per-session resource) shows the same changes as the pill.
-		changesViewService.setChangesetId(undefined);
-
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
 		// single-pane hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
-		// Open the session Changes editor in the editor part. The resource list is
-		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
-		// a workbench contribution.
-		await sessionChangesService.openChangesEditor(sessionResource);
+		// The header pill reflects the default changeset.
+		await sessionChangesService.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: undefined } });
 	}
 }
 registerAction2(ViewAllChangesAction);
@@ -150,6 +130,20 @@ function getChangesDiffEditor(pane: IEditorPane | undefined, resource: URI): Dif
 	return codeEditor?.diffEditor instanceof DiffEditorWidget ? codeEditor.diffEditor : undefined;
 }
 
+function getExpandedChangesDiffEditor(pane: IEditorPane | undefined, resource: URI): DiffEditorWidget | undefined {
+	if (pane instanceof SessionChangesEditor) {
+		pane.expand(resource);
+	} else if (pane instanceof MultiDiffEditor) {
+		const viewModel = pane.viewModel;
+		const item = viewModel?.items.read(undefined)
+			.find(item => isEqual(item.modifiedUri, resource) || isEqual(item.originalUri, resource));
+		if (viewModel && item) {
+			viewModel.expand(item);
+		}
+	}
+	return getChangesDiffEditor(pane, resource);
+}
+
 /**
  * Reveals all hidden unchanged regions for the file shown in a diff row of the
  * Agents window's Changes editor, showing the whole file at once (a per-file
@@ -182,7 +176,7 @@ class ExpandFullFileAction extends Action2 {
 			return;
 		}
 
-		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
+		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
 	}
 }
 registerAction2(ExpandFullFileAction);
@@ -223,146 +217,41 @@ class CollapseUnchangedRegionsAction extends Action2 {
 			return;
 		}
 
-		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
+		getExpandedChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
 	}
 }
 registerAction2(CollapseUnchangedRegionsAction);
 
-// --- View All Changes action view item (session header diff stats)
-
-interface IDiffStats {
-	readonly files: number;
-	readonly insertions: number;
-	readonly deletions: number;
-	readonly branch: string | undefined;
-}
-
 /**
- * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
- * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
- * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
- * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
- * action, which opens the multi-file diff editor.
- *
- * The stats are read from the {@link ISessionContext} so the correct per-session changes
- * are shown even when several session views are visible at once. The counts come from the
- * session's {@link ISession.changesSummary} when available, falling back to aggregating the
- * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
- * top-level {@link IActiveSession.changes} when none is default).
+ * Remembers the changes pill shown for each visible session so it can be rendered
+ * optimistically the next time that session is opened, before the provider has
+ * reported its changes. Recording sessions as they are shown (rather than from the
+ * pill itself) also keeps the cache honest: a session that ends up without changes
+ * drops its entry instead of keeping a stale pill.
  */
-export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
+class SessionChangesStatsCacheContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly _diffStatsObs: IObservable<IDiffStats>;
+	static readonly ID = 'workbench.contrib.sessions.changesStatsCache';
 
 	constructor(
-		action: MenuItemAction,
-		options: IActionViewItemOptions,
-		@ISessionContext sessionContext: ISessionContext,
-	) {
-		super(undefined, action, options);
-
-		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
-			const session = sessionContext.session.read(reader);
-			const workspace = session?.workspace.read(reader);
-			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
-
-			// Prefer the provider-supplied changes summary which reflects the
-			// session's authoritative aggregate. Fall back to aggregating the
-			// default changeset's changes when no summary is available.
-			const changesSummary = session?.changesSummary?.read(reader);
-			if (changesSummary) {
-				return {
-					branch,
-					files: changesSummary.files,
-					insertions: changesSummary.additions,
-					deletions: changesSummary.deletions,
-				} satisfies IDiffStats;
-			}
-
-			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
-			const changes = (defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
-
-			let insertions = 0, deletions = 0;
-			for (const change of changes) {
-				insertions += change.insertions;
-				deletions += change.deletions;
-			}
-
-			return {
-				branch,
-				files: changes.length,
-				insertions,
-				deletions,
-			} satisfies IDiffStats;
-		});
-
-		this._register(autorun(reader => {
-			this._diffStatsObs.read(reader);
-			this.updateLabel();
-			this.updateTooltip();
-			this.updateAriaLabel();
-		}));
-	}
-
-	protected override getLabelText(): string {
-		const { files } = this._diffStatsObs.get();
-		return files === 1
-			? localize('agentSessions.changes.file', "{0} file", files)
-			: localize('agentSessions.changes.files', "{0} files", files);
-	}
-
-	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
-		const { insertions, deletions } = this._diffStatsObs.get();
-		return [
-			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
-			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
-		];
-	}
-
-	protected override getTooltip(): string {
-		const { branch } = this._diffStatsObs.get();
-		return branch
-			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
-			: localize('agentSessions.viewChanges.tooltip', "View Changes");
-	}
-
-	protected override getAriaLabel(): string {
-		const { files, insertions, deletions } = this._diffStatsObs.get();
-		const filesLabel = files === 1
-			? localize('agentSessions.changes.file', "{0} file", files)
-			: localize('agentSessions.changes.files', "{0} files", files);
-		// e.g. "View Changes (main): 3 files, +10, -4"
-		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
-	}
-}
-
-/**
- * Registers the {@link ViewAllChangesActionViewItem} for the diff-stats action in the
- * session header meta toolbar. Registering it here (rather than in the core session header)
- * keeps the rendering of the changes-owned action co-located with the action itself.
- */
-class ViewAllChangesActionViewItemContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.viewAllChangesActionViewItem';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@ISessionsService sessionsService: ISessionsService,
+		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 
-		// The action view item service only notifies toolbars of a factory via
-		// the event passed to register(), not on registration itself. A session
-		// header restored with existing changes may create its meta toolbar
-		// before this contribution runs, so announce the factory once right
-		// after registering to make those toolbars re-render and pick it up.
-		const onDidRegister = this._register(new Emitter<void>());
-		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, ViewAllChangesAction.ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
+		this._register(autorun(reader => {
+			for (const session of sessionsService.visibleSessions.read(reader)) {
+				// While the worktree is pending the reported changes belong to the
+				// checkout the session was started from, not to the session.
+				if (!session || session.worktreePending?.read(reader)) {
+					continue;
+				}
+				const stats = readSessionChangesStats(session, reader);
+				if (stats) {
+					changesStatsCache.set(session.sessionId, stats);
+				}
 			}
-			return instantiationService.createInstance(ViewAllChangesActionViewItem, action, options);
-		}, onDidRegister.event));
-		onDidRegister.fire();
+		}));
 	}
 }
 
@@ -399,7 +288,8 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 
 	constructor(
 		@IChangesViewService changesViewService: IChangesViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -431,6 +321,27 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
 		}));
 
+		let lastPullRequestOperation: string | undefined;
+		this._register(bindContextKey<string>(SessionPrimaryPullRequestOperationContext, contextKeyService, reader => {
+			const operations = changesViewService.activeSessionChangesetObs.read(reader)?.operations.read(reader) ?? [];
+			const primary = operations.find(op => AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))?.id ?? '';
+			if (lastPullRequestOperation !== primary) {
+				lastPullRequestOperation = primary;
+				// Gates which Agent Merge entries the dropdown offers, so it is
+				// logged alongside the button bar itself.
+				logService.info(`[ChangesetOperationsActionController] Primary pull request operation: ${primary || 'none'}`);
+			}
+			return primary;
+		}));
+
+		// Bound globally, unlike the Changes view's scoped copy, so title bar
+		// menus can tell "has an open pull request" apart from "has a pull
+		// request operation to offer" — the two differ for a blocked pull
+		// request in a repository that does not allow auto-merge.
+		this._register(bindContextKey<boolean>(SessionHasOpenPullRequestContext, contextKeyService, reader => {
+			return changesViewService.activeSessionStateObs.read(reader)?.hasOpenPullRequest === true;
+		}));
+
 		this._register(autorun(reader => {
 			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
 			const resourceOperations = (changeset?.operations.read(reader) ?? [])
@@ -448,9 +359,6 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							toggled: ContextKeyExpr.in(
-								SessionChangesFileResourceContext.key,
-								SessionChangesReviewedFilesContext.key),
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
 								group: 'navigation',
@@ -484,6 +392,64 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	}
 }
 
+export class NewSessionUncommittedChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperationsAction';
+
+	constructor(
+		@ISessionsService sessionsService: ISessionsService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const activeSession = sessionsService.activeSession.read(reader);
+			if (activeSession?.status.read(reader) !== SessionStatus.Untitled) {
+				return;
+			}
+
+			const changeset = activeSession.changesets.read(reader)
+				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+			const operations = changeset?.operations.read(reader)
+				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
+				.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
+			const hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
+
+			for (let index = 0; index < operations.length; index++) {
+				const operation = operations[index];
+				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
+					|| operation.status === SessionChangesetOperationStatus.Running
+					|| (operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID && !hasUncommittedChanges)
+					? ContextKeyExpr.false()
+					: undefined;
+
+				reader.store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.contrib.sessions.newSessionUncommittedChangesetOperation.${operation.id}`,
+							title: operation.label,
+							tooltip: operation.description,
+							icon: operation.icon,
+							precondition,
+							f1: false,
+							menu: {
+								id: Menus.SessionsEditorHeaderLayout,
+								group: 'navigation',
+								order: index,
+								when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+							}
+						});
+					}
+
+					async run(): Promise<void> {
+						await changeset?.invokeOperation(operation.id);
+					}
+				}));
+			}
+		}));
+	}
+}
+
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChangesetOperationsActionControllerContribution.ID, ChangesetOperationsActionControllerContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ViewAllChangesActionViewItemContribution.ID, ViewAllChangesActionViewItemContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(NewSessionUncommittedChangesetOperationsActionContribution.ID, NewSessionUncommittedChangesetOperationsActionContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionChangesStatsCacheContribution.ID, SessionChangesStatsCacheContribution, WorkbenchPhase.AfterRestored);

@@ -10,10 +10,10 @@ import { themeColorFromId } from '../../../../../../../base/common/themables.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
-import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
@@ -24,7 +24,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
-import { dynamicVariableDecorationType } from '../../../attachments/chatDynamicVariables.js';
+import { registerChatInputReferenceDecorationType } from './chatInputReferenceDecorations.js';
 import { NativeEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
@@ -87,6 +87,15 @@ class InputEditorDecorations extends Disposable {
 		this.registeredDecorationTypes();
 		this.triggerInputEditorDecorationsUpdate();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.widget.inputEditor.onDidChangeConfiguration(e => {
+			// The editor's placeholder option is set/cleared by features such as
+			// dictation ("Listening…"). When it is set, PlaceholderTextContribution
+			// renders it, so the decoration placeholder must yield to avoid two
+			// overlapping placeholders; re-run when the option changes.
+			if (e.hasChanged(EditorOption.placeholder)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
 		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
@@ -175,12 +184,7 @@ class InputEditorDecorations extends Disposable {
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
 		}));
-		this._register(this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
-			color: themeColorFromId(chatSlashCommandForeground),
-			backgroundColor: themeColorFromId(chatSlashCommandBackground),
-			borderRadius: '3px',
-			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		}));
+		this._register(registerChatInputReferenceDecorationType(this.codeEditorService));
 	}
 
 	private getPlaceholderColor(): string | undefined {
@@ -215,6 +219,16 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
+			// If the editor's placeholder option is set (e.g. dictation shows
+			// "Listening…"), PlaceholderTextContribution renders it already; skip
+			// the decoration placeholder so the two don't render on top of each
+			// other.
+			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
+				this.updateAriaPlaceholder(undefined);
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+				return;
+			}
+
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
 			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;

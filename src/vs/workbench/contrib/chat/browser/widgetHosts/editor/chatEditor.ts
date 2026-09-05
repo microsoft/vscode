@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import * as nls from '../../../../../../nls.js';
 import { ITextResourceConfigurationService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -30,11 +31,12 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
-import { setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -50,6 +52,8 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * provider resolution would otherwise apply.
 	 */
 	explicitSessionType?: string;
+	/** Creation-only metadata describing why the new session type was selected. */
+	sessionTypeSelectionReason?: SessionTypeSelectionReason;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -57,9 +61,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	};
 }
 
-export interface IChatEditorViewState {
-	scrollTop: number;
-}
+export type IChatEditorViewState = IChatWidgetViewState;
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
 	private static readonly VIEW_STATE_KEY = 'chatEditorViewState';
@@ -93,9 +95,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	private async clear() {
+	private async clear(resolvedSessionType?: IResolvedNewChatSessionType) {
 		if (this.input) {
-			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput, resolvedSessionType);
 		}
 	}
 
@@ -114,9 +116,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
+					readOnlyBannerAtTop: true,
 					renderFollowups: true,
 					supportsFileReferences: true,
-					clear: () => this.clear(),
+					clear: resolvedSessionType => this.clear(resolvedSessionType),
+					enableFind: true,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -127,6 +131,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					enableSessionStateIndicator: true,
 				},
 				{
 					listForeground: editorForeground,
@@ -147,6 +152,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
 
@@ -167,6 +173,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override clearInput(): void {
+		super.clearInput();
 		this.widget.setModel(undefined);
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `updateModel` cycle to finish
@@ -174,7 +181,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		if (this._editorContainer) {
 			delete this._editorContainer.dataset.boundChatResource;
 		}
-		super.clearInput();
 	}
 
 	private showLoadingInChatWidget(message: string): void {
@@ -282,7 +288,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {
-				this._widget.scrollTop = viewState.scrollTop;
+				this._widget.restoreViewState(viewState);
 			}
 
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
@@ -306,11 +312,11 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		}
 	}
 
-	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {
-		if (!this._widget) {
+	protected computeEditorViewState(resource: URI): IChatEditorViewState | undefined {
+		if (!this._widget || !isEqual(this._widget.viewModel?.sessionResource, resource)) {
 			return undefined;
 		}
-		return { scrollTop: this._widget.scrollTop };
+		return this._widget.getViewState();
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {

@@ -5,7 +5,7 @@
 
 import { ChildProcess, spawn } from 'child_process';
 import { app } from 'electron';
-import { existsSync, unlinkSync } from 'fs';
+import { unlinkSync, writeFileSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
@@ -35,6 +35,8 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { getRelaunchArguments } from './updateRelaunchArguments.js';
+import { getWin32UpdateType } from './win32UpdateType.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -45,12 +47,12 @@ interface IAvailableUpdate {
 	updateProcess?: ChildProcess;
 }
 
+const RELAUNCH_ARGUMENTS_FILE_PREFIX = 'relaunch-args-';
+
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
-		_updateType = existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
-			? UpdateType.Setup
-			: UpdateType.Archive;
+		_updateType = getWin32UpdateType();
 	}
 
 	return _updateType;
@@ -69,9 +71,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	private readonly updatingMutexName: string;
 	private readonly setupMutexName: string;
 
+	private get cachePathSync(): string {
+		return path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+	}
+
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+		const result = this.cachePathSync;
 		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -266,11 +272,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				// When connection is metered and this is not an explicit check,
-				// show update is available but don't start downloading
-				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
-					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
-					this.setState(State.AvailableForDownload(update));
+				if (this.deferAutomaticDownload(update, explicit)) {
 					return Promise.resolve(null);
 				}
 
@@ -282,6 +284,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
 								return Promise.resolve(updatePackagePath);
+							}
+
+							if (this.deferAutomaticDownload(update, explicit)) {
+								return undefined;
 							}
 
 							const downloadPath = `${updatePackagePath}.tmp`;
@@ -318,7 +324,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						if (token.isCancellationRequested) {
+						if (!packagePath || token.isCancellationRequested) {
 							return;
 						}
 
@@ -377,13 +383,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.setState(State.Idle(getUpdateType()));
 	}
 
+	protected override resumeDeferredDownload(): void {
+		this.setState(State.Idle(getUpdateType()));
+		void this.checkForUpdates(false);
+	}
+
 	private async getUpdatePackagePath(version: string): Promise<string> {
 		const cachePath = await this.cachePath;
 		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<void> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const relaunchArgumentsFileName = exceptVersion ? `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${exceptVersion}` : undefined;
+		const filter = exceptVersion
+			? (one: string) => one !== relaunchArgumentsFileName && !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one))
+			: () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
@@ -424,17 +438,23 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			await this.unlink(progressFilePath);
 			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 
+			const installerArgs = [
+				'/verysilent',
+				'/log',
+				`/update="${this.availableUpdate.updateFilePath}"`,
+				`/progress="${progressFilePath}"`,
+				`/sessionend="${sessionEndFlagPath}"`,
+				`/cancel="${cancelFilePath}"`,
+				'/nocloseapplications',
+				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+			];
+
+			// The restarting instance populates this file immediately before releasing the installer.
+			const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, update.version);
+			installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
+
 			const child = spawn(this.availableUpdate.packagePath,
-				[
-					'/verysilent',
-					'/log',
-					`/update="${this.availableUpdate.updateFilePath}"`,
-					`/progress="${progressFilePath}"`,
-					`/sessionend="${sessionEndFlagPath}"`,
-					`/cancel="${cancelFilePath}"`,
-					'/nocloseapplications',
-					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-				],
+				installerArgs,
 				{
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore'],
@@ -608,17 +628,57 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
+			this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
 			try {
 				unlinkSync(this.availableUpdate.updateFilePath);
 			} catch {
 				// ignore
 			}
 		} else {
-			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			const installerArgs = ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'];
+
+			// Preserve session defining arguments (e.g. --extensions-dir) across the installer relaunch (see #322663).
+			const relaunchArgsFilePath = this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
+			if (relaunchArgsFilePath) {
+				installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
+			}
+
+			spawn(this.availableUpdate.packagePath, installerArgs, {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore'],
+				windowsVerbatimArguments: true,
 				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			});
+		}
+	}
+
+	private getRelaunchArgumentsFilePath(cachePath: string, version: string): string {
+		return path.join(cachePath, `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${version}`);
+	}
+
+	/**
+	 * Writes the arguments from {@link getRelaunchArguments} to a file in the update cache and returns its path (or
+	 * `undefined` when there is nothing to carry forward). The installer reads it and passes the arguments to `Code.exe`.
+	 */
+	private writeRelaunchArgumentsFile(cachePath: string, version: string): string | undefined {
+		const relaunchArguments = getRelaunchArguments(this.environmentMainService.args, process.argv);
+		const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, version);
+
+		if (!relaunchArguments) {
+			try {
+				unlinkSync(relaunchArgsFilePath); // remove any stale file from a previous relaunch
+			} catch {
+				// ignore
+			}
+			return undefined;
+		}
+
+		try {
+			writeFileSync(relaunchArgsFilePath, relaunchArguments);
+			return relaunchArgsFilePath;
+		} catch (err) {
+			this.logService.error('update#writeRelaunchArgumentsFile: failed to write relaunch arguments', err);
+			return undefined;
 		}
 	}
 

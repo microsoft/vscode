@@ -6,11 +6,11 @@
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
 
 /**
- * Identity section content shared by the default agent-host system message and
- * any per-model override that wants to keep the same self-description. Kept as
- * a single constant so the identity text is defined in exactly one place.
+ * Identity section of the default agent-host system message. Per-model overrides
+ * inherit it via {@link withDefaultSections}, so it is defined in one place and
+ * only a contributor that names `identity` replaces it.
  */
-export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
+export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot SDK in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot SDK in VS Code.';
 
 /** Response-formatting contract for workspace links emitted by Agent Host models. */
 export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
@@ -22,18 +22,16 @@ export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
 	'- Use `/` path separators in link targets, including on Windows (`C:/path/to/foo.ts`).',
 	'- If a file path has spaces, wrap the target in angle brackets: [foo bar.ts](</path/to/foo bar.ts>).',
 	'- Use absolute filesystem paths rather than `file://` URIs.',
+	'- These rules are only for links in your responses. When writing a Markdown file, prefer paths relative to that Markdown file, for example [foo](./foo.md).',
 	'- Do not provide line ranges.',
 	'- Use a markdown link format every time you refer to a file, folder, or symbol, not just the first time.',
 	'</file_folder_and_symbol_links>',
 ].join('\n');
 
 /**
- * Default system-message customization applied to every Copilot CLI agent-host
- * session that has no per-model override registered in the
- * {@link AgentHostPromptRegistry}.
- *
- * Uses `customize` mode so the CLI/SDK foundation prompt (and its built-in
- * guardrails) stay intact — only the `identity` section is replaced.
+ * Used as-is when no per-model override matches, and composed UNDER a matching
+ * override's sections. `customize` mode keeps the CLI/SDK foundation prompt and
+ * its guardrails intact.
  */
 export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
 	mode: 'customize',
@@ -49,8 +47,8 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
  * Scratch/repoless guidance appended to a workspace-less chat's system message.
  * A workspace-less chat's working directory is a throwaway SCRATCH dir, not a
  * code repository — so this tells the agent not to treat it like a project, to
- * stay read-only on real repos, and to delegate code changes to a dedicated
- * session. Modeled on the GitHub app's `build_general_chat_system_message`.
+ * stay read-only on real repos, and to attach a workspace before project work.
+ * Modeled on the GitHub app's `build_general_chat_system_message`.
  */
 export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
 	'<workspaceless_chat>',
@@ -58,7 +56,8 @@ export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
 	'',
 	'- Your working directory is a SCRATCH directory for running commands and saving throwaway artifacts — it is NOT a code repository. Do not treat it as a project to build, test, or commit.',
 	'- If the user points you at a real repository, prefer read-only operations: read files, search code, and inspect git metadata (branch, log, diff, status) to answer questions. Avoid modifying files or running builds, tests, linters, or installs in their working copies.',
-	'- When the user wants code changes, test runs, or any work that modifies or executes against a real project, delegate it to a dedicated session rather than doing it here.',
+	'- When the task should continue in a real workspace and `set_workspace` is available, prefer attaching that workspace and continuing this same conversation. Do not create another session solely to move the work. Use `list_sessions` to discover a known workspace when needed, and never guess a path.',
+	'- Immediately before every `set_workspace` call, always use `ask_user` to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation.',
 	'</workspaceless_chat>',
 ].join('\n');
 
@@ -66,12 +65,23 @@ export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
  * Builds a {@link SystemMessageConfig} that fully replaces the CLI/SDK system
  * prompt with `content`.
  *
- * ⚠️ `replace` mode drops ALL SDK guardrails (including security restrictions);
- * prefer {@link sectionOverrides} unless the caller intends to own the entire
- * prompt.
+ * ⚠️ `replace` mode drops ALL SDK guardrails (including security restrictions).
+ * The prompt registry appends its universal layers when this config passes
+ * through it; direct SDK callers receive only this replacement.
  */
 export function fullSystemPrompt(content: string): SystemMessageConfig {
 	return { mode: 'replace', content };
+}
+
+/**
+ * Composes the default sections UNDER `config`'s own, so a section the config
+ * does not name inherits the default and contributors need not re-state it.
+ */
+export function withDefaultSections(config: SystemMessageConfig): SystemMessageConfig {
+	if (config.mode !== 'customize') {
+		return config;
+	}
+	return { ...config, sections: { ...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections, ...config.sections } };
 }
 
 /**
@@ -82,11 +92,11 @@ export function sectionOverrides(sections: Partial<Record<SystemMessageSection, 
 	return { mode: 'customize', sections };
 }
 
-/** Appends universal content without changing a full-prompt replacement. */
+/**
+ * Appends to the config's trailing `content`, including after a `replace`
+ * prompt's text — so host plumbing survives a full replacement.
+ */
 export function appendSystemMessageContent(config: SystemMessageConfig, content: string): SystemMessageConfig {
-	if (config.mode === 'replace') {
-		return config;
-	}
 	const existing = config.content;
 	return { ...config, content: existing ? `${existing}\n\n${content}` : content };
 }

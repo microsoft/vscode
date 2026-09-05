@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { IWorkbenchUIElementFactory, type IResourceLabel } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind, type IResourceLabel } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -23,12 +23,13 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { CellUri, INotebookDiffEditorModel, NOTEBOOK_MULTI_DIFF_EDITOR_ID } from '../../common/notebookCommon.js';
 import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasurements.js';
+import { IMultiDiffEditorOptions } from '../../../../../editor/common/multiDiffEditor.js';
 import { NotebookOptions } from '../notebookOptions.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { NotebookMultiDiffEditorInput, NotebookMultiDiffEditorWidgetInput } from './notebookMultiDiffEditorInput.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
-import type { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { localize } from '../../../../../nls.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -103,7 +104,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			undefined,
+			{ variant: MultiDiffEditorVariant.Standard },
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -259,7 +260,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 		@INotebookService private readonly notebookService: INotebookService
 	) { }
 
-	createResourceLabel(element: HTMLElement): IResourceLabel {
+	createResourceLabel(element: HTMLElement, _kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
 		const that = this;
 		return {

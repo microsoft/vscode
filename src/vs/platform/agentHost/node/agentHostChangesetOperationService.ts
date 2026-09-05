@@ -5,16 +5,19 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { stableStringify } from '../../../base/common/objects.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ISessionGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import type { IChangesetOperationContribution, IAgentHostChangesetOperationService, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -23,11 +26,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
+	private readonly _operationLanes = new Map<string, Promise<InvokeChangesetOperationResult>>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 
@@ -42,7 +47,28 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (this._handlerRegistrations.has(contribution)) {
 			throw new Error('Changeset operation contribution already registered');
 		}
-		this._handlerRegistrations.set(contribution, contribution.registerHandlers(this._registry));
+		const handlerRegistrations = new DisposableStore();
+		const registeredHandlers = new Set<IDisposable>();
+		const registry: IChangesetOperationRegistry = {
+			...this._registry,
+			registerChangesetOperationHandler: (operationId, handler) => {
+				const registration = handlerRegistrations.add(this._registry.registerChangesetOperationHandler(operationId, handler));
+				registeredHandlers.add(registration);
+				return registration;
+			},
+		};
+		try {
+			const registration = contribution.registerHandlers(registry);
+			for (const registeredHandler of registeredHandlers) {
+				handlerRegistrations.deleteAndLeak(registeredHandler);
+			}
+			handlerRegistrations.dispose();
+			this._handlerRegistrations.set(contribution, registration);
+		} catch (error) {
+			handlerRegistrations.dispose();
+			contribution.dispose();
+			throw error;
+		}
 		return toDisposable(() => {
 			this._handlerRegistrations.deleteAndDispose(contribution);
 			contribution.dispose();
@@ -67,6 +93,17 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
+		// In a multi-folder session the per-turn `turn` and `compare-turns`
+		// changesets advertise NO operations. Enforcing this centrally here — the
+		// single chokepoint both the publish path (`_publishChangesetDiffs`) and
+		// the recompute path (`updateOperations`) funnel through — guarantees the
+		// rule can't be undone by a later recompute on active-turn / git-state
+		// flips. Single-folder sessions and all other changeset kinds are
+		// unaffected.
+		if (this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+			return [];
+		}
+
 		return this._getOperations({
 			sessionKey,
 			changesetUri: changeset,
@@ -74,6 +111,18 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitState,
 			gitHubState
 		});
+	}
+
+	/**
+	 * Whether operations must be suppressed for a changeset of `kind` in the
+	 * given session. The per-turn `turn` and `compare-turns` changesets carry no
+	 * operations in a multi-root session; every other kind and single-folder
+	 * sessions are unaffected. Uses the effective working directories so the rule
+	 * is provider-agnostic and tracks dynamic root changes.
+	 */
+	private _shouldSuppressOperations(sessionKey: string, kind: ChangesetKind): boolean {
+		return (kind === ChangesetKind.Turn || kind === ChangesetKind.Compare)
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(sessionKey));
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
@@ -98,6 +147,34 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
+		const changesets = changeset
+			? [changeset]
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
+
+		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
+		// the git-state gate below. A root transition (e.g. the Editor Window
+		// adding a second folder) can fire a recompute while the session's git
+		// state is not yet resolved; without this, the early `return` on absent
+		// git state would leave stale operations advertised on those changesets.
+		// Dispatching an empty list is safe for an unknown changeset (it is
+		// dropped without advancing the sequence).
+		const unsuppressed: string[] = [];
+		for (const changeset of changesets) {
+			const parsed = parseChangesetUri(changeset);
+			if (parsed && this._shouldSuppressOperations(sessionKey, parsed.kind)) {
+				this._stateManager.dispatchServerAction(changeset, {
+					type: ActionType.ChangesetOperationsChanged,
+					operations: [],
+				});
+				continue;
+			}
+			unsuppressed.push(changeset);
+		}
+
+		if (unsuppressed.length === 0) {
+			return;
+		}
+
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
@@ -111,11 +188,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitHubState = readSessionGitHubState(sessionState?._meta);
 		}
 
-		const changesets = changeset
-			? [changeset]
-			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
-
-		for (const changeset of changesets) {
+		for (const changeset of unsuppressed) {
 			const operations = this.getOperations(sessionKey, changeset, gitState, gitHubState);
 
 			this._stateManager.dispatchServerAction(changeset, {
@@ -149,6 +222,18 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
 
+		// Re-enforce the multi-folder suppression at invocation time, independent
+		// of the advertised operations. The turn / compare-turns changesets carry
+		// NO operations in a multi-root session (see `getOperations`), but cached
+		// advertised operations can go stale if the session became multi-root
+		// after they were published (e.g. the Editor Window added a root), so a
+		// stale operation must not be invocable.
+		if (parsed
+			&& (parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Compare)
+			&& isMultiRootSession(this._configurationService.getEffectiveWorkingDirectories(parsed.sessionUri))) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is not available on a ${parsed.kind} changeset in a multi-root session: ${params.channel}`);
+		}
+
 		const targetKind: ChangesetOperationScope = params.target?.kind === ChangesetOperationTargetKind.Resource
 			? ChangesetOperationScope.Resource
 			: params.target?.kind === ChangesetOperationTargetKind.Range
@@ -170,47 +255,62 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		handler: IChangesetOperationHandler,
 		params: InvokeChangesetOperationParams,
 	): Promise<InvokeChangesetOperationResult> {
-		const operationKey = `${params.channel}\x00${params.operationId}\x00${JSON.stringify(params.target ?? null)}`;
+		const operationLane = `${params.channel}\x00${params.operationId}`;
+		const operationKey = `${operationLane}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
-		if (inFlightOperationResult) {
+		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
 		}
 
+		const runningOperation = this._operationLanes.get(operationLane);
+		const operationPromise = runningOperation
+			? runningOperation.then(
+				() => this._executeChangesetOperation(handler, params),
+				() => this._executeChangesetOperation(handler, params),
+			)
+			: this._executeChangesetOperation(handler, params);
+		this._operationLanes.set(operationLane, operationPromise);
+		this._inFlightOperations.set(operationKey, operationPromise);
+
+		const clearOperation = () => {
+			if (this._inFlightOperations.get(operationKey) === operationPromise) {
+				this._inFlightOperations.delete(operationKey);
+			}
+			if (this._operationLanes.get(operationLane) === operationPromise) {
+				this._operationLanes.delete(operationLane);
+			}
+		};
+		void operationPromise.then(clearOperation, clearOperation);
+
+		return operationPromise;
+	}
+
+	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		this._stateManager.dispatchServerAction(params.channel, {
 			type: ActionType.ChangesetOperationStatusChanged,
 			operationId: params.operationId,
 			status: ChangesetOperationStatus.Running,
 		});
 
-		const operationPromise = handler.invoke(params, CancellationToken.None)
-			.then(result => {
-				this._stateManager.dispatchServerAction(params.channel, {
-					type: ActionType.ChangesetOperationStatusChanged,
-					operationId: params.operationId,
-					status: ChangesetOperationStatus.Idle,
-				});
-
-				return result;
-			})
-			.catch((error) => {
-				this._stateManager.dispatchServerAction(params.channel, {
-					type: ActionType.ChangesetOperationStatusChanged,
-					operationId: params.operationId,
-					status: ChangesetOperationStatus.Error,
-					error: toChangesetOperationError(error),
-				});
-
-				throw error;
-			})
-			.finally(() => {
-				if (this._inFlightOperations.get(operationKey) === operationPromise) {
-					this._inFlightOperations.delete(operationKey);
-				}
+		try {
+			const result = await handler.invoke(params, CancellationToken.None);
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChangesetOperationStatusChanged,
+				operationId: params.operationId,
+				status: ChangesetOperationStatus.Idle,
 			});
 
-		this._inFlightOperations.set(operationKey, operationPromise);
+			return result;
+		} catch (error) {
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChangesetOperationStatusChanged,
+				operationId: params.operationId,
+				status: ChangesetOperationStatus.Error,
+				error: toChangesetOperationError(error),
+			});
 
-		return operationPromise;
+			throw error;
+		}
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {

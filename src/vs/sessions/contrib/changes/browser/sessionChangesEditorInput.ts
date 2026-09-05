@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/sessionChangesEditorInput.css';
 import { localize } from '../../../../nls.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
@@ -12,7 +16,10 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
+import { getSessionChangesFileCountLabel } from '../common/changes.js';
+import { ISessionChangesService } from '../common/sessionChangesService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
@@ -24,13 +31,23 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
 
-	private _innerInput: MultiDiffEditorInput | undefined;
+	private readonly _innerInput = this._register(new MutableDisposable<MultiDiffEditorInput>());
 
 	constructor(
 		readonly multiDiffSource: URI,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._register(layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.EDITOR_PART) {
+				this._onDidChangeCapabilities.fire();
+			}
+		}));
+
+		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionChangeCountObs);
+		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
 	}
 
 	override get resource(): URI {
@@ -46,11 +63,23 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		const capabilities = super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? capabilities : capabilities | EditorInputCapabilities.CannotClose;
 	}
 
 	override getName(): string {
 		return localize('sessionChangesEditor.name', "Changes");
+	}
+
+	override getAriaLabel(): string {
+		const changeCount = this.sessionChangesService.activeSessionChangeCountObs.get();
+		return !changeCount
+			? this.getName()
+			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getName(), getSessionChangesFileCountLabel(changeCount));
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['session-changes-editor-label'];
 	}
 
 	override getIcon(): ThemeIcon {
@@ -62,13 +91,13 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	private get innerInput(): MultiDiffEditorInput {
-		if (!this._innerInput) {
-			this._innerInput = this._register(MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+		if (!this._innerInput.value) {
+			this._innerInput.value = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 				multiDiffSource: this.multiDiffSource,
 				label: this.getName(),
-			}, this.instantiationService));
+			}, this.instantiationService);
 		}
-		return this._innerInput;
+		return this._innerInput.value;
 	}
 
 	/**
@@ -82,6 +111,10 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {
 		return this.innerInput.getViewModel();
+	}
+
+	clear(): void {
+		this._innerInput.clear();
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

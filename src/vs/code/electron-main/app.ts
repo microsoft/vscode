@@ -89,6 +89,7 @@ import { DarwinUpdateService } from '../../platform/update/electron-main/updateS
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { isInnoSetupInstall } from '../../platform/update/electron-main/win32UpdateType.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
@@ -152,6 +153,13 @@ type OSProxyConfigEvent = {
 	readonly durationMs: number;
 	readonly platformKind?: string;
 	readonly autoDetect?: boolean;
+	readonly httpProxyEnvironmentState?: string;
+	readonly httpsProxyEnvironmentState?: string;
+	readonly allProxyEnvironmentState?: string;
+	readonly noProxyEnvironmentState?: string;
+	readonly wpadDhcpState?: string;
+	readonly wpadDnsState?: string;
+	readonly configuredPacState?: string;
 	readonly hasConfiguredPac?: boolean;
 	readonly hasLoadedPac?: boolean;
 	readonly pacSource?: string;
@@ -170,9 +178,16 @@ type OSProxyConfigClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the operating system proxy configuration read in milliseconds.' };
 	platformKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system proxy configuration source (windows, macos, linux, unknown, or none).' };
 	autoDetect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic proxy discovery is enabled.' };
+	httpProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTP proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	httpsProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTPS proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	allProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective all-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	noProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective no-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	wpadDhcpState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DHCP WPAD inspection state. Discovered URLs and errors are not collected.' };
+	wpadDnsState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DNS WPAD inspection state. Discovered URLs and errors are not collected.' };
+	configuredPacState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured PAC inspection state. Configured URLs and errors are not collected.' };
 	hasConfiguredPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the operating system has a PAC URL configured. The URL is not collected.' };
 	hasLoadedPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a PAC script was discovered and loaded. The URL and script contents are not collected.' };
-	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad, configured, unknown, or none).' };
+	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad-dhcp, wpad-dns, configured, unknown, or none).' };
 	pacScriptCharacterCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters in the loaded PAC script. The script contents are not collected.' };
 	pacScriptLineCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines in the loaded PAC script. The script contents are not collected.' };
 	pacScriptReturnCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of return keyword occurrences in the loaded PAC script. The script contents are not collected.' };
@@ -229,6 +244,10 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUrlFromAuxiliaryWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isMainFrame && requestingUrl === 'about:blank' && !!(webContents && this.auxiliaryWindowsMainService?.getWindowByWebContents(webContents));
+		const isRequestFromWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isUrlFromWindow(requestingUrl) || isUrlFromAuxiliaryWindow(webContents, requestingUrl, isMainFrame);
 
 		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
 
@@ -250,21 +269,21 @@ export class CodeApplication extends Disposable {
 			'deprecated-sync-clipboard-read',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
@@ -336,6 +355,14 @@ export class CodeApplication extends Disposable {
 		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | null | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
+				// The render frame backing this WebFrameMain may already be disposed
+				// (e.g. the originating webview/window was closed or navigated away)
+				// by the time this webRequest callback runs. Accessing any property
+				// of a disposed frame throws "Render frame was disposed before
+				// WebFrameMain could be accessed", so guard before reading it.
+				if (frame.isDestroyed()) {
+					return false;
+				}
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
 					return true;
 				}
@@ -349,7 +376,7 @@ export class CodeApplication extends Disposable {
 
 		const isAllowedVsCodeFileRequest = (details: Electron.OnBeforeRequestListenerDetails) => {
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -370,7 +397,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			const frame = details.frame;
-			if (!frame || !this.windowsMainService) {
+			if (!frame || frame.isDestroyed() || !this.windowsMainService) {
 				return false;
 			}
 
@@ -399,6 +426,20 @@ export class CodeApplication extends Disposable {
 				if (!isAllowedVsCodeFileRequest(details)) {
 					this.logService.error('Blocked vscode-file request', details.url);
 					return callback({ cancel: true });
+				}
+			}
+
+			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
+					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+						return callback({ cancel: true });
+					}
 				}
 			}
 
@@ -702,6 +743,17 @@ export class CodeApplication extends Disposable {
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
 
+		// Agent Host
+		// Always instantiate the starter + manager. They are cheap (the
+		// constructors only register an IPC listener and emitters) and the agent
+		// host utility process is spawned lazily on the first window connection
+		// request. The renderer only requests a connection when the runtime is
+		// available and AI features are enabled there, which the main process
+		// cannot fully observe.
+		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
+		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
+		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
+
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
 			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
@@ -791,6 +843,10 @@ export class CodeApplication extends Disposable {
 		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
 			const url = URI.parse(request.url);
 			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			if (!request.referrer || request.referrer.startsWith(`${Schemas.vscodeWebview}://`)) {
 				return callback(notFound());
 			}
 
@@ -1209,17 +1265,6 @@ export class CodeApplication extends Disposable {
 		);
 		services.set(ILocalPtyService, ptyHostService);
 
-		// Agent Host
-		// Always instantiate the starter + manager. They are cheap (the
-		// constructors only register an IPC listener and emitters) and the agent
-		// host utility process is spawned lazily on the first window connection
-		// request. The renderer is the gate: it only requests a connection when
-		// `chat.agentHost.enabled` resolves to `true` there (honoring experiment
-		// overrides + policy + web), which the main process cannot observe since
-		// experiment overrides are never persisted to `settings.json`.
-		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
-
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1362,7 +1407,10 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+			unbufferedEvents: ['onDidBlurMainWindow']
+		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
@@ -1739,7 +1787,7 @@ export class CodeApplication extends Disposable {
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName) {
+		if (isWindows && win32MutexName && isInnoSetupInstall()) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
@@ -1839,6 +1887,13 @@ export class CodeApplication extends Disposable {
 				durationMs,
 				platformKind: config.platform?.kind ?? 'none',
 				autoDetect: config.autoDetect,
+				httpProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpProxy),
+				httpsProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpsProxy),
+				allProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.allProxy),
+				noProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.noProxy),
+				wpadDhcpState: config.wpadDhcp.state,
+				wpadDnsState: config.wpadDns.state,
+				configuredPacState: config.configuredPac.state,
 				hasConfiguredPac: !!config.pacUrl,
 				hasLoadedPac: !!config.pac,
 				pacSource: config.pac?.source ?? 'none',
@@ -1867,6 +1922,10 @@ function hasOSProxyBypassRules(config: IOSProxyConfig): boolean {
 		case 'linux': return config.platform.ignoreHosts.length > 0;
 		default: return false;
 	}
+}
+
+function getOSProxyEnvironmentState(status: IOSProxyConfig['environment']['httpProxy']): 'unset' | 'configured' | 'invalid' {
+	return status ? status.error ? 'invalid' : 'configured' : 'unset';
 }
 
 function getPACScriptStats(content: string): { characterCount: number; lineCount: number; returnCount: number } {

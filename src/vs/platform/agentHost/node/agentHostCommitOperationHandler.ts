@@ -7,10 +7,10 @@ import { basename } from '../../../base/common/resources.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentService } from '../common/agentService.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
@@ -22,12 +22,12 @@ const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;
 
 export class AgentHostCommitOperationHandler implements IChangesetOperationHandler {
 
-	public static readonly OPERATION_COMMIT = 'commit';
+	public static readonly OPERATION_COMMIT = AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID;
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
-		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
@@ -60,7 +60,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
@@ -78,7 +78,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		this._throwIfCancelled(token);
 
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const authToken = this._agentService.getAuthToken({
+		const authToken = this._authenticationService.getAuthToken({
 			resource: copilotResource.resource,
 			scopes: copilotResource.scopes_supported,
 		});
@@ -205,7 +205,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		const message = err instanceof Error ? err.message : String(err);
 		return /\b(401|403)\b/.test(message)
-			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery|copilot session token mint)\b/i.test(message);
+			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery)\b/i.test(message);
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

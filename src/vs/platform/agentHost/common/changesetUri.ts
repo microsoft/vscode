@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import type { Changeset, ISessionGitState, URI } from './state/sessionState.js';
+import { readAgentMergeSessionState } from './agentMerge.js';
+import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
+import { MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -36,6 +39,9 @@ const UNCOMMITTED_CHANGESET_ID = 'uncommitted';
 /** Stable id of the catalogue entry for the session-wide changeset. */
 const SESSION_CHANGESET_ID = 'session';
 
+/** Stable id and change kind of the Agent Merge changeset. */
+export const AGENT_MERGE_CHANGESET_ID = 'agent-merge';
+
 /** Path prefix used by per-turn changeset URIs (`turn/<turnId>`). */
 const TURN_CHANGESET_PREFIX = 'turn/';
 
@@ -55,7 +61,7 @@ const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "All Changes");
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
 
 /** Localized human-readable description for the session-wide changeset entry. */
 export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
@@ -77,6 +83,12 @@ export const compareTurnsChangesetLabel = (): string => localize('compareTurnsCh
 
 /** Localized human-readable description for the compare-turns changeset template entry. */
 export const compareTurnsChangesetDescription = (): string => localize('compareTurnsChangeset.description', "Show changes made between different turns");
+
+/** Localized human-readable label for the Agent Merge changeset entry. */
+const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.label', "Agent Merge Changes");
+
+/** Localized human-readable description for the Agent Merge changeset entry. */
+const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
 
 /**
  * Returns the description shown next to the `Branch Changes` catalogue
@@ -115,6 +127,35 @@ export const enum ChangesetKind {
 	Compare = 'compare-turns',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
+}
+
+/** Changeset kinds that can represent a session's default changes view. */
+export type DefaultChangesetKind = ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
+
+/** Selects the configured default changeset, falling back to the first catalogue entry. */
+export function selectDefaultChangeset<T extends Pick<Changeset, 'changeKind'>>(
+	changesets: readonly T[] | undefined,
+	defaultKind: DefaultChangesetKind = ChangesetKind.Branch,
+): T | undefined {
+	return changesets?.find(changeset => changeset.changeKind === defaultKind) ?? changesets?.[0];
+}
+
+/** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
+const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+
+/**
+ * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
+ * subscribable URI template.
+ *
+ * A host may publish the template relative to the session channel
+ * (`changeset/branch`); used verbatim that addresses the client's own
+ * filesystem. Templates that already carry a scheme are returned unchanged.
+ */
+export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string): string {
+	if (URI_SCHEME_PREFIX.test(uriTemplate)) {
+		return uriTemplate;
+	}
+	return `${sessionUri.replace(/\/+$/, '')}/${uriTemplate.replace(/^\/+/, '')}`;
 }
 
 export function buildBranchChangesetUri(sessionUri: URI): URI {
@@ -275,10 +316,8 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
 }
 
 /**
- * Builds the default ordered `summary.changesets` catalogue for a
- * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`) with
- * label + uriTemplate only. Aggregate counts are filled in later by the
- * diff producer as compute passes complete.
+ * Builds the ordered `summary.changesets` catalogue for a session. Aggregate
+ * counts are filled in later by the diff producer as compute passes complete.
  *
  * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
  * git-only; `AgentService._attachGitState` strips them asynchronously
@@ -286,14 +325,44 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * per-changeset states are still registered for every session — only
  * the catalogue advertisements are stripped.
  *
- * The compare-turns changeset (built by
- * {@link buildCompareTurnsChangesetUri}) is intentionally NOT included
- * in the default catalogue: it is subscribe-only. Clients that want
- * compare-turns diffs construct the URI themselves from two known
- * turn ids and subscribe directly.
+ * The Agent Merge entry reuses the compare-turns URI template. It is advertised
+ * after Agent Merge is enabled and remains available for the rest of the
+ * session, including after Agent Merge is disabled.
  */
-export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessionGitState): Changeset[] {
+export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
+	// Session that failed to create
+	if (!state || state.lifecycle === SessionLifecycle.Failed) {
+		return [];
+	}
+
+	// New Session
+	if (state.lifecycle === SessionLifecycle.Creating) {
+		if (readSessionWorkspaceless(state._meta)) {
+			// Quick chat
+			return [];
+		}
+
+		// Uncommitted changes
+		return [{
+			label: uncommittedChangesetLabel(),
+			description: uncommittedChangesetDescription(),
+			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Uncommitted
+		}];
+	}
+
+	const gitState = readSessionGitState(state._meta);
+	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(state)
+		? [{
+			label: agentMergeChangesetLabel(),
+			description: agentMergeChangesetDescription(),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+			changeKind: AGENT_MERGE_CHANGESET_ID,
+		}] satisfies Changeset[]
+		: [];
+
 	if (!gitState) {
+		// No git repository
 		return [{
 			label: sessionChangesetLabel(),
 			description: sessionChangesetDescription(),
@@ -305,7 +374,8 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessio
 			description: thisTurnChangesetDescription(),
 			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
 			changeKind: ChangesetKind.Turn
-		}] satisfies Changeset[];
+		},
+		...agentMergeChangeset] satisfies Changeset[];
 	}
 
 	return [
@@ -341,6 +411,20 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessio
 			description: compareTurnsChangesetDescription(),
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
 			changeKind: ChangesetKind.Compare
-		}
+		},
+		...agentMergeChangeset
 	] satisfies Changeset[];
+}
+
+function shouldAdvertiseAgentMergeChangeset(state: ISessionWithDefaultChat): boolean {
+	if (readAgentMergeSessionState(state.config?.values)?.enabled === true
+		|| state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
+		return true;
+	}
+
+	return state.turns.some(turn =>
+		(turn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(turn.message))
+		|| turn.responseParts.some(part =>
+			part.kind === ResponsePartKind.SystemNotification
+			&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.AgentMergeEnabled));
 }

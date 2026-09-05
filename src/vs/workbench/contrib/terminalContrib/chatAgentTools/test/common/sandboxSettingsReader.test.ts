@@ -11,6 +11,7 @@ import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkF
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { AgentHostSandboxKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { readAgentHostSandboxValues, readSandboxSetting } from '../../common/sandboxSettingsReader.js';
+import { terminalChatAgentToolsConfiguration } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 suite('sandboxSettingsReader', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,26 +26,24 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
+	test('forwards the network default and explicit network restrictions to the agent host', async () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxAllowNetwork;
+		const cfg = new TestConfigurationService({ [settingId]: terminalChatAgentToolsConfiguration[settingId].default });
+		const logService = new NullLogService();
+		const values = [readAgentHostSandboxValues(cfg, logService)];
+		await cfg.setUserConfiguration(settingId, false);
+		values.push(readAgentHostSandboxValues(cfg, logService));
+		assert.deepStrictEqual(values, [
+			{ [AgentHostSandboxKey.AllowNetwork]: true },
+			{ [AgentHostSandboxKey.AllowNetwork]: false },
+		]);
+	});
+
 	test('returns undefined when nothing is configured', () => {
 		const cfg = new TestConfigurationService();
 		assert.strictEqual(
 			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
 			undefined,
-		);
-	});
-
-	test('falls back to deprecated key when modern key is not user-set', () => {
-		// Build a config where the deprecated parent key is explicitly user-set.
-		// `chat.agent.sandbox` is the deprecated namespace parent of
-		// `chat.agent.sandbox.enabled`, but `TestConfigurationService.inspect`
-		// only reflects the exact user keys, so this exercises the fallback
-		// path cleanly.
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.AllowNetwork,
 		);
 	});
 
@@ -77,27 +76,6 @@ suite('sandboxSettingsReader', () => {
 		assert.strictEqual(
 			readSandboxSetting<string>(cfgOff, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
 			AgentSandboxEnabledValue.Off,
-		);
-	});
-
-	test('normalizes legacy boolean form when arriving via the deprecated key', () => {
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, true);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.On,
-		);
-	});
-
-	test('modern user value wins over deprecated user value', () => {
-		const cfg = new TestConfigurationService();
-		cfg.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		cfg.setUserConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled, AgentSandboxEnabledValue.AllowNetwork);
-
-		assert.strictEqual(
-			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.On,
 		);
 	});
 

@@ -7,7 +7,7 @@ import { Disposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { mainWindow } from '../../base/browser/window.js';
 
-export type MobileNavigationLayer = 'sidebar' | 'editor' | 'panel' | 'auxbar';
+export type MobileNavigationLayer = 'sidebar' | 'editor' | 'panel' | 'auxbar' | 'customView';
 
 interface MobileNavigationEntry {
 	readonly layer: MobileNavigationLayer;

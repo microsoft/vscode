@@ -1,0 +1,807 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as dom from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
+import { ICustomizationMigrationAvailabilityService } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
+import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { activeSessionViewBackground } from '../../../../common/theme.js';
+import { Menus } from '../../../../browser/menus.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
+import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
+import { NewChatView } from '../../browser/chatView.js';
+import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+
+import '../../../../browser/media/style.css';
+import '../../../../browser/parts/media/sessionView.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
+
+const DEFAULT_WIDTH = 800;
+const DEFAULT_HEIGHT = 560;
+const ATTACHED_FOLDER_URI = URI.file('/Code/docs');
+const ATTACHED_REPOSITORY_URI = URI.parse('https://github.com/microsoft/typescript');
+const ATTACHED_REPOSITORY_ROOT = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
+
+interface INewChatWidgetFixtureOptions {
+	readonly width?: number;
+	readonly height?: number;
+	readonly commentCount?: number;
+	readonly showTip?: boolean;
+	readonly promptOptions?: NewSessionPromptOptionsState;
+	readonly selectedOptionIndex?: number;
+	readonly editedInput?: string;
+	readonly withWorkspace?: boolean;
+	readonly withRemoteWorkspace?: boolean;
+	readonly openWorkspacePicker?: boolean;
+	readonly openGitHubContextPicker?: boolean;
+	readonly withAttachedContext?: boolean;
+	readonly withAutoModel?: boolean;
+	readonly primaryToolbarWidth?: number;
+	readonly phoneLayout?: boolean;
+	readonly migrationCount?: number;
+	readonly withChatBackground?: boolean;
+}
+
+class AutoModelFixtureMenuService extends FixtureMenuService {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+	) {
+		super(contextKeyService, commandService);
+		this.addItem(Menus.NewSessionConfig, {
+			command: { id: 'sessions.modelPicker', title: 'Model' },
+			group: 'navigation',
+			order: 1,
+		});
+		this.addItem(MenuId.ChatInputStatus, {
+			command: { id: 'fixture.autopilotStatus', title: 'Autopilot', icon: Codicon.rocket },
+			group: 'navigation',
+			order: 1,
+		});
+		this.addItem(MenuId.ChatInputStatus, {
+			command: { id: 'fixture.warningStatus', title: 'Warning', icon: Codicon.warning },
+			group: 'navigation',
+			order: 2,
+		});
+		this.addItem(MenuId.ChatInputStatus, {
+			command: { id: 'fixture.connectionStatus', title: 'Connection', icon: Codicon.radioTower },
+			group: 'navigation',
+			order: 3,
+		});
+		this.addItem(MenuId.ChatInputStatus, {
+			command: { id: 'fixture.textStatus', title: 'Status' },
+			group: 'navigation',
+			order: 4,
+		});
+	}
+}
+
+/**
+ * Wraps the composer in the `.part.sessionspart` host the Agents window uses and
+ * paints the real codicon wallpaper into it, so the fixture shows the composer
+ * the way it reads once a chat background is set.
+ */
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+	const part = dom.append(container, dom.$('.part.sessionspart'));
+	part.style.position = 'relative';
+	part.style.width = '100%';
+	part.style.height = '100%';
+	// The part carries the opaque base, as it does in the Agents window, so the
+	// session view above it can stay transparent and let the wallpaper through.
+	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
+	renderer.setBackground({ kind: 'codicons' });
+	return part;
+}
+
+/**
+ * Renders the whole new-session composer (`NewChatView` → `NewChatWidget`) inside
+ * a `.session-view` so the draft-comments banner sits above the input the way it
+ * does in the Agents window.
+ *
+ * Deliberately a separate file from `newChatInput.fixture.ts`: pulling
+ * `NewChatView` into that module would change the order its stylesheets are
+ * injected in, and `.new-chat-bottom-container` is styled by two equally
+ * specific rules (`chatWidget.css` vs `newChatInSession.css`) that source order
+ * decides between.
+ */
+async function renderNewChatWidget(context: ComponentFixtureContext, options: INewChatWidgetFixtureOptions = {}): Promise<void> {
+	const { container, disposableStore } = context;
+	const {
+		width = DEFAULT_WIDTH,
+		height = DEFAULT_HEIGHT,
+		commentCount = 0,
+		showTip = false,
+		promptOptions,
+		selectedOptionIndex,
+		editedInput,
+		withWorkspace = false,
+		withRemoteWorkspace = false,
+		openWorkspacePicker = false,
+		openGitHubContextPicker = false,
+		withAttachedContext = false,
+		withAutoModel = false,
+		primaryToolbarWidth,
+		phoneLayout = false,
+		migrationCount = 0,
+		withChatBackground = false,
+	} = options;
+	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
+		id: `feedback-${index}`,
+		text: `Comment ${index + 1}`,
+		resourceUri: URI.file(`/workspace/src/file-${index + 1}.ts`),
+		range: new Range(index + 1, 1, index + 1, 8),
+		sessionResource: AGENT_FEEDBACK_NEW_SESSION_RESOURCE,
+		kind: AgentFeedbackKind.UserReview,
+		state: AgentFeedbackState.Accepted,
+	}));
+	const workspace = createFixtureWorkspace(withRemoteWorkspace);
+	const sessionTypes = createFixtureSessionTypes();
+	const provider = createFixtureProvider(workspace, sessionTypes, withAutoModel ? [createFixtureAutoModel()] : []);
+	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
+	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const composerService = disposableStore.add(new NewSessionComposerService());
+	const sessionsService = new class extends mock<ISessionsService>() {
+		override readonly activeSession = activeSessionObservable;
+	}();
+
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: reg => {
+			registerChatFixtureServices(reg);
+			if (withAutoModel) {
+				reg.define(IMenuService, AutoModelFixtureMenuService);
+			}
+			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+				override readonly extUri = extUri;
+			}());
+			reg.defineInstance(INewSessionComposerService, composerService);
+			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
+				override readonly onDidDismissTip = Event.None;
+				override readonly onDidNavigateTip = Event.None;
+				override readonly onDidHideTip = Event.None;
+				override readonly onDidDisableTips = Event.None;
+				override getWelcomeTip() {
+					return showTip ? { id: 'fixture-tip', content: new MarkdownString('**Tip:** Reference files or folders with # to give the agent more context.') } : undefined;
+				}
+				override resetSession(): void { }
+				override hasMultipleTips(): boolean { return false; }
+			}());
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override readonly onShow = Event.None;
+				override readonly onHide = Event.None;
+			}());
+			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override readonly mainContainer = container;
+				override readonly mainContainerDimension = { width, height };
+				override getContainer() { return container; }
+			}());
+			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override readonly onDidChangeSessionTypes = Event.None;
+				override getSessionTypesForFolder() {
+					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
+				}
+			}());
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProviders() { return activeSession ? [provider] : []; }
+				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+					return (providerId === provider.id ? provider : undefined) as T | undefined;
+				}
+			}());
+			reg.defineInstance(ISessionsRecentWorkspacesService, new class extends mock<ISessionsRecentWorkspacesService>() {
+				override readonly onDidChangeRecentWorkspaces = Event.None;
+				override getRecentWorkspaces() { return activeSession ? [{ workspace, providerId: provider.id, checked: true }] : []; }
+				override addRecentWorkspace(): void { }
+				override removeRecentWorkspace(): void { }
+				override clearCheckedWorkspace(): void { }
+				override isNoWorkspaceChecked(): boolean { return false; }
+				override checkNoWorkspace(): void { }
+			}());
+			reg.defineInstance(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+				override readonly onDidChange = Event.None;
+				override readonly onDidChangeDiscovering = Event.None;
+				override readonly selectedHostId = provider.id;
+				override readonly selectedHost = {
+					id: provider.id,
+					providerIds: [provider.id],
+					label: provider.label,
+					grouped: false,
+					address: undefined,
+					icon: provider.icon,
+					status: AgentHostFilterConnectionStatus.Connected,
+					connectable: true,
+				};
+				override readonly hosts = [];
+				override readonly isDiscovering = false;
+				override async rediscover(): Promise<void> { }
+			}());
+			reg.defineInstance(IAquariumService, new class extends mock<IAquariumService>() {
+				override mountToggle() {
+					return { dispose() { }, setHostVisible() { } };
+				}
+			}());
+			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+				override readonly onDidChangeFeedback = Event.None;
+				override readonly onDidChangeFeedbackVisibility = Event.None;
+				override readonly onDidChangeFeedbackScope = Event.None;
+				override readonly onDidRevealSessionComment = Event.None;
+				override getVisibleResolvedFeedbackIds(): ReadonlySet<string> { return new Set(); }
+				override getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
+					return sessionResource.toString() === AGENT_FEEDBACK_NEW_SESSION_RESOURCE.toString() ? feedbackItems : [];
+				}
+				override getFeedbackSessionResource() { return undefined; }
+				override async revealFeedback(): Promise<void> { }
+			}());
+			reg.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override async getFilteredPromptSlashCommands() { return []; }
+			}());
+			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+				override async getSlashCommands() { return []; }
+			}());
+			reg.defineInstance(ICustomizationMigrationAvailabilityService, {
+				_serviceBrand: undefined,
+				candidateCount: observableValue('customizationMigrationCount', migrationCount),
+			});
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
+				sessionsService,
+				new class extends mock<IChatWidgetService>() {
+					override readonly onDidChangeFocusedSession = Event.None;
+				}(),
+			)));
+			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
+				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
+				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
+				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
+				override readonly handsFree = observableValue<boolean>('handsFree', true);
+				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
+				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
+				override readonly simulatedVersion = observableValue<undefined>('simulatedVersion', undefined);
+				override readonly simulatedHover = observableValue<boolean>('simulatedHover', false);
+			}());
+			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+				override readonly isConnected = observableValue<boolean>('isConnected', false);
+				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
+				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
+				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
+				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
+			}());
+			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IMicCaptureService, new class extends mock<IMicCaptureService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+				override readonly onDidChangeState = Event.None;
+				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
+				override readonly state = ChatSpeechToTextState.Idle;
+				override readonly isConfigured = false;
+				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
+			}());
+			reg.defineInstance(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
+				override readonly onDidChangeBackground = Event.None;
+				override getBackground() { return undefined; }
+				override getConfiguredBackgroundImage() { return undefined; }
+				override setBackground() { return Promise.resolve(); }
+			}());
+		},
+	});
+
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
+	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
+
+	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore) : container, dom.$('.session-view.is-active'));
+	sessionView.style.width = '100%';
+	sessionView.style.height = '100%';
+	if (!withChatBackground) {
+		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	}
+	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
+	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
+	sessionViewContent.style.width = '100%';
+	sessionViewContent.style.height = '100%';
+
+	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
+		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
+	}));
+	sessionViewContent.appendChild(view.element);
+	view.layout(width, height, 0, 0);
+	const targetWindow = dom.getWindow(container);
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+	if (phoneLayout && withAttachedContext) {
+		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
+		assert(!!content);
+		assert(content.style.top === '');
+	}
+	if (withAutoModel) {
+		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
+		const iconItems = statusItems.filter(item => item.classList.contains('new-chat-status-icon-action'));
+		assert(iconItems.length === 3);
+		assert(iconItems.some(item => item.querySelector('.codicon-rocket-compact')));
+		assert(iconItems.some(item => item.querySelector('.codicon-warning-compact')));
+
+		const textLabel = statusItems
+			.filter(item => !item.classList.contains('new-chat-status-icon-action'))
+			.map(item => item.querySelector<HTMLElement>('.action-label'))
+			.find(label => label?.textContent === 'Status');
+		assert(!!textLabel);
+		assert(textLabel.scrollWidth <= textLabel.clientWidth);
+
+		if (phoneLayout) {
+			assert(iconItems.every(item => (item.querySelector<HTMLElement>('.action-label')?.getBoundingClientRect().width ?? 0) > 22));
+		}
+	}
+	if (primaryToolbarWidth !== undefined) {
+		const toolbar = view.element.querySelector<HTMLElement>('.sessions-chat-config-toolbar');
+		if (!toolbar) {
+			throw new Error('Expected the new-session primary toolbar to render.');
+		}
+		toolbar.style.flex = `0 0 ${primaryToolbarWidth}px`;
+		toolbar.style.width = `${primaryToolbarWidth}px`;
+		await nextFrame();
+		await nextFrame();
+	}
+	if (openWorkspacePicker) {
+		await nextFrame();
+		await nextFrame();
+		view.element.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .action-label')?.click();
+	} else if (openGitHubContextPicker) {
+		await nextFrame();
+		await nextFrame();
+		view.element.querySelector<HTMLElement>('[aria-label="Attach a GitHub issue or pull request to the new session"]')?.click();
+	}
+
+	if (promptOptions) {
+		composerService.activeComposer.get()?.showPromptOptions(promptOptions);
+		if (promptOptions.kind === 'resolved' && selectedOptionIndex !== undefined) {
+			const buttons = view.element.querySelectorAll<HTMLElement>('.new-session-prompt-option.monaco-button');
+			buttons[selectedOptionIndex]?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+		}
+		if (editedInput !== undefined) {
+			view.prefillInput(editedInput);
+		}
+	}
+}
+
+export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	NewSessionDefault: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left above the chat input. Customize is aligned separately to the right edge of the input, with a yellow migration indicator and no chevron.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 3 }),
+	}),
+	NewSessionChatBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer sits directly on the codicon wallpaper with no card behind it. The workspace pills, the input area and the bottom-row controls each carry their own opaque surface and a thin border, and the wallpaper shows through the gaps between them.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
+	}),
+	NewSessionAutoModel: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action without clipping.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
+	}),
+	NewSessionCompactAutoModel: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session input toolbar shows the Auto model picker in compact mode as a centered Copilot icon inside a 22-pixel square control aligned with the expanded toolbar height.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, primaryToolbarWidth: 25 }),
+	}),
+	NewSessionWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
+	}),
+	NewSessionGitHubContextPicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The Issue/PR pill has the active treatment after opening its picker.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, openGitHubContextPicker: true }),
+	}),
+	NewSessionAttachedContext: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1 aligned to the left, with Customize aligned to the right edge of the input. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
+	}),
+	NewSessionPhoneAttachedContext: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. Status icons remain touch-friendly pills rather than inheriting the desktop 22-pixel square width.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withAttachedContext: true, withAutoModel: true, phoneLayout: true }),
+	}),
+	NewSessionRemoteWorkspace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer shows Copilot and devbox · microsoft/vscode pills aligned to the left, with Customize aligned to the right edge of the input. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
+		render: context => renderNewChatWidget(context, { withRemoteWorkspace: true }),
+	}),
+	NewSessionNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, height: 760, withWorkspace: true }),
+	}),
+	NewSessionComments: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { commentCount: 3 }),
+	}),
+	NewSessionTip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { showTip: true }),
+	}),
+	PromptOptionsLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { promptOptions: { kind: 'loading' } }),
+	}),
+	PromptOptionsStandard: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { promptOptions: { kind: 'resolved', options: createStandardPromptOptions() } }),
+	}),
+	PromptOptionsGitHubMixed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { promptOptions: { kind: 'resolved', options: createMixedPromptOptions() } }),
+	}),
+	PromptOptionsSelected: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, {
+			promptOptions: { kind: 'resolved', options: createStandardPromptOptions() },
+			selectedOptionIndex: 0,
+		}),
+	}),
+	PromptOptionsEditedDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => {
+			const promptOptions = createStandardPromptOptions();
+			return renderNewChatWidget(context, {
+				promptOptions: { kind: 'resolved', options: promptOptions },
+				selectedOptionIndex: 0,
+				editedInput: `${promptOptions[0].prompt} Add a regression test too.`,
+			});
+		},
+	}),
+	PromptOptionsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, {
+			width: 420,
+			height: 760,
+			promptOptions: { kind: 'resolved', options: createMixedPromptOptions() },
+		}),
+	}),
+});
+
+function createFixtureWorkspace(remote: boolean): ISessionWorkspace {
+	const resource = remote
+		? URI.parse('vscode-remote://ssh-remote+devbox/workspaces/vscode')
+		: URI.file('C:\\Code\\vscode');
+	return {
+		uri: resource,
+		label: remote ? 'devbox · microsoft/vscode' : 'microsoft/vscode',
+		icon: remote ? Codicon.remote : Codicon.repo,
+		group: remote ? SESSION_WORKSPACE_GROUP_REMOTE : SESSION_WORKSPACE_GROUP_LOCAL,
+		folders: [{
+			root: resource,
+			workingDirectory: resource,
+			name: 'microsoft/vscode',
+			description: undefined,
+			gitRepository: remote ? undefined : {
+				uri: resource,
+				workTreeUri: undefined,
+				baseBranchName: 'main',
+				gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+			},
+		}],
+		requiresWorkspaceTrust: true,
+		isVirtualWorkspace: false,
+	};
+}
+
+function createFixtureSessionTypes(): readonly ISessionType[] {
+	return [
+		{
+			id: 'copilotcli',
+			label: 'Copilot',
+			icon: Codicon.terminal,
+			authRequirement: SessionTypeAuthRequirement.None,
+		},
+		{
+			id: 'claude',
+			label: 'Claude',
+			icon: Codicon.sparkle,
+			authRequirement: SessionTypeAuthRequirement.None,
+		},
+	];
+}
+
+function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: readonly ISessionType[], models: readonly ILanguageModelChatMetadataAndIdentifier[]): ISessionsProvider {
+	return new class extends mock<ISessionsProvider>() {
+		override readonly id = 'fixture-provider';
+		override readonly label = 'Fixture Provider';
+		override readonly icon = Codicon.terminal;
+		override readonly order = 0;
+		override readonly sessionTypes = sessionTypes;
+		override readonly onDidChangeSessionTypes = Event.None;
+		override readonly onDidChangeSessions = Event.None;
+		override readonly onDidChangeModels = Event.None;
+		override readonly browseActions = [
+			{
+				label: 'Repository...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.repo,
+				providerId: this.id,
+				attachesContext: false,
+				run: async () => workspace,
+			},
+			{
+				label: 'Issue...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.issues,
+				providerId: this.id,
+				attachesContext: true,
+				run: async () => undefined,
+			},
+			{
+				label: 'Pull Request...',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				icon: Codicon.gitPullRequest,
+				providerId: this.id,
+				attachesContext: true,
+				run: async () => undefined,
+			},
+		];
+		override readonly supportsLocalWorkspaces = true;
+
+		override getSessions(): ISession[] {
+			return [];
+		}
+
+		override resolveWorkspace(folderUri: URI): ISessionWorkspace | undefined {
+			if (folderUri.toString() === workspace.folders[0].root.toString()) {
+				return workspace;
+			}
+			if (folderUri.toString() === ATTACHED_FOLDER_URI.toString()) {
+				return createAttachedFolderWorkspace();
+			}
+			if (folderUri.toString() === ATTACHED_REPOSITORY_ROOT.toString()) {
+				return createAttachedRepositoryWorkspace();
+			}
+			return undefined;
+		}
+
+		override getModelsSnapshot() {
+			return {
+				models,
+				desiredModelResolution: { kind: 'notRequested' as const },
+				modelTarget: 'agent-host-copilotcli',
+			};
+		}
+
+		override getModelPickerOptions() {
+			return {
+				useGroupedModelPicker: true,
+				showFeatured: false,
+				showUnavailableFeatured: false,
+				showManageModelsAction: false,
+				showAutoModel: true,
+			};
+		}
+
+		override setModel(): void { }
+	}();
+}
+
+function createFixtureAutoModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier: 'copilot/auto',
+		metadata: {
+			extension: new ExtensionIdentifier('github.copilot-chat'),
+			id: 'auto',
+			name: 'Auto',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'auto',
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		},
+	};
+}
+
+function createFixtureAttachments(): readonly IChatRequestVariableEntry[] {
+	const issueUri = URI.parse('https://github.com/microsoft/vscode/issues/333053');
+	return [
+		{
+			kind: 'directory',
+			id: getAdditionalFolderContextId(ATTACHED_FOLDER_URI),
+			name: 'docs',
+			value: ATTACHED_FOLDER_URI,
+		},
+		{
+			kind: 'generic',
+			id: getAdditionalRepositoryContextId(ATTACHED_REPOSITORY_URI),
+			name: 'microsoft/typescript',
+			value: ATTACHED_REPOSITORY_ROOT,
+			icon: Codicon.repo,
+		},
+		toPasteVariableEntry('microsoft/vscode#333053', `GitHub context: ${issueUri.toString()}`, {
+			id: `github-context:${issueUri.toString()}`,
+			icon: computeIssueIcon(GitHubIssueState.Open, undefined),
+		}),
+	];
+}
+
+function createAttachedFolderWorkspace(): ISessionWorkspace {
+	return {
+		uri: ATTACHED_FOLDER_URI,
+		label: 'docs',
+		icon: Codicon.folder,
+		group: SESSION_WORKSPACE_GROUP_LOCAL,
+		folders: [{
+			root: ATTACHED_FOLDER_URI,
+			workingDirectory: ATTACHED_FOLDER_URI,
+			name: 'docs',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: true,
+		isVirtualWorkspace: false,
+	};
+}
+
+function createAttachedRepositoryWorkspace(): ISessionWorkspace {
+	return {
+		uri: ATTACHED_REPOSITORY_URI,
+		label: 'microsoft/typescript',
+		icon: Codicon.repo,
+		group: SESSION_WORKSPACE_GROUP_GITHUB,
+		folders: [{
+			root: ATTACHED_REPOSITORY_ROOT,
+			workingDirectory: ATTACHED_REPOSITORY_ROOT,
+			name: 'typescript',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: true,
+	};
+}
+
+function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: ISessionType): IActiveSession {
+	const activeChat = new class extends mock<IChat>() {
+		override readonly resource = URI.parse('fixture-chat://new-session');
+		// Read by model selection: an untitled chat with no model of its own.
+		override readonly status = constObservable(SessionStatus.Untitled);
+		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly modelSource = constObservable<ChatModelSource | undefined>(undefined);
+	}();
+	return new class extends mock<IActiveSession>() {
+		override readonly resource = URI.from({ scheme: 'fixture-session', path: '/fixture-session' });
+		override readonly sessionId = 'fixture-session';
+		override readonly providerId = 'fixture-provider';
+		override readonly sessionType = sessionType.id;
+		override readonly status = constObservable(SessionStatus.Untitled);
+		override readonly isCreated = constObservable(false);
+		override readonly loading = constObservable(false);
+		override readonly workspace = constObservable(workspace);
+		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly activeChat = constObservable(activeChat);
+	}();
+}
+
+function createStandardPromptOptions(): readonly INewSessionPromptOption[] {
+	return [
+		{
+			id: 'standard:implementFeature',
+			title: 'Implement a feature',
+			description: 'Describe what you want to build',
+			prompt: 'Help me implement [describe the feature] in this project. Ask me questions if anything is unclear regarding the intended behaviour.',
+			placeholder: '[describe the feature]',
+			icon: Codicon.lightbulbSparkleAutofix,
+		},
+		{
+			id: 'standard:fixBug',
+			title: 'Fix a bug',
+			description: 'Describe the unexpected behavior',
+			prompt: 'Help me fix [describe the bug] in this project. Ask me questions if anything is unclear regarding the bug or the intended behaviour.',
+			placeholder: '[describe the bug]',
+			icon: Codicon.bug,
+		},
+		{
+			id: 'standard:fixCi',
+			title: 'Fix CI',
+			description: 'Describe a failing check or paste a link',
+			prompt: 'Help me fix the failing CI for [describe the CI failure or paste a link] in this project. Ask me questions if anything is unclear regarding the CI failure or how it should be fixed.',
+			placeholder: '[describe the CI failure or paste a link]',
+			icon: Codicon.runErrors,
+		},
+	];
+}
+
+function createMixedPromptOptions(): readonly INewSessionPromptOption[] {
+	return [
+		{
+			id: 'githubIssue:327101',
+			title: 'Tackle issue',
+			titleDetail: '#327101',
+			description: 'Improve the accessibility of inline chat controls',
+			prompt: 'Tackle the following issue and create a pull request for it: "Improve the accessibility of inline chat controls" (https://github.com/microsoft/vscode/issues/327101).',
+			placeholder: '',
+			icon: computeIssueIcon(GitHubIssueState.Open, undefined),
+		},
+		{
+			id: 'githubIssue:326842',
+			title: 'Tackle issue',
+			titleDetail: '#326842',
+			description: 'Preserve editor state when switching sessions',
+			prompt: 'Tackle the following issue and create a pull request for it: "Preserve editor state when switching sessions" (https://github.com/microsoft/vscode/issues/326842).',
+			placeholder: '',
+			icon: computeIssueIcon(GitHubIssueState.Open, undefined),
+		},
+		{
+			id: 'githubCiFailure:329629',
+			title: 'Fix CI',
+			titleDetail: '#329629',
+			description: 'Add GitHub prompt variation to onboarding',
+			prompt: 'The following pull request has failing CI checks: "Add GitHub prompt variation to onboarding" (https://github.com/microsoft/vscode/pull/329629). Investigate the failures and resolve them.',
+			placeholder: '',
+			icon: computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true }),
+		},
+	];
+}

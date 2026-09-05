@@ -21,6 +21,23 @@ fn main() {
 	ensure_file_headers(&files).expect("expected to ensure file headers");
 	apply_build_environment_variables();
 	apply_win32_version_resources();
+	apply_debug_stack_size();
+}
+
+/// Windows gives the main thread a 1MB stack by default, where Linux and macOS
+/// give 8MB. `#[tokio::main]` runs the whole async runtime on that thread, and
+/// unoptimized builds do not collapse nested async state machines, so a debug
+/// build of `code tunnel` can overflow it before it finishes starting up.
+///
+/// Raise it to match the Unix default, for debug builds only: release builds
+/// optimize those futures down and should not have their link flags changed
+/// without separate scrutiny.
+fn apply_debug_stack_size() {
+	let is_windows = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows");
+	let is_debug = env::var("PROFILE").as_deref() == Ok("debug");
+	if is_windows && is_debug {
+		println!("cargo:rustc-link-arg-bins=/STACK:8388608");
+	}
 }
 
 fn camel_case_to_constant_case(key: &str) -> String {

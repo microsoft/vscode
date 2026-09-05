@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
-import { type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { resolveCustomizationRefs, resolveLocalCustomAgents } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
+import { type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -53,10 +58,16 @@ function makeConfigurationResolverService(resolutions: Record<string, string> = 
 	} as unknown as IConfigurationResolverService;
 }
 
-function makePromptsService(files: ReadonlyMap<string, readonly IPromptPath[]>): IPromptsService {
+function makePromptsService(
+	files: ReadonlyMap<string, readonly IPromptPath[]>,
+	disabledPromptFiles: ReadonlyMap<PromptsType, ResourceSet> = new Map(),
+): IPromptsService {
 	return {
 		async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
 			return files.get(`${type}/${storage}`) ?? [];
+		},
+		getDisabledPromptFiles(type: PromptsType): ResourceSet {
+			return disabledPromptFiles.get(type) ?? new ResourceSet();
 		},
 	} as unknown as IPromptsService;
 }
@@ -69,25 +80,35 @@ class FakeSyncProvider implements ICustomizationSyncProvider {
 	setDisabled(): void { /* no-op */ }
 }
 
-function makeAgentPluginService(plugins: readonly IAgentPlugin[] = []): IAgentPluginService {
+function globalEnablement(enabled: boolean): CustomizationEnablement[] {
+	return [{ kind: CustomizationEnablementKind.Global, enabled }];
+}
+
+function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEnablement = new Map<string, boolean>()): IAgentPluginService {
 	return {
 		_serviceBrand: undefined,
 		plugins: observableValue('plugins', plugins),
-		enablementModel: { isEnabled: () => true, setEnabled: () => { /* no-op */ } },
+		enablementModel: { readProfileEnabled: (key: string) => profileEnablement.get(key) ?? true },
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; mcpServers?: number } = {}): IAgentPlugin {
-	const { label = 'Plugin', enabled = true, mcpServers = 0 } = options;
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
+	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0 } = options;
 	return {
 		uri,
+		format: PluginFormat.Copilot,
 		label,
-		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
+		enablement: observableValue('enablement', enablement),
+		hooks: observableValue('hooks', []),
+		commands: observableValue('commands', []),
+		skills: observableValue('skills', []),
+		agents: observableValue('agents', Array.from({ length: agents }, (_, index) => ({ uri: URI.joinPath(uri, 'agents', `agent-${index}.agent.md`), name: `agent-${index}` }))),
+		instructions: observableValue('instructions', []),
 		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
 	} as unknown as IAgentPlugin;
 }
 
-function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map()): IFileService {
+function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map(), contents: ReadonlyMap<string, string> = new Map()): IFileService {
 	return {
 		async stat(uri: URI) {
 			const known = stats.get(uri.toString());
@@ -96,25 +117,33 @@ function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map
 			}
 			throw new Error(`no stat for ${uri.toString()}`);
 		},
+		async readFile(uri: URI) {
+			const content = contents.get(uri.toString());
+			if (content !== undefined) {
+				return { resource: uri, value: VSBuffer.fromString(content) };
+			}
+			throw new Error(`no content for ${uri.toString()}`);
+		},
 	} as unknown as IFileService;
 }
 
-function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; launch?: McpServerLaunch | undefined; configTarget?: ConfigurationTarget }): IMcpServer {
-	const { id, collectionId, label = id, enabled = true, launch, configTarget = ConfigurationTarget.USER } = options;
-	const collection = { id: collectionId, label: collectionId, order: 0, configTarget } as unknown as McpCollectionDefinition;
-	const definitions = observableValue('definitions', { server: launch ? { launch } : undefined, collection });
+function makeMcpServer(options: { id: string; collectionId: string; label?: string; enabled?: boolean; enablement?: ContributionEnablementState; launch?: McpServerLaunch | undefined; defaultCwd?: URI; roots?: readonly URI[]; configTarget?: ConfigurationTarget; collectionSource?: ExtensionIdentifier; collectionOrigin?: URI }): IMcpServer {
+	const { id, collectionId, label = id, enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, launch, defaultCwd, roots, configTarget = ConfigurationTarget.USER, collectionSource, collectionOrigin } = options;
+	const collection = { id: collectionId, label: collectionId, order: 0, configTarget, source: collectionSource, presentation: collectionOrigin ? { origin: collectionOrigin } : undefined } as unknown as McpCollectionDefinition;
+	const definitions = observableValue('definitions', { server: launch ? { launch, defaultCwd, roots } : undefined, collection });
 	return {
 		definition: { id, label },
 		collection: { id: collectionId, label: collectionId, order: 0 },
-		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
+		enablement: observableValue('enablement', enablement),
 		readDefinitions: () => definitions,
 	} as unknown as IMcpServer;
 }
 
-function makeMcpService(servers: readonly IMcpServer[] = []): IMcpService {
+function makeMcpService(servers: readonly IMcpServer[] = [], profileEnablement = new Map<string, boolean>()): IMcpService {
 	return {
 		_serviceBrand: undefined,
 		servers: observableValue('servers', servers),
+		enablementModel: { readProfileEnabled: (key: string) => profileEnablement.get(key) ?? true },
 	} as unknown as IMcpService;
 }
 
@@ -127,6 +156,16 @@ const stdioLaunch: McpServerLaunch = {
 	cwd: undefined,
 	sandbox: undefined,
 };
+
+function makeCopilotChatGitHubMcpServer(): IMcpServer {
+	return makeMcpServer({
+		id: 'github.copilot-chat/GitHub',
+		collectionId: 'github.copilot-chat/github',
+		label: 'GitHub',
+		launch: stdioLaunch,
+		collectionSource: new ExtensionIdentifier('GitHub.copilot-chat'),
+	});
+}
 
 const stdioLaunchWithInput: McpServerLaunch = {
 	type: McpServerTransportType.Stdio,
@@ -148,19 +187,17 @@ const stdioLaunchWithFolder: McpServerLaunch = {
 	sandbox: undefined,
 };
 
-type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
-
 class FakeBundler {
-	readonly received: LocalSyncableFile[][] = [];
+	readonly received: ISyncableFile[][] = [];
 	readonly receivedMcp: ISyncableMcpServer[][] = [];
 	constructor(private readonly _result: { uri: string; name: string } | undefined = { uri: 'open-plugin://bundle', name: 'Open Plugin' }) { }
-	async bundle(files: readonly LocalSyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []) {
+	async bundle(files: readonly ISyncableFile[], mcpServers: readonly ISyncableMcpServer[] = []) {
 		this.received.push([...files]);
 		this.receivedMcp.push([...mcpServers]);
 		if (!this._result) {
 			return undefined;
 		}
-		return { ref: { type: 'plugin' as const, id: this._result.uri, uri: this._result.uri as never, name: this._result.name, enabled: true }, paths: [] };
+		return { ref: { type: CustomizationType.Plugin, id: this._result.uri, uri: this._result.uri as never, name: this._result.name, enablement: globalEnablement(true) }, paths: [] };
 	}
 }
 
@@ -184,6 +221,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -214,9 +252,39 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
+	});
+
+	test('omits user-disabled built-in skills from the bundle', async () => {
+		const enabled = URI.file('/builtin/create-pr/SKILL.md');
+		const disabled = URI.file('/builtin/merge/SKILL.md');
+		const promptsService = makePromptsService(
+			new Map([
+				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+					makePromptPath(enabled, PromptsType.skill, PromptsStorage.builtIn),
+					makePromptPath(disabled, PromptsType.skill, PromptsStorage.builtIn),
+				]],
+			]),
+			new Map([[PromptsType.skill, new ResourceSet([disabled])]]),
+		);
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.received[0].map(file => file.uri.toString()), [enabled.toString()]);
 	});
 
 	test('combines built-in skills with user files in a single bundle', async () => {
@@ -237,6 +305,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -247,6 +316,51 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				{ uri: userAgent.toString(), type: PromptsType.agent },
 			].sort((a, b) => a.uri.localeCompare(b.uri)),
 		);
+	});
+
+	test('includes enabled user files only when user storage is enabled', async () => {
+		const enabled = URI.file('/home/user/.copilot/instructions/enabled.instructions.md');
+		const disabled = URI.file('/home/user/.claude/rules/disabled.instructions.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.user}`, [
+				makePromptPath(enabled, PromptsType.instructions, PromptsStorage.user),
+				makePromptPath(disabled, PromptsType.instructions, PromptsStorage.user),
+			]],
+		]));
+		const syncProvider = new FakeSyncProvider(new Set([disabled.toString()]));
+		const localBundler = new FakeBundler();
+		const remoteBundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			syncProvider,
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			localBundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			syncProvider,
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			remoteBundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			{ includeUserStorage: true },
+		);
+
+		assert.deepStrictEqual({
+			local: localBundler.received,
+			remote: remoteBundler.received[0].map(file => ({ uri: file.uri.toString(), source: file.source })),
+		}, {
+			local: [],
+			remote: [{ uri: enabled.toString(), source: PromptsStorage.user }],
+		});
 	});
 
 	test('skips bundler call entirely when only disabled built-ins exist', async () => {
@@ -265,6 +379,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -285,6 +400,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -293,40 +409,61 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 	});
 
-	test('omits MCP-only plugins that are disabled by enablement', async () => {
+	test('includes plugins discovered through their agents before prompt-file hydration', async () => {
+		const pluginUri = URI.file('/plugins/agent-only');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Agent Only', agents: 1 })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Agent Only' },
+		]);
+	});
+
+	test('publishes disabled MCP-only plugins with an explicit global decision', async () => {
 		const pluginUri = URI.file('/plugins/mcp-disabled');
 		const refs = await resolveCustomizationRefs(
 			makeFileService(),
 			makePromptsService(new Map()),
 			new FakeSyncProvider(),
-			makeAgentPluginService([makePlugin(pluginUri, { enabled: false, mcpServers: 1 })]),
+			makeAgentPluginService([makePlugin(pluginUri, { enabled: false, mcpServers: 1 })], new Map([[pluginUri.toString(), false]])),
 			makeMcpService(),
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
-		assert.deepStrictEqual(refs, []);
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
 
-	test('omits plugins with prompt-file contributions that are disabled by enablement', async () => {
-		const pluginUri = URI.file('/plugins/prompt-disabled');
-		const promptFile = URI.file('/plugins/prompt-disabled/skills/foo/SKILL.md');
+	test('publishes disabled plugins with agent contributions', async () => {
+		const pluginUri = URI.file('/plugins/agent-disabled');
+		const promptFile = URI.file('/plugins/agent-disabled/agents/foo.agent.md');
 		const refs = await resolveCustomizationRefs(
 			makeFileService(),
 			makePromptsService(new Map([
-				[`${PromptsType.skill}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.skill, PromptsStorage.plugin)]],
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.agent, PromptsStorage.plugin)]],
 			])),
 			new FakeSyncProvider(),
-			makeAgentPluginService([makePlugin(pluginUri, { enabled: false })]),
+			makeAgentPluginService([makePlugin(pluginUri, { enabled: false })], new Map([[pluginUri.toString(), false]])),
 			makeMcpService(),
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
-		assert.deepStrictEqual(refs, []);
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
 
-	test('omits MCP-only plugins that the user opted out of syncing', async () => {
+	test('publishes MCP-only plugins regardless of the removed plugin sync opt-out', async () => {
 		const pluginUri = URI.file('/plugins/mcp-opted-out');
 		const refs = await resolveCustomizationRefs(
 			makeFileService(),
@@ -337,8 +474,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
-		assert.deepStrictEqual(refs, []);
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true)]);
 	});
 
 	test('does not duplicate a plugin that contributes both prompt files and MCP servers', async () => {
@@ -356,6 +494,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 		assert.deepStrictEqual(refs.map(r => r.uri), [pluginUri.toString()]);
 	});
@@ -373,6 +512,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.
@@ -394,14 +534,92 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('excludes the Copilot Chat GitHub MCP provider without excluding user or other extension servers', async () => {
+		const bundler = new FakeBundler();
+		const mcpService = makeMcpService([
+			makeCopilotChatGitHubMcpServer(),
+			makeMcpServer({ id: 'user.GitHub', collectionId: 'user', label: 'GitHub', launch: stdioLaunch }),
+			makeMcpServer({
+				id: 'publisher.extension/server',
+				collectionId: 'publisher.extension/provider',
+				label: 'extension-server',
+				launch: stdioLaunch,
+				collectionSource: new ExtensionIdentifier('publisher.extension'),
+			}),
+		]);
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			'agent-host-copilotcli',
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.receivedMcp, [[
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+			{ name: 'extension-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+		]]);
+	});
+
+	test('retains the Copilot Chat GitHub MCP provider for remote hosts without an advertised capability', async () => {
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService([makeCopilotChatGitHubMcpServer()]),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			'remote-test-copilotcli',
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.receivedMcp, [[
+			{ name: 'GitHub', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(true) },
+		]]);
+	});
+
+	test('excludes the Copilot Chat GitHub MCP provider for all built-in agent-host providers', async () => {
+		const receivedMcpByProvider: Record<string, readonly ISyncableMcpServer[][]> = {};
+		for (const provider of ['copilotcli', 'claude', 'codex']) {
+			const bundler = new FakeBundler();
+			await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService(),
+				makeMcpService([makeCopilotChatGitHubMcpServer()]),
+				makeConfigurationResolverService(),
+				bundler as unknown as SyncedCustomizationBundler,
+				`agent-host-${provider}`,
+				undefined,
+			);
+			receivedMcpByProvider[provider] = bundler.receivedMcp;
+		}
+
+		assert.deepStrictEqual(receivedMcpByProvider, {
+			copilotcli: [],
+			claude: [],
+			codex: [],
+		});
 	});
 
 	test('excludes plugin-sourced MCP servers from the bundle', async () => {
@@ -419,6 +637,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		// No loose files and no non-plugin MCP servers: bundler is never called.
@@ -426,11 +645,11 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
-	test('excludes disabled MCP servers from the bundle', async () => {
+	test('publishes disabled MCP servers with an explicit global decision', async () => {
 		const bundler = new FakeBundler();
 		const mcpService = makeMcpService([
 			makeMcpServer({ id: 'user.off', collectionId: 'user', label: 'off', enabled: false, launch: stdioLaunch }),
-		]);
+		], new Map([['user.off', false]]));
 
 		await resolveCustomizationRefs(
 			makeFileService(),
@@ -441,9 +660,34 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
-		assert.strictEqual(bundler.received.length, 0);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [
+			{ name: 'off', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, enablement: globalEnablement(false) },
+		]);
+	});
+
+	test('publishes profile enablement despite a VS Code workspace override', async () => {
+		const pluginUri = URI.file('/plugins/workspace-disabled');
+		const plugin = makePlugin(pluginUri, { mcpServers: 1, enablement: ContributionEnablementState.DisabledWorkspace });
+		const server = makeMcpServer({ id: 'user.workspace-disabled', collectionId: 'user', label: 'workspace-disabled', enablement: ContributionEnablementState.DisabledWorkspace, launch: stdioLaunch });
+		const bundler = new FakeBundler();
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]])),
+			makeMcpService([server], new Map([['user.workspace-disabled', true]])),
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true), globalEnablement(true)]);
+		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.enablement), [globalEnablement(true)]);
 	});
 
 	test('excludes workspace-discovered `.mcp.json` servers (the agent host discovers those itself)', async () => {
@@ -461,6 +705,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -481,6 +726,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -488,8 +734,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('syncs `.vscode/mcp.json` servers that resolve without user interaction', async () => {
 		const bundler = new FakeBundler();
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.my-server', collectionId: 'mcp.config.ws0', label: 'my-server', launch: stdioLaunch, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(defaultCwd, '.vscode', 'mcp.json') }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -501,20 +748,63 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
+			[defaultCwd]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined } },
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined }, defaultCwd, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
 	});
 
+	test('excludes `.vscode/mcp.json` servers from another working-directory scope', async () => {
+		const bundler = new FakeBundler();
+		const workspaceA = URI.file('/workspace-a');
+		const mcpService = makeMcpService([
+			makeMcpServer({
+				id: 'mcp.config.ws0.my-server',
+				collectionId: 'mcp.config.ws0',
+				label: 'my-server',
+				launch: stdioLaunch,
+				defaultCwd: workspaceA,
+				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+				collectionOrigin: URI.joinPath(workspaceA, '.vscode', 'mcp.json'),
+			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.http-server',
+				collectionId: 'mcp.config.ws0',
+				label: 'http-server',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://example.com/mcp'), headers: [] },
+				roots: [workspaceA],
+				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+				collectionOrigin: URI.joinPath(workspaceA, '.vscode', 'mcp.json'),
+			}),
+		]);
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			mcpService,
+			makeConfigurationResolverService(),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+			[URI.file('/workspace-b')]
+		);
+
+		assert.deepStrictEqual({ bundleCount: bundler.received.length, refs }, { bundleCount: 0, refs: [] });
+	});
+
 	test('excludes `.vscode/mcp.json` servers with variables that require interaction (e.g. ${input:…})', async () => {
 		const bundler = new FakeBundler();
+		const workingDirectory = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.needs-input', collectionId: 'mcp.config.ws0', label: 'needs-input', launch: stdioLaunchWithInput, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(workingDirectory, '.vscode', 'mcp.json') }),
 		]);
 
 		await resolveCustomizationRefs(
@@ -526,6 +816,8 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
+			[workingDirectory],
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -533,8 +825,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('syncs `.vscode/mcp.json` servers after resolving non-interactive variables (e.g. ${workspaceFolder})', async () => {
 		const bundler = new FakeBundler();
+		const defaultCwd = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, defaultCwd, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(defaultCwd, '.vscode', 'mcp.json') }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -546,19 +839,22 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService({ '${workspaceFolder}': '/ws' }),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
+			[defaultCwd]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
-			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined, envFile: undefined, cwd: undefined } },
+			{ name: 'folder-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--root', '/ws'], env: undefined, envFile: undefined, cwd: undefined }, defaultCwd, enablement: globalEnablement(true) },
 		]);
 		assert.strictEqual(refs.length, 1);
 	});
 
 	test('excludes `.vscode/mcp.json` servers when variable resolution throws', async () => {
 		const bundler = new FakeBundler();
+		const workingDirectory = URI.file('/ws');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER }),
+			makeMcpServer({ id: 'mcp.config.ws0.folder', collectionId: 'mcp.config.ws0', label: 'folder-server', launch: stdioLaunchWithFolder, configTarget: ConfigurationTarget.WORKSPACE_FOLDER, collectionOrigin: URI.joinPath(workingDirectory, '.vscode', 'mcp.json') }),
 		]);
 		const throwingResolver = {
 			async resolveAsync() { throw new Error('no workspace folder'); },
@@ -573,6 +869,8 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			throwingResolver,
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
+			[workingDirectory],
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -580,8 +878,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	test('still syncs extension-contributed servers (workspace scope, user config target)', async () => {
 		const bundler = new FakeBundler();
+		const extensionDefaultCwd = URI.file('/outside-session');
 		const mcpService = makeMcpService([
-			makeMcpServer({ id: 'ext.foo.srv', collectionId: 'ext.foo', label: 'srv', launch: stdioLaunch, configTarget: ConfigurationTarget.USER }),
+			makeMcpServer({ id: 'ext.foo.srv', collectionId: 'ext.foo', label: 'srv', launch: stdioLaunch, defaultCwd: extensionDefaultCwd, configTarget: ConfigurationTarget.USER }),
 		]);
 
 		const refs = await resolveCustomizationRefs(
@@ -593,10 +892,96 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			undefined,
+			[URI.file('/workspace')],
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
-		assert.deepStrictEqual(bundler.receivedMcp[0].map(s => s.name), ['srv']);
+		assert.deepStrictEqual(bundler.receivedMcp[0], [{
+			name: 'srv',
+			configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'], env: undefined, envFile: undefined, cwd: undefined },
+			defaultCwd: extensionDefaultCwd,
+			enablement: globalEnablement(true),
+		}]);
 		assert.strictEqual(refs.length, 1);
+	});
+});
+
+suite('resolveLocalCustomAgents', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parses agent frontmatter for the pre-session picker', async () => {
+		const pluginUri = URI.file('/plugins/github-inbox');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'inbox.agent.md');
+		const plugin = {
+			...makePlugin(pluginUri),
+			agents: observableValue('agents', [{ uri: agentUri, name: 'inbox.agent' }]),
+		} as IAgentPlugin;
+
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(new Map(), new Map([[agentUri.toString(), [
+				'---',
+				'name: Inbox',
+				'description: Triage GitHub notifications',
+				'user-invocable: false',
+				'---',
+				'Agent instructions',
+			].join('\n')]])),
+			makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(agents, [{
+			type: 'agent',
+			id: agentUri.toString(),
+			uri: agentUri.toString(),
+			name: 'Inbox',
+			description: 'Triage GitHub notifications',
+			disableUserInvocation: true,
+		}]);
+	});
+
+	test('uses profile enablement when filtering plugin agents for the pre-session picker', async () => {
+		const pluginUri = URI.file('/plugins/workspace-disabled');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin = makePlugin(pluginUri, { agents: 1, enablement: ContributionEnablementState.DisabledWorkspace });
+
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(),
+			makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]])),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-0']);
+	});
+
+	test('publishes plugin agents disabled in the profile for container-gated selection', async () => {
+		const pluginUri = URI.file('/plugins/profile-disabled');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin = makePlugin(pluginUri, { agents: 1, enablement: ContributionEnablementState.EnabledWorkspace });
+
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(),
+			makePromptsService(new Map([
+				[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+			])),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), false]])),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
 	});
 });

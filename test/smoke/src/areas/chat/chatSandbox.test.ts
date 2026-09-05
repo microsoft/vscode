@@ -86,7 +86,12 @@ async function updateUserSettingsWhileChatIsOpen(app: Application, settings: [ke
 	await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
 
 	// Settings are changed between chat requests, so restore the view that the
-	// following test interacts with without restarting the application.
+	// following test interacts with without restarting the application. The
+	// panel already holds the local session opened by the suite setup, so reveal
+	// it with `chat.open` rather than starting a fresh local session: revealing
+	// the existing session focuses the input without tearing down and rebuilding
+	// the input editor, avoiding a focus race (and, since a session already
+	// exists, without resolving the Agent Host Copilot default).
 	await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
 	await app.workbench.chat.waitForChatView();
 }
@@ -144,7 +149,7 @@ export function setup(logger: Logger): void {
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 			},
 		}), app => preseedChatExtensionEnablement(app.userDataPath));
 
@@ -163,8 +168,7 @@ export function setup(logger: Logger): void {
 				// focusable for the additional settings written by nested suites.
 				['editor.wordWrap', '"on"'],
 				['chat.agent.sandbox.enabled', '"on"'],
-				// Leave allowNetwork at its default (false), and prevent a failed probe
-				// from being retried with relaxed network access or outside the sandbox.
+				// Exercise the default network policy, without retrying failed probes outside its restrictions.
 				['chat.agent.sandbox.retryWithAllowNetworkRequests', 'false'],
 				['chat.agent.sandbox.allowUnsandboxedCommands', 'false'],
 			]);
@@ -173,7 +177,7 @@ export function setup(logger: Logger): void {
 
 		before(async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
+			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
 			await app.workbench.chat.waitForChatView();
 			await warmUpChat(app.workbench.chat, logger);
 		});
@@ -268,59 +272,50 @@ export function setup(logger: Logger): void {
 			}
 		});
 
-		/*
-		 * Input: Ask chat to run an HTTP request to the local mock server with allowNetwork disabled.
-		 * Expected result: The sandbox blocks the request and its output contains a network error such as
-		 * `ECONNREFUSED`, `EPERM`, `EACCES`, `ENETUNREACH`, `EHOSTUNREACH`, `ENETDOWN`, or `EAI_AGAIN`.
-		 */
-		it('blocks terminal network access by default', async function () {
+		it('allows terminal network access by default', async function () {
 			const app = this.app as Application;
 
 			try {
 				const requestsBefore = mockServer.requestCount();
-				await app.workbench.chat.sendMessage(`Run the terminal network sandbox probe [scenario:${NETWORK_SCENARIO_ID}]`);
+				await app.workbench.chat.sendMessage(`Run the allowed terminal network sandbox probe [scenario:${NETWORK_ALLOWED_SCENARIO_ID}]`);
 
-				const responseText = await app.workbench.chat.waitForResponseText(NETWORK_BLOCKED_PATTERN, CHAT_RESPONSE_TIMEOUT);
-				logger.log(`[Chat Sandbox/network] response: ${responseText}`);
-				assert.ok(mockServer.requestCount() > requestsBefore, 'expected the mock LLM server to receive the network sandbox scenario');
-				assert.match(
-					responseText,
-					NETWORK_BLOCKED_PATTERN,
-					'expected the sandbox to block the terminal command from reaching the local mock server'
-				);
+				const responseText = await app.workbench.chat.waitForResponseText(networkAllowedReply, CHAT_RESPONSE_TIMEOUT);
+				logger.log(`[Chat Sandbox/network allowed] response: ${responseText}`);
+				assert.ok(mockServer.requestCount() > requestsBefore, 'expected the mock LLM server to receive the allowed network sandbox scenario');
+				assert.ok(responseText.includes(networkAllowedReply), 'expected the default network policy to permit the sandboxed terminal command to reach the local mock server');
 			} catch (error) {
-				logger.log(`[Chat Sandbox/network] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				await dumpFailureDiagnostics(app, logger, `Chat Sandbox (${process.platform}) network`);
+				logger.log(`[Chat Sandbox/network allowed] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, `Chat Sandbox (${process.platform}) network allowed`);
 				throw error;
 			}
 		});
 
-		/*
-		 * Input: Enable allowNetwork and ask chat to run an HTTP request to the local mock server.
-		 * Expected result: The sandbox permits the request and its output contains `${networkAllowedReply}`.
-		 */
-		describe('with terminal network access enabled', function () {
+		describe('with terminal network access disabled', function () {
 			before(async function () {
 				const app = this.app as Application;
 				await updateUserSettingsWhileChatIsOpen(app, [
-					['chat.agent.sandbox.allowNetwork', 'true'],
+					['chat.agent.sandbox.allowNetwork', 'false'],
 				]);
 			});
 
-			it('allows terminal network access', async function () {
+			it('blocks terminal network access', async function () {
 				const app = this.app as Application;
 
 				try {
 					const requestsBefore = mockServer.requestCount();
-					await app.workbench.chat.sendMessage(`Run the allowed terminal network sandbox probe [scenario:${NETWORK_ALLOWED_SCENARIO_ID}]`);
+					await app.workbench.chat.sendMessage(`Run the terminal network sandbox probe [scenario:${NETWORK_SCENARIO_ID}]`);
 
-					const responseText = await app.workbench.chat.waitForResponseText(networkAllowedReply, CHAT_RESPONSE_TIMEOUT);
-					logger.log(`[Chat Sandbox/network allowed] response: ${responseText}`);
-					assert.ok(mockServer.requestCount() > requestsBefore, 'expected the mock LLM server to receive the allowed network sandbox scenario');
-					assert.ok(responseText.includes(networkAllowedReply), 'expected allowNetwork to permit the sandboxed terminal command to reach the local mock server');
+					const responseText = await app.workbench.chat.waitForResponseText(NETWORK_BLOCKED_PATTERN, CHAT_RESPONSE_TIMEOUT);
+					logger.log(`[Chat Sandbox/network] response: ${responseText}`);
+					assert.ok(mockServer.requestCount() > requestsBefore, 'expected the mock LLM server to receive the network sandbox scenario');
+					assert.match(
+						responseText,
+						NETWORK_BLOCKED_PATTERN,
+						'expected the sandbox to block the terminal command from reaching the local mock server'
+					);
 				} catch (error) {
-					logger.log(`[Chat Sandbox/network allowed] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-					await dumpFailureDiagnostics(app, logger, `Chat Sandbox (${process.platform}) network allowed`);
+					logger.log(`[Chat Sandbox/network] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					await dumpFailureDiagnostics(app, logger, `Chat Sandbox (${process.platform}) network`);
 					throw error;
 				}
 			});

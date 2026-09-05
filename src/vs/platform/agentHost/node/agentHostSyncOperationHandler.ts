@@ -11,12 +11,12 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
-import { IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
 export class AgentHostSyncOperationHandler implements IChangesetOperationHandler {
 
-	public static readonly OPERATION_SYNC = 'sync';
+	public static readonly OPERATION_SYNC = AGENT_HOST_SYNC_CHANGESET_OPERATION_ID;
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
@@ -38,7 +38,7 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectories?.[0];
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}

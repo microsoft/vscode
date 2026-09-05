@@ -216,6 +216,13 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				voiceProgress(id: vscode.ChatResponseVoiceProgressStage, value: string) {
+					throwIfDone(this.voiceProgress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantPrivate');
+					const part = new extHostTypes.ChatResponseVoiceProgressPart(id, value);
+					_report(typeConvert.ChatResponseVoiceProgressPart.from(part));
+					return this;
+				},
 				warning(value) {
 					throwIfDone(this.progress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -880,6 +887,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				uri: folder.uri,
 				label: folder.label,
 				source: folder.source,
+				destinationGroupId: folder.destinationGroupId,
 			} satisfies IChatSessionCustomizationSourceFolderDto));
 		} catch (err) {
 			return undefined;
@@ -1135,10 +1143,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				} else if (v.kind === 'toolset') {
 					toolReferences.push(...v.value.map(typeConvert.ChatLanguageModelToolReference.to));
 				} else {
-					const ref = typeConvert.ChatPromptReference.to(v, this.getDiagnosticsWhenEnabled(extension), this._logService);
-					if (ref) {
-						varsWithoutTools.push(ref);
-					}
+					varsWithoutTools.push(...typeConvert.ChatPromptReference.toReferences(v, this.getDiagnosticsWhenEnabled(extension), this._logService));
 				}
 			}
 

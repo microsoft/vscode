@@ -9,10 +9,10 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { IAction, ActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -26,7 +26,7 @@ import { EditorPane } from './editorPane.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from '../../../common/contextkeys.js';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
@@ -47,6 +47,9 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -88,6 +91,7 @@ export interface IEditorTabsControl extends IDisposable {
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
 	updateEditorLabel(editor: EditorInput): void;
+	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
 	getHeight(): number;
@@ -102,11 +106,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private static readonly EDITOR_TAB_HEIGHT = {
 		normal: 35 as const,
 		compact: 22 as const,
-		// Style-override (Modern UI) multi-tab mode adds 4px top + 4px bottom padding to
+		// Modern UI multi-tab mode adds 4px top + 4px bottom padding to
 		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
-		// --editor-group-tab-height CSS value (24px / 14px) plus that 8px padding.
-		styleOverride: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
-		styleOverrideCompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
+		// --editor-group-tab-height CSS value (24px / 20px) plus that 8px padding.
+		modernUI: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
+		modernUICompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
@@ -116,7 +120,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	/** Whether the editor-actions toolbar currently has any actions (drives the layout-actions separator). */
 	private editorActionsToolbarHasActions = false;
 
-	private editorLayoutActionsSeparator: HTMLElement | undefined;
+	protected editorLayoutActionsSeparator: HTMLElement | undefined;
 	protected editorLayoutActionsToolbarContainer: HTMLElement | undefined;
 	private editorLayoutActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
@@ -129,7 +133,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private editorIsFirstContext: IContextKey<boolean>;
 	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
+	private editorDirtyContext: IContextKey<boolean>;
 	private editorAvailableEditorIds: IContextKey<string>;
+	private editorCannotCloseContext: IContextKey<boolean>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
 	private sideBySideEditorContext: IContextKey<boolean>;
@@ -145,6 +151,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		protected readonly groupView: IEditorGroupView,
 		protected readonly tabsModel: IReadonlyEditorGroupModel,
 		protected readonly menuIds: IEditorGroupMenuIds | undefined,
+		protected readonly breadcrumbsInHeader: boolean,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -174,7 +181,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(this.contextMenuContextKeyService);
+		this.editorDirtyContext = ActiveEditorDirtyContext.bindTo(this.contextMenuContextKeyService);
 		this.editorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextMenuContextKeyService);
+		this.editorCannotCloseContext = ActiveEditorCannotCloseContext.bindTo(this.contextMenuContextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.contextMenuContextKeyService);
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
@@ -184,6 +193,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		this.updateTabActionSpaceReservation();
 		return parent;
 	}
 
@@ -205,6 +215,45 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+	}
+
+	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
+		const container = $('.tabs-bar-add-tab');
+		parent.insertBefore(container, before ?? null);
+
+		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
+		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		const addTabAction = toAction({
+			id: 'editor.tabs.addTab',
+			label: localize('addTab', "Add Tab"),
+			class: ThemeIcon.asClassName(Codicon.add),
+			run: () => { }
+		});
+		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
+			classNames: ThemeIcon.asClassNameArray(Codicon.add),
+			keybindingProvider: action => this.getKeybinding(action)
+		}));
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
+			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
+		}));
+		toolbar.setActions([addTabAction]);
+
+		const updateVisibility = () => {
+			container.classList.toggle('hidden', getActions().length === 0);
+		};
+		updateVisibility();
+		this._register(menu.onDidChange(updateVisibility));
+
+		return container;
+	}
+
+	private updateEditorLayoutActionsSeparator(): void {
+		const hasLayoutActions = (this.editorLayoutActionsToolbar?.getItemsLength() ?? 0) > 0;
+		if (this.editorLayoutActionsSeparator) {
+			setVisibility(hasLayoutActions
+				&& this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
+		}
 	}
 
 	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
@@ -351,7 +400,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	private updateEditorLayoutActionsToolbar(): void {
-		if (!this.editorActionsEnabled || !this.editorLayoutActionsToolbar) {
+		if (
+			!this.editorActionsEnabled ||
+			!this.editorLayoutActionsToolbarContainer ||
+			!this.editorLayoutActionsToolbar
+		) {
 			return;
 		}
 
@@ -363,12 +416,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const { primary, secondary } = this.prepareEditorLayoutActions(editorActions.actions);
 		this.editorLayoutActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 
-		// Only show the separator when the layout toolbar has actions AND there are
-		// editor actions to its left to separate from.
-		if (this.editorLayoutActionsSeparator) {
-			const hasLayoutActions = primary.length > 0 || secondary.length > 0;
-			setVisibility(hasLayoutActions && this.editorActionsToolbarHasActions, this.editorLayoutActionsSeparator);
-		}
+		const hasLayoutActions = primary.length > 0 || secondary.length > 0;
+
+		// Only show the separator and the toolbar container when the layout toolbar
+		// has actions AND there are editor actions to its left to separate from.
+		this.updateEditorLayoutActionsSeparator();
+
+		setVisibility(hasLayoutActions, this.editorLayoutActionsToolbarContainer);
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
@@ -391,6 +445,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorLayoutActionsToolbar?.setActions([], []);
 		if (this.editorLayoutActionsSeparator) {
 			setVisibility(false, this.editorLayoutActionsSeparator);
+		}
+		if (this.editorLayoutActionsToolbarContainer) {
+			setVisibility(false, this.editorLayoutActionsToolbarContainer);
 		}
 	}
 
@@ -528,6 +585,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		this.editorIsLastContext.set(this.tabsModel.isLast(editor));
 		this.editorStickyContext.set(this.tabsModel.isSticky(editor));
+		this.editorDirtyContext.set(editor.isDirty() && !editor.isSaving());
+		this.editorCannotCloseContext.set(editor.hasCapability(EditorInputCapabilities.CannotClose));
 		this.groupLockedContext.set(this.tabsModel.isLocked);
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
@@ -563,12 +622,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected get tabHeight() {
 		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
-		// In style-override multi-tab mode the tabs-and-actions-container gains extra
+		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
 		// and no-tab modes are not affected by those CSS overrides.
-		if (this.parent.classList.contains('tabs') && this.parent.closest('.style-override')) {
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverrideCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverride;
+		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
+			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}
@@ -587,10 +646,16 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateTabHeight(): void {
+		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
-		// Signal compact mode via a CSS class so the style-override rules in tabs.css
+		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
 		// can apply a proportionally smaller --editor-group-tab-height value.
-		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
+		this.parent.classList.toggle('compact-height', isCompact);
+		this.parent.parentElement?.classList.toggle('editor-tabs-compact-height', isCompact);
+	}
+
+	private updateTabActionSpaceReservation(): void {
+		this.parent.classList.toggle('tab-actions-reserve-space', this.groupsView.partOptions.tabActionReserveSpace);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -598,6 +663,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		if (oldOptions.tabActionReserveSpace !== newOptions.tabActionReserveSpace) {
+			this.updateTabActionSpaceReservation();
 		}
 
 		// Update Editor Actions Toolbar
@@ -639,6 +708,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	abstract updateEditorSelections(): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
+
+	abstract updateEditorCapabilities(editor: EditorInput): void;
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 

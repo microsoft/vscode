@@ -13,16 +13,17 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IWorkspacePickerItem, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 
 /**
@@ -46,38 +47,43 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
 export class WebWorkspacePicker extends WorkspacePicker {
 
 	constructor(
+		options: IWorkspacePickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
+			{
+				...options,
+				sessionWorkspaceProviderFilter: providerId => _agentHostFilterService.selectedHost?.providerIds.includes(providerId) === true,
+			},
 			actionWidgetService,
-			storageService,
 			uriIdentityService,
 			sessionsProvidersService,
+			recentWorkspacesService,
 			remoteAgentHostService,
 			configurationService,
 			commandService,
-			workspacesService,
 			menuService,
 			contextKeyService,
 			instantiationService,
 			fileDialogService,
 			telemetryService,
 			notificationService,
+			hoverService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -92,8 +98,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
-	override showPicker(): void {
-		if (!this._triggerElement) {
+	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
+		const trigger = anchor ?? this._triggerElement;
+		if (!trigger) {
 			return;
 		}
 		// On phone, render the picker as a bottom sheet instead of the
@@ -101,56 +108,57 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// phone viewports so a single instance handles both desktop
 		// browsers and rotation across the phone breakpoint.
 		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
-			super.showPicker();
+			super.showPicker(force, trigger, preferredGroup, attachesContext);
 			return;
 		}
+		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		const items = this._buildItems();
 		showMobileWorkspacePickerSheet(
 			this._layoutService,
-			this._triggerElement,
+			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
+			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
 		);
 	}
 
 	private _onScopedHostChanged(): void {
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
+		const scoped = this._agentHostFilterService.selectedHost;
 		const currentResolved = this.selectedResolved;
-		if (currentResolved && scopedProviderId !== undefined && currentResolved.providerId === scopedProviderId) {
+		if (currentResolved && scoped?.providerIds.includes(currentResolved.providerId)) {
 			this._onDidChangeSelection.fire();
 			return;
 		}
 
-		const firstRecent = scopedProviderId !== undefined
-			? this._getRecentWorkspaces().find(w => w.providerId === scopedProviderId)
-			: undefined;
-		if (firstRecent) {
-			const folderUri = firstRecent.workspace.folders[0]?.root;
-			if (folderUri) {
-				this.setSelectedWorkspace(folderUri);
-				return;
-			}
-		}
-
-		this.clearSelection();
-		this._onDidSelectWorkspace.fire(undefined);
+		this._resetAutomaticSelection();
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
-		const scopedProviderId = this._agentHostFilterService.selectedProviderId;
-		if (scopedProviderId === undefined) {
+		const scoped = this._agentHostFilterService.selectedHost;
+		if (!scoped) {
 			return [];
 		}
-		const provider = this.sessionsProvidersService.getProvider(scopedProviderId);
-		if (!provider) {
+		const scopedProviderIds = new Set(scoped.providerIds);
+		if (!scoped.providerIds.some(id => this.sessionsProvidersService.getProvider(id))) {
 			return items;
 		}
 
-		// 1. Recent workspaces for the scoped provider
-		const recents = this._getRecentWorkspaces().filter(w => w.providerId === scopedProviderId);
+		// 1. Recent workspaces across every provider the entry scopes to.
+		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
+			&& this._directPickerGroup === undefined
+			&& this._directPickerAttachesContext !== true;
+		const includeGitHub = this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
+		const gitHubGroupAction = isConsolidatedWorkspacePicker
+			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
+			: undefined;
+		const recents = this._getRecentWorkspaces().filter(w =>
+			(scopedProviderIds.has(w.providerId) || (includeGitHub && w.workspace.group === SESSION_WORKSPACE_GROUP_GITHUB))
+			&& this._directPickerAttachesContext !== true
+			&& (this._directPickerGroup === undefined || w.workspace.group === this._directPickerGroup)
+		);
 		for (const { workspace, providerId } of recents) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
@@ -162,23 +170,52 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
+				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: checked || undefined },
 				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 
-		// 2. "Select Folder..." — dispatches the scoped provider's first browse action
+		// 2. Browse actions for the scoped host and selected category. A grouped
+		// entry contributes none of its own — no single machine to browse —
+		// but GitHub actions are not machine-bound, so they still apply.
 		const allBrowseActions = this._getAllBrowseActions();
-		const browseIndex = allBrowseActions.findIndex(a => a.providerId === scopedProviderId);
-		if (browseIndex >= 0 && !this._isProviderUnavailable(scopedProviderId)) {
+		const browseActions = allBrowseActions
+			.map((action, index) => ({ action, index }))
+			.filter(({ action }) => (!scoped.grouped && scopedProviderIds.has(action.providerId))
+				|| (includeGitHub && action.group === SESSION_WORKSPACE_GROUP_GITHUB));
+		if (gitHubGroupAction || browseActions.length > 0) {
 			if (items.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
+			if (gitHubGroupAction) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: gitHubGroupAction.label,
+					description: gitHubGroupAction.description,
+					group: { title: '', icon: gitHubGroupAction.icon },
+					item: { commandId: gitHubGroupAction.commandId },
+				});
+			}
+			for (const { action, index } of browseActions) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: action.label,
+					description: action.description,
+					group: { title: '', icon: action.icon },
+					disabled: this._isProviderUnavailable(action.providerId),
+					item: { browseActionIndex: index },
+				});
+			}
+		}
+
+		if (items.length === 0 && includeGitHub) {
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('scopedWorkspacePicker.selectFolder', "Select Folder..."),
-				group: { title: '', icon: Codicon.folderOpened },
-				item: { browseActionIndex: browseIndex },
+				label: localize('scopedWorkspacePicker.githubLoading', "GitHub repositories are still loading"),
+				group: { title: '', icon: Codicon.loading },
+				disabled: true,
+				item: {},
 			});
 		}
 

@@ -98,6 +98,7 @@ export enum ChatFetchResponseType {
 	Filtered = 'filtered',
 	FilteredRetry = 'filteredRetry',
 	PromptFiltered = 'promptFiltered',
+	Refusal = 'refusal',
 	Length = 'length',
 	RateLimited = 'rateLimited',
 	QuotaExceeded = 'quotaExceeded',
@@ -114,6 +115,14 @@ export enum ChatFetchResponseType {
 }
 
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
+
+export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResponseType; reason?: string; reasonDetail?: string }): boolean {
+	if (input.type !== ChatFetchResponseType.BadRequest && input.type !== ChatFetchResponseType.Failed) {
+		return false;
+	}
+	const haystack = `${input.reason ?? ''} ${input.reasonDetail ?? ''}`.toLowerCase();
+	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
+}
 
 export type ChatFetchError =
 	/**
@@ -142,6 +151,10 @@ export type ChatFetchError =
 	 * We requested conversation, but the prompt was filtered by RAI.
 	 */
 	| { type: ChatFetchResponseType.PromptFiltered; reason: string; reasonDetail?: string; category: FilterReason; requestId: string; serverRequestId: string | undefined }
+	/**
+	 * We requested conversation, but the model declined to answer.
+	 */
+	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but the response was too long.
 	 */
@@ -436,11 +449,19 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
-		case ChatFetchResponseType.Failed:
-			details = fetchResult.serverRequestId
-				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
-				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+		case ChatFetchResponseType.Failed: {
+			const isVisionExpired = isVisionAttachmentInaccessibleError(fetchResult);
+			if (isVisionExpired) {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			} else {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			}
 			break;
+		}
 		case ChatFetchResponseType.NetworkError:
 			details = { message: l10n.t(`Sorry, there was a network error. Please try again later. Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
 			break;
@@ -449,6 +470,12 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			details = {
 				message: getFilteredMessage(fetchResult.category),
 				responseIsFiltered: true,
+				level: ChatErrorLevel.Info,
+			};
+			break;
+		case ChatFetchResponseType.Refusal:
+			details = {
+				message: l10n.t(`Sorry, the model declined to complete this request. Please rephrase your prompt.`),
 				level: ChatErrorLevel.Info,
 			};
 			break;

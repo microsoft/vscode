@@ -346,12 +346,6 @@ export class ToolsService extends BaseToolsService {
 					}
 				}
 
-				// 3. If this tool is neither enabled nor disabled, then consumer didn't have opportunity to enable/disable it.
-				// This can happen when a tool is added during another tool call (e.g. installExt tool installs an extension that contributes tools).
-				if (toolPickerSelection === undefined && tool.tags.includes('extension_installed_by_tool')) {
-					return true;
-				}
-
 				// Tool was enabled via tool picker
 				if (toolPickerSelection === true) {
 					return true;

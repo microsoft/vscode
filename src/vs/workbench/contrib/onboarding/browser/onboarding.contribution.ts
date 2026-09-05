@@ -16,8 +16,11 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
-import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
+import { onboardingSequenceStepPresentationRegistry } from '../common/onboardingSequence.js';
+import { IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 import { OnboardingScenarioService } from './onboardingService.js';
+import { RunOnboardingStepPresentation } from './sequence/runOnboardingStep.js';
+import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
 import { SpotlightPresentation } from './spotlight/spotlightPresentation.js';
 
 registerSingleton(IOnboardingScenarioService, OnboardingScenarioService, InstantiationType.Delayed);
@@ -33,9 +36,19 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 	const properties: IStringDictionary<IConfigurationPropertySchema> = {};
 	const defaultValue: IStringDictionary<boolean> = {};
-	for (const id of onboardingScenarioRegistry.getScenarios().map(scenario => scenario.id).sort()) {
-		properties[id] = { type: 'boolean', default: false };
-		defaultValue[id] = false;
+	const variationProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+	const variationDefaultValue: IStringDictionary<string> = {};
+	for (const scenario of [...onboardingScenarioRegistry.getScenarios()].sort((a, b) => a.id.localeCompare(b.id))) {
+		properties[scenario.id] = { type: 'boolean', default: false };
+		defaultValue[scenario.id] = false;
+		if (scenario.developerModeVariations?.length) {
+			variationProperties[scenario.id] = {
+				type: 'string',
+				default: '',
+				enum: ['', ...scenario.developerModeVariations],
+			};
+			variationDefaultValue[scenario.id] = '';
+		}
 	}
 	return {
 		...workbenchConfigurationNodeBase,
@@ -47,6 +60,14 @@ function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 				additionalProperties: { type: 'boolean' },
 				tags: ['experimental'],
 				description: localize('onboarding.developerMode', "Map of onboarding scenario/tour id to whether developer mode is enabled for it. When enabled for a scenario, that onboarding tour ignores usage-based eligibility checks (such as how many sessions you have started), previously persisted shown state, and any linked experiment (so it is shown even if the experiment is not running or you are in the control group). It does not override the {0} setting. The tour is still shown at most once per window session, so reload the window to show it again.", `\`#${ONBOARDING_ENABLED_CONFIG}#\``)
+			},
+			[ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG]: {
+				type: 'object',
+				default: variationDefaultValue,
+				properties: variationProperties,
+				additionalProperties: { type: 'string' },
+				tags: ['experimental'],
+				description: localize('onboarding.developerModeVariations', "Map of onboarding scenario/tour id to the variation used while developer mode is enabled for that scenario. An empty value uses the experiment-selected or default variation.")
 			}
 		}
 	};
@@ -95,6 +116,10 @@ class OnboardingContribution extends Disposable implements IWorkbenchContributio
 		this._register(onboardingScenarioRegistry.onDidChange(() => refreshDeveloperModeConfiguration()));
 		const spotlight = this._register(instantiationService.createInstance(SpotlightPresentation));
 		this._register(onboardingPresentationRegistry.register(spotlight));
+		this._register(onboardingSequenceStepPresentationRegistry.register(spotlight));
+		const sequence = this._register(new OnboardingSequencePresentation());
+		this._register(onboardingPresentationRegistry.register(sequence));
+		this._register(onboardingSequenceStepPresentationRegistry.register(new RunOnboardingStepPresentation()));
 		onboardingService.start();
 	}
 }

@@ -13,10 +13,14 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
+	/**
+	 * Prevents another live toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
 
 	readonly title: string;
 	readonly body?: string;
@@ -28,9 +32,58 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+	/**
+	 * True when a live toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
+}
+
+/**
+ * A count badge to render on the application icon in the dock (macOS), the
+ * launcher (Linux) or over the taskbar icon of a window (Windows).
+ */
+export interface IApplicationBadge {
+
+	/** The number to show. A count of `0` clears the badge. */
+	readonly count: number;
+
+	/** Accessible description of the badge, used for the Windows taskbar overlay. */
+	readonly description: string;
+
+	/**
+	 * PNG image data as a `data:` URL for the Windows taskbar overlay icon,
+	 * which has no built-in count rendering. Ignored on other platforms,
+	 * where the OS renders {@link count} itself.
+	 */
+	readonly iconDataURL?: string;
+}
+
+/**
+ * A ZIP entry whose contents are inline or streamed from a local file.
+ */
+export type INativeZipFile =
+	| { readonly path: string; readonly contents: string }
+	| {
+		readonly path: string;
+		readonly source: URI;
+		readonly size: number;
+		/** Skip this entry when its source cannot be opened or inspected. */
+		readonly skipSourceErrors?: boolean;
+	}
+	| { readonly sourceArchive: URI };
+
+export interface INativeZipOptions {
+	readonly maxSize?: number;
+	readonly maxEntries: number;
+}
+
+export interface IOpenAgentsWindowOptions {
+	readonly folderUri?: UriComponents;
+	readonly sessionResource?: UriComponents;
+	readonly source?: AgentsWindowOpenSource;
 }
 
 export interface ICPUProperties {
@@ -57,14 +110,35 @@ export interface IOSProxy {
 	readonly host?: string;
 }
 
+export interface IOSProxyEnvironmentVariableStatus {
+	readonly variable: string;
+	readonly value: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyPacSourceStatus {
+	readonly state: 'disabled' | 'unsupported' | 'unconfigured' | 'not-found' | 'available' | 'error-discovery' | 'error-download' | 'unknown';
+	readonly url?: string;
+	readonly error?: string;
+}
+
 export interface IOSProxyConfig {
+	readonly environment: {
+		readonly httpProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly httpsProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly allProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly noProxy?: IOSProxyEnvironmentVariableStatus;
+	};
 	readonly autoDetect: boolean;
 	readonly pacUrl?: string;
 	readonly pac?: {
 		readonly url: string;
 		readonly content: string;
-		readonly source: 'wpad' | 'configured' | 'unknown';
+		readonly source: 'wpad-dns' | 'wpad-dhcp' | 'configured' | 'unknown';
 	};
+	readonly wpadDhcp: IOSProxyPacSourceStatus;
+	readonly wpadDns: IOSProxyPacSourceStatus;
+	readonly configuredPac: IOSProxyPacSourceStatus;
 	readonly staticRules?: {
 		readonly http?: IOSProxy;
 		readonly https?: IOSProxy;
@@ -197,7 +271,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void>;
+	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
@@ -253,6 +327,11 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Renders a count badge on the application icon. Passing `undefined` or a
+	 * badge with a count of `0` clears it again.
+	 */
+	setApplicationBadge(badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
@@ -347,9 +426,12 @@ export interface ICommonNativeHostService {
 	 * Creates a zip file at the specified path containing the provided files.
 	 *
 	 * @param zipPath The URI where the zip file should be created.
-	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 * @param files An array of file entries to include in the zip. Each entry has
+	 * a relative path and is either given inline string `contents`, or a local
+	 * file `source` URI together with the number of leading bytes (`size`) to
+	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

@@ -609,6 +609,16 @@ suite('BidirectionalMap', () => {
 		assert.strictEqual(map.delete('four'), false);
 	});
 
+	test('should not leave a stale reverse entry when a key value is updated', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('one', 2);
+
+		assert.strictEqual(map.get('one'), 2);
+		assert.strictEqual(map.getKey(2), 'one');
+		assert.strictEqual(map.getKey(1), undefined);
+	});
+
 	test('should handle forEach correctly', () => {
 		const map = new BidirectionalMap<string, number>();
 		map.set('one', 1);

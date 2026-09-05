@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
+import { CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES, CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION } from '../../../base/browser/ui/contextview/contextview.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
@@ -13,8 +14,35 @@ import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
+import { ActionListItemKind, IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
+
+export const ACTION_WIDGET_DROPDOWN_MOTION_CLASS = 'action-widget-dropdown';
+export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdown-closing';
+
+export const actionWidgetDropdownCloseAnimation: IActionListCloseAnimation = {
+	className: ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS,
+	duration: CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION,
+	requiredAncestorClasses: CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES,
+};
+
+export function withActionWidgetDropdownMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+	const classNames = listOptions?.className?.split(/\s+/).filter(Boolean) ?? [];
+	if (!classNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
+		classNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
+	}
+	const widgetClassNames = listOptions?.widgetClassName?.split(/\s+/).filter(Boolean) ?? [];
+	if (!widgetClassNames.includes(ACTION_WIDGET_DROPDOWN_MOTION_CLASS)) {
+		widgetClassNames.push(ACTION_WIDGET_DROPDOWN_MOTION_CLASS);
+	}
+
+	return {
+		...listOptions,
+		className: classNames.join(' '),
+		widgetClassName: widgetClassNames.join(' '),
+		closeAnimation: listOptions?.closeAnimation ?? actionWidgetDropdownCloseAnimation,
+	};
+}
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
@@ -45,6 +73,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	inlineToggle?: IActionListItemInlineToggle;
 	/**
+	 * Optional toggle switch rendered on the same row as the label.
+	 */
+	standaloneToggle?: IActionListItemInlineToggle;
+	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
 	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
@@ -56,6 +88,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 // TODO @lramos15 - Should we just make IActionProvider templated?
 export interface IActionWidgetDropdownActionProvider {
 	getActions(): IActionWidgetDropdownAction[];
+}
+
+export interface IActionWidgetDropdownListOptionsProvider {
+	getListOptions(): IActionListOptions;
 }
 
 export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
@@ -82,6 +118,13 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	 * Options for the underlying ActionList (filter, collapsible sections).
 	 */
 	readonly listOptions?: IActionListOptions;
+	/**
+	 * Provides the ActionList options each time the dropdown opens. Evaluated fresh on every open
+	 * (like {@link actionProvider}); used only when {@link listOptions} is not set.
+	 */
+	readonly listOptionsProvider?: IActionWidgetDropdownListOptionsProvider;
+	/** Returns the action id to focus each time the dropdown opens. */
+	readonly getInitialFocusActionId?: () => string | undefined;
 }
 
 /**
@@ -151,6 +194,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 			// Push actions for each category
 			for (const action of categoryActions) {
+				const isCheckable = action.checked !== undefined;
 				actionWidgetItems.push({
 					item: action,
 					tooltip: action.tooltip,
@@ -161,11 +205,12 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					toolbarActions: action.toolbarActions,
 					className: action.className,
 					inlineToggle: action.inlineToggle,
+					standaloneToggle: action.standaloneToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
-					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(isCheckable && action.checked ? Codicon.check.id : Codicon.blank.id) },
 					disabled: !action.enabled,
-					hideIcon: false,
+					hideIcon: !isCheckable && !action.icon,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
 						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
@@ -236,7 +281,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
-				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+				return element.kind === ActionListItemKind.Action ? element.item?.checked : undefined;
 			},
 			getSetSize: () => nonSeparatorItems.length,
 			getPosInSet: (_element, index) => {
@@ -255,7 +300,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					case ActionListItemKind.Action:
 						// Auxiliary actions are not checkable options, so use 'menuitem' to
 						// avoid screen readers announcing them as unchecked checkboxes.
-						return e.item && auxiliaryActionIds.has(e.item.id) ? 'menuitem' : 'menuitemcheckbox';
+						return e.item && (auxiliaryActionIds.has(e.item.id) || e.item.checked === undefined) ? 'menuitem' : 'menuitemcheckbox';
 					case ActionListItemKind.Separator:
 						return 'separator';
 					default:
@@ -267,6 +312,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		super.show();
 
+		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions ?? this._options.listOptionsProvider?.getListOptions());
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
@@ -276,7 +322,10 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			undefined,
 			[],
 			accessibilityProvider,
-			this._options.listOptions
+			{
+				...listOptions,
+				initialFocusItemId: this._options.getInitialFocusActionId?.() ?? listOptions.initialFocusItemId,
+			}
 		);
 	}
 

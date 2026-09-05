@@ -4,57 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { safeIntl } from '../../../../base/common/date.js';
-import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
-import { ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { isByokModel } from '../common/chatSelectedModel.js';
+import { isAutoLanguageModel } from '../common/languageModels.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationCommandAction, IChatInputNotificationContext, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
-const TRAJECTORY_NUDGE_SPEC = {
-	treatmentName: 'config.chatQuotaTrajectoryNudge',
-	shownStorageKey: 'chat.quotaTrajectory.shownPeriod',
-	averageDailyUsageThreshold: 4.5,
-	minimumPercentUsed: 10,
-	maximumPercentUsed: 35,
-	msPerDay: 24 * 60 * 60 * 1000,
-	learnMoreUrl: 'https://aka.ms/token-usage-tips',
-	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
-} as const;
+const SWITCH_TO_AUTO_TREATMENT_NAME = 'config.chatQuotaWarningSwitchToAuto';
 
-type ChatQuotaTrajectoryNudgeLinkClickedClassification = {
-	owner: 'rfeltis';
-	comment: 'Tracks when users click the chat quota trajectory nudge learn more link.';
-};
+function isAutoEligible(context: IChatInputNotificationContext): boolean {
+	return !isAutoLanguageModel(context.modelState.currentModel) && context.modelState.models.some(isAutoLanguageModel);
+}
 
-type ChatQuotaTrajectoryNudgeEnrollmentEvent = {
-	treatment: boolean;
-	entitlement: string;
-	averageDailyUsage: number;
-	percentUsed: number;
-};
-
-type ChatQuotaTrajectoryNudgeEnrollmentClassification = {
-	owner: 'rfeltis';
-	comment: 'Tracks when a user is assigned to a flight for the chat quota trajectory nudge experiment, to measure experiment exposure.';
-	treatment: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The treatment value assigned by the experiment service (true for the treatment arm, false for control).' };
-	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the user was assigned to the experiment flight.' };
-	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage when the user was assigned to the experiment flight.' };
-	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the user was assigned to the experiment flight.' };
-};
+function isQuotaNotificationVisible(context: IChatInputNotificationContext): boolean {
+	return !context.modelState.currentModel || !isByokModel(context.modelState.currentModel.metadata);
+}
 
 /**
  * Persisted flag remembering that the user dismissed the quota-exceeded
@@ -92,17 +63,15 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
-	private _trajectoryTreatment: boolean | undefined;
-	private _trajectoryAssignmentRequested = false;
+	private _switchToAutoTreatment: boolean | undefined;
+	private _switchToAutoAssignmentRequested = false;
+	private _activeQuotaWarning: { percentUsed: number; threshold: number } | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -110,17 +79,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
-		this._register(CommandsRegistry.registerCommand(TRAJECTORY_NUDGE_SPEC.learnMoreCommandId, (accessor: ServicesAccessor) => this._handleCreditEfficiencyLearnMoreCommand(accessor)));
-
-		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
-		// The chatModelId context key is widget-scoped and may not bubble to the global
-		// service, so we also listen for storage changes on the persisted model selection key.
-		const storageListener = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, storageListener)(e => {
-			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
-				this._update();
-			}
-		}));
 
 		// Remember when the user dismisses the quota-exceeded notification so it
 		// does not re-appear on the next window reload while quota is still
@@ -135,35 +93,23 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		this._update();
 	}
 
-	/**
-	 * Reads the already-evaluated trajectory experiment cohort. The assignment
-	 * service resolves the cohort asynchronously, so this is requested only once
-	 * the user has met every non-experiment condition required for the nudge.
-	 *
-	 * Stores the raw treatment value. `undefined` means the user is not
-	 * assigned to the flight (or assignments are not available); only a `true`
-	 * treatment renders the nudge. We deliberately do not coerce a missing
-	 * assignment into a synthetic "control" value, since that would assume an
-	 * enrollment that may not exist. Enrollment telemetry is emitted only when
-	 * the user is actually assigned to a flight.
-	 */
-	private async _resolveTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): Promise<void> {
-		const treatment = await this._assignmentService.getTreatment<boolean>(TRAJECTORY_NUDGE_SPEC.treatmentName);
-		this._trajectoryTreatment = treatment;
-		if (treatment !== undefined) {
-			this._logQuotaTrajectoryNudgeEnrolled(treatment, warning);
-		}
+	private async _resolveSwitchToAutoTreatment(): Promise<void> {
+		const treatment = await this._assignmentService.getTreatment<boolean>(SWITCH_TO_AUTO_TREATMENT_NAME);
+		this._switchToAutoTreatment = treatment;
 		if (treatment === true) {
-			this._update();
+			const warning = this._getActiveQuotaWarning();
+			if (warning) {
+				this._showQuotaApproachingWarning(warning);
+			}
 		}
 	}
 
-	private _requestTrajectoryTreatment(warning: { averageDailyUsage: number; percentUsed: number }): void {
-		if (!this._trajectoryAssignmentRequested) {
-			this._trajectoryAssignmentRequested = true;
-			void this._resolveTrajectoryTreatment(warning).catch(error => {
-				this._logService.error(`Failed to resolve ${TRAJECTORY_NUDGE_SPEC.treatmentName}`, error);
-				this._trajectoryAssignmentRequested = false;
+	private _requestSwitchToAutoTreatment(): void {
+		if (!this._switchToAutoAssignmentRequested) {
+			this._switchToAutoAssignmentRequested = true;
+			void this._resolveSwitchToAutoTreatment().catch(error => {
+				this._logService.error(`Failed to resolve ${SWITCH_TO_AUTO_TREATMENT_NAME}`, error);
+				this._switchToAutoAssignmentRequested = false;
 			});
 		}
 	}
@@ -194,27 +140,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const entitlement = this._chatEntitlementService.entitlement;
-		const isCopilot = this._isCopilotModelSelected();
 
-		// Once quota recovers (credit is positively available again) drop any
-		// persisted dismissal so the quota-exceeded notification can show the next
-		// time quota runs out. Done before the Copilot/BYOK gate so a recovery is
-		// always observed, even while a BYOK model is selected. Guarded on a
-		// present snapshot so the transient "no quota data yet" state at
-		// startup/reload does not wipe the flag.
+		// Drop the persisted dismissal once quota recovers, so the banner can show again.
+		// Requires a real snapshot, so "no data yet" at startup doesn't wipe the flag.
 		if (this._isQuotaKnownAvailable()) {
 			this._clearExhaustedDismissed();
 		}
 
-		// Defer new notifications when a BYOK model is selected or the model
-		// selection hasn't loaded yet — quota only applies to Copilot models.
-		// Already-shown notifications stay visible.
-		if (!isCopilot) {
-			return;
-		}
-
 		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = entitlement === ChatEntitlement.Unknown || this._isUBBEligible();
+		this._clearInactiveQuotaWarning(isQuotaNotificationEligible);
 
 		// Priority 0: Business/Enterprise org-blocked — hasQuota === false is the
 		// authoritative signal that the org has exceeded its budget, regardless of
@@ -224,6 +159,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				this._showManagedPlanBlockedNotification();
 			}
 			return;
+		}
+
+		if (!isQuotaNotificationEligible && this._showingExhausted) {
+			this._hideNotification();
 		}
 
 		// Priority 1: Quota exhausted or fully used
@@ -257,12 +196,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
-			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
-			if (trajectoryWarning) {
-				this._showQuotaTrajectoryWarning(trajectoryWarning);
-				return;
-			}
-
 			const quotaWarning = this._computeQuotaWarning();
 			if (quotaWarning) {
 				this._showQuotaApproachingWarning(quotaWarning);
@@ -299,86 +232,6 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return { percentUsed: Math.floor(percentUsed), threshold: crossed };
 		}
 		return undefined;
-	}
-
-	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
-		if (this._isTrajectoryShownInCurrentPeriod()) {
-			return undefined;
-		}
-
-		const snapshot = this._getRelevantSnapshot();
-		if (!snapshot || snapshot.unlimited || snapshot.percentRemaining <= 0) {
-			return undefined;
-		}
-
-		const resetDate = this._chatEntitlementService.quotas.resetDate;
-		if (!resetDate) {
-			return undefined;
-		}
-
-		const reset = new Date(resetDate);
-		const resetTime = reset.getTime();
-		if (!Number.isFinite(resetTime)) {
-			return undefined;
-		}
-
-		const periodStart = new Date(resetTime);
-		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
-		const periodStartTime = periodStart.getTime();
-		const elapsedDays = (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay;
-		if (elapsedDays < 0) {
-			return undefined;
-		}
-
-		const percentUsed = 100 - snapshot.percentRemaining;
-		if (percentUsed < TRAJECTORY_NUDGE_SPEC.minimumPercentUsed || percentUsed > TRAJECTORY_NUDGE_SPEC.maximumPercentUsed) {
-			return undefined;
-		}
-
-		const averageDailyUsage = percentUsed / Math.max(1, elapsedDays);
-		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
-			return undefined;
-		}
-
-		this._requestTrajectoryTreatment({ averageDailyUsage, percentUsed });
-		return this._trajectoryTreatment === true ? { averageDailyUsage, percentUsed } : undefined;
-	}
-
-	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
-		this._showingExhausted = false;
-		this._storeTrajectoryShown();
-		const learnMoreLink = createMarkdownCommandLink({
-			text: localize('quota.trajectory.learnMoreStandalone', "Learn about optimizing usage"),
-			id: TRAJECTORY_NUDGE_SPEC.learnMoreCommandId,
-			tooltip: localize('quota.trajectory.learnMoreTooltip', "Learn about optimizing usage"),
-		});
-		const message = localize({ key: 'quota.trajectory.message', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You're likely to exhaust your AI credits before your billing period. {0}.", learnMoreLink);
-
-		this._setNotification({
-			id: QUOTA_NOTIFICATION_ID,
-			telemetryId: 'quotaTrajectoryNudge',
-			severity: ChatInputNotificationSeverity.Info,
-			message: new MarkdownString(message, { isTrusted: { enabledCommands: [TRAJECTORY_NUDGE_SPEC.learnMoreCommandId] } }),
-			description: undefined,
-			actions: [],
-			dismissible: true,
-			autoDismissOnMessage: false,
-		});
-	}
-
-	private async _handleCreditEfficiencyLearnMoreCommand(accessor: ServicesAccessor): Promise<void> {
-		this._telemetryService.publicLog2<{}, ChatQuotaTrajectoryNudgeLinkClickedClassification>('chatQuotaTrajectoryNudgeLinkClicked');
-		queueMicrotask(() => this._hideNotification());
-		await accessor.get(IOpenerService).open(URI.parse(TRAJECTORY_NUDGE_SPEC.learnMoreUrl));
-	}
-
-	private _logQuotaTrajectoryNudgeEnrolled(treatment: boolean, warning: { averageDailyUsage: number; percentUsed: number }): void {
-		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEnrollmentEvent, ChatQuotaTrajectoryNudgeEnrollmentClassification>('chatQuotaTrajectoryNudgeEnrolled', {
-			treatment,
-			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
-			averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
-			percentUsed: Math.round(warning.percentUsed * 100) / 100,
-		});
 	}
 
 	/**
@@ -459,6 +312,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showQuotaApproachingWarning(warning: { percentUsed: number; threshold: number }): void {
 		this._showingExhausted = false;
+		this._activeQuotaWarning = warning;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -477,9 +331,38 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions = [];
 		} else {
 			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			const manageBudgetAction: IChatInputNotificationCommandAction = {
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('manageBudget3', "Manage Budget"),
+				commandId: 'workbench.action.chat.manageAdditionalSpend',
+			};
+			actions = [manageBudgetAction];
+			const defaultBody: IChatInputNotificationBody = { description, actions };
+			const autoBody: IChatInputNotificationBody = {
+				description: localize('quota.approaching.switchToAuto', "Switch to Auto to reduce credit usage."),
+				actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: localize('switchToAuto', "Switch to Auto"), matchesModel: isAutoLanguageModel }],
+			};
+			const resolveBody: IChatInputNotification['resolveBody'] = context => {
+				if (!isAutoEligible(context)) {
+					return defaultBody;
+				}
+				this._requestSwitchToAutoTreatment();
+				return this._switchToAutoTreatment === true ? autoBody : defaultBody;
+			};
+
+			this._setQuotaApproachingNotification(warning, description, actions, resolveBody);
+			return;
 		}
 
+		this._setQuotaApproachingNotification(warning, description, actions);
+	}
+
+	private _setQuotaApproachingNotification(
+		warning: { percentUsed: number; threshold: number },
+		description: string,
+		actions: IChatInputNotification['actions'],
+		resolveBody?: IChatInputNotification['resolveBody'],
+	): void {
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
 			telemetryId: `quotaApproaching${warning.threshold}`,
@@ -487,6 +370,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			message: localize('quota.approaching.title', "Credits at {0}%", warning.percentUsed),
 			description,
 			actions,
+			resolveBody,
 			dismissible: true,
 			autoDismissOnMessage: true,
 		});
@@ -554,13 +438,18 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	// --- Helpers ------------------------------------------------------------
 
-	/**
-	 * Returns `true` only when a Copilot model is actively selected.
-	 * Returns `false` if no model is selected yet (widget not initialized)
-	 * or if the selected model is from a non-Copilot vendor (BYOK).
-	 */
-	private _isCopilotModelSelected(): boolean {
-		return isSelectedModelCopilot(this._contextKeyService, this._storageService, this._languageModelsService);
+	private _clearInactiveQuotaWarning(eligible: boolean): void {
+		const warning = this._getActiveQuotaWarning();
+		const snapshot = this._getRelevantSnapshot();
+		if (warning && (!eligible || (snapshot && (snapshot.unlimited || 100 - snapshot.percentRemaining < warning.threshold)))) {
+			this._hideNotification();
+		}
+	}
+
+	private _getActiveQuotaWarning(): { percentUsed: number; threshold: number } | undefined {
+		const warning = this._activeQuotaWarning;
+		const notification = this._chatInputNotificationService.getActiveNotification(candidate => candidate.id === QUOTA_NOTIFICATION_ID);
+		return warning && notification?.telemetryId === `quotaApproaching${warning.threshold}` ? warning : undefined;
 	}
 
 	private _isManagedPlan(entitlement: ChatEntitlement): boolean {
@@ -597,32 +486,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		).value.format(resetDate);
 	}
 
-	private _getTrajectoryPeriodKey(): string | undefined {
-		const resetDate = this._chatEntitlementService.quotas.resetDate;
-		if (!resetDate) {
-			return undefined;
-		}
-		const date = new Date(resetDate);
-		if (!Number.isFinite(date.getTime())) {
-			return undefined;
-		}
-		return `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`;
-	}
-
-	private _isTrajectoryShownInCurrentPeriod(): boolean {
-		const periodKey = this._getTrajectoryPeriodKey();
-		return !!periodKey && this._storageService.get(TRAJECTORY_NUDGE_SPEC.shownStorageKey, StorageScope.APPLICATION) === periodKey;
-	}
-
-	private _storeTrajectoryShown(): void {
-		const periodKey = this._getTrajectoryPeriodKey();
-		if (periodKey) {
-			this._storageService.store(TRAJECTORY_NUDGE_SPEC.shownStorageKey, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
-		}
-	}
-
 	private _setNotification(notification: IChatInputNotification): void {
-		this._chatInputNotificationService.setNotification(notification);
+		this._chatInputNotificationService.setNotification({ ...notification, when: isQuotaNotificationVisible });
 	}
 
 	private _hideNotification(): void {

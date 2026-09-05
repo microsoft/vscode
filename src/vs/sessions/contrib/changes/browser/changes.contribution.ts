@@ -25,7 +25,6 @@ import './changesActions.js';
 import './changesViewActions.js';
 import './changesetReviewActions.js';
 import './checksActions.js';
-import './media/multiFileDiffEditor.css';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';
@@ -98,6 +97,8 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
+export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext);
+
 /**
  * Registers the Changes view with the layout-appropriate pane class: the single-pane
  * {@link SinglePaneChangesViewPane} when the single-pane layout is enabled, otherwise
@@ -123,7 +124,7 @@ class ChangesViewContribution extends Disposable implements IWorkbenchContributi
 			canMoveView: false,
 			weight: 100,
 			order: 1,
-			when: ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
+			when: changesViewWhen,
 			windowEnablement: WindowEnablement.Sessions,
 		}], changesViewContainer);
 	}

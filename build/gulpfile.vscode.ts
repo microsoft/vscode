@@ -31,6 +31,7 @@ import { copyCodiconsTask } from './lib/compilation.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -43,6 +44,18 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
+	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;
+};
+
+function getLockedPackageVersion(packageName: string): string {
+	const version = packageLock.packages?.[`node_modules/${packageName}`]?.version;
+	if (!version) {
+		throw new Error(`Package ${packageName} is missing a version in package-lock.json.`);
+	}
+
+	return version;
+}
 
 // Build
 const vscodeEntryPoints = [
@@ -93,10 +106,14 @@ const vscodeResourceIncludes = [
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'out-build/vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
+
+	// Chat Pet
+	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -235,6 +252,22 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
+// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
+// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
+// time. The addon requires a newer glibc than VS Code's minimum supported Linux
+// distros, so we deliberately do NOT ship any of this native payload: it is
+// downloaded on demand at runtime, only on supported platforms, into a per-user
+// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
+// Exclude every prebuilt addon and core library from the package here.
+function getFoundryLocalExcludeFilter(): string[] {
+	return [
+		'**',
+		'!**/foundry-local-sdk/prebuilds/**',
+		'!**/foundry-local-sdk/foundry-local-core/**',
+	];
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -306,12 +339,23 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
+				json.copilotVersions = {
+					runtime: getLockedPackageVersion('@github/copilot'),
+					sdk: getLockedPackageVersion('@github/copilot-sdk'),
+				};
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
 				const agentSdks = readAgentSdkResults();
 				if (Object.keys(agentSdks).length > 0) {
 					json.agentSdks = agentSdks;
+				}
+				// Stamp dictationRuntime from the per-platform results file
+				// produced by `build/dictation-runtime/produce.ts`. Local dev /
+				// unsupported target: file absent → undefined → not stamped.
+				const dictationRuntime = readDictationRuntimeResults();
+				if (dictationRuntime) {
+					json.dictationRuntime = dictationRuntime;
 				}
 				return json;
 			}))
@@ -350,6 +394,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getMxcExcludeFilter(arch)))
+			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -365,6 +410,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				// matched here — it is pure JavaScript that the agent host loads via
 				// `import` (ASAR-aware), so it stays in the archive.
 				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
+				// The Dev Container CLI is spawned as an external Node process,
+				// so its bundled entrypoint must be available outside the ASAR.
+				'**/@devcontainers/cli/**',
 				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
@@ -600,6 +648,8 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/rg.exe', { cwd }),
 			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
+			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
+			glob('**/OneAuthInterop.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
