@@ -10,8 +10,9 @@ import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
+import { ILogService } from '../../log/common/log.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
@@ -220,28 +221,29 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	},
 };
 
-export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
-	if (await readAgentPluginManifest(pluginUri, fileService)) {
+export async function detectPluginFormat(pluginUri: URI, fileService: IFileService, logService?: ILogService): Promise<IPluginFormatConfig> {
+	// Probe first: exists() inside readAgentPluginManifest rejects on a missing provider and hides permission errors.
+	if (await pathExists(joinPath(pluginUri, AGENT_PLUGIN_FORMAT.manifestPath), fileService, logService) && await readAgentPluginManifest(pluginUri, fileService)) {
 		return AGENT_PLUGIN_FORMAT;
 	}
-	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
+	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService, logService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
 
 	const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
-	if (isInClaudeDirectory || await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+	if (isInClaudeDirectory || await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService, logService)) {
 		return CLAUDE_FORMAT;
 	}
 
 	return COPILOT_FORMAT;
 }
 
-export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {
+export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService, logService?: ILogService): Promise<Record<string, unknown> | undefined> {
 	if (format.format === PluginFormat.AgentPlugin) {
 		const manifest = await readAgentPluginManifest(pluginUri, fileService);
 		return manifest ? { ...manifest } : undefined;
 	}
-	const json = await readJsonFile(joinPath(pluginUri, format.manifestPath), fileService);
+	const json = await readJsonFile(joinPath(pluginUri, format.manifestPath), fileService, logService);
 	return json && typeof json === 'object' && !Array.isArray(json) ? json as Record<string, unknown> : undefined;
 }
 
@@ -886,22 +888,37 @@ export function interpolateHookPluginRoot(
 // Filesystem helpers
 // ---------------------------------------------------------------------------
 
-export async function readJsonFile(uri: URI, fileService: IFileService): Promise<unknown | undefined> {
+/** Logs a failed read unless the resource is simply missing (or sits under a file), so a file system the host cannot address is not mistaken for an absent file. */
+function warnUnlessMissing(resource: URI, error: unknown, logService: ILogService | undefined): void {
+	const result = error instanceof Error ? toFileOperationResult(error) : undefined;
+	if (result === FileOperationResult.FILE_NOT_FOUND || result === FileOperationResult.FILE_NOT_DIRECTORY) {
+		return;
+	}
+	logService?.warn(`[pluginParsers] Failed to read '${resource.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+}
+
+export async function readJsonFile(uri: URI, fileService: IFileService, logService: ILogService | undefined): Promise<unknown | undefined> {
 	try {
 		const fileContents = await fileService.readFile(uri);
 		return parseJSONC(fileContents.value.toString());
-	} catch {
+	} catch (error) {
+		warnUnlessMissing(uri, error, logService);
 		return undefined;
 	}
 }
 
-export async function pathExists(resource: URI, fileService: IFileService): Promise<boolean> {
+/** Resolves a resource, returning `undefined` when it is missing or unreadable. */
+export async function tryResolve(resource: URI, fileService: IFileService, logService: ILogService | undefined): Promise<IFileStat | undefined> {
 	try {
-		await fileService.resolve(resource);
-		return true;
-	} catch {
-		return false;
+		return await fileService.resolve(resource);
+	} catch (error) {
+		warnUnlessMissing(resource, error, logService);
+		return undefined;
 	}
+}
+
+export async function pathExists(resource: URI, fileService: IFileService, logService: ILogService | undefined): Promise<boolean> {
+	return await tryResolve(resource, fileService, logService) !== undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -916,8 +933,9 @@ export async function readSkills(
 	pluginRoot: URI,
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI; readonly logService?: ILogService },
 ): Promise<readonly ISkillPluginResource[]> {
+	const logService = options?.logService;
 	const seen = new Set<string>();
 	const skills: ISkillPluginResource[] = [];
 
@@ -945,26 +963,20 @@ export async function readSkills(
 	await Promise.all(dirs.map(async dir => {
 		if (!options?.childDirectoriesOnly) {
 			const skillMd = URI.joinPath(dir, 'SKILL.md');
-			if (await pathExists(skillMd, fileService)) {
+			if (await pathExists(skillMd, fileService, logService)) {
 				await addSkill(basename(dir), skillMd);
 				return;
 			}
 		}
 
-		let stat;
-		try {
-			stat = await fileService.resolve(dir);
-		} catch {
-			return;
-		}
-
-		if (!stat.isDirectory || !stat.children) {
+		const stat = await tryResolve(dir, fileService, logService);
+		if (!stat?.isDirectory || !stat.children) {
 			return;
 		}
 
 		await Promise.all(stat.children.map(async child => {
 			const childSkillMd = URI.joinPath(child.resource, 'SKILL.md');
-			if (await pathExists(childSkillMd, fileService)) {
+			if (await pathExists(childSkillMd, fileService, logService)) {
 				await addSkill(basename(child.resource), childSkillMd);
 			}
 		}));
@@ -972,7 +984,7 @@ export async function readSkills(
 
 	if (!options?.childDirectoriesOnly && skills.length === 0) {
 		const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
-		if (await pathExists(rootSkillMd, fileService)) {
+		if (await pathExists(rootSkillMd, fileService, logService)) {
 			await addSkill(basename(pluginRoot), rootSkillMd);
 		}
 	}
@@ -981,10 +993,10 @@ export async function readSkills(
 	return skills;
 }
 
-export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly ISkillPluginResource[]> {
+export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService, logService?: ILogService): Promise<readonly ISkillPluginResource[]> {
 	return readSkills(pluginRoot, dirs, fileService, format.format === PluginFormat.AgentPlugin
-		? { childDirectoriesOnly: true, containmentRoot: pluginRoot }
-		: undefined);
+		? { childDirectoriesOnly: true, containmentRoot: pluginRoot, logService }
+		: { logService });
 }
 
 async function isResolvedWithin(root: URI, resource: URI, fileService: IFileService): Promise<boolean> {
@@ -1002,7 +1014,7 @@ async function isResolvedWithin(root: URI, resource: URI, fileService: IFileServ
 export async function readMarkdownComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly logService?: ILogService },
 ): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
@@ -1018,10 +1030,8 @@ export async function readMarkdownComponents(
 	};
 
 	for (const dir of dirs) {
-		let stat;
-		try {
-			stat = await fileService.resolve(dir);
-		} catch {
+		const stat = await tryResolve(dir, fileService, options?.logService);
+		if (!stat) {
 			continue;
 		}
 
@@ -1068,7 +1078,7 @@ function getInstructionFileName(resource: URI): string | undefined {
 export async function readInstructionComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly logService?: ILogService },
 ): Promise<readonly INamedPluginResource[]> {
 	const seen = new Set<string>();
 	const items: INamedPluginResource[] = [];
@@ -1084,10 +1094,8 @@ export async function readInstructionComponents(
 	};
 
 	for (const dir of dirs) {
-		let stat;
-		try {
-			stat = await fileService.resolve(dir);
-		} catch {
+		const stat = await tryResolve(dir, fileService, options?.logService);
+		if (!stat) {
 			continue;
 		}
 
@@ -1126,7 +1134,7 @@ export async function readInstructionComponents(
 export async function readAgentComponents(
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly containmentRoot?: URI },
+	options?: { readonly containmentRoot?: URI; readonly logService?: ILogService },
 ): Promise<readonly IAgentPluginResource[]> {
 	const files = await readMarkdownComponents(dirs, fileService, options);
 	if (files.length === 0) {
@@ -1230,12 +1238,13 @@ async function readHooks(
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
 	userHome: URI,
+	logService: ILogService | undefined,
 ): Promise<readonly IParsedHookGroup[]> {
 	for (const hookPath of paths) {
 		if (formatConfig.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, hookPath, fileService)) {
 			continue;
 		}
-		const json = await readJsonFile(hookPath, fileService);
+		const json = await readJsonFile(hookPath, fileService, logService);
 		if (!json) {
 			continue;
 		}
@@ -1250,13 +1259,14 @@ async function readMcpServers(
 	paths: readonly URI[],
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
+	logService: ILogService | undefined,
 ): Promise<readonly IMcpServerDefinition[]> {
 	const merged = new Map<string, IMcpServerDefinition>();
 	for (const mcpPath of paths) {
 		if (formatConfig.format === PluginFormat.AgentPlugin && !await isResolvedWithin(pluginUri, mcpPath, fileService)) {
 			continue;
 		}
-		const json = await readJsonFile(mcpPath, fileService);
+		const json = await readJsonFile(mcpPath, fileService, logService);
 		for (const def of parseMcpServerDefinitionMap(mcpPath, json, pluginUri, formatConfig)) {
 			if (!merged.has(def.name)) {
 				merged.set(def.name, def);
@@ -1271,8 +1281,9 @@ export async function readPluginMcpServers(
 	paths: readonly URI[],
 	format: IPluginFormatConfig,
 	fileService: IFileService,
+	logService?: ILogService,
 ): Promise<readonly IMcpServerDefinition[]> {
-	return readMcpServers(pluginUri, paths, format, fileService);
+	return readMcpServers(pluginUri, paths, format, fileService, logService);
 }
 
 export function parseMcpServerDefinitionMap(
@@ -1326,11 +1337,12 @@ export async function parsePlugin(
 	workspaceRoot: URI | undefined,
 	userHome: URI,
 	boundaryUri?: URI,
+	logService?: ILogService,
 ): Promise<IParsedPlugin> {
-	const formatConfig = await detectPluginFormat(pluginUri, fileService);
+	const formatConfig = await detectPluginFormat(pluginUri, fileService, logService);
 
 	// Read manifest
-	const manifest = await readPluginManifest(pluginUri, formatConfig, fileService);
+	const manifest = await readPluginManifest(pluginUri, formatConfig, fileService, logService);
 	if (formatConfig.requiresManifest && !manifest) {
 		throw new Error(`Plugin manifest '${joinPath(pluginUri, formatConfig.manifestPath).toString()}' is missing`);
 	}
@@ -1368,13 +1380,13 @@ export async function parsePlugin(
 	const [hooks, mcpServers, skills, agents, instructions] = await Promise.all([
 		embeddedHooks.length > 0
 			? Promise.resolve(embeddedHooks)
-			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome),
+			: readHooks(pluginUri, hookDirs, formatConfig, fileService, workspaceRoot, userHome, logService),
 		embeddedMcp.length > 0
 			? Promise.resolve(embeddedMcp)
-			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService),
-		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService),
-		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
-		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri } : undefined),
+			: readPluginMcpServers(pluginUri, mcpDirs, formatConfig, fileService, logService),
+		readPluginSkills(pluginUri, skillDirs, formatConfig, fileService, logService),
+		readAgentComponents(agentDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri, logService } : { logService }),
+		readInstructionComponents(instructionDirs, fileService, formatConfig.format === PluginFormat.AgentPlugin ? { containmentRoot: pluginUri, logService } : { logService }),
 	]);
 
 	return {

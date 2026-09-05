@@ -2608,7 +2608,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!this._isMultiRootEnabled()) {
 			return undefined;
 		}
-		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => claudeDirectoryQualifiesForPrimary(this._fileService, directory, this._environmentService.userHome, t), token);
+		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => claudeDirectoryQualifiesForPrimary(this._fileService, directory, this._environmentService.userHome, this._logService, t), token);
 	}
 
 	async startMcpServer(session: URI, id: string): Promise<void> {
