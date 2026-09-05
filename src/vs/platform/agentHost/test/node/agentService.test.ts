@@ -3228,6 +3228,20 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		class LegacyCatalogAgent extends TimedExternalAgent {
+			override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				return super.listExternalChats();
+			}
+
+			override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				return [];
+			}
+
+			async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+				return { adopted: false, eligible: false };
+			}
+		}
+
 		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService, storageResource?: URI): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
@@ -4565,6 +4579,166 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedTime: Date.now(),
 			}, agent.id);
 			assert.strictEqual(getStateManager(svc).getSurfacedSessionSummary(session.toString())?.resource, session.toString());
+		});
+
+		const migrationFlagCases: readonly { name: string; metadata: Record<string, string>; announcedStatus: SessionStatus; listedStatus: SessionStatus | undefined }[] = [
+			{
+				name: 'preserve archived sessions already returned by a listing',
+				metadata: { isArchived: 'true', isRead: 'true' },
+				announcedStatus: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+				listedStatus: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+			},
+			{
+				name: 'preserve the legacy done flag',
+				metadata: { isDone: 'true', isRead: 'true' },
+				announcedStatus: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+				listedStatus: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+			},
+			{
+				name: 'honor an explicit restore over the legacy done flag',
+				metadata: { isArchived: '', isDone: 'true', isRead: 'true' },
+				announcedStatus: SessionStatus.Idle | SessionStatus.IsRead,
+				listedStatus: SessionStatus.Idle | SessionStatus.IsRead,
+			},
+			{
+				name: 'preserve explicitly unread sessions',
+				metadata: { isArchived: 'true', isRead: 'false' },
+				announcedStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+				listedStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			},
+			{
+				name: 'default legacy sessions without read metadata to read',
+				metadata: {},
+				announcedStatus: SessionStatus.Idle | SessionStatus.IsRead,
+				listedStatus: undefined,
+			},
+		];
+
+		for (const { name, metadata, announcedStatus, listedStatus } of migrationFlagCases) {
+			test(`migration announcements ${name}`, async () => {
+				const sessionData = createPerSessionDataService();
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new LegacyCatalogAgent('copilot'));
+				const modifiedTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+				const session = agent.addSession('previously-listed', modifiedTime);
+				const db = sessionData.database(session);
+				await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+				await db.setMetadata('customTitle', 'Saved title');
+				for (const [key, value] of Object.entries(metadata)) {
+					await db.setMetadata(key, value);
+				}
+				getStateManager(svc).prepareSessionSummariesForListing([{
+					resource: session.toString(),
+					provider: agent.id,
+					title: 'Saved title',
+					status: announcedStatus,
+					createdAt: new Date(modifiedTime).toISOString(),
+					modifiedAt: new Date(modifiedTime).toISOString(),
+				}]);
+				const notifications: SessionSummary[] = [];
+				disposables.add(svc.onDidNotification(notification => {
+					if (notification.type === NotificationType.SessionAdded) {
+						notifications.push(notification.summary);
+					}
+				}));
+
+				registerTestAgentProvider(svc, agent);
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					announced: notifications.map(summary => ({ title: summary.title, status: summary.status })),
+					listed: listed.map(entry => ({ title: entry.summary, status: entry.status })),
+					restored: !!getStateManager(svc).getSessionState(session.toString()),
+				}, {
+					announced: [{ title: 'Saved title', status: announcedStatus }],
+					listed: [{ title: 'Saved title', status: listedStatus }],
+					restored: false,
+				});
+			});
+		}
+
+		test('migration announcements preserve archived sessions when an unknown draft forces a rescan', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const sessionData = createPerSessionDataService();
+			const svc = createExternalSessionService(sessionData.service, database);
+			const agent = disposables.add(new LegacyCatalogAgent('copilot'));
+			const modifiedTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+			const session = agent.addSession('already-archived', modifiedTime);
+			await database.registerSession(session.toString(), { provider: agent.id, startTime: modifiedTime, source: 'explicit' }, { checkTombstone: false });
+			await database.markProviderBackfilled(agent.id);
+			const db = sessionData.database(session);
+			await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
+			registerTestAgentProvider(svc, agent);
+			const firstListing = await svc.listSessions();
+			getStateManager(svc).prepareSessionSummariesForListing([{
+				resource: session.toString(),
+				provider: agent.id,
+				title: '',
+				status: firstListing[0].status ?? SessionStatus.Idle,
+				createdAt: new Date(modifiedTime).toISOString(),
+				modifiedAt: new Date(modifiedTime).toISOString(),
+			}]);
+			const notifications: SessionStatus[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(notification.summary.status);
+				}
+			}));
+
+			await assert.rejects(svc.restoreSession(AgentSession.uri(agent.id, 'untitled-probe')), /not an adoptable legacy chat/);
+			const lastListing = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				before: firstListing.map(entry => entry.status),
+				announced: notifications,
+				after: lastListing.map(entry => entry.status),
+				persistedArchived: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+			}, {
+				before: [SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived],
+				announced: [SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived],
+				after: [SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived],
+				persistedArchived: 'true',
+			});
+		});
+
+		test('migration announcements fail closed when stored flags cannot be read and allow retry', async () => {
+			class UnavailableMetadataDatabase extends TestSessionDatabase {
+				failOverlay = true;
+
+				override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+					if (this.failOverlay && obj[AH_META_IS_ARCHIVED_DB_KEY]) {
+						throw new Error('session flags unavailable');
+					}
+					return super.getMetadataObject(obj);
+				}
+			}
+
+			const db = new UnavailableMetadataDatabase();
+			await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyCatalogAgent('copilot'));
+			agent.addSession('metadata-unavailable', Date.now());
+			const notifications: SessionStatus[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(notification.summary.status);
+				}
+			}));
+
+			registerTestAgentProvider(svc, agent);
+			await assert.rejects(svc.listSessions(), /session flags unavailable/);
+			const beforeRetry = [...notifications];
+			db.failOverlay = false;
+			await svc.listSessions();
+
+			assert.deepStrictEqual({ beforeRetry, afterRetry: notifications }, {
+				beforeRetry: [],
+				afterRetry: [SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived],
+			});
 		});
 
 		test('migration candidates derive provenance from the workspaceless marker', async () => {
