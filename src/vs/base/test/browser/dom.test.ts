@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -734,6 +735,49 @@ suite('dom', () => {
 				'context must be cleared at the next frame so a later rendering update does not inherit stale observers',
 			);
 			observer.dispose();
+		});
+	});
+
+	suite('ModifierKeyEmitter', () => {
+		const disposables = new DisposableStore();
+
+		teardown(() => {
+			disposables.clear();
+			ModifierKeyEmitter.disposeInstance();
+		});
+
+		function trackAltKey(emitter: ModifierKeyEmitter): boolean[] {
+			const altKeyUpdates: boolean[] = [];
+			disposables.add(emitter.event(status => altKeyUpdates.push(status.altKey)));
+
+			return altKeyUpdates;
+		}
+
+		test('notifies when a keyboard event reveals that Alt is no longer pressed', () => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			const altKeyUpdates = trackAltKey(emitter);
+
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+
+			// Alt got released while another application had focus, so the matching
+			// `keyup` never arrived and the next keyboard event reveals the truth
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+
+			assert.deepStrictEqual({ altKeyUpdates, altKey: emitter.keyStatus.altKey }, { altKeyUpdates: [true, false], altKey: false });
+		});
+
+		test('mouse events keep the modifier state in sync', () => {
+			const emitter = ModifierKeyEmitter.getInstance();
+			const altKeyUpdates = trackAltKey(emitter);
+
+			mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+
+			// Mouse events carry the actual modifier state and are the only
+			// signal we get when the `keyup` for Alt was never delivered
+			mainWindow.document.body.dispatchEvent(new MouseEvent('mousemove'));
+			mainWindow.document.body.dispatchEvent(new MouseEvent('mousedown'));
+
+			assert.deepStrictEqual({ altKeyUpdates, altKey: emitter.keyStatus.altKey }, { altKeyUpdates: [true, false], altKey: false });
 		});
 	});
 
