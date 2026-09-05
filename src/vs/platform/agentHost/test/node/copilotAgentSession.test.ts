@@ -7627,6 +7627,175 @@ Use the attached image as context.
 			]);
 		});
 
+		test('tool progress travels as _meta.progressMessage and never joins the result', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-progress',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+				arguments: { topic: 'metadata' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_progress', {
+				toolCallId: 'tc-progress',
+				progressMessage: 'Searching',
+			} as SessionEventPayload<'tool.execution_progress'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-progress',
+				success: true,
+				result: { content: 'found 3 docs' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
+			assert.deepStrictEqual({
+				contentChanged: getActions(signals)
+					.filter(action => action.type === ActionType.ChatToolCallContentChanged)
+					.map(action => ({ turnId: action.turnId, toolCallId: action.toolCallId, content: action.content, meta: action._meta })),
+				resultContent: completed.result.content,
+			}, {
+				contentChanged: [{
+					turnId: 'turn-progress',
+					toolCallId: 'tc-progress',
+					content: [],
+					meta: { mcpServerName: 'docs', progressMessage: 'Searching' },
+				}],
+				resultContent: [{ type: ToolResultContentType.Text, text: 'found 3 docs' }],
+			});
+		});
+
+		test('identical consecutive tool progress messages are coalesced', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress-repeat');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-repeat',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			for (const progressMessage of ['Searching', 'Searching', 'Ranking', 'Ranking', 'Searching']) {
+				mockSession.fire('tool.execution_progress', {
+					toolCallId: 'tc-repeat',
+					progressMessage,
+				} as SessionEventPayload<'tool.execution_progress'>['data']);
+			}
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallContentChanged)
+				.map(action => readToolCallMeta(action).progressMessage), ['Searching', 'Ranking', 'Searching']);
+		});
+
+		test('tool progress after the tool completes is dropped', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress-late');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-late',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-late',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			mockSession.fire('tool.execution_progress', {
+				toolCallId: 'tc-late',
+				progressMessage: 'Late',
+			} as SessionEventPayload<'tool.execution_progress'>['data']);
+
+			assert.deepStrictEqual(getActions(signals).filter(action => action.type === ActionType.ChatToolCallContentChanged), []);
+		});
+
+		test('tool progress leaves the partial-result terminal channel untouched', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress-shell');
+
+			const terminalUri = 'agenthost-terminal://shell/test-session-1/tc-shell-progress';
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-shell-progress',
+				toolName: 'bash',
+				arguments: { command: 'print ticks' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-shell-progress',
+				partialOutput: 'tick 1\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_progress', {
+				toolCallId: 'tc-shell-progress',
+				progressMessage: 'Still running',
+			} as SessionEventPayload<'tool.execution_progress'>['data']);
+			mockSession.fire('tool.execution_partial_result', {
+				toolCallId: 'tc-shell-progress',
+				partialOutput: 'tick 1\ntick 2\n',
+			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-shell-progress',
+				success: true,
+				result: {
+					content: 'tick 1\ntick 2\n',
+					contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputPreview: 'tick 1\ntick 2\n' }],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			const terminalBlock = { type: ToolResultContentType.Terminal, resource: terminalUri, title: 'Run Shell Command', isPty: false };
+			assert.deepStrictEqual({
+				contentChanged: getActions(signals)
+					.filter(action => action.type === ActionType.ChatToolCallContentChanged)
+					.map(action => ({ content: action.content, meta: action._meta })),
+				terminalData: terminalManager.outputTerminalData,
+			}, {
+				contentChanged: [
+					{ content: [terminalBlock], meta: undefined },
+					{ content: [terminalBlock], meta: { toolKind: 'terminal', language: 'shellscript', progressMessage: 'Still running' } },
+				],
+				terminalData: [
+					{ uri: terminalUri, data: 'tick 1\n' },
+					{ uri: terminalUri, data: 'tick 2\n' },
+				],
+			});
+		});
+
+		test('progress paused by MCP authentication is re-emitted once the call resumes', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-progress-auth');
+			const progressMessages = () => getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallContentChanged)
+				.map(action => readToolCallMeta(action).progressMessage);
+			const fireProgress = () => mockSession.fire('tool.execution_progress', {
+				toolCallId: 'tc-auth-progress',
+				progressMessage: 'Searching',
+			} as SessionEventPayload<'tool.execution_progress'>['data']);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-auth-progress',
+				toolName: 'mcp_tool',
+				mcpServerName: 'github',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-progress',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				wwwAuthenticateParams: { scope: 'repo', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+			fireProgress();
+			const whilePaused = progressMessages();
+
+			await session.resolveMcpAuthentication({ resource: 'https://api.githubcopilot.com/mcp/', scopes: ['repo'], token: 'token' });
+			await authPromise;
+			fireProgress();
+
+			// The repeat is only emitted because the paused one was never recorded as last sent.
+			assert.deepStrictEqual({ whilePaused, afterResume: progressMessages() }, {
+				whilePaused: [],
+				afterResume: ['Searching'],
+			});
+		});
+
 		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-truncated-stream');
