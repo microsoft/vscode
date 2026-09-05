@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
 import { getErrorCode } from '../../../base/common/errors.js';
 import type { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
@@ -13,6 +14,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -20,7 +22,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentClientToolInvokedSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 
@@ -51,6 +53,7 @@ import {
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	CustomizationType,
+	ToolCallConfirmationReason,
 	ToolCallStatus,
 	ToolResultContentType,
 	type ErrorInfo,
@@ -58,7 +61,9 @@ import {
 	type Message,
 	type MessageAttachment,
 	type URI as ProtocolURI,
+	type StringOrMarkdown,
 	type ToolCallResult,
+	type ToolCallState,
 	type ToolResultContent,
 	type Turn,
 	type UsageInfo,
@@ -66,6 +71,7 @@ import {
 	type McpServerCustomization,
 	type PluginCustomization
 } from '../common/state/sessionState.js';
+import { CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT } from './agentHostClientConnectionService.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -178,6 +184,39 @@ interface IResumedTurnExecution {
 }
 
 /**
+ * How far a client tool call has got through host admission: announced by the
+ * runtime, admitted to client execution, settled by a result, or abandoned
+ * because no client could produce one.
+ */
+type ClientToolAdmissionState = 'invoked' | 'admitted' | 'settled' | 'abandoned';
+
+/** The host's record that a client owns a tool call and the runtime is parked on it. */
+interface IClientToolAdmission {
+	state: ClientToolAdmissionState;
+	readonly chat: ProtocolURI;
+	readonly turnId: string;
+	readonly toolCallId: string;
+	readonly toolName: string;
+	/** Active client expected to run the call, absent when none provides the tool. */
+	readonly clientId: string | undefined;
+	/** Armed at admission; fails the call if no connected client claims it. */
+	unclaimed?: IDisposable;
+}
+
+/** `ToolCallResult.error.code` for a client tool call no connected client can run. */
+const CLIENT_TOOL_UNAVAILABLE_ERROR_CODE = 'toolUnavailable';
+
+/** The invocation message a tool call already carries, if its status has one. */
+function toolCallInvocationMessage(toolCall: ToolCallState | undefined): StringOrMarkdown | undefined {
+	return toolCall && hasKey(toolCall, { invocationMessage: true }) ? toolCall.invocationMessage : undefined;
+}
+
+/** The confirmation reason a tool call already carries, if its status has one. */
+function toolCallConfirmation(toolCall: ToolCallState | undefined): ToolCallConfirmationReason | undefined {
+	return toolCall && hasKey(toolCall, { confirmed: true }) ? toolCall.confirmed : undefined;
+}
+
+/**
  * Shared implementation of agent side-effect handling.
  *
  * Routes client-dispatched actions to the correct agent backend,
@@ -191,6 +230,12 @@ export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
+	/**
+	 * Admission records for client tool calls, keyed `${chat}:${toolCallId}`.
+	 * For a provider that drives client tool execution this is the single
+	 * record of ownership, so a streamed ready alone never starts a call.
+	 */
+	private readonly _clientToolAdmissions = new Map<string, IClientToolAdmission>();
 	/** Managed confirmations are human-only and must never seed host-side session permissions. */
 	private readonly _managedApprovalToolCalls = new Set<string>();
 	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
@@ -244,6 +289,12 @@ export class AgentSideEffects extends Disposable {
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter, undefined, (session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId));
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
+		this._register(toDisposable(() => {
+			for (const admission of this._clientToolAdmissions.values()) {
+				admission.unclaimed?.dispose();
+			}
+			this._clientToolAdmissions.clear();
+		}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
@@ -331,13 +382,18 @@ export class AgentSideEffects extends Disposable {
 					case ActionType.ChatInputCompleted:
 						this._inputRequestTracker.inputCompleted(envelope.channel, action, chatState);
 						break;
+					case ActionType.ChatToolCallComplete:
+						this._settleClientToolAdmission(envelope.channel, action.toolCallId);
+						break;
 					case ActionType.ChatTurnComplete:
 					case ActionType.ChatTurnCancelled:
 					case ActionType.ChatError:
 						this._inputRequestTracker.clearTurn(envelope.channel, action.turnId);
+						this._clearClientToolAdmissions(envelope.channel);
 						break;
 					case ActionType.ChatTruncated:
 						this._inputRequestTracker.clearChat(envelope.channel);
+						this._clearClientToolAdmissions(envelope.channel);
 						break;
 				}
 				if (envelope.action.type === ActionType.ChatTurnCancelled) {
@@ -698,6 +754,19 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
+		if (signal.kind === 'client_tool_invoked') {
+			// The provider parked a deferred before firing this, so it must be answered.
+			const message = localize('agentHost.clientTool.noTurn', "No active turn to run the tool \"{0}\".", signal.toolName);
+			this._logService.warn(`[AgentSideEffects] Failing client tool invocation ${signal.toolCallId} on ${sessionKey}: no active turn`);
+			this._notifyClientToolCallComplete(
+				sessionKey,
+				signal.chat.toString(),
+				signal.toolCallId,
+				{ success: false, pastTenseMessage: message, error: { message, code: CLIENT_TOOL_UNAVAILABLE_ERROR_CODE } },
+				'server-envelope',
+			);
+			return;
+		}
 		if (signal.kind === 'action') {
 			const action = signal.action;
 			if (action.type === ActionType.ChatTurnComplete && this._cancelledTurnIds.get(sessionKey)?.has(action.turnId)) {
@@ -715,6 +784,10 @@ export class AgentSideEffects extends Disposable {
 	 * Dispatches a signal to a resolved chat, preserving top-level turn identity or remapping cross-channel subagent actions.
 	 */
 	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting, agent?: IAgent): void {
+		if (signal.kind === 'client_tool_invoked') {
+			this._handleClientToolInvoked(signal, sessionKey, turnId);
+			return;
+		}
 		if (signal.kind === 'pending_confirmation') {
 			if (agent) {
 				void this._handleToolReady(signal, sessionKey, turnId, agent).catch(err => {
@@ -1247,6 +1320,137 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._logService.info(`[AgentSideEffects] Forwarding client tool completion: source=${source}, session=${sessionChannel}, chat=${chatChannel}, completionChat=${completionChat}, toolCallId=${toolCallId}, success=${result.success}`);
 		agent.onClientToolCallComplete(URI.parse(completionChat), toolCallId, result, this._chatContext(sessionChannel, chatChannel));
+	}
+
+	/**
+	 * The runtime invoked a client tool, which is what admits the call to client
+	 * execution. Repairs the streamed input from the runtime's own arguments and
+	 * synthesizes the start/ready pair when the call was replayed and never streamed.
+	 */
+	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, chatChannel: ProtocolURI, turnId: string): void {
+		const key = this._clientToolAdmissionKey(chatChannel, signal.toolCallId);
+		if (this._clientToolAdmissions.has(key)) {
+			// A rebind re-parks the same call; its admission already stands.
+			return;
+		}
+		const streamed = this._findToolCall(chatChannel, turnId, signal.toolCallId);
+		const clientId = streamed?.contributor?.kind === ToolCallContributorKind.Client
+			? streamed.contributor.clientId
+			: this._clientProvidingTool(chatChannel, signal.toolName);
+		const admission: IClientToolAdmission = { state: 'invoked', chat: chatChannel, turnId, toolCallId: signal.toolCallId, toolName: signal.toolName, clientId };
+		this._clientToolAdmissions.set(key, admission);
+		if (!streamed) {
+			this._logService.info(`[AgentSideEffects] Opening replayed client tool call ${signal.toolCallId} (${signal.toolName}) on ${chatChannel}`);
+			this._stateManager.dispatchServerAction(chatChannel, {
+				type: ActionType.ChatToolCallStart,
+				turnId,
+				toolCallId: signal.toolCallId,
+				toolName: signal.toolName,
+				displayName: signal.toolName,
+				...(clientId !== undefined ? { contributor: { kind: ToolCallContributorKind.Client, clientId } } : {}),
+			});
+		}
+		if (clientId === undefined) {
+			this._failClientToolCall(admission, localize('agentHost.clientTool.noOwner', "No connected client provides the tool \"{0}\".", signal.toolName), ToolCallConfirmationReason.NotNeeded);
+			return;
+		}
+		this._admitClientToolCall(admission, signal.toolInput, streamed);
+	}
+
+	/**
+	 * Stamps the admission into the call's protocol `_meta` and repairs its input,
+	 * which is what lets the execution request publish. A call still awaiting a
+	 * user confirmation keeps waiting for it.
+	 */
+	private _admitClientToolCall(admission: IClientToolAdmission, toolInput: string, streamed: ToolCallState | undefined): void {
+		admission.state = 'admitted';
+		this._stateManager.dispatchServerAction(admission.chat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: admission.turnId,
+			toolCallId: admission.toolCallId,
+			invocationMessage: toolCallInvocationMessage(streamed) ?? admission.toolName,
+			toolInput,
+			...(streamed?.status === ToolCallStatus.PendingConfirmation ? {} : { confirmed: toolCallConfirmation(streamed) ?? ToolCallConfirmationReason.NotNeeded }),
+			// The reducer replaces `_meta` outright, so carry the streamed bag forward.
+			_meta: { ...streamed?._meta, ...toToolCallMeta({ clientToolAdmitted: true }) },
+		});
+		admission.unclaimed = disposableTimeout(() => this._failUnclaimedClientToolCall(admission), CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT);
+	}
+
+	/**
+	 * Bounds an admitted call no connected client ever claimed. A call whose owner
+	 * is still connected is being run by it, so this leaves that one alone.
+	 */
+	private _failUnclaimedClientToolCall(admission: IClientToolAdmission): void {
+		if (admission.state !== 'admitted' || (admission.clientId !== undefined && this._isActiveClient(admission.chat, admission.clientId))) {
+			return;
+		}
+		this._failClientToolCall(admission, localize('agentHost.clientTool.unclaimed', "No connected client claimed the tool \"{0}\" in time.", admission.toolName), toolCallConfirmation(this._findToolCall(admission.chat, admission.turnId, admission.toolCallId)));
+	}
+
+	/**
+	 * Fails a client tool call the host cannot get a result for. The completion is
+	 * dispatched as a server action, which forwards it to the provider exactly once.
+	 */
+	private _failClientToolCall(admission: IClientToolAdmission, message: string, confirmed: ToolCallConfirmationReason | undefined): void {
+		admission.state = 'abandoned';
+		admission.unclaimed?.dispose();
+		this._logService.warn(`[AgentSideEffects] Failing client tool call ${admission.toolCallId} on ${admission.chat}: ${message}`);
+		this._stateManager.dispatchServerAction(admission.chat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: admission.turnId,
+			toolCallId: admission.toolCallId,
+			invocationMessage: admission.toolName,
+			confirmed: confirmed ?? ToolCallConfirmationReason.NotNeeded,
+		});
+		this._stateManager.dispatchServerAction(admission.chat, {
+			type: ActionType.ChatToolCallComplete,
+			turnId: admission.turnId,
+			toolCallId: admission.toolCallId,
+			result: { success: false, pastTenseMessage: message, error: { message, code: CLIENT_TOOL_UNAVAILABLE_ERROR_CODE } },
+		});
+	}
+
+	/** Marks a client tool call settled, so its unclaimed bound stops applying. */
+	private _settleClientToolAdmission(chatChannel: ProtocolURI, toolCallId: string): void {
+		const admission = this._clientToolAdmissions.get(this._clientToolAdmissionKey(chatChannel, toolCallId));
+		if (admission) {
+			admission.state = 'settled';
+			admission.unclaimed?.dispose();
+		}
+	}
+
+	/** Drops every admission for a chat whose turn ended with calls outstanding. */
+	private _clearClientToolAdmissions(chatChannel: ProtocolURI): void {
+		for (const [key, admission] of this._clientToolAdmissions) {
+			if (admission.chat === chatChannel) {
+				admission.unclaimed?.dispose();
+				this._clientToolAdmissions.delete(key);
+			}
+		}
+	}
+
+	private _clientToolAdmissionKey(chatChannel: ProtocolURI, toolCallId: string): string {
+		return `${chatChannel}:${toolCallId}`;
+	}
+
+	/** The active client currently contributing `toolName` to the chat's session. */
+	private _clientProvidingTool(chatChannel: ProtocolURI, toolName: string): string | undefined {
+		const session = parseRequiredSessionUriFromChatUri(chatChannel);
+		return this._stateManager.getSessionState(session)?.activeClients.find(client => client.tools.some(tool => tool.name === toolName))?.clientId;
+	}
+
+	/** Whether `clientId` is still one of the session's active clients. */
+	private _isActiveClient(chatChannel: ProtocolURI, clientId: string): boolean {
+		const session = parseRequiredSessionUriFromChatUri(chatChannel);
+		return this._stateManager.getSessionState(session)?.activeClients.some(client => client.clientId === clientId) === true;
+	}
+
+	private _findToolCall(chatChannel: ProtocolURI, turnId: string, toolCallId: string): ToolCallState | undefined {
+		const state = this._stateManager.getSessionState(chatChannel);
+		const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(t => t.id === turnId);
+		const part = turn?.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === toolCallId);
+		return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
 	}
 
 	// ---- Side-effect handlers --------------------------------------------------

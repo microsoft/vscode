@@ -5685,6 +5685,58 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('an SDK client tool invocation fires client_tool_invoked and resolves on completion', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const session = agent.getSessionForTesting(created.session)!;
+		const signals: AgentSignal[] = [];
+		disposables.add(session.onDidSessionProgress(signal => signals.push(signal)));
+
+		const callPromise = sdk.toolHandlers.get('echo')!({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_1' } });
+		const fired = signals.filter(signal => signal.kind === 'client_tool_invoked');
+		session.completeClientToolCall('tu_1', { success: true, pastTenseMessage: 'ok', content: [{ type: ToolResultContentType.Text, text: 'done' }] });
+
+		assert.deepStrictEqual({ fired, resolvedContent: (await callPromise).content }, {
+			fired: [{
+				kind: 'client_tool_invoked',
+				chat: session.chatChannelUri,
+				toolCallId: 'tu_1',
+				toolName: 'echo',
+				toolInput: '{"msg":"hi"}',
+			}],
+			resolvedContent: [{ type: 'text', text: 'done' }],
+		});
+	});
+
+	test('a client tool invoked inside a subagent carries its parent so the host routes it to the subagent chat', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const session = agent.getSessionForTesting(created.session)!;
+		session.subagents.recordSpawn('toolu_parent');
+		session.subagents.noteInnerTool('tu_inner', 'toolu_parent');
+		const signals: AgentSignal[] = [];
+		disposables.add(session.onDidSessionProgress(signal => signals.push(signal)));
+
+		const callPromise = sdk.toolHandlers.get('echo')!({ msg: 'hi' }, { _meta: { 'claudecode/toolUseId': 'tu_inner' } });
+		session.completeClientToolCall('tu_inner', { success: true, pastTenseMessage: 'ok', content: [] });
+		await callPromise;
+
+		assert.deepStrictEqual(
+			signals.filter(signal => signal.kind === 'client_tool_invoked').map(signal => ({ toolCallId: signal.toolCallId, parentToolCallId: signal.parentToolCallId })),
+			[{ toolCallId: 'tu_inner', parentToolCallId: 'toolu_parent' }],
+		);
+	});
+
 	test('setClientTools after materialize triggers yield-restart on next sendMessage with the new tool set', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

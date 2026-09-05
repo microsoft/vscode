@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -6995,6 +6996,239 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual({ chat: produced.chat, toolCallId: produced.toolCall.toolCallId }, { chat: subagentUri, toolCallId: 'tc-inner' });
+		});
+	});
+
+	suite('client tool admission', () => {
+
+		function executionRequests() {
+			return (stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [])
+				.filter(request => request.kind === SessionInputRequestKind.ToolClientExecution)
+				.map(request => ({ toolCallId: request.toolCall.toolCallId, clientId: request.clientId }));
+		}
+
+		function toolCalls(chat = defaultChatUri) {
+			return (stateManager.getChatState(chat)?.activeTurn?.responseParts ?? [])
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => part.toolCall);
+		}
+
+		function setClientTools(clientId: string, ...tools: string[]) {
+			stateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: tools.map(name => ({ name, inputSchema: { type: 'object' } })) },
+			}, { clientId: 'test', clientSeq: 1 });
+		}
+
+		function streamClientToolCall(toolCallId: string, toolName: string, clientId: string | undefined, toolInput?: string) {
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+				toolCallId, toolName, displayName: toolName,
+				...(clientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId } } : {}),
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+				toolCallId, invocationMessage: toolName, confirmed: ToolCallConfirmationReason.NotNeeded,
+				...(toolInput !== undefined ? { toolInput } : {}),
+			});
+		}
+
+		function invoke(toolCallId: string, toolName: string, toolInput: string, parentToolCallId?: string) {
+			agent.fireProgress({
+				kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri),
+				toolCallId, toolName, toolInput,
+				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
+			});
+		}
+
+		test('a streamed ready alone does not publish execution for a provider that drives it', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setClientTools('client-1', 'runTask');
+			startTurn('turn-1');
+
+			streamClientToolCall('tc-1', 'runTask', 'client-1', '{"task":"build"}');
+
+			assert.deepStrictEqual({ requests: executionRequests(), status: toolCalls()[0]?.status }, { requests: [], status: ToolCallStatus.Running });
+		});
+
+		test('the invocation admits the call, repairs the input and publishes exactly one request', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setClientTools('client-1', 'runTask');
+			startTurn('turn-1');
+
+			// The streamed input never finished; the runtime's arguments are authoritative.
+			streamClientToolCall('tc-1', 'runTask', 'client-1', '{"tas');
+			invoke('tc-1', 'runTask', '{"task":"build"}');
+			// A second invocation (the SDK re-parking after a rebind) must not publish again.
+			invoke('tc-1', 'runTask', '{"task":"build"}');
+
+			const toolCall = toolCalls()[0];
+			assert.deepStrictEqual({
+				requests: executionRequests(),
+				toolInput: toolCall?.status === ToolCallStatus.Running ? toolCall.toolInput : undefined,
+				admitted: toolCall ? readToolCallMeta(toolCall).clientToolAdmitted : undefined,
+			}, {
+				requests: [{ toolCallId: 'tc-1', clientId: 'client-1' }],
+				toolInput: '{"task":"build"}',
+				admitted: true,
+			});
+		});
+
+		test('a provider that does not drive execution keeps publishing on the streamed ready', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setClientTools('client-1', 'runTask');
+			startTurn('turn-1');
+
+			streamClientToolCall('tc-1', 'runTask', 'client-1', '{"task":"build"}');
+
+			assert.deepStrictEqual(executionRequests(), [{ toolCallId: 'tc-1', clientId: 'client-1' }]);
+		});
+
+		test('an invocation with no active turn is failed back to the provider', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			// No turn to attach the call to, but the provider is already awaiting it.
+
+			invoke('tc-1', 'runTask', '{}');
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(call => ({
+					toolCallId: call.toolCallId,
+					success: call.result.success,
+					code: call.result.error?.code,
+				})),
+				[{ toolCallId: 'tc-1', success: false, code: 'toolUnavailable' }],
+				'the parked invocation must be answered rather than left waiting',
+			);
+		});
+		test('a call with no connected owner fails once and is forwarded once', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// No active client contributes the tool, so the call can only be failed.
+			streamClientToolCall('tc-1', 'runTask', undefined);
+			invoke('tc-1', 'runTask', '{}');
+
+			const toolCall = toolCalls()[0];
+			assert.deepStrictEqual({
+				status: toolCall?.status,
+				success: toolCall?.status === ToolCallStatus.Completed ? toolCall.success : undefined,
+				forwarded: agent.clientToolCallCompleteCalls.map(call => ({ toolCallId: call.toolCallId, code: call.result.error?.code })),
+				requests: executionRequests(),
+			}, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				forwarded: [{ toolCallId: 'tc-1', code: 'toolUnavailable' }],
+				requests: [],
+			});
+		});
+
+		test('an admitted call nobody claims within the bound fails with a clear error', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				agent.drivesClientToolExecution = true;
+				setupSession();
+				disposables.add(sideEffects.registerProgressListener(agent));
+				setClientTools('client-1', 'runTask');
+				startTurn('turn-1');
+				streamClientToolCall('tc-1', 'runTask', 'client-1');
+				invoke('tc-1', 'runTask', '{}');
+
+				// The owner is still there while it runs the call, so the bound must not fire.
+				clock.tick(30_000);
+				const whileConnected = { status: toolCalls()[0]?.status, forwarded: agent.clientToolCallCompleteCalls.length };
+
+				// A second call whose owner goes away without answering.
+				streamClientToolCall('tc-2', 'runTask', 'client-1');
+				invoke('tc-2', 'runTask', '{}');
+				stateManager.dispatchClientAction(sessionUri.toString(), { type: ActionType.SessionActiveClientRemoved, clientId: 'client-1' }, { clientId: 'test', clientSeq: 2 });
+				clock.tick(30_000);
+
+				const failed = toolCalls().find(tc => tc.toolCallId === 'tc-2');
+				assert.deepStrictEqual({
+					whileConnected,
+					status: failed?.status,
+					message: failed?.status === ToolCallStatus.Completed ? failed.error?.message : undefined,
+					code: failed?.status === ToolCallStatus.Completed ? failed.error?.code : undefined,
+				}, {
+					whileConnected: { status: ToolCallStatus.Running, forwarded: 0 },
+					status: ToolCallStatus.Completed,
+					message: 'No connected client claimed the tool "runTask" in time.',
+					code: 'toolUnavailable',
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('a replayed call with no prior state synthesizes start and ready with the owner', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setClientTools('client-A', 'openBrowserPage');
+			startTurn('turn-1');
+
+			// A replayed call streams nothing, so the invocation is the only cue.
+			invoke('tu_replay', 'openBrowserPage', '{"url":"http://x/"}');
+
+			const toolCall = toolCalls()[0];
+			assert.deepStrictEqual({
+				toolCalls: toolCalls().map(tc => ({ id: tc.toolCallId, status: tc.status, contributor: tc.contributor })),
+				toolInput: toolCall?.status === ToolCallStatus.Running ? toolCall.toolInput : undefined,
+				requests: executionRequests(),
+			}, {
+				toolCalls: [{ id: 'tu_replay', status: ToolCallStatus.Running, contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-A' } }],
+				toolInput: '{"url":"http://x/"}',
+				requests: [{ toolCallId: 'tu_replay', clientId: 'client-A' }],
+			});
+		});
+
+		test('a subagent client tool is admitted on the subagent chat', () => {
+			agent.drivesClientToolExecution = true;
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			setClientTools('client-1', 'runTask');
+			startTurn('turn-1');
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
+
+			invoke('tu_inner', 'runTask', '{"task":"build"}', 'tc-parent');
+
+			const subagentChat = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			const admitted = {
+				parentToolCalls: toolCalls().map(tc => tc.toolCallId),
+				subagentToolCalls: toolCalls(subagentChat).map(tc => ({ id: tc.toolCallId, status: tc.status })),
+				requests: executionRequests(),
+			};
+
+			// The client answers on the subagent chat; the runtime is parked on the root session.
+			const completion = {
+				type: ActionType.ChatToolCallComplete as const, turnId: stateManager.getActiveTurnId(subagentChat)!, toolCallId: 'tu_inner',
+				result: { success: true, pastTenseMessage: 'Ran' },
+			};
+			stateManager.dispatchClientAction(subagentChat, completion, { clientId: 'client-1', clientSeq: 2 });
+			sideEffects.handleAction(subagentChat, completion, 'client-1');
+
+			assert.deepStrictEqual({
+				admitted,
+				forwarded: agent.clientToolCallCompleteCalls.map(call => ({ chat: call.chat.toString(), toolCallId: call.toolCallId })),
+				requests: executionRequests(),
+			}, {
+				admitted: {
+					parentToolCalls: [],
+					subagentToolCalls: [{ id: 'tu_inner', status: ToolCallStatus.Running }],
+					requests: [{ toolCallId: 'tu_inner', clientId: 'client-1' }],
+				},
+				forwarded: [{ chat: defaultChatUri, toolCallId: 'tu_inner' }],
+				requests: [],
+			});
 		});
 	});
 

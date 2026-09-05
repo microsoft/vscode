@@ -47,6 +47,12 @@ export interface IToolCallMeta {
 	readonly autoApproveBySetting?: boolean;
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
 	readonly autoApproveRuleResolvable?: boolean;
+	/**
+	 * Set by the host when a provider that drives client tool execution has
+	 * announced this call, admitting it to client execution. Stamped into state
+	 * so the admission survives a snapshot and a client reconnect.
+	 */
+	readonly clientToolAdmitted?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 }
@@ -134,6 +140,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
 	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
+	if (typeof meta['clientToolAdmitted'] === 'boolean') { result.clientToolAdmitted = meta['clientToolAdmitted']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta['ui']);

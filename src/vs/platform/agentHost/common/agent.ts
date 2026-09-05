@@ -837,6 +837,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentToolPendingConfirmationSignal
+	| IAgentClientToolInvokedSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
 	| IAgentSubagentCompletedSignal
@@ -921,6 +922,25 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * action would land on the parent session, where there is no
 	 * matching `ChatToolCallStart`.
 	 */
+	readonly parentToolCallId?: string;
+}
+
+/**
+ * The runtime invoked a client-provided tool and is parked awaiting its result,
+ * which is what admits the call to client execution. Kept as a non-action signal
+ * because it reports a runtime fact rather than a state transition.
+ */
+export interface IAgentClientToolInvokedSignal {
+	readonly kind: 'client_tool_invoked';
+	/** Root chat channel URI the tool call belongs to. */
+	readonly chat: URI;
+	/** SDK `tool_use_id` of the invocation, the call's identity end to end. */
+	readonly toolCallId: string;
+	/** Unprefixed client tool name. */
+	readonly toolName: string;
+	/** JSON-serialized tool input, authoritative over anything streamed. */
+	readonly toolInput: string;
+	/** See {@link IAgentToolPendingConfirmationSignal.parentToolCallId}. */
 	readonly parentToolCallId?: string;
 }
 
@@ -1128,6 +1148,14 @@ export interface IAgent {
 
 	/** Provider descriptor and capabilities. */
 	getDescriptor(): IAgentDescriptor;
+
+	/**
+	 * Whether the runtime announces every client tool invocation, so the host
+	 * admits a call on {@link IAgentClientToolInvokedSignal} rather than on the
+	 * streamed tool call reaching `Running`. Absent means the streamed ready
+	 * stays the trigger, as it is for Copilot and Codex.
+	 */
+	readonly drivesClientToolExecution?: boolean;
 
 	/** Available provider models. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
