@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, defineTool } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -20,7 +20,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('bundled SDK consumes structured reasoning and text from the proxy', async function () {
+	test('bundled SDK preserves provider state through a tool continuation', async function () {
 		this.timeout(120_000);
 
 		const sessionId = 'byok-responses-integration';
@@ -31,19 +31,18 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 		const registration = registry.register('client', {
 			chat: async request => {
 				captured.push(request);
-				if (captured.length > 1) {
+				if (captured.length === 1) {
 					return {
-						responseId: 'resp_provider_2',
-						output: [{ type: 'message', content: [{ type: 'text', text: 'second' }] }],
+						responseId: 'resp_provider_1',
+						output: [
+							{ type: 'reasoning', id: 'rs_provider', summary: ['Calling echo'], encryptedContent: 'opaque' },
+							{ type: 'function_call', callId: 'call_1', name: 'echo', argumentsJson: '{}' },
+						],
 					};
 				}
 				return {
-					responseId: 'resp_provider',
-					output: [
-						{ type: 'reasoning', id: 'rs_provider', summary: ['considered options'], encryptedContent: 'opaque' },
-						{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
-					],
-					usage: { inputTokens: 1, outputTokens: 2, reasoningTokens: 1 },
+					responseId: 'resp_provider_2',
+					output: [{ type: 'message', content: [{ type: 'text', text: 'final response' }] }],
 				};
 			},
 			onDidChangeModels: models.event,
@@ -69,7 +68,16 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				sessionId,
 				model: 'test-model',
 				reasoningEffort: 'medium',
-				availableTools: [],
+				tools: [
+					defineTool('echo', {
+						description: 'Returns a fixed echo result.',
+						parameters: { type: 'object', properties: {}, additionalProperties: false },
+						handler: async () => 'echo result',
+						skipPermission: true,
+						defer: 'never',
+					}),
+				],
+				availableTools: ['custom:echo'],
 				provider: {
 					type: 'openai',
 					wireApi: 'responses',
@@ -77,39 +85,35 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					bearerToken: `${handle.nonce}.${sessionId}`,
 				},
 			});
-			const reasoning: string[] = [];
-			session.on('assistant.reasoning', event => reasoning.push(event.data.content));
-
-			const result = await session.sendAndWait({ prompt: 'Reply exactly hello.' }, 30_000);
-			const secondResult = await session.sendAndWait({ prompt: 'Reply exactly second.' }, 30_000);
-			const replayedReasoning = captured[1]?.input.find(item => item.type === 'reasoning');
+			const result = await session.sendAndWait({ prompt: 'Call echo once, then reply exactly final response.' }, 30_000);
 
 			assert.deepStrictEqual({
 				result: result?.type === 'assistant.message' ? result.data.content : undefined,
-				secondResult: secondResult?.type === 'assistant.message' ? secondResult.data.content : undefined,
-				reasoning,
+				requestCount: captured.length,
 				firstRequest: {
 					vendor: captured[0]?.vendor,
 					modelId: captured[0]?.modelId,
 					inputTypes: captured[0]?.input.map(item => item.type),
 					reasoningEffort: captured[0]?.reasoningEffort,
 				},
-				replayedReasoning,
+				secondRequest: {
+					previousResponseId: captured[1]?.previousResponseId,
+					input: captured[1]?.input.map(item => item.type === 'function_call_output'
+						? { type: item.type, callId: item.callId, output: item.output }
+						: { type: item.type }),
+				},
 			}, {
-				result: 'hello',
-				secondResult: 'second',
-				reasoning: ['considered options'],
+				result: 'final response',
+				requestCount: 2,
 				firstRequest: {
 					vendor: 'acme',
 					modelId: 'test-model',
 					inputTypes: ['message'],
 					reasoningEffort: 'medium',
 				},
-				replayedReasoning: {
-					type: 'reasoning',
-					id: 'rs_provider',
-					summary: ['considered options'],
-					encryptedContent: 'opaque',
+				secondRequest: {
+					previousResponseId: 'resp_provider_1',
+					input: [{ type: 'function_call_output', callId: 'call_1', output: 'echo result' }],
 				},
 			});
 
