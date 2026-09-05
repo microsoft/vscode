@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { EditorView, EditorViewConfig, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from '@vscode/editor-view';
-import { getActiveWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import type { EditorView, EditorViewConfig, CursorInput, CursorStyle, DecorationInput, DecorationRangeInput, FoldingControlInput, LineInput, ModelDeltaInput, SelectionInput, TokenInput } from '@vscode/editor-view';
+import { addDisposableListener, EventType, getActiveWindow, WindowIntervalTimer } from '../../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { editorBackground, editorForeground, editorSelectionBackground, editorInactiveSelection } from '../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { editorActiveLineNumber, editorGutter, editorLineNumbers, editorLineHighlight, editorLineHighlightBorder, editorInactiveLineHighlight, editorCursorForeground, editorCursorBackground, editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground, editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground, editorWhitespaces, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry.js';
+import { editorActiveLineNumber, editorGutter, editorGutterFoldingControlForeground, editorLineNumbers, editorLineHighlight, editorLineHighlightBorder, editorInactiveLineHighlight, editorCursorForeground, editorCursorBackground, editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground, editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground, editorWhitespaces, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry.js';
 import { EditorFontLigatures, EditorOption, RenderLineNumbersType, TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { TokenizationRegistry } from '../../../common/languages.js';
@@ -54,6 +54,11 @@ export interface EditorViewGpuCapabilities {
 	/** Gutter line numbers (`LineNumbersOverlay`). */
 	readonly lineNumbers: boolean;
 	/**
+	 * Folding-control pixels. Transparent DOM controls remain mounted as pointer
+	 * targets until the renderer owns gutter input.
+	 */
+	readonly foldingControls: boolean;
+	/**
 	 * Supported content decoration paints are GPU-owned individually; the DOM
 	 * overlay remains mounted for every unsupported class/style.
 	 */
@@ -91,6 +96,7 @@ export const EDITOR_VIEW_GPU_CAPABILITIES: EditorViewGpuCapabilities = {
 	whitespace: true,
 	indentGuides: true,
 	lineNumbers: true,
+	foldingControls: true,
 	supportedContentDecorations: true,
 	decorations: false,
 	rulers: false,
@@ -129,6 +135,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 	private readonly _sync = new EditorViewModelSync(EditorViewGpu.MAX_LINES);
 	private readonly _decorationResolver: EditorViewDecorationResolver;
 	private _decorationsDirty = true;
+	private _foldingControlsHovered = false;
 	/** View line (1-based) holding the primary cursor; its number is highlighted. */
 	private _activeLineNumber = 1;
 	/** Current selections in renderer coordinates (0-based line, 0-based UTF-16 column). */
@@ -160,10 +167,22 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 	/** Flat-blink half-period, matching `ViewCursors.BLINK_INTERVAL`. */
 	private static readonly BLINK_INTERVAL = 500;
+	private readonly _editorRoot: HTMLElement;
 
 	constructor(context: ViewContext, editorRoot: HTMLElement) {
 		super(context);
+		this._editorRoot = editorRoot;
 		this._decorationResolver = new EditorViewDecorationResolver(editorRoot);
+		this._register(addDisposableListener(editorRoot, EventType.MOUSE_OVER, e => {
+			if (this._isMarginTarget(e.target)) {
+				this._setFoldingControlsHovered(true);
+			}
+		}));
+		this._register(addDisposableListener(editorRoot, EventType.MOUSE_OUT, e => {
+			if (this._isMarginTarget(e.target) && !this._isMarginTarget(e.relatedTarget)) {
+				this._setFoldingControlsHovered(false);
+			}
+		}));
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
 		this.canvas.setClassName('editorView-experimental-canvas');
@@ -199,11 +218,15 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 				this._editorView = undefined;
 				return;
 			}
+			if (EDITOR_VIEW_GPU_CAPABILITIES.foldingControls) {
+				this._editorRoot.classList.add('editor-view-gpu-folding-controls');
+			}
 
 			// The renderer is ready; the planner still holds its initial full-reload
 			// state, so the first present loads the whole model.
 			this._present();
 		} catch (err) {
+			this._editorRoot.classList.remove('editor-view-gpu-folding-controls');
 			onUnexpectedError(err);
 		}
 	}
@@ -252,6 +275,15 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 			// gutter, and expand tabs by the model's tab size.
 			gutterWidth: layoutInfo.contentLeft,
 			lineNumbersRight: layoutInfo.lineNumbersLeft + layoutInfo.lineNumbersWidth,
+			foldingControlLeft: layoutInfo.decorationsLeft,
+			foldingControlWidth: layoutInfo.decorationsWidth,
+			foldingControlForeground: this._packColor(
+				this._context.theme.getColor(editorGutterFoldingControlForeground),
+				0xc5c5c5ff,
+			),
+			foldingControlFontFamily: 'codicon',
+			foldingControlFontSize: fontInfo.fontSize * 1.4,
+			foldingControlsHovered: this._foldingControlsHovered,
 			tabSize: this._context.viewModel.model.getOptions().tabSize,
 			indentSize: this._context.viewModel.model.getOptions().indentSize,
 			indentGuides: options.get(EditorOption.guides).indentation,
@@ -448,6 +480,33 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		}
 		const { r, g, b, a } = color.rgba;
 		return (((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | (Math.round(a * 255) & 0xff)) >>> 0;
+	}
+
+	private _isMarginTarget(target: EventTarget | null): boolean {
+		return target instanceof Element && target.closest('.margin-view-overlays') !== null;
+	}
+
+	private _setFoldingControlsHovered(hovered: boolean): void {
+		if (this._foldingControlsHovered === hovered) {
+			return;
+		}
+		this._foldingControlsHovered = hovered;
+		this._present();
+	}
+
+	private _foldingControlForDecoration(decoration: ViewModelDecoration): FoldingControlInput | undefined {
+		const className = decoration.options.firstLineDecorationClassName;
+		if (!className) {
+			return undefined;
+		}
+		const classes = new Set(className.split(/\s+/));
+		if (classes.has('codicon-folding-collapsed') || classes.has('codicon-folding-manual-collapsed')) {
+			return 'collapsed';
+		}
+		if (classes.has('codicon-folding-expanded') || classes.has('codicon-folding-manual-expanded')) {
+			return classes.has('alwaysShowFoldIcons') ? 'expanded' : 'expanded-auto-hide';
+		}
+		return undefined;
 	}
 
 	private _gatherLines(): LineInput[] {
@@ -736,6 +795,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 
 		const lineCount = Math.min(this._context.viewModel.getLineCount(), EditorViewGpu.MAX_LINES);
 		if (lineCount === 0) {
+			this._applyDelta({ type: 'setFoldingControls', controls: [] });
 			this._applyDelta({ type: 'setDecorations', decorations: [] });
 			this._decorationsDirty = false;
 			return;
@@ -749,12 +809,19 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		);
 		const retained = this._context.viewModel.getDecorationsInViewport(range);
 		const decorations: DecorationInput[] = [];
+		const foldingControls: (FoldingControlInput | null)[] = new Array(lineCount).fill(null);
 		for (const decoration of retained) {
+			const foldingControl = this._foldingControlForDecoration(decoration);
+			const foldingLine = decoration.range.startLineNumber - 1;
+			if (foldingControl && foldingLine >= 0 && foldingLine < foldingControls.length) {
+				foldingControls[foldingLine] = foldingControl;
+			}
 			const resolved = this._decorationResolver.resolve(decoration, decorations.length + 1);
 			if (resolved) {
 				decorations.push(...resolved);
 			}
 		}
+		this._applyDelta({ type: 'setFoldingControls', controls: foldingControls });
 		this._applyDelta({ type: 'setDecorations', decorations });
 		this._decorationsDirty = false;
 	}
@@ -972,6 +1039,7 @@ export class EditorViewGpu extends ViewPart implements IEditorViewLineWidthProvi
 		this._blinkTimer.dispose();
 		this._editorView?.dispose();
 		this._editorView = undefined;
+		this._editorRoot.classList.remove('editor-view-gpu-folding-controls');
 		this.canvas.domNode.remove();
 		super.dispose();
 	}
