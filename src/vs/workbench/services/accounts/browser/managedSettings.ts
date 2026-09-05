@@ -7,7 +7,7 @@ import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
 import { isString } from '../../../../base/common/types.js';
 import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { hasRawManagedSettings, normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { hasRawManagedSettings, normalizeManagedSettings, StrictPluginOnlyCustomizationSelector } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
  * Client identity VS Code reports to the managed settings service. It names this codebase's own
@@ -64,7 +64,7 @@ export interface IManagedSettingsResponse {
 	readonly strictKnownMarketplaces?: readonly unknown[];
 	readonly allowedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
 	readonly deniedMcpServers?: ReadonlyArray<IManagedMcpServerMatcher>;
-	readonly strictPluginOnlyCustomization?: boolean;
+	readonly strictPluginOnlyCustomization?: boolean | readonly StrictPluginOnlyCustomizationSelector[];
 	readonly allowManagedMcpServersOnly?: boolean;
 	readonly allowManagedHooksOnly?: boolean;
 	readonly forceRemoteSettingsRefresh?: boolean;

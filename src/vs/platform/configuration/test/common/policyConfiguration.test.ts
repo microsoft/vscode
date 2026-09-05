@@ -223,6 +223,14 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), true);
 	});
 
+	test('initialize: parses a structured internal value for a boolean policy-backed setting', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyBooleanSetting': '["mcp"]' })));
+
+		await testObject.initialize();
+
+		assert.deepStrictEqual(testObject.configurationModel.getValue('policy.booleanSetting'), ['mcp']);
+	});
+
 	test('initialize: with object type policy ignores policy if value is not valid', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{"a": "b", "hello": }' })));
 
