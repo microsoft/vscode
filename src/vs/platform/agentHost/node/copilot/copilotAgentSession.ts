@@ -465,8 +465,6 @@ export interface ICopilotAgentSessionOptions {
 	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
 	readonly serverToolHost?: IAgentServerToolHost;
-	/** Returns whether the token that launched this session is still the active account token. */
-	readonly isLaunchTokenCurrent?: () => boolean;
 	/** Overrides source-launch detection for deterministic tests. */
 	readonly enableDevelopmentErrorInjection?: boolean;
 
@@ -901,6 +899,7 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.kind === 'token'; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
@@ -1061,8 +1060,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private _staticGitHubToken: string | undefined;
 	private _detectInterruptedTurnOnRestore: boolean;
-	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
 	private readonly _shellManager: ShellManager | undefined;
@@ -1118,6 +1117,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _repoInfoTelemetry: AgentHostRepoInfoTelemetry;
 	private _activeRepoInfoTurn: {
 		readonly telemetryMessageId: string;
+		readonly githubToken: string | undefined;
 		cancelled: boolean;
 		begin: Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined>;
 	} | undefined;
@@ -1149,8 +1149,8 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._staticGitHubToken = options.launchPlan.githubCredentials.kind === 'token' ? options.launchPlan.githubCredentials.token : undefined;
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
-		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
@@ -2223,9 +2223,13 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Updates the GitHub credentials used by this live SDK session. */
 	async updateGitHubCredentials(host: string, token: string): Promise<GitHubCredentialsUpdateResult> {
-		return this._wrapper.session.rpc.gitHubAuth.setCredentials({
+		const result = await this._wrapper.session.rpc.gitHubAuth.setCredentials({
 			credentials: { type: 'token', host, token },
 		});
+		if (result.success) {
+			this._staticGitHubToken = token;
+		}
+		return result;
 	}
 
 	private _setPromptCacheState(promptCache: ISessionPromptCacheState | undefined): void {
@@ -2346,7 +2350,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _initialGitHubMcpToken(request: McpAuthRequest): Promise<string | undefined> {
-		const githubToken = this._launchPlan.githubToken;
+		const githubToken = this._currentGitHubToken;
 		const requestUrl = normalizeMcpServerUrl(request.serverUrl);
 		if (!githubToken || requestUrl === undefined) {
 			return undefined;
@@ -4666,10 +4670,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, githubToken: string | undefined, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		let resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined;
 		try {
-			resolved = await this._resolveRepoInfoTelemetryContext();
+			resolved = await this._resolveRepoInfoTelemetryContext(githubToken);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to resolve repository info telemetry context: ${getErrorMessage(error)}`);
 			return undefined;
@@ -4694,8 +4698,18 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._activeRepoInfoTurn = undefined;
-		const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
+		const isCurrent = () => !turn.cancelled && turn.githubToken !== undefined && this._isGitHubTokenCurrent(turn.githubToken);
 		void turn.begin.then(resolved => this._endRepoInfoTelemetry(turn.telemetryMessageId, resolved, isCurrent));
+	}
+
+	private _isGitHubTokenCurrent(token: string): boolean {
+		const credentials = this._launchPlan.githubCredentials;
+		return credentials.kind === 'provider' ? credentials.provider.isCurrentToken(token) : this._staticGitHubToken === token;
+	}
+
+	private get _currentGitHubToken(): string | undefined {
+		const credentials = this._launchPlan.githubCredentials;
+		return credentials.kind === 'provider' ? credentials.provider.token : this._staticGitHubToken;
 	}
 
 	private _cancelActiveRepoInfoTelemetry(): void {
@@ -4708,11 +4722,10 @@ export class CopilotAgentSession extends Disposable {
 		void turn.begin.finally(() => this._repoInfoTelemetry.clearTurn(turn.telemetryMessageId));
 	}
 
-	private async _resolveRepoInfoTelemetryContext(): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _resolveRepoInfoTelemetryContext(githubToken: string | undefined): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostDisableRepoInfoTelemetryConfigKey) === true) {
 			return undefined;
 		}
-		const githubToken = this._launchPlan.githubToken;
 		if (!githubToken) {
 			return undefined;
 		}
@@ -4724,10 +4737,6 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		return { context: this._toRepoInfoTelemetryContext(rawContext), baseBranch };
-	}
-
-	private _isLaunchTokenCurrent(): boolean {
-		return this._launchPlan.githubToken !== undefined && this._isLaunchTokenStillCurrent();
 	}
 
 	private _toRepoInfoTelemetryContext(context: IRestrictedTelemetryContext): IAgentHostRestrictedTelemetryContext {
@@ -6470,11 +6479,12 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				const turn: NonNullable<CopilotAgentSession['_activeRepoInfoTurn']> = {
 					telemetryMessageId,
+					githubToken: this._currentGitHubToken,
 					cancelled: false,
 					begin: Promise.resolve(undefined),
 				};
-				const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
-				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, isCurrent);
+				const isCurrent = () => !turn.cancelled && turn.githubToken !== undefined && this._isGitHubTokenCurrent(turn.githubToken);
+				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, turn.githubToken, isCurrent);
 				this._activeRepoInfoTurn = turn;
 			}
 		}));

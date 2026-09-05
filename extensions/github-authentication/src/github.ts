@@ -42,6 +42,8 @@ interface ITransientSession {
 	readonly expiresAt: number;
 }
 
+const TOKEN_RENEWAL_WINDOW_MS = 60 * 60 * 1000;
+
 export enum AuthProviderType {
 	github = 'github',
 	githubEnterprise = 'github-enterprise'
@@ -267,7 +269,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	/** Every session held only by this process, whether or not its token is still any good. */
 	private get transientSessions(): vscode.AuthenticationSession[] {
-		return [...this._transientSessions.values()].map(held => held.session);
+		return [...this._transientSessions.values()].map(held => ({
+			...held.session,
+			expiresIn: Math.max(0, Math.ceil((held.expiresAt - Date.now()) / 1000))
+		}));
 	}
 
 	get onDidChangeSessions() {
@@ -397,8 +402,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return undefined;
 		}
 
-		const session = this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]);
-		this._transientSessions.set(session.id, { session, expiresAt: Date.now() + renewed.expiresIn * 1000 });
+		const session = this.storeTransientSession(this.sessionFor(renewed.account, renewed.token, [...renewed.scopes]), renewed.expiresIn);
 		this.afterSessionLoad(session);
 		return session;
 	}
@@ -422,7 +426,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		for (const session of wanted) {
 			// No transient entry means a persisted session, and nothing persisted carries an expiry.
 			const held = this._transientSessions.get(session.id);
-			if (!held || held.expiresAt > now) {
+			if (!held || held.expiresAt > now + TOKEN_RENEWAL_WINDOW_MS) {
 				usable.push(session);
 			} else {
 				stale.push(session);
@@ -437,8 +441,26 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		const renewed = await Promise.all(stale.map(session => this.renew(session)));
-		this.evict(stale.filter((_, index) => !renewed[index]), 'their token ran out and could not be renewed');
-		return [...usable, ...renewed.filter(<T>(session?: T): session is T => Boolean(session))];
+		const expired: vscode.AuthenticationSession[] = [];
+		const retained: vscode.AuthenticationSession[] = [];
+		for (let index = 0; index < stale.length; index++) {
+			if (renewed[index]) {
+				continue;
+			}
+
+			const held = this._transientSessions.get(stale[index].id);
+			const remainingLifetime = held ? held.expiresAt - Date.now() : 0;
+			if (held && remainingLifetime > 0) {
+				retained.push({
+					...held.session,
+					expiresIn: Math.ceil(remainingLifetime / 1000)
+				});
+			} else {
+				expired.push(stale[index]);
+			}
+		}
+		this.evict(expired, 'their token ran out and could not be renewed');
+		return [...usable, ...retained, ...renewed.filter(<T>(session?: T): session is T => Boolean(session))];
 	}
 
 	/**
@@ -531,8 +553,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		// The same session with a new token, so it keeps its id and is reported as changed rather
 		// than as one session going away and another arriving.
-		const next: vscode.AuthenticationSession = { ...session, accessToken: renewed.token };
-		this._transientSessions.set(next.id, { session: next, expiresAt: Date.now() + renewed.expiresIn * 1000 });
+		const next = this.storeTransientSession({ ...session, accessToken: renewed.token }, renewed.expiresIn);
 		this._logger.info(`Renewed session ${session.id}.`);
 		this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [next] });
 		return next;
@@ -794,18 +815,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const exchanged = await this._githubServer.loginWithMicrosoft(scopes, {
 			microsoftAccount: await this.rememberedMicrosoftAccount(gitHubAccountLabel)
 		});
-		const session = this.sessionFor(exchanged.account, exchanged.token, scopes);
+		const session = this.storeTransientSession(this.sessionFor(exchanged.account, exchanged.token, scopes), exchanged.expiresIn);
 		this.afterSessionLoad(session);
-
-		this._transientSessions.set(session.id, {
-			session,
-			// The exchange reports what GitHub said the token is good for; when that runs out is
-			// this side's question, since it is the side that has to hold the session until then.
-			expiresAt: Date.now() + exchanged.expiresIn * 1000
-		});
 
 		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 		return session;
+	}
+
+	private storeTransientSession(session: vscode.AuthenticationSession, expiresIn: number): vscode.AuthenticationSession {
+		const result = { ...session, expiresIn };
+		this._transientSessions.set(result.id, { session: result, expiresAt: Date.now() + expiresIn * 1000 });
+		return result;
 	}
 
 	/**

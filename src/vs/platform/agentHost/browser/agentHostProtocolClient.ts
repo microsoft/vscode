@@ -37,6 +37,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/error
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import { getRemainingTimeInSeconds } from '../../../base/common/date.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
@@ -275,7 +276,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, IPendingRequest>();
-	private readonly _authentication = new Map<string, AuthenticateParams>();
+	private readonly _authentication = new Map<string, { readonly params: AuthenticateParams; readonly expiresAt: number | undefined }>();
 	private _nextRequestId = 1;
 
 	/**
@@ -1008,7 +1009,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (initialAuthentication) {
 					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
 					initialAuthenticationKey = this._authenticationKey(normalizedParams);
-					this._authentication.set(initialAuthenticationKey, normalizedParams);
+					const expiresAt = normalizedParams.expiresIn === undefined ? undefined : Date.now() + normalizedParams.expiresIn * 1000;
+					this._authentication.set(initialAuthenticationKey, { params: normalizedParams, expiresAt });
 				}
 			} catch (error) {
 				throw new InitialAuthenticationError(error);
@@ -1017,12 +1019,19 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 		}
-		await Promise.all([...this._authentication.entries()].map(async ([key, params]) => {
+		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
+			const expiresIn = getRemainingTimeInSeconds(authentication.expiresAt);
+			if (authentication.expiresAt !== undefined && expiresIn === undefined) {
+				this._authentication.delete(key);
+				return;
+			}
+			const params = authentication.params;
 			try {
 				await this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
 					channel: ROOT_STATE_URI,
 					...params,
 					scopes: params.scopes ? [...params.scopes] : undefined,
+					...(expiresIn === undefined ? {} : { expiresIn }),
 				}, this._state.kind === AgentHostClientState.Connecting
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
@@ -1411,6 +1420,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const normalizedParams = this._normalizeAuthenticationParams(params);
+		const expiresAt = params.expiresIn === undefined ? undefined : Date.now() + params.expiresIn * 1000;
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
@@ -1418,7 +1428,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		});
 		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
-			this._authentication.set(key, normalizedParams);
+			this._authentication.set(key, { params: normalizedParams, expiresAt });
 		} else {
 			this._authentication.delete(key);
 		}

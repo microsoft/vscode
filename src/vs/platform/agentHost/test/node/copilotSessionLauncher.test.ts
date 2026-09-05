@@ -511,7 +511,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token' as const, token: undefined },
 		};
 		const createPlan: CopilotSessionLaunchPlan = {
 			...basePlan,
@@ -674,7 +674,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				snapshot: { tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
-				githubToken: undefined,
+				githubCredentials: { kind: 'token' as const, token: undefined },
 				kind: 'resume',
 				fallback: { model: undefined },
 			},
@@ -898,7 +898,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token' as const, token: undefined },
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -929,7 +929,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token', token: undefined },
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -959,7 +959,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token', token: undefined },
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -989,7 +989,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token', token: undefined },
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -1016,7 +1016,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token', token: undefined },
 			fallback: { model: { id: 'gpt-5.6-sol', config: {} } },
 		};
 
@@ -1326,7 +1326,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			snapshot,
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: 'token',
+			githubCredentials: { kind: 'token', token: 'token' },
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
@@ -1555,7 +1555,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: { kind: 'token' as const, token: undefined },
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...base, kind: 'create', model: { id: 'auto' }, autoTier }

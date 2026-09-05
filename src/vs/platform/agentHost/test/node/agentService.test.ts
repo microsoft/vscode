@@ -7177,10 +7177,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('routes token to provider matching the resource', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 
-			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123', expiresIn: 3600 });
 
 			assert.deepStrictEqual(result, { authenticated: true });
-			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123' }]);
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123', expiresIn: 3600 }]);
 		});
 
 		test('returns not authenticated for unknown resource', async () => {
