@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../base/common/types.js';
+
 export const AgentHostElementAttachmentDisplayKind = 'element';
 export const AgentHostElementAttachmentMetadataKey = 'vscode.agentHost.elementAttachment';
 
@@ -17,10 +19,8 @@ export function toElementAttachmentMeta(correlationId: string): Record<string, I
 }
 
 export function getElementAttachmentCorrelationId(attachment: { readonly _meta?: Record<string, unknown> }): string | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced element attachment slot; validated below.
 	const metadata = attachment._meta?.[AgentHostElementAttachmentMetadataKey];
-	// eslint-disable-next-line local/code-no-in-operator
-	if (!metadata || typeof metadata !== 'object' || !('correlationId' in metadata) || typeof metadata.correlationId !== 'string') {
+	if (!metadata || typeof metadata !== 'object' || !hasKey(metadata, { correlationId: true }) || typeof metadata.correlationId !== 'string') {
 		return undefined;
 	}
 	return metadata.correlationId;

@@ -44,7 +44,6 @@ export function parseAgentMessageDelegationMeta(value: unknown): IAgentMessageDe
 
 /** Reads recognized Agent Host message-delegation metadata. */
 export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta): IAgentMessageDelegationMeta | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the namespaced delegation slot; validated below.
 	return parseAgentMessageDelegationMeta(source._meta?.[MESSAGE_DELEGATION_META_KEY]);
 }
 
