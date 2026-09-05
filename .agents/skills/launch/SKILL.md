@@ -120,6 +120,8 @@ The script runs pre-launch (electron download, compile-if-missing, built-in exte
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
+Run the launcher once in the foreground and retain its JSON result. If your command runner reports that invocation as still running or backgrounded, retrieve that same command's output instead of invoking the launcher again. Before retrying a failed launch, confirm its process exited or clean up the emitted `pid` and `runDir`; otherwise the retry creates a second Code OSS instance.
+
 ```json
 {"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
@@ -229,7 +231,22 @@ before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
-`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
+Use a fresh snapshot to locate and focus the intended input, then inspect the focused DOM element:
+
+```bash
+npx @playwright/cli -s=$PW_SESSION eval \
+  '() => ({ tagName: document.activeElement?.tagName, className: document.activeElement?.className, role: document.activeElement?.getAttribute("role") })'
+```
+
+Choose the text-entry method from that result:
+
+- **Chat Monaco input** exposes a focused `.native-edit-context` inside the chat input. Use the paste helper or per-key `press` below.
+- **Quick Input and ordinary textboxes** include the Command Palette and file/folder pickers. Use Playwright's normal `type` command for the focused input or `fill` with its snapshot ref.
+- **Other Monaco-backed controls**, such as Settings search, also expose `.native-edit-context`, but `monaco-paste.sh` is scoped to chat input selection and may target the wrong editor. Focus the intended control and try `type`; fall back to per-key `press` if needed.
+
+Re-snapshot after text entry to verify the intended control received the text and the expected results appeared.
+
+For chat Monaco inputs, `fill` and `type` can silently fail because `native-edit-context` doesn't always react to Playwright's default input pipeline. Use one of these alternatives:
 
 - **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
 
