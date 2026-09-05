@@ -21,6 +21,7 @@ import './toggleOvertype.js';
 import './toggleMultiCursorModifier.js';
 import './toggleRenderControlCharacter.js';
 import './toggleRenderWhitespace.js';
+import './changeTextDirection.js';
 import './toggleWordWrap.js';
 import './emptyTextEditorHint/emptyTextEditorHint.js';
 import './workbenchReferenceSearch.js';

@@ -71,3 +71,14 @@
 	background-color: var(--vscode-editorStickyScrollHover-background);
 	cursor: pointer;
 }
+
+/*
+ * `textDirection: 'rtl'`: the sticky widget lays itself out with floats, so mirroring it is a matter
+ * of floating the line numbers to the right - the line container (absolutely positioned with
+ * `left: auto`) then follows to the left. The direction of the text itself is not set here: each
+ * sticky line carries a `dir` attribute taken from the direction of the line it stands for, so a
+ * line whose decoration declares the other direction keeps it.
+ */
+.monaco-editor.text-direction-rtl .sticky-widget .sticky-widget-line-numbers {
+	float: right;
+}

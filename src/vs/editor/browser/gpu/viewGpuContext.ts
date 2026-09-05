@@ -10,6 +10,7 @@ import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { TextDirection } from '../../common/model.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -78,6 +79,8 @@ export class ViewGpuContext extends Disposable {
 	readonly devicePixelRatio: IObservable<number>;
 	readonly contentLeft: IObservable<number>;
 
+	private readonly _viewContext: ViewContext;
+
 	constructor(
 		context: ViewContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -86,6 +89,8 @@ export class ViewGpuContext extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		this._viewContext = context;
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
 		this.canvas.setClassName('editorCanvas');
@@ -164,6 +169,7 @@ export class ViewGpuContext extends Disposable {
 		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
+			this._isRtlLine(lineNumber) ||
 			data.maxColumn > this.maxGpuCols
 		) {
 			return false;
@@ -201,6 +207,16 @@ export class ViewGpuContext extends Disposable {
 	}
 
 	/**
+	 * The GPU renderer has no notion of a right-to-left line: it would draw a line containing no
+	 * right-to-left character from the left, next to DOM-rendered lines drawn from the right. The
+	 * direction that decides this is the line's own, which a decoration can declare against the
+	 * layout, so it is read per line rather than from the options.
+	 */
+	private _isRtlLine(lineNumber: number): boolean {
+		return this._viewContext.viewModel.getTextDirection(lineNumber) === TextDirection.RTL;
+	}
+
+	/**
 	 * Like {@link canRender} but returns detailed information about why the line cannot be rendered.
 	 */
 	public canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
@@ -208,6 +224,9 @@ export class ViewGpuContext extends Disposable {
 		const reasons: string[] = [];
 		if (data.containsRTL) {
 			reasons.push('containsRTL');
+		}
+		if (this._isRtlLine(lineNumber)) {
+			reasons.push('textDirection === rtl');
 		}
 		if (data.maxColumn > this.maxGpuCols) {
 			reasons.push('maxColumn > maxGpuCols');

@@ -291,6 +291,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._updateConfigurationViewLineCount.schedule();
 		}
 
+		if (e.hasChanged(EditorOption.effectiveTextDirection)) {
+			// The direction is baked into the rendered lines, so they must all be rendered again.
+			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
+		}
+
 		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this._decorations.reset();
@@ -855,6 +860,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
 		let rtlCount = 0;
+		let hasDeclaredDirection = false;
 
 		for (const decoration of decorations) {
 			const range = decoration.range;
@@ -864,12 +870,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			const textDirection = decoration.options.textDirection;
 			if (textDirection === TextDirection.RTL) {
 				rtlCount++;
+				hasDeclaredDirection = true;
 			} else if (textDirection === TextDirection.LTR) {
 				rtlCount--;
+				hasDeclaredDirection = true;
 			}
 		}
 
-		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		if (hasDeclaredDirection) {
+			// A decoration declares the direction of this line. Resolved exactly as before this
+			// setting existed, ties included, so decorated lines are unaffected by the setting.
+			return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		}
+		return this._configuration.options.get(EditorOption.effectiveTextDirection) === 'rtl' ? TextDirection.RTL : TextDirection.LTR;
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
