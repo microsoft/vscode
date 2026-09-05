@@ -43,7 +43,17 @@ class RefItemSeparator implements QuickPickItem {
 	get kind(): QuickPickItemKind { return QuickPickItemKind.Separator; }
 
 	get label(): string {
-		switch (this.refType) {
+		return this._label ?? this.getLabelFromType(this.refType!);
+	}
+
+	constructor(private readonly refType?: RefType, private readonly _label?: string) {
+		if (!this._label) {
+			this._label = this.getLabelFromType(refType!);
+		}
+	}
+
+	private getLabelFromType(refType: RefType): string {
+		switch (refType) {
 			case RefType.Head:
 				return l10n.t('branches');
 			case RefType.RemoteHead:
@@ -54,8 +64,6 @@ class RefItemSeparator implements QuickPickItem {
 				return '';
 		}
 	}
-
-	constructor(private readonly refType: RefType) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -152,6 +160,22 @@ class CheckoutItem extends BranchItem {
 
 		const treeish = opts?.detached ? this.ref.commit ?? this.ref.name : this.ref.name;
 		await repository.checkout(treeish, { ...opts, pullBeforeCheckout });
+	}
+}
+
+class PinnedCheckoutItem extends CheckoutItem {
+
+	override get label(): string {
+		return `$(pinned) ${this.inner.label}`;
+	}
+
+	constructor(override readonly ref: Branch, shortCommitLength: number, private readonly inner: CheckoutItem) {
+		super(ref, shortCommitLength);
+		this.inner = inner;
+	}
+
+	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+		return this.inner.run(repository, opts);
 	}
 }
 
@@ -440,6 +464,17 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 	return itemsProcessor.processRefs(refs);
 }
 
+type PinBranchAction = {
+	keepOpen: true;
+	readonly label: string;
+	readonly icon: string;
+	run(branch: string): void;
+};
+
+function isPinBranchAction(action: RemoteSourceAction | PinBranchAction): action is PinBranchAction {
+	return (action as PinBranchAction).keepOpen === true;
+}
+
 type RemoteSourceActionButton = {
 	iconPath: ThemeIcon;
 	tooltip: string;
@@ -551,9 +586,13 @@ class CheckoutRefProcessor extends RefProcessor {
 
 	override getItems(shortCommitLength: number): QuickPickItem[] {
 		const items = this.refs.map(ref => {
-			return this.repository.isBranchProtected(ref) ?
+			const item = this.repository.isBranchProtected(ref) ?
 				new CheckoutProtectedItem(ref, shortCommitLength) :
 				new CheckoutItem(ref, shortCommitLength);
+
+			return (ref.name && this.repository.isBranchPinned(ref.name)) ?
+				new PinnedCheckoutItem(ref, shortCommitLength, item) :
+				item;
 		});
 
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
@@ -617,11 +656,56 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 					item.buttons = this.defaultButtons;
 				}
 
+				// Pin / Unpin Button (only for local branches)
+				if (item instanceof CheckoutItem && item.refName) {
+					const isPinned = this.repository.isBranchPinned(item.refName);
+					const pinAction: PinBranchAction = {
+						keepOpen: true,
+						icon: isPinned
+							? 'star-full'
+							: 'star-empty',
+						label: isPinned
+							? 'Unpin Branch'
+							: 'Pin Branch',
+						run: async (ref: string) => {
+							if (this.repository.isBranchPinned(ref)) {
+								this.repository.unpinBranch(ref);
+							} else {
+								this.repository.pinBranch(ref);
+							}
+						}
+					};
+
+					const pinButton: QuickInputButton & { actual: PinBranchAction } = {
+						iconPath: new ThemeIcon(pinAction.icon),
+						tooltip: pinAction.label,
+						actual: pinAction
+					};
+
+					item.buttons = [
+						pinButton,
+						...(item.buttons ?? [])
+					];
+				}
+
 				result.push(item);
 			}
 		}
 
-		return result;
+		const pinned: QuickPickItem[] = [];
+		const unpinned: QuickPickItem[] = [];
+
+		for (const item of result) {
+			if (item instanceof CheckoutItem && item.refName && this.repository.isBranchPinned(item.refName)) {
+				pinned.push(item);
+			} else {
+				unpinned.push(item);
+			}
+		}
+
+		return pinned.length === 0
+			? result
+			: [new RefItemSeparator(undefined, 'pinned'), ...pinned, ...unpinned];
 	}
 }
 
@@ -2900,11 +2984,24 @@ export class CommandCenter {
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
-			disposables.push((quickPick.onDidTriggerItemButton((e) => {
-				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
+			disposables.push((quickPick.onDidTriggerItemButton(async (e) => {
 				const item = e.item as CheckoutItem;
-				if (button.actual && item.refName) {
-					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+				const button = e.button as QuickInputButton & {
+					actual: RemoteSourceAction | PinBranchAction;
+				};
+
+				if (!button.actual || !item.refName) {
+					return;
+				}
+
+				button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+
+				if (isPinBranchAction(button.actual)) {
+					picks.length = 0;
+					picks.push(...await createCheckoutItems(repository, opts?.detached));
+
+					setQuickPickItems();
+					return;
 				}
 
 				c(undefined);
@@ -3137,6 +3234,71 @@ export class CommandCenter {
 		quickPick.dispose();
 
 		return choice;
+	}
+
+	@command('git.pinBranch', { repository: true })
+	async pinBranch(repository: Repository): Promise<void> {
+		await this._pinBranch(repository, true);
+	}
+
+	@command('git.unpinBranch', { repository: true })
+	async unpinBranch(repository: Repository): Promise<void> {
+		await this._pinBranch(repository, false);
+	}
+
+	private async _pinBranch(repository: Repository, pin: boolean): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const getBranchPicks = async () => {
+			const refs = (await repository.getRefs({
+				pattern: 'refs/heads',
+				includeCommitDetails: showRefDetails
+			}));
+
+			// show unpinned branches only / pinned branches only
+			const filtered = refs.filter(ref => {
+				if (!ref.name) {
+					return false;
+				}
+
+				return pin
+					? !repository.isBranchPinned(ref.name)
+					: repository.isBranchPinned(ref.name);
+			});
+
+			const processors = [
+				new RefProcessor(RefType.Head, CheckoutItem)
+			];
+
+			const itemsProcessor = new RefItemsProcessor(repository, processors);
+			return itemsProcessor.processRefs(filtered);
+		};
+
+		const placeHolder = pin
+			? l10n.t('Select a branch to pin')
+			: l10n.t('Select a branch to unpin');
+
+		const choice = await this.pickRef(getBranchPicks(), placeHolder);
+
+		if (!(choice instanceof CheckoutItem) || !choice.refName) {
+			return;
+		}
+
+		if (pin) {
+			repository.pinBranch(choice.refName);
+		} else {
+			repository.unpinBranch(choice.refName);
+		}
+	}
+
+	@command('git.pinCurrentBranch', { repository: true })
+	async pinCurrentBranch(repository: Repository): Promise<void> {
+		if (!repository.HEAD?.name) {
+			return;
+		}
+
+		repository.pinBranch(repository.HEAD.name);
 	}
 
 	@command('git.deleteBranch', { repository: true })
