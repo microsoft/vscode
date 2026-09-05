@@ -346,4 +346,3 @@ that does run live — by which point the bisect window is wider.
 | Stub fires `TODO: Phase 5` but plan expected Phase 6 | Operator clicked Claude on a brand-new session, which hits `createSession` first. In Phase 5 this stub is normal; in Phase 6+ it indicates the materialize spine is missing — `createSession` should return `provisional: true` not throw. |
 | Phase 6 prompt hangs without rendering text | Either (a) the SDK subprocess never started (check `[ClaudeProxyService]` access logs for the `/v1/messages` POST), (b) the proxy returned non-SSE bytes (check the proxy's stream-loop warn log), or (c) the mapper allocated no part-id and the UI has nothing to render. |
 | `npx @playwright/cli evaluate` returns a help screen | The command is `eval`, not `evaluate`. Use `--raw` to strip wrapper output. |
-| `npx @playwright/cli click` retries forever with `pointer-block intercepts` | Use keyboard navigation (`press ArrowDown` + `press Enter`). |
