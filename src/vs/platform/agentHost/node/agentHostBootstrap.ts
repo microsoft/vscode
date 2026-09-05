@@ -166,6 +166,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
+			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 			getGitHubCopilotToken: () => {
 				const resource = foundation.gitHubEndpointService.getCopilotResource();
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });

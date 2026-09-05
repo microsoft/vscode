@@ -208,7 +208,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		await restartAndInitialize(`archive-unrestored-reconnect-${config.provider}`, workspace);
 		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 		const before = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		assert.strictEqual(before.items.some(item => item.resource === sessionUri), true);
+		const beforeSession = before.items.find(item => item.resource === sessionUri);
+		assert.ok(beforeSession);
+		const isRead = (beforeSession.status & SessionStatus.IsRead) === 0;
 		context.client.clearReceived();
 		context.client.dispatch({
 			channel: sessionUri,
@@ -220,6 +222,18 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
 			&& (((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsArchived) !== 0,
 		);
+		context.client.clearReceived();
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 2,
+			action: { type: ActionType.SessionIsReadChanged, isRead },
+		});
+		await context.client.waitForNotification(notification =>
+			notification.method === 'root/sessionSummaryChanged'
+			&& (notification.params as SessionSummaryChangedParams).session === sessionUri
+			&& (notification.params as SessionSummaryChangedParams).changes.status !== undefined
+			&& ((((notification.params as SessionSummaryChangedParams).changes.status ?? 0) & SessionStatus.IsRead) !== 0) === isRead,
+		);
 
 		await restartAndInitialize(`archive-unrestored-verify-${config.provider}`, workspace);
 		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI, includeArchived: true });
@@ -228,9 +242,11 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		assert.deepStrictEqual({
 			restored: restored !== undefined,
 			isArchived: restored !== undefined && (restored.status & SessionStatus.IsArchived) !== 0,
+			isRead: restored !== undefined && (restored.status & SessionStatus.IsRead) !== 0,
 		}, {
 			restored: true,
 			isArchived: true,
+			isRead,
 		});
 
 		await context.client.call('disposeSession', { channel: sessionUri }, getAgentHostE2ETestTimeout(30_000, 90_000));

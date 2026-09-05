@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
-import type { IReviewedFileRecord } from '../../common/sessionDataService.js';
+import type { IReviewedFileRecord, ISessionCatalogSyncPendingSnapshot } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
@@ -79,6 +79,13 @@ suite('SessionDatabase', () => {
 			const rawDb = await this._ensureDb();
 			await new Promise<void>((resolve, reject) => {
 				rawDb.exec(sql, err => err ? reject(err) : resolve());
+			});
+		}
+
+		async getRaw(sql: string): Promise<Record<string, unknown> | undefined> {
+			const rawDb = await this._ensureDb();
+			return new Promise((resolve, reject) => {
+				rawDb.get(sql, (err: Error | null, row: Record<string, unknown> | undefined) => err ? reject(err) : resolve(row));
 			});
 		}
 
@@ -1158,6 +1165,420 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	suite('catalog sync snapshot', () => {
+		const snapshot = (sourceRevision: number, overrides: Partial<ISessionCatalogSyncPendingSnapshot> = {}): ISessionCatalogSyncPendingSnapshot => ({
+			sessionGeneration: 'generation-1',
+			sourceRevision,
+			projectionVersion: 1,
+			payload: `{"revision":${sourceRevision}}`,
+			payloadHash: `hash-${sourceRevision}`,
+			acknowledgedHash: undefined,
+			state: 'pending',
+			...overrides,
+		});
+
+		const acknowledgedSnapshot = (sourceRevision: number) => ({
+			sessionGeneration: 'generation-1',
+			sourceRevision,
+			projectionVersion: 1,
+			payload: undefined,
+			payloadHash: `hash-${sourceRevision}`,
+			acknowledgedHash: `hash-${sourceRevision}`,
+			state: 'acknowledged',
+		} as const);
+
+		test('migration v13 creates the snapshot table on fresh databases', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			assert.ok((await db.getAllTables()).includes('catalog_sync_snapshot'));
+		});
+
+		test('migration v13 upgrades a v9 database', async () => {
+			const v9Database = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await v9Database.setMetadata('customTitle', 'Before upgrade');
+			const rawDatabase = await v9Database.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'After upgrade' }, snapshot(1));
+
+			assert.deepStrictEqual({
+				tables: await db.getAllTables(),
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				title: 'After upgrade',
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('migration v13 converges a pre-release catalog-only v10 database', async () => {
+			const catalogV10 = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await catalogV10.runRaw(`CREATE TABLE catalog_sync_snapshot (
+				singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+				session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
+				source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
+				projection_version INTEGER NOT NULL CHECK (projection_version >= 0),
+				acknowledged_hash  TEXT,
+				pending_hash       TEXT,
+				pending_payload    TEXT
+			)`);
+			await catalogV10.runRaw('PRAGMA user_version = 10');
+			await catalogV10.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			const rawDatabase = await catalogV10.ejectDb();
+
+			const upgraded = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await upgraded.getAllTables(),
+				snapshot: await upgraded.getCatalogSyncSnapshot(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('migration v13 upgrades every published v1 through v9 schema', async () => {
+			const results: object[] = [];
+			for (let version = 1; version <= 9; version++) {
+				const priorDatabase = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, version));
+				const rawDatabase = await priorDatabase.ejectDb();
+				const upgraded = await TestableSessionDatabase.fromDb(rawDatabase);
+				try {
+					results.push({
+						version,
+						hasReceipt: (await upgraded.getAllTables()).includes('catalog_sync_snapshot'),
+						snapshot: await upgraded.getCatalogSyncSnapshot(),
+					});
+				} finally {
+					await upgraded.close();
+				}
+			}
+
+			assert.deepStrictEqual(results, Array.from({ length: 9 }, (_, index) => ({
+				version: index + 1,
+				hasReceipt: true,
+				snapshot: undefined,
+			})));
+		});
+
+		test('atomically commits metadata and the snapshot', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const result = await db.setMetadataValuesAndCatalogSyncSnapshot({
+				customTitle: 'Catalog title',
+				isRead: 'true',
+			}, snapshot(1));
+
+			assert.deepStrictEqual({
+				result,
+				metadata: await db.getMetadataObject({ customTitle: true, isRead: true }),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				result: 'applied',
+				metadata: { customTitle: 'Catalog title', isRead: 'true' },
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('rolls back metadata and snapshot together', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Original title' }, snapshot(1));
+			await database.runRaw(`CREATE TRIGGER fail_catalog_sync BEFORE UPDATE ON catalog_sync_snapshot
+				BEGIN SELECT RAISE(ABORT, 'snapshot write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValuesAndCatalogSyncSnapshot({
+				customTitle: 'Replacement title',
+			}, snapshot(2)), /snapshot write failed/);
+
+			assert.deepStrictEqual({
+				title: await database.getMetadata('customTitle'),
+				snapshot: await database.getCatalogSyncSnapshot(),
+			}, {
+				title: 'Original title',
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('treats an exact same-revision replay as idempotent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Title' }, snapshot(1));
+			await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			const result = await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Different title' }, snapshot(1));
+
+			assert.deepStrictEqual({
+				result,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				result: 'replayed',
+				title: 'Title',
+				snapshot: acknowledgedSnapshot(1),
+			});
+		});
+
+		test('transitions to a new generation with a lower revision through compare-and-swap', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Old generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Unguarded generation' }, nextGeneration),
+				/does not match stored generation/,
+			);
+			const transitioned = await db.transitionMetadataValuesAndCatalogSyncSnapshot(
+				{ customTitle: 'New generation' },
+				'generation-1',
+				nextGeneration,
+			);
+
+			assert.deepStrictEqual({
+				transitioned,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				transitioned: true,
+				title: 'New generation',
+				snapshot: nextGeneration,
+			});
+		});
+
+		test('rejects a generation transition with the wrong expected generation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Current generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+
+			const transitioned = await db.transitionMetadataValuesAndCatalogSyncSnapshot(
+				{ customTitle: 'Wrong transition' },
+				'unknown-generation',
+				nextGeneration,
+			);
+
+			assert.deepStrictEqual({
+				transitioned,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				transitioned: false,
+				title: 'Current generation',
+				snapshot: snapshot(100),
+			});
+		});
+
+		test('delayed normal writes from an old generation cannot replace a transitioned generation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Old generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+			await db.transitionMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'New generation' }, 'generation-1', nextGeneration);
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Delayed old write' }, snapshot(101)),
+				/does not match stored generation/,
+			);
+
+			assert.deepStrictEqual({
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				title: 'New generation',
+				snapshot: nextGeneration,
+			});
+		});
+
+		test('rejects stale and conflicting updates without changing metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Current title' }, snapshot(2));
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Stale title' }, snapshot(1)),
+				/stale/,
+			);
+			for (const conflicting of [
+				snapshot(2, { projectionVersion: 2 }),
+				snapshot(2, { payload: '{"different":true}' }),
+				snapshot(2, { payloadHash: 'different-hash' }),
+			]) {
+				await assert.rejects(
+					() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Conflicting title' }, conflicting),
+					/conflicts/,
+				);
+			}
+
+			assert.deepStrictEqual({
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				title: 'Current title',
+				snapshot: snapshot(2),
+			});
+		});
+
+		test('acknowledges only the matching snapshot', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+
+			const acknowledged = await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				acknowledged,
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				acknowledged: true,
+				snapshot: acknowledgedSnapshot(1),
+			});
+		});
+
+		test('acknowledgement clears the pending payload and retains a compact hash receipt', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			const payload = 'x'.repeat(1024 * 1024);
+			await database.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { payload }));
+
+			await database.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				snapshot: await database.getCatalogSyncSnapshot(),
+				storage: await database.getRaw(`SELECT acknowledged_hash, pending_hash, pending_payload, length(COALESCE(pending_payload, '')) AS pending_size
+					FROM catalog_sync_snapshot WHERE singleton_id = 1`),
+			}, {
+				snapshot: acknowledgedSnapshot(1),
+				storage: {
+					acknowledged_hash: 'hash-1',
+					pending_hash: null,
+					pending_payload: null,
+					pending_size: 0,
+				},
+			});
+		});
+
+		test('legacy metadata mutation can be compared with the acknowledged hash', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ catalogHash: 'hash-1' }, snapshot(1));
+			await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			await db.setMetadata('catalogHash', 'old-build-hash');
+			const receipt = await db.getCatalogSyncSnapshot();
+
+			assert.deepStrictEqual({
+				legacyHash: await db.getMetadata('catalogHash'),
+				acknowledgedHash: receipt?.acknowledgedHash,
+			}, {
+				legacyHash: 'old-build-hash',
+				acknowledgedHash: 'hash-1',
+			});
+		});
+
+		test('a stale acknowledgement cannot clear newer pending work', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(2));
+
+			const acknowledged = await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				acknowledged,
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				acknowledged: false,
+				snapshot: snapshot(2),
+			});
+		});
+
+		test('snapshot persists across a database restart', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-sync-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			try {
+				db = await SessionDatabase.open(databasePath);
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+				await db.close();
+				db = await SessionDatabase.open(databasePath);
+
+				assert.deepStrictEqual(await db.getCatalogSyncSnapshot(), snapshot(1));
+			} finally {
+				await db?.close();
+				db = undefined;
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		});
+
+		test('the latest snapshot remains pending when relay is interrupted', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			try {
+				db = await SessionDatabase.open(databasePath);
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+				await db.acknowledgeCatalogSyncSnapshot({
+					sessionGeneration: 'generation-1',
+					sourceRevision: 1,
+					projectionVersion: 1,
+					payloadHash: 'hash-1',
+				});
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(2));
+				await db.close();
+				db = await SessionDatabase.open(databasePath);
+
+				assert.deepStrictEqual(await db.getCatalogSyncSnapshot(), snapshot(2, { acknowledgedHash: 'hash-1' }));
+			} finally {
+				await db?.close();
+				db = undefined;
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		});
+
+		test('validates snapshot and acknowledgement boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(Number.MAX_SAFE_INTEGER + 1)), /safe integer/);
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { sessionGeneration: '' })), /sessionGeneration/);
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { payloadHash: '' })), /payloadHash/);
+			await assert.rejects(() => db!.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: -1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			}), /safe integer/);
 		});
 	});
 

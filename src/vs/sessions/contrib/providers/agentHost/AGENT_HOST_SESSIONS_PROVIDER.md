@@ -101,6 +101,30 @@ External sessions remain provider-owned domain objects. Visibility and interacti
 
 Host-owned background activities remain independent of client visibility. Agent Merge monitoring prevents an enabled session from idle eviction while work is active, resumes eligible sessions after host startup, and releases that retention when monitoring ends.
 
+### Host session catalog
+
+The local Agent Host maintains a host-wide `sessions_v2` SQLite registry and catalog. Each row contains a small indexed registry and synchronization envelope plus one bounded, versioned payload for list-visible session and chat metadata. The payload's structural validator is also its TypeScript type authority and normalizes all data before canonical serialization and hashing.
+
+The row has two different ownership contracts. Registry identity and provenance (`session_uri`, provider, start time, external state, and registration source) remain authoritative. The list payload is a derived, rebuildable aggregate: central session/chat identity, provider state, and member-chat metadata can reproduce its canonical bytes and hash. Ordinary session-list reads use this stored aggregate rather than opening every member-chat database.
+
+Peer-chat membership and routing data are authoritative in the central `session_chat_catalogs` and `session_chats` tables. The default chat is implicit in session identity; ordered peer rows retain their URI, provider backing, origin, and inherited-turn identity. A chat database owns its conversation content and chat-local metadata, including its durable provider backing and title. Central chat rows and the list payload retain only the copies needed to enumerate, route, and present the containing session.
+
+During the downgrade-compatibility window, a revisioned participant mirrors central peer membership into the legacy `peerChats` session-metadata value. Current runtime reads remain central. A startup/restore importer may read that legacy value to incorporate chats created by an older build; after import, central membership wins and the compatibility mirror is regenerated. Failed mirror writes do not roll back central authority and remain unacknowledged for retry.
+
+Catalog persistence is legacy-first during the compatibility window: one per-session transaction updates downgrade-compatible metadata and a durable pending catalog snapshot before the host-wide catalog is updated. Catalog updates are serialized per session, guarded by session incarnation and source revision, and acknowledged only after the central transaction succeeds. Background reconciliation replays interrupted writes and detects metadata written by older builds. A central monotonic dirty marker lets periodic passes skip clean rows before opening their per-session databases. The first pass after host startup marks every payload dirty once so writes made by older builds, which do not know about the marker, are still rechecked. Repair clears only the marker it observed; a concurrent mutation leaves the row dirty for another pass. Because provider state has no complete change signal, an infrequent safety sweep marks clean rows dirty after the normal dirty queue drains; ordinary periodic passes remain central-only.
+
+The per-session snapshot retains the canonical payload only while the central write is pending. Exact acknowledgement promotes its hash to the compact receipt and clears the pending payload/hash, so synchronized sessions do not permanently store a third copy of their list metadata.
+
+`sessions_v2` is independent of the predecessor `sessions` registry. The current-version importer unions existing v2 identities, optional predecessor registry rows, and provider discovery by session URI, then writes complete rows directly to v2. Payload-versioned per-provider markers record successful current enumeration without changing predecessor migration markers. Partial imports resume per session; durable exclusions make permanently ineligible candidates terminal and revivable by later discovery.
+
+Normal current-runtime mutations are authoritative in v2 and atomically mirror identity/provenance into `sessions` during the compatibility window so an intermediate build can see newly-created sessions. Direct migration remains v2-only. On returning from an intermediate build, the importer reconciles legacy-only additions and resolved legacy identity changes; legacy-row absence alone is never interpreted as deletion. Shared tombstones are the durable cross-version delete signal.
+
+An upsert atomically replaces the verified payload and its synchronization envelope while preserving the registered identity. It is guarded by the session incarnation and source revision. Concurrent first writers converge on the winning incarnation through a serialized retry. Older builds continue to read the mirrored predecessor metadata; no retained central generation is required.
+
+The indexed envelope also carries payload-derived top-level eligibility. Chat-backing sessions therefore remain hidden after restart without decoding their payload or opening their per-session database. For worktree sessions, both legacy metadata and the central payload derive the displayed project from the persisted repository root rather than the worktree checkout.
+
+Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
+
 ## Local and remote boundary
 
 The local provider owns local runtime availability and local workspace access. Remote providers own:

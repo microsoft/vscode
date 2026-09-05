@@ -5,9 +5,11 @@
 
 import * as fs from 'fs';
 import type { Database, RunResult } from '@vscode/sqlite3';
+import { Sequencer } from '../../../base/common/async.js';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AgentProvider } from '../common/agent.js';
+import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -49,10 +51,70 @@ export interface IAgentHostDatabaseModifiedTimeUpdate {
 	readonly modifiedTime: number;
 }
 
+export type AgentHostSessionsV2ExclusionReason = 'backing' | 'subagent' | 'providerAbsent' | 'staleExternal';
+
+export interface IAgentHostDatabaseSessionsV2Exclusion {
+	readonly provider: AgentProvider;
+	readonly session: string;
+	readonly reason: AgentHostSessionsV2ExclusionReason;
+	readonly fingerprint: string;
+}
+
+export interface IAgentHostDatabaseSessionsV2ExclusionExpectation {
+	readonly identity: IAgentHostDatabaseSession | undefined;
+	readonly catalog: Pick<IAgentHostDatabaseSessionV2Receipt, 'sessionGeneration' | 'sourceRevision' | 'payloadHash'> | undefined;
+}
+
+export type AgentHostDatabaseSessionV2ExclusionResult = 'excluded' | 'stale';
+
+/** Durable catalog envelope written alongside the opaque, self-describing payload. */
+export interface IAgentHostDatabaseSessionV2Envelope {
+	readonly session: string;
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly payloadVersion: number;
+	readonly payloadHash: string;
+	readonly verified: true;
+	readonly payload: string;
+}
+
+/** Envelope identity without the payload, for callers that only compare receipts. */
+export interface IAgentHostDatabaseSessionV2Receipt extends Omit<IAgentHostDatabaseSessionV2Envelope, 'payload'>, IAgentHostDatabaseSession {
+	/** Derived from the validated payload so the catalog can hide chat-backing rows without decoding. */
+	readonly isChatBacking: boolean;
+	/** `0` when clean; positive values are monotonic dirty markers used for compare-and-set repair. */
+	readonly payloadDirty: number;
+}
+
+export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2Receipt {
+	readonly payload: string;
+}
+
+export interface IAgentHostDatabaseSessionChat {
+	readonly chat: string;
+	readonly order: number;
+	readonly providerData?: string;
+	readonly origin?: string;
+	readonly inheritedTurnId?: string;
+}
+
+export interface IAgentHostDatabaseSessionChatCatalog {
+	readonly revision: number;
+	readonly legacyMirroredRevision: number;
+	readonly legacyMirroredPayload?: string;
+	readonly chats: readonly IAgentHostDatabaseSessionChat[];
+}
+
+export type AgentHostDatabaseSessionChatCatalogReplaceResult =
+	| { readonly status: 'applied'; readonly revision: number }
+	| { readonly status: 'conflict' | 'missingSession' | 'tombstoned' };
+
+export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
+
 export interface IAgentHostDatabase extends IDisposable {
 	/**
-	 * Records a session with source-aware provenance. When requested, the
-	 * tombstone check and registration are atomic.
+	 * Records an identity in the legacy session registry for compatibility.
+	 * When requested, the tombstone check and registration are atomic.
 	 */
 	registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	unregisterSession(session: string): Promise<void>;
@@ -78,12 +140,39 @@ export interface IAgentHostDatabase extends IDisposable {
 	isProviderBackfilled(provider: AgentProvider): Promise<boolean>;
 	/** Durably records a completed provider-native discovery pass. */
 	markProviderBackfilled(provider: AgentProvider): Promise<void>;
+	/** Whether a provider has completed backfill for a specific v2 payload version. */
+	isSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<boolean>;
+	/** Records that a provider completed backfill for a specific v2 payload version. */
+	markSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<void>;
+	/** Durably records a non-deletion exclusion from the current v2 catalog. */
+	markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void>;
+	/** Durably records multiple non-deletion exclusions in one transaction. */
+	markSessionsV2ExcludedBatch?(exclusions: readonly IAgentHostDatabaseSessionsV2Exclusion[]): Promise<void>;
+	/** Atomically excludes and removes the observed current v2 identity. */
+	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): Promise<AgentHostDatabaseSessionV2ExclusionResult>;
+	/** Reads a session's current-v2 exclusion, when present. */
+	getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined>;
+	/** Lists one provider's current-v2 exclusions without opening session databases. */
+	listSessionsV2Exclusions(provider: AgentProvider): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]>;
+	/** Clears a current-v2 exclusion when a session becomes eligible again. */
+	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void>;
 	/** Whether `session` was explicitly deleted and must not be resurrected by backfill. */
 	isSessionTombstoned(session: string): Promise<boolean>;
 	/** Durably records that `session` was explicitly deleted. */
 	markSessionTombstoned(session: string): Promise<void>;
 	/** Clears a session's deletion tombstone (used on explicit create/restore). */
 	clearSessionTombstone(session: string): Promise<void>;
+	/**
+	 * Records a normal current-runtime identity in v2 and atomically mirrors its
+	 * resolved identity to the legacy registry for downgrade compatibility.
+	 */
+	registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
+	/** Removes a normal current-runtime identity from both registries atomically. */
+	unregisterRuntimeSession(session: string): Promise<void>;
+	/** Resolves normal current-runtime provenance in both registries atomically. */
+	updateRuntimeSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	/** Cooling-only: union of current and legacy identity keys for runtime deduplication. */
+	listRuntimeCompatibleSessionKeys(): Promise<readonly string[]>;
 	/**
 	 * Records whether Agent Merge is enabled for `session`. This host-owned index
 	 * lets startup find the few monitored sessions without opening every session
@@ -92,8 +181,79 @@ export interface IAgentHostDatabase extends IDisposable {
 	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void>;
 	/** Session URIs currently marked Agent-Merge-enabled. */
 	listAgentMergeEnabledSessions(): Promise<readonly string[]>;
+	/** Importer-only: records an identity in v2 without writing the legacy registry. */
+	registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
+	/** Importer-only: removes an identity and its payload from v2 without changing legacy. */
+	unregisterSessionV2(session: string): Promise<void>;
+	/** Importer-only: updates unresolved provenance in v2 without changing legacy. */
+	updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
+	/** Importer-only: replaces v2 identity with newer legacy compatibility input and returns the resulting identity. */
+	reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined>;
+	/** Returns a current v2 registry identity, including one whose payload is incomplete. */
+	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined>;
+	/** Lists current v2 registry identities, including rows whose payloads are incomplete. */
+	listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]>;
+	/** Importer-only: lists all v2 identities, including durably excluded rows. */
+	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]>;
+	/** Whether the current v2 registry contains no identities. */
+	isSessionV2RegistryEmpty(): Promise<boolean>;
+	getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined>;
+	listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]>;
+	/** Lists catalog receipts without materializing payloads, for startup scans. */
+	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
+	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
+	markSessionV2PayloadDirty(session: string): Promise<number | undefined>;
+	/** Reads the dirty marker even when the registered session has no verified payload yet. */
+	getSessionV2PayloadDirty(session: string): Promise<number | undefined>;
+	/** Marks every cached payload dirty once so mutations made by older builds are rechecked. */
+	markAllSessionsV2PayloadsDirty(): Promise<void>;
+	/** Clears a dirty marker only when no newer mutation superseded it. */
+	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
+	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
+	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
+	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
+	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
+	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
+	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
+	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
+	recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean>;
 	close(): Promise<void>;
 }
+
+const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
+	session_uri         TEXT PRIMARY KEY NOT NULL,
+	provider            TEXT NOT NULL,
+	start_time          INTEGER NOT NULL,
+	external            INTEGER,
+	registration_source TEXT NOT NULL,
+	session_generation  TEXT,
+	source_revision     INTEGER CHECK (source_revision >= 0),
+	payload_version     INTEGER CHECK (payload_version >= 0),
+	payload_hash        TEXT,
+	verified            INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0, 1)),
+	payload             TEXT,
+	is_chat_backing     INTEGER NOT NULL DEFAULT 0 CHECK (is_chat_backing IN (0, 1)),
+	modified_time       INTEGER NOT NULL DEFAULT 0
+)`;
+
+const sessionChatCatalogSchemaSql = [
+	`CREATE TABLE session_chat_catalogs (
+		session_uri              TEXT PRIMARY KEY NOT NULL,
+		revision                 INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+		legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0 CHECK (legacy_mirrored_revision >= 0)
+	)`,
+	`CREATE TABLE session_chats (
+		session_uri       TEXT NOT NULL REFERENCES session_chat_catalogs(session_uri) ON DELETE CASCADE,
+		chat_uri          TEXT NOT NULL,
+		chat_order        INTEGER NOT NULL CHECK (chat_order >= 0),
+		provider_data     TEXT,
+		origin            TEXT,
+		inherited_turn_id TEXT,
+		PRIMARY KEY (session_uri, chat_uri),
+		UNIQUE (session_uri, chat_order)
+	)`,
+].join(';\n');
 
 const migrations = [
 	{
@@ -128,7 +288,53 @@ const migrations = [
 			'UPDATE sessions SET modified_time = start_time',
 		].join(';\n'),
 	},
+	{
+		version: 5,
+		sql: [
+			sessionsV2SchemaSql,
+			`INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
+				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions`,
+			sessionChatCatalogSchemaSql,
+		].join(';\n'),
+	},
 ] as const;
+
+const latestMigrationVersion = migrations[migrations.length - 1].version;
+
+async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
+	if (currentVersion < 4 || currentVersion > 11 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
+		return currentVersion;
+	}
+	const hasFinalCatalog = await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
+		&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
+	const isPreReleaseVersion11 = currentVersion === 11 && latestMigrationVersion < 11;
+	if (hasFinalCatalog && currentVersion >= 5 && !isPreReleaseVersion11) {
+		return currentVersion;
+	}
+	await exec(database, 'BEGIN TRANSACTION');
+	try {
+		if (!hasFinalCatalog) {
+			const sessionColumns = await all(database, 'PRAGMA table_info(sessions)', []);
+			if (!sessionColumns.some(column => column.name === 'modified_time')) {
+				await exec(database, 'ALTER TABLE sessions ADD COLUMN modified_time INTEGER NOT NULL DEFAULT 0');
+				await exec(database, 'UPDATE sessions SET modified_time = start_time');
+			}
+			await exec(database, 'DROP TABLE sessions_v2');
+			await exec(database, sessionsV2SchemaSql);
+			await exec(database, `INSERT INTO sessions_v2 (session_uri, provider, start_time, external, registration_source, modified_time)
+				SELECT session_uri, provider, start_time, external, registration_source, modified_time FROM sessions`);
+			await exec(database, 'DROP TABLE IF EXISTS session_chats');
+			await exec(database, 'DROP TABLE IF EXISTS session_chat_catalogs');
+			await exec(database, sessionChatCatalogSchemaSql);
+		}
+		await exec(database, 'PRAGMA user_version = 5');
+		await exec(database, 'COMMIT');
+		return 5;
+	} catch (error) {
+		await exec(database, 'ROLLBACK');
+		throw error;
+	}
+}
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -176,6 +382,31 @@ function providerBackfillKey(provider: AgentProvider): string {
 	return `sessionRegistryBackfilled:${provider}`;
 }
 
+/** Metadata key for a provider's completed current-payload backfill. */
+function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number): string {
+	return `sessionsV2PayloadBackfilled:${provider}:v${payloadVersion}`;
+}
+
+const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
+const sessionsV2PayloadDirtyKeyPrefix = 'sessionsV2PayloadDirty:';
+const sessionChatCatalogLegacyMirrorKeyPrefix = 'sessionChatCatalogLegacyMirror:';
+
+function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
+	return `${sessionsV2ExcludedKeyPrefix}${provider}:`;
+}
+
+function sessionsV2ExcludedKey(provider: AgentProvider, session: string): string {
+	return `${sessionsV2ExcludedProviderPrefix(provider)}${session}`;
+}
+
+function sessionsV2PayloadDirtyKey(session: string): string {
+	return `${sessionsV2PayloadDirtyKeyPrefix}${session}`;
+}
+
+function sessionChatCatalogLegacyMirrorKey(session: string): string {
+	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
+}
+
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
 function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
@@ -188,10 +419,6 @@ function agentMergeEnabledKey(session: string): string {
 	return `${agentMergeEnabledKeyPrefix}${session}`;
 }
 
-function quoteSqlString(value: string): string {
-	return `'${value.replaceAll('\'', '\'\'')}'`;
-}
-
 function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
@@ -200,137 +427,146 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private _databasePromise: Promise<Database> | undefined;
 	private _closed: Promise<void> | true | undefined;
+	private readonly _transactionSequencer = new Sequencer();
 
 	constructor(private readonly _path: string) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
-		const changes = await runReturningChanges(
-			await this._ensureDatabase(),
-			`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
-				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
-				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
-				ON CONFLICT(session_uri) DO UPDATE SET
-					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
-					modified_time = MAX(sessions.modified_time, excluded.modified_time),
-					external = CASE
-						WHEN excluded.registration_source = 'explicit' THEN 0
-						WHEN excluded.registration_source = 'restore' THEN 0
-						WHEN sessions.registration_source = 'explicit' THEN sessions.external
-						ELSE 1
-					END,
-					registration_source = CASE
-						WHEN excluded.registration_source = 'explicit' THEN 'explicit'
-						WHEN sessions.registration_source = 'explicit' THEN 'explicit'
-						ELSE excluded.registration_source
-					END`,
-			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
-		);
-		if (!registerOptions.checkTombstone) {
-			await this.clearSessionTombstone(session);
-		}
-		return changes > 0;
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const changes = await runReturningChanges(
+					database,
+					`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+						WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+						ON CONFLICT(session_uri) DO UPDATE SET
+							provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
+							external = CASE
+								WHEN excluded.registration_source = 'explicit' THEN 0
+								WHEN excluded.registration_source = 'restore' THEN 0
+								WHEN sessions.registration_source = 'explicit' THEN sessions.external
+								ELSE 1
+							END,
+							registration_source = CASE
+								WHEN excluded.registration_source = 'explicit' THEN 'explicit'
+								WHEN sessions.registration_source = 'explicit' THEN 'explicit'
+								ELSE excluded.registration_source
+							END`,
+					[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+				);
+				if (!registerOptions.checkTombstone) {
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+				}
+				await exec(database, 'COMMIT');
+				return changes > 0;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to register session ${session}`);
+			}
+		});
 	}
 
 	async unregisterSession(session: string): Promise<void> {
-		const database = await this._ensureDatabase();
-		try {
-			await exec(
-				database,
-				`BEGIN IMMEDIATE;
-				DELETE FROM sessions WHERE session_uri = ${quoteSqlString(session)};
-				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
-				COMMIT;`,
-			);
-		} catch (error) {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await exec(database, 'ROLLBACK');
-			} catch (rollbackError) {
-				throw new AggregateError([error, rollbackError], `Failed to unregister session ${session}`);
+				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, `Failed to unregister session ${session}`);
 			}
-			throw error;
-		}
+		});
 	}
 
 	async tombstoneAndUnregisterSession(session: string): Promise<void> {
-		const database = await this._ensureDatabase();
-		const sessionValue = quoteSqlString(session);
-		const tombstoneValue = quoteSqlString(tombstoneKey(session));
-		try {
-			await exec(
-				database,
-				`BEGIN IMMEDIATE;
-				INSERT INTO metadata (key, value) VALUES (${tombstoneValue}, 'true')
-					ON CONFLICT(key) DO UPDATE SET value = excluded.value;
-				DELETE FROM metadata WHERE key = ${quoteSqlString(agentMergeEnabledKey(session))};
-				DELETE FROM sessions WHERE session_uri = ${sessionValue};
-				COMMIT;`,
-			);
-		} catch (error) {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await exec(database, 'ROLLBACK');
-			} catch (rollbackError) {
-				throw new AggregateError([error, rollbackError], `Failed to tombstone session ${session}`);
+				await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, `Failed to tombstone session ${session}`);
 			}
-			throw error;
-		}
+		});
 	}
 
 	async updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
 		if (updates.length === 0) {
 			return;
 		}
-		const database = await this._ensureDatabase();
-		const statements = updates.map(({ session, external }) => {
-			const externalValue = external ? 1 : 0;
-			const source = external
-				? `'discovery'`
-				: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
-			return `UPDATE sessions SET external = ${externalValue}, registration_source = ${source} WHERE session_uri = ${quoteSqlString(session)} AND external IS NULL`;
-		});
-		try {
-			await exec(database, `BEGIN IMMEDIATE;\n${statements.join(';\n')};\nCOMMIT`);
-		} catch (error) {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await exec(database, 'ROLLBACK');
-			} catch (rollbackError) {
-				throw new AggregateError([error, rollbackError], 'Failed to update legacy session provenance');
+				for (const { session, external } of updates) {
+					const source = external
+						? `'discovery'`
+						: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
+					await run(database, `UPDATE sessions_v2 SET external = ?, registration_source = ${source}
+						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
+					await run(database, `UPDATE sessions SET external = ?, registration_source = ${source}
+						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to update legacy session provenance');
 			}
-			throw error;
-		}
+		});
 	}
 
 	async updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean> {
-		const changes = await runReturningChanges(
-			await this._ensureDatabase(),
-			'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
-			[modifiedTime, session, modifiedTime],
-		);
-		return changes > 0;
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const changes = await runReturningChanges(
+					database,
+					'UPDATE sessions_v2 SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+					[modifiedTime, session, modifiedTime],
+				);
+				await run(
+					database,
+					'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?',
+					[modifiedTime, session, modifiedTime],
+				);
+				await exec(database, 'COMMIT');
+				return changes > 0;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to update the modified time for ${session}`);
+			}
+		});
 	}
 
 	async updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void> {
-		// Advancing durable recency for a large catalogue one statement at a time
-		// dominates discovery, so the whole batch is flushed in a single
-		// transaction. The `modified_time < ?` guard keeps each advance monotonic
-		// even if a concurrent write moved a row forward since the snapshot.
-		const statements = updates
-			.filter(({ modifiedTime }) => Number.isFinite(modifiedTime))
-			.map(({ session, modifiedTime }) => `UPDATE sessions SET modified_time = ${modifiedTime} WHERE session_uri = ${quoteSqlString(session)} AND modified_time < ${modifiedTime}`);
-		if (statements.length === 0) {
+		if (updates.length === 0) {
 			return;
 		}
-		const database = await this._ensureDatabase();
-		try {
-			await exec(database, `BEGIN IMMEDIATE;\n${statements.join(';\n')};\nCOMMIT`);
-		} catch (error) {
+		await this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await exec(database, 'ROLLBACK');
-			} catch (rollbackError) {
-				throw new AggregateError([error, rollbackError], 'Failed to advance session modified times');
+				for (const { session, modifiedTime } of updates) {
+					await run(database, 'UPDATE sessions_v2 SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
+					await run(database, 'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to update session modified times');
 			}
-			throw error;
-		}
+		});
 	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
@@ -391,6 +627,100 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		);
 	}
 
+	async isSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<boolean> {
+		this._validatePayloadVersion(payloadVersion);
+		const row = await get(await this._ensureDatabase(), 'SELECT value FROM metadata WHERE key = ?', [sessionsV2BackfillKey(provider, payloadVersion)]);
+		return row?.value === 'true';
+	}
+
+	markSessionsV2Backfilled(provider: AgentProvider, payloadVersion: number): Promise<void> {
+		this._validatePayloadVersion(payloadVersion);
+		return this._run(
+			`INSERT INTO metadata (key, value) VALUES (?, 'true')
+				ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+			[sessionsV2BackfillKey(provider, payloadVersion)],
+		);
+	}
+
+	markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		return this.markSessionsV2ExcludedBatch([exclusion]);
+	}
+
+	markSessionsV2ExcludedBatch(exclusions: readonly IAgentHostDatabaseSessionsV2Exclusion[]): Promise<void> {
+		if (exclusions.length === 0) {
+			return Promise.resolve();
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const exclusion of exclusions) {
+					await run(database, `INSERT INTO metadata (key, value)
+						SELECT ?, ?
+						WHERE NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ?)
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
+						sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
+						JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
+						exclusion.session,
+					]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to mark sessions_v2 exclusions');
+			}
+		});
+	}
+
+	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): Promise<AgentHostDatabaseSessionV2ExclusionResult> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const observed = await get(database, `SELECT
+					session_uri, provider, start_time, modified_time, external, registration_source,
+					session_generation, source_revision, payload_hash, verified
+				FROM sessions_v2 WHERE session_uri = ?`, [exclusion.session]);
+				if (!this._matchesSessionsV2ExclusionExpectation(observed, expected)) {
+					await exec(database, 'COMMIT');
+					return 'stale';
+				}
+				await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
+					sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
+					JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
+				]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
+				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
+				await exec(database, 'COMMIT');
+				return 'excluded';
+			} catch (error) {
+				return this._rollback(database, error, `Failed to exclude sessions_v2 identity ${exclusion.session}`);
+			}
+		});
+	}
+
+	async getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT value FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
+		return row ? this._toSessionsV2Exclusion(provider, session, row.value as string) : undefined;
+	}
+
+	async listSessionsV2Exclusions(provider: AgentProvider): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		const prefix = sessionsV2ExcludedProviderPrefix(provider);
+		const upperBound = `${prefix.slice(0, -1)};`;
+		const rows = await all(
+			await this._ensureDatabase(),
+			'SELECT key, value FROM metadata WHERE key >= ? AND key < ? ORDER BY key',
+			[prefix, upperBound],
+		);
+		return rows.map(row => this._toSessionsV2Exclusion(provider, (row.key as string).slice(prefix.length), row.value as string));
+	}
+
+	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void> {
+		return this._run('DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		const row = await get(await this._ensureDatabase(), 'SELECT value FROM metadata WHERE key = ?', [tombstoneKey(session)]);
 		return row?.value === 'true';
@@ -406,6 +736,133 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	clearSessionTombstone(session: string): Promise<void> {
 		return this._run('DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+	}
+
+	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const existing = await get(database, `SELECT provider FROM sessions_v2 WHERE session_uri = ?
+					UNION ALL SELECT provider FROM sessions WHERE session_uri = ?
+					LIMIT 1`, [session, session]);
+				await run(database, `INSERT INTO sessions_v2 (session_uri, provider, start_time, modified_time, external, registration_source)
+					SELECT session_uri, provider, start_time, modified_time, external, registration_source
+					FROM sessions
+					WHERE session_uri = ?
+						AND (? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true'))
+						AND NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ?)`, [
+					session,
+					registerOptions.checkTombstone ? 1 : 0,
+					tombstoneKey(session),
+					session,
+				]);
+				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
+				if (changes > 0) {
+					const row = await get(database, 'SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [session]);
+					if (!row) {
+						throw new Error(`Missing sessions_v2 identity after registering ${session}`);
+					}
+					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						VALUES (?, ?, ?, ?, ?, ?)
+						ON CONFLICT(session_uri) DO UPDATE SET
+							provider = excluded.provider,
+							start_time = excluded.start_time,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
+							external = excluded.external,
+							registration_source = excluded.registration_source`, [
+						row.session_uri,
+						row.provider,
+						row.start_time,
+						row.modified_time,
+						row.external,
+						row.registration_source,
+					]);
+					for (const excludedProvider of new Set([provider, row.provider as AgentProvider, existing?.provider as AgentProvider | undefined])) {
+						if (excludedProvider !== undefined) {
+							await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(excludedProvider, session)]);
+						}
+					}
+				}
+				if (!registerOptions.checkTombstone) {
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+				}
+				await exec(database, 'COMMIT');
+				return changes > 0;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to register mirrored runtime session ${session}`);
+			}
+		});
+	}
+
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT session_uri FROM sessions
+				WHERE NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions.provider || ':' || sessions.session_uri
+				)
+				UNION
+				SELECT session_uri FROM sessions_v2
+				WHERE NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+				)
+				ORDER BY session_uri`,
+			[],
+		);
+		return rows.map(row => row.session_uri as string);
+	}
+
+	async unregisterRuntimeSession(session: string): Promise<void> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
+			}
+		});
+	}
+
+	async updateRuntimeSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		if (updates.length === 0) {
+			return;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const { session, external } of updates) {
+					const source = external
+						? `'discovery'`
+						: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
+					await run(database, `UPDATE sessions_v2 SET external = ?, registration_source = ${source}
+						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
+					await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
+						SELECT session_uri, provider, start_time, modified_time, external, registration_source
+						FROM sessions_v2 WHERE session_uri = ?
+						ON CONFLICT(session_uri) DO UPDATE SET
+							provider = excluded.provider,
+							start_time = excluded.start_time,
+							modified_time = MAX(sessions.modified_time, excluded.modified_time),
+							external = excluded.external,
+							registration_source = excluded.registration_source`, [session]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to update mirrored runtime session provenance');
+			}
+		});
 	}
 
 	setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
@@ -427,8 +884,655 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return rows.map(row => (row.key as string).slice(agentMergeEnabledKeyPrefix.length));
 	}
 
+	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
+				if (!registerOptions.checkTombstone) {
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+				}
+				if (changes > 0) {
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
+				}
+				await exec(database, 'COMMIT');
+				return changes > 0;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to register sessions_v2 identity ${session}`);
+			}
+		});
+	}
+
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await run(database, `UPDATE sessions_v2 SET
+						provider = ?,
+						start_time = ?,
+					modified_time = MAX(modified_time, ?),
+					external = ?,
+					registration_source = ?
+					WHERE session_uri = ?
+						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ?)`, [
+					legacy.provider,
+					legacy.startTime,
+					legacy.modifiedTime,
+					legacy.external === undefined ? null : legacy.external ? 1 : 0,
+					legacy.source,
+					session,
+					tombstoneKey(session),
+					sessionsV2ExcludedKey(legacy.provider, session),
+				]);
+				const row = await get(database, `SELECT session_uri, provider, start_time, modified_time, external, registration_source
+					FROM sessions_v2 WHERE session_uri = ?`, [session]);
+				await exec(database, 'COMMIT');
+				return row ? this._toSessionRegistration(row) : undefined;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to reconcile sessions_v2 identity ${session} from legacy`);
+			}
+		});
+	}
+
+	private _matchesSessionsV2ExclusionExpectation(row: Record<string, unknown> | undefined, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): boolean {
+		if (!row) {
+			return expected.identity === undefined && expected.catalog === undefined;
+		}
+		const identity = expected.identity;
+		if (!identity
+			|| row.provider !== identity.provider
+			|| row.start_time !== identity.startTime
+			|| row.modified_time !== identity.modifiedTime
+			|| (row.external === null ? undefined : row.external === 1) !== identity.external
+			|| row.registration_source !== identity.source) {
+			return false;
+		}
+		const catalog = row.verified === 1 ? expected.catalog : undefined;
+		return expected.catalog === undefined
+			? row.verified !== 1
+			: catalog !== undefined
+			&& row.session_generation === catalog.sessionGeneration
+			&& row.source_revision === catalog.sourceRevision
+			&& row.payload_hash === catalog.payloadHash;
+	}
+
+	async unregisterSessionV2(session: string): Promise<void> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
+			}
+		});
+	}
+
+	async updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		if (updates.length === 0) {
+			return;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const { session, external } of updates) {
+					const source = external
+						? `'discovery'`
+						: `CASE WHEN registration_source = 'explicit' THEN 'explicit' ELSE 'restore' END`;
+					await run(database, `UPDATE sessions_v2 SET external = ?, registration_source = ${source}
+						WHERE session_uri = ? AND external IS NULL`, [external ? 1 : 0, session]);
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to update sessions_v2 provenance');
+			}
+		});
+	}
+
+	async getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		const row = await get(
+			await this._ensureDatabase(),
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
+				FROM sessions_v2
+				WHERE session_uri = ?
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)`,
+			[session, tombstoneKey(session)],
+		);
+		return row ? this._toSessionRegistration(row) : undefined;
+	}
+
+	async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
+				FROM sessions_v2
+				WHERE NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+				)
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)
+				ORDER BY session_uri`,
+			[],
+		);
+		return rows.map(row => this._toSessionRegistration(row));
+	}
+
+	async listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT session_uri, provider, start_time, modified_time, external, registration_source
+				FROM sessions_v2
+				ORDER BY session_uri`,
+			[],
+		);
+		return rows.map(row => this._toSessionRegistration(row));
+	}
+
+	async isSessionV2RegistryEmpty(): Promise<boolean> {
+		const row = await get(
+			await this._ensureDatabase(),
+			`SELECT 1 AS present FROM sessions_v2
+				WHERE NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+				)
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)
+				LIMIT 1`,
+			[],
+		);
+		return row === undefined;
+	}
+
+	async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+		const row = await get(
+			await this._ensureDatabase(),
+			`SELECT sessions_v2.*, COALESCE(CAST((
+					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+				) AS INTEGER), 0) AS payload_dirty
+				FROM sessions_v2
+				WHERE sessions_v2.session_uri = ? AND sessions_v2.verified = 1
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)`,
+			[session, tombstoneKey(session)],
+		);
+		return row ? { ...this._toSessionV2Receipt(row), payload: row.payload as string } : undefined;
+	}
+
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
+			`sessions_v2.*, COALESCE(CAST((
+				SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+			) AS INTEGER), 0) AS payload_dirty`,
+		), []);
+		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
+	}
+
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
+			`session_uri, provider, start_time, modified_time, external, registration_source,
+				session_generation, source_revision, payload_version, payload_hash, is_chat_backing,
+				COALESCE(CAST((
+					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
+				) AS INTEGER), 0) AS payload_dirty`,
+		), []);
+		return rows.map(row => this._toSessionV2Receipt(row));
+	}
+
+	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const exists = await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session]);
+				if (exists) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, '1')
+						ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, [sessionsV2PayloadDirtyKey(session)]);
+				}
+				const row = exists
+					? await get(database, 'SELECT CAST(value AS INTEGER) AS payload_dirty FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)])
+					: undefined;
+				await exec(database, 'COMMIT');
+				return row?.payload_dirty as number | undefined;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to mark sessions_v2 payload dirty for ${session}`);
+			}
+		});
+	}
+
+	async getSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+		const row = await get(await this._ensureDatabase(), 'SELECT CAST(value AS INTEGER) AS payload_dirty FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
+		return row?.payload_dirty as number | undefined;
+	}
+
+	async markAllSessionsV2PayloadsDirty(): Promise<void> {
+		return this._transactionSequencer.queue(async () => {
+			await run(await this._ensureDatabase(), `INSERT INTO metadata (key, value)
+				SELECT '${sessionsV2PayloadDirtyKeyPrefix}' || session_uri, '1' FROM sessions_v2
+				WHERE verified = 1
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM metadata
+						WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+					)
+				ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, []);
+		});
+	}
+
+	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
+		this._validatePayloadDirty(expectedDirty);
+		return this._transactionSequencer.queue(async () => {
+			const changes = await runReturningChanges(await this._ensureDatabase(), `DELETE FROM metadata
+				WHERE key = ? AND CAST(value AS INTEGER) = ?`, [sessionsV2PayloadDirtyKey(session), expectedDirty]);
+			return changes > 0;
+		});
+	}
+
+	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const rows = await all(await this._ensureDatabase(), `SELECT
+				catalog.revision,
+				catalog.legacy_mirrored_revision,
+				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
+				chat.chat_uri,
+				chat.chat_order,
+				chat.provider_data,
+				chat.origin,
+				chat.inherited_turn_id
+			FROM session_chat_catalogs AS catalog
+			LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
+			WHERE catalog.session_uri = ?
+			ORDER BY chat.chat_order`, [sessionChatCatalogLegacyMirrorKey(session), session]);
+			const catalog = rows[0];
+			if (!catalog) {
+				return undefined;
+			}
+			return {
+				revision: catalog.revision as number,
+				legacyMirroredRevision: catalog.legacy_mirrored_revision as number,
+				...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
+				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
+					chat: row.chat_uri as string,
+					order: row.chat_order as number,
+					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+					...(row.origin === null ? {} : { origin: row.origin as string }),
+					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+				})),
+			};
+		});
+	}
+
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		this._validateSessionChats(chats);
+		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
+			throw new Error('Expected session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const tombstone = await get(database, `SELECT 1 AS present FROM metadata
+					WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+				if (tombstone) {
+					await exec(database, 'COMMIT');
+					return { status: 'tombstoned' };
+				}
+				const registered = await get(database, `SELECT 1 AS present FROM sessions WHERE session_uri = ?
+					UNION SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?
+					LIMIT 1`, [session, session]);
+				if (!registered) {
+					await exec(database, 'COMMIT');
+					return { status: 'missingSession' };
+				}
+				const current = await get(database, 'SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				const currentRevision = current?.revision as number | undefined;
+				if (currentRevision !== expectedRevision) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const revision = (currentRevision ?? 0) + 1;
+				if (!Number.isSafeInteger(revision)) {
+					throw new Error(`Session chat catalog revision overflow for ${session}`);
+				}
+				await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision)
+					VALUES (?, ?)
+					ON CONFLICT(session_uri) DO UPDATE SET revision = excluded.revision`, [session, revision]);
+				await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
+				for (const chat of chats) {
+					await run(database, `INSERT INTO session_chats (
+						session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id
+					) VALUES (?, ?, ?, ?, ?, ?)`, [
+						session,
+						chat.chat,
+						chat.order,
+						chat.providerData ?? null,
+						chat.origin ?? null,
+						chat.inheritedTurnId ?? null,
+					]);
+				}
+				await exec(database, 'COMMIT');
+				return { status: 'applied', revision };
+			} catch (error) {
+				return this._rollback(database, error, `Failed to replace the chat catalog for ${session}`);
+			}
+		});
+	}
+
+	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
+		if (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0) {
+			throw new Error('Session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await run(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
+					WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision < ?`, [
+					expectedRevision,
+					session,
+					expectedRevision,
+					expectedRevision,
+				]);
+				const row = await get(database, `SELECT revision, legacy_mirrored_revision
+					FROM session_chat_catalogs WHERE session_uri = ?`, [session]);
+				const mirrored = row?.revision === expectedRevision && row.legacy_mirrored_revision === expectedRevision;
+				if (row && payload !== undefined) {
+					await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload]);
+				}
+				await exec(database, 'COMMIT');
+				return mirrored;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to mark the chat catalog mirrored for ${session}`);
+			}
+		});
+	}
+
+	async recordSessionChatCatalogLegacyMirrorPayload(session: string, expectedRevision: number, payload: string): Promise<boolean> {
+		if (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0) {
+			throw new Error('Session chat catalog revision must be a positive safe integer');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const row = await get(database, 'SELECT revision FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				if (row?.revision !== expectedRevision) {
+					await exec(database, 'COMMIT');
+					return false;
+				}
+				await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload]);
+				await exec(database, 'COMMIT');
+				return true;
+			} catch (error) {
+				return this._rollback(database, error, `Failed to record the chat catalog mirror base for ${session}`);
+			}
+		});
+	}
+
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		const isChatBacking = this._validateSessionV2Envelope(envelope);
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const tombstone = await get(database, 'SELECT value FROM metadata WHERE key = ?', [tombstoneKey(envelope.session)]);
+				if (tombstone?.value === 'true') {
+					await exec(database, 'COMMIT');
+					return 'tombstoned';
+				}
+				const registry = await get(database, 'SELECT provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
+				if (!registry) {
+					await exec(database, 'COMMIT');
+					return 'missingSession';
+				}
+				const exclusion = await get(database, 'SELECT 1 FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(registry.provider as AgentProvider, envelope.session)]);
+				if (exclusion) {
+					await exec(database, 'COMMIT');
+					return 'missingSession';
+				}
+				const current = await get(database, 'SELECT session_generation, source_revision, payload_version, payload_hash, verified FROM sessions_v2 WHERE session_uri = ?', [envelope.session]);
+				const currentGeneration = current?.session_generation === null || current?.verified !== 1 ? undefined : current?.session_generation as string;
+				if (currentGeneration !== expectedSessionGeneration) {
+					await exec(database, 'COMMIT');
+					return 'generationMismatch';
+				}
+				if (currentGeneration === envelope.sessionGeneration) {
+					const currentRevision = current?.source_revision as number;
+					if (envelope.sourceRevision < currentRevision) {
+						await exec(database, 'COMMIT');
+						return 'stale';
+					}
+					if (envelope.sourceRevision === currentRevision) {
+						const replayed = current?.payload_version === envelope.payloadVersion && current?.payload_hash === envelope.payloadHash;
+						await exec(database, 'COMMIT');
+						return replayed ? 'replayed' : 'conflict';
+					}
+				}
+
+				await run(database, `INSERT INTO sessions_v2 (
+				session_uri, provider, start_time, modified_time, external, registration_source,
+				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+			ON CONFLICT(session_uri) DO UPDATE SET
+				provider = excluded.provider,
+				start_time = excluded.start_time,
+				modified_time = excluded.modified_time,
+				external = excluded.external,
+				registration_source = excluded.registration_source,
+				session_generation = excluded.session_generation,
+				source_revision = excluded.source_revision,
+				payload_version = excluded.payload_version,
+				payload_hash = excluded.payload_hash,
+				verified = excluded.verified,
+				payload = excluded.payload,
+				is_chat_backing = excluded.is_chat_backing`, [
+					envelope.session,
+					registry.provider,
+					registry.start_time,
+					registry.modified_time,
+					registry.external,
+					registry.registration_source,
+					envelope.sessionGeneration,
+					envelope.sourceRevision,
+					envelope.payloadVersion,
+					envelope.payloadHash,
+					envelope.payload,
+					isChatBacking ? 1 : 0,
+				]);
+				await exec(database, 'COMMIT');
+				return 'applied';
+			} catch (error) {
+				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${envelope.session}`);
+			}
+		});
+	}
+
+	private _registerSessionV2(
+		database: Database,
+		session: string,
+		provider: AgentProvider,
+		startTime: number,
+		modifiedTime: number,
+		source: AgentSessionRegistrationSource,
+		registerOptions: IAgentHostDatabaseRegisterOptions,
+	): Promise<number> {
+		return runReturningChanges(
+			database,
+			`INSERT INTO sessions_v2 (session_uri, provider, start_time, modified_time, external, registration_source)
+				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
+				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+				ON CONFLICT(session_uri) DO UPDATE SET
+					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions_v2.provider END,
+					modified_time = MAX(sessions_v2.modified_time, excluded.modified_time),
+					external = CASE
+						WHEN excluded.registration_source IN ('explicit', 'restore') THEN 0
+						WHEN sessions_v2.registration_source = 'explicit' THEN sessions_v2.external
+						ELSE 1
+					END,
+					registration_source = CASE
+						WHEN excluded.registration_source = 'explicit' THEN 'explicit'
+						WHEN sessions_v2.registration_source = 'explicit' THEN 'explicit'
+						ELSE excluded.registration_source
+					END`,
+			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+		);
+	}
+
+	/**
+	 * Validates the envelope against its opaque payload and returns the derived
+	 * chat-backing flag, so the payload stays the only authority for content.
+	 */
+	private _validateSessionV2Envelope(envelope: IAgentHostDatabaseSessionV2Envelope): boolean {
+		for (const [name, value] of [
+			['sourceRevision', envelope.sourceRevision],
+			['payloadVersion', envelope.payloadVersion],
+		] as const) {
+			if (!Number.isSafeInteger(value) || value < 0) {
+				throw new Error(`Catalog ${name} must be a non-negative safe integer`);
+			}
+		}
+		for (const [name, value] of [
+			['session', envelope.session],
+			['sessionGeneration', envelope.sessionGeneration],
+			['payloadHash', envelope.payloadHash],
+			['payload', envelope.payload],
+		] as const) {
+			if (!value) {
+				throw new Error(`Catalog ${name} must not be empty`);
+			}
+		}
+		if (envelope.verified !== true) {
+			throw new Error('Catalog envelope must be verified before it is stored');
+		}
+		const decoded = decodeAgentHostCatalogPayload(envelope.payload);
+		if (!decoded.ok) {
+			throw new Error(`Catalog payload is ${decoded.reason}: ${decoded.error}`);
+		}
+		if (decoded.value.payload !== envelope.payload) {
+			throw new Error('Catalog payload must be canonical JSON');
+		}
+		if (hashAgentHostCatalogPayload(envelope.payload) !== envelope.payloadHash) {
+			throw new Error('Catalog payloadHash must match payload');
+		}
+		return decoded.value.data.isChatBacking === true;
+	}
+
+	private _validatePayloadVersion(payloadVersion: number): void {
+		if (!Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
+			throw new Error('Catalog payloadVersion must be a non-negative safe integer');
+		}
+	}
+
+	private _validateSessionChats(chats: readonly IAgentHostDatabaseSessionChat[]): void {
+		const uris = new Set<string>();
+		for (let index = 0; index < chats.length; index++) {
+			const chat = chats[index];
+			if (!chat.chat) {
+				throw new Error('Session chat URI must not be empty');
+			}
+			if (chat.order !== index) {
+				throw new Error('Session chat order must be contiguous and zero-based');
+			}
+			if (uris.has(chat.chat)) {
+				throw new Error(`Session chat URI must be unique: ${chat.chat}`);
+			}
+			uris.add(chat.chat);
+		}
+	}
+
+	private _selectVerifiedSessionsV2(columns: string): string {
+		return `SELECT ${columns}
+			FROM sessions_v2
+			WHERE sessions_v2.verified = 1
+				AND NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM metadata
+					WHERE key = '${sessionsV2ExcludedKeyPrefix}' || sessions_v2.provider || ':' || sessions_v2.session_uri
+				)
+			ORDER BY sessions_v2.session_uri`;
+	}
+
+	private _toSessionsV2Exclusion(provider: AgentProvider, session: string, value: string): IAgentHostDatabaseSessionsV2Exclusion {
+		const parsed = JSON.parse(value);
+		if (!parsed || typeof parsed !== 'object'
+			|| !['backing', 'subagent', 'providerAbsent', 'staleExternal'].includes(parsed.reason)
+			|| typeof parsed.fingerprint !== 'string') {
+			throw new Error(`Invalid sessions_v2 exclusion for ${session}`);
+		}
+		return { provider, session, reason: parsed.reason, fingerprint: parsed.fingerprint };
+	}
+
+	private _toSessionV2Receipt(row: Record<string, unknown>): IAgentHostDatabaseSessionV2Receipt {
+		return {
+			...this._toSessionRegistration(row),
+			sessionGeneration: row.session_generation as string,
+			sourceRevision: row.source_revision as number,
+			payloadVersion: row.payload_version as number,
+			payloadHash: row.payload_hash as string,
+			verified: true,
+			isChatBacking: row.is_chat_backing === 1,
+			payloadDirty: row.payload_dirty as number,
+		};
+	}
+
+	private _validatePayloadDirty(payloadDirty: number): void {
+		if (!Number.isSafeInteger(payloadDirty) || payloadDirty <= 0) {
+			throw new Error('Catalog payload dirty marker must be a positive safe integer');
+		}
+	}
+
+	private _toSessionRegistration(row: Record<string, unknown>): IAgentHostDatabaseSession {
+		return {
+			session: row.session_uri as string,
+			provider: row.provider as AgentProvider,
+			startTime: row.start_time as number,
+			modifiedTime: row.modified_time as number,
+			external: row.external === null ? undefined : row.external === 1,
+			source: row.registration_source as AgentSessionRegistrationSource,
+		};
+	}
+
+	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
+		try {
+			await exec(database, 'ROLLBACK');
+		} catch (rollbackError) {
+			throw new AggregateError([error, rollbackError], message);
+		}
+		throw error;
+	}
+
 	private async _run(sql: string, parameters: readonly unknown[]): Promise<void> {
-		await run(await this._ensureDatabase(), sql, parameters);
+		await this._transactionSequencer.queue(async () => run(await this._ensureDatabase(), sql, parameters));
 	}
 
 	private _ensureDatabase(): Promise<Database> {
@@ -443,8 +1547,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const database = await openDatabase(this._path);
 				try {
 					database.serialize();
+					await exec(database, 'PRAGMA foreign_keys = ON');
 					const versionRow = await get(database, 'PRAGMA user_version', []);
-					const currentVersion = (versionRow?.user_version as number | undefined) ?? 0;
+					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
 					for (const migration of migrations) {
 						if (migration.version > currentVersion) {
 							await exec(database, 'BEGIN TRANSACTION');

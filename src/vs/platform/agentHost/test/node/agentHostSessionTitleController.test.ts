@@ -17,7 +17,7 @@ import { ActionType, NotificationType } from '../../common/state/sessionActions.
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -141,6 +141,7 @@ suite('AgentHostSessionTitleController', () => {
 		session: URI;
 		db: TestSessionDatabase;
 		titleActions: string[];
+		catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[];
 		copilotApiService: TestCopilotApiService;
 		octoKitService: TestAgentHostOctoKitService;
 	} {
@@ -149,6 +150,7 @@ suite('AgentHostSessionTitleController', () => {
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
 		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
+		const catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
 				titleActions.push(e.action.title);
@@ -156,6 +158,7 @@ suite('AgentHostSessionTitleController', () => {
 		}));
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			queueCatalogSync: (session, metadataOverrides) => catalogSyncs.push({ session, metadataOverrides }),
 			getGitHubCopilotToken,
 			getGitHubToken,
 			getGitHubHost,
@@ -164,8 +167,31 @@ suite('AgentHostSessionTitleController', () => {
 			copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => activeAgentTitleGeneration,
 		}, new NullLogService()));
-		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
+		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, octoKitService };
 	}
+
+	test('queues matching parent catalog overrides for automatic and manual peer titles', () => {
+		const { controller, stateManager, session, catalogSyncs } = setup();
+		const chat = buildChatUri(session.toString(), 'peer-catalog-title');
+		stateManager.addChat(session.toString(), chat, {});
+
+		controller.markTitleAuto(session.toString(), chat, 'Automatic title');
+		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
+
+		assert.deepStrictEqual(catalogSyncs, [{
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Automatic title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
+			},
+		}, {
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Manual title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_USER,
+			},
+		}]);
+	});
 
 	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
 		const copilotApiService = new TestCopilotApiService();

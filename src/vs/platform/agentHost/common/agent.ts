@@ -1106,6 +1106,16 @@ export interface IAgentChatAdoptionResult {
 	readonly eligible: boolean;
 	/** Whether the chat already has Agent Host metadata, i.e. it is ours regardless of adoption. */
 	readonly native?: boolean;
+	/** Host-owned list-visible values recovered from the predecessor format. */
+	readonly listVisible?: ({
+		readonly title: string;
+		readonly titleSource: 'user' | 'agent' | 'auto';
+	} | {
+		readonly title?: undefined;
+		readonly titleSource?: undefined;
+	}) & {
+		readonly isRead?: boolean;
+	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
 	/** Diagnostic reason behind {@link adopted}. */

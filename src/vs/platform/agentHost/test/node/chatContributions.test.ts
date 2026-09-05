@@ -1442,11 +1442,15 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual({
 			chatTitle: titles.stateManager.getChatState(titles.peerChat)?.title,
+			chatLocalTitle: await titles.database.getMetadata(SESSION_CUSTOM_TITLE_KEY),
+			chatLocalSource: await titles.database.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
 			persistedTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.peerChat)),
 			persistedSource: await titles.database.getMetadata(customChatTitleSourceMetadataKey(titles.peerChat)),
 			renamedTitles: titles.titleController.renamedTitles,
 		}, {
 			chatTitle: 'Renamed peer',
+			chatLocalTitle: 'Renamed peer',
+			chatLocalSource: AGENT_HOST_TITLE_SOURCE_USER,
 			persistedTitle: 'Renamed peer',
 			persistedSource: AGENT_HOST_TITLE_SOURCE_USER,
 			renamedTitles: [{ channel: titles.session, chatChannel: titles.peerChat }],
@@ -2240,5 +2244,39 @@ suite('AgentHostChatContributions', () => {
 				draft,
 			},
 		});
+	});
+
+	test('hydrates a chat-local title before the session compatibility mirror', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildChatUri(contributions.session, 'peer');
+		await contributions.database.setMetadata(SESSION_CUSTOM_TITLE_KEY, 'Chat-local title');
+		await contributions.database.setMetadata(customChatTitleMetadataKey(chat), 'Legacy title');
+
+		assert.deepStrictEqual(await contributions.service.hydrateChat({ session: contributions.session, chat }, {}), {
+			title: 'Chat-local title',
+		});
+	});
+
+	test('accepts a cached chat title without reading title metadata', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildChatUri(contributions.session, 'peer');
+		let metadataReads = 0;
+		const getMetadata = contributions.database.getMetadata.bind(contributions.database);
+		contributions.database.getMetadata = async key => {
+			metadataReads++;
+			return getMetadata(key);
+		};
+
+		try {
+			assert.deepStrictEqual({
+				restored: await contributions.service.hydrateChat({ session: contributions.session, chat }, { title: 'Cached title' }),
+				metadataReads,
+			}, {
+				restored: { title: 'Cached title' },
+				metadataReads: 0,
+			});
+		} finally {
+			contributions.database.getMetadata = getMetadata;
+		}
 	});
 });

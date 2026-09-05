@@ -67,6 +67,7 @@ import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
@@ -3726,7 +3727,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async ensureChatAdopted(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
 		const sessionId = AgentSession.id(session);
-		return this._queueSession(sessionId, async () => {
+		return this._queueSession(sessionId, async (): Promise<IAgentChatAdoptionResult> => {
 			// A genuine native / already-adopted session always has a persisted
 			// working directory. The session DB FILE can also exist without any
 			// real metadata (checkpoint / changeset / git services create it via
@@ -3735,6 +3736,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const existing = await this._readStoredSessionMetadata(session);
 			if (existing?.workingDirectory) {
 				await this._backfillAdoptedLegacyMarker(session, sessionId);
+				await this._backfillAdoptedLegacyListVisibleMetadata(session, sessionId);
 				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
 				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
@@ -3800,11 +3802,63 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// chat editor can substitute the session-wide changeset for that migrated
 			// (checkpoint-less) turn without misattributing it to a later, post-adoption turn.
 			const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, adoptedTitle, /* markRead */ true, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
+			const titleSource: 'user' | 'auto' = adoptedTitle === customTitle ? 'user' : AGENT_HOST_TITLE_SOURCE_AUTO;
+			const listVisible: IAgentChatAdoptionResult['listVisible'] = adoptedTitle !== undefined
+				? { title: adoptedTitle, titleSource, isRead: true }
+				: { isRead: true };
+			const metadataRef = this._sessionDataService.openDatabase(session);
+			try {
+				await metadataRef.object.setMetadataValues({
+					[AH_META_IS_READ_DB_KEY]: 'true',
+					...(adoptedTitle !== undefined ? {
+						[SESSION_CUSTOM_TITLE_KEY]: adoptedTitle,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: titleSource,
+					} : {}),
+				});
+			} finally {
+				metadataRef.dispose();
+			}
 			await this._adoptLegacyTurnUsage(session, sessionId);
 			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (cliName ? 'name' : customTitle ? 'custom' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
-			return { adopted: true, eligible: true, reason: 'adopted', ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
+			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
 		});
+	}
+
+	private async _backfillAdoptedLegacyListVisibleMetadata(session: URI, sessionId: string): Promise<void> {
+		try {
+			if (!await this._isExtensionHostCliSession(sessionId)) {
+				return;
+			}
+			const customTitle = await this._readExtensionHostCliCustomTitle(sessionId);
+			const ref = this._sessionDataService.openDatabase(session);
+			try {
+				const existing = await ref.object.getMetadataObject({
+					[AH_META_IS_READ_DB_KEY]: true,
+					[SESSION_CUSTOM_TITLE_KEY]: true,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: true,
+				});
+				const missing: Record<string, string> = {};
+				if (existing[AH_META_IS_READ_DB_KEY] === undefined) {
+					missing[AH_META_IS_READ_DB_KEY] = 'true';
+				}
+				if (customTitle !== undefined && existing[SESSION_CUSTOM_TITLE_KEY] === undefined) {
+					missing[SESSION_CUSTOM_TITLE_KEY] = customTitle;
+				}
+				if (customTitle !== undefined
+					&& (existing[SESSION_CUSTOM_TITLE_KEY] === undefined || existing[SESSION_CUSTOM_TITLE_KEY] === customTitle)
+					&& existing[SESSION_CUSTOM_TITLE_SOURCE_KEY] === undefined) {
+					missing[SESSION_CUSTOM_TITLE_SOURCE_KEY] = 'user';
+				}
+				if (Object.keys(missing).length > 0) {
+					await ref.object.setMetadataValues(missing);
+				}
+			} finally {
+				ref.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to backfill adopted legacy list metadata for ${sessionId}`, error);
+		}
 	}
 
 	/**
@@ -5585,17 +5639,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
 			const work: Promise<void>[] = [];
 			if (model) {
 				work.push(db.setMetadata(CopilotAgent._META_MODEL, this._serializeModelSelection(model)));
-			}
-			// Persist read ownership so the adopted session isn't reported unread on open.
-			if (markRead) {
-				work.push(db.setMetadata(AH_META_IS_READ_DB_KEY, 'true'));
 			}
 			// Archiving is user-curated state; losing it on adoption would resurface
 			// everything the user filed away in the extension host list.
@@ -5639,12 +5689,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// folder isolation) — folded into this write to avoid a second DB open.
 			if (configValues) {
 				work.push(db.setMetadata('configValues', JSON.stringify(configValues)));
-			}
-			// Overlaid as the session's display title on restore (see the
-			// `customTitle` overlay in `AgentService`); used by adopt to carry
-			// over the legacy extension-host session name.
-			if (customTitle) {
-				work.push(db.setMetadata('customTitle', customTitle));
 			}
 			await Promise.all(work);
 		} finally {

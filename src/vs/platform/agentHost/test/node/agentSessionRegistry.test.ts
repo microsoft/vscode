@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
@@ -15,6 +15,8 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	readonly agentMergeEnabled = new Set<string>();
 	backfilled = false;
 	private readonly _providerBackfilled = new Set<string>();
+	private readonly _sessionsV2Backfilled = new Set<string>();
+	private readonly _sessionsV2Exclusions = new Map<string, IAgentHostDatabaseSessionsV2Exclusion>();
 	private readonly _tombstones = new Set<string>();
 	private _writeFailures = 0;
 	private _readFailures = 0;
@@ -130,6 +132,43 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._providerBackfilled.add(provider);
 	}
 
+	async isSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<boolean> {
+		this._throwReadFailure();
+		return this._sessionsV2Backfilled.has(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Backfilled(provider: string, projectionVersion: number): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Backfilled.add(`${provider}:${projectionVersion}`);
+	}
+
+	async markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+	}
+
+	async excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<'excluded'> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.set(`${exclusion.provider}:${exclusion.session}`, exclusion);
+		this.sessions.delete(exclusion.session);
+		return 'excluded';
+	}
+
+	async getSessionsV2Exclusion(provider: string, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined> {
+		this._throwReadFailure();
+		return this._sessionsV2Exclusions.get(`${provider}:${session}`);
+	}
+
+	async listSessionsV2Exclusions(provider: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		this._throwReadFailure();
+		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
+	}
+
+	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
+		this._throwWriteFailure();
+		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
+	}
+
 	async isSessionTombstoned(session: string): Promise<boolean> {
 		this._throwReadFailure();
 		return this._tombstones.has(session);
@@ -145,6 +184,22 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._tombstones.delete(session);
 	}
 
+	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		return this.registerSessionV2(session, sessionOptions, registerOptions);
+	}
+
+	unregisterRuntimeSession(session: string): Promise<void> {
+		return this.unregisterSessionV2(session);
+	}
+
+	updateRuntimeSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		return this.updateSessionV2External(updates);
+	}
+
+	async listRuntimeCompatibleSessionKeys(): Promise<readonly string[]> {
+		return [...this.sessions.keys()];
+	}
+
 	async setSessionAgentMergeEnabled(session: string, enabled: boolean): Promise<void> {
 		this._throwWriteFailure();
 		if (enabled) {
@@ -158,6 +213,56 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		this._throwReadFailure();
 		return [...this.agentMergeEnabled];
 	}
+
+	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const registered = await this.registerSession(session, sessionOptions, registerOptions);
+		if (registered) {
+			this._sessionsV2Exclusions.delete(`${sessionOptions.provider}:${session}`);
+		}
+		return registered;
+	}
+
+	unregisterSessionV2(session: string): Promise<void> {
+		return this.unregisterSession(session);
+	}
+
+	updateSessionV2External(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
+		return this.updateSessionExternal(updates);
+	}
+
+	async reconcileSessionV2RegistrationFromLegacy(session: string, legacy: IAgentHostDatabaseSession): Promise<IAgentHostDatabaseSession | undefined> {
+		this.sessions.set(session, legacy);
+		return legacy;
+	}
+
+	getSessionV2Registration(session: string): Promise<IAgentHostDatabaseSession | undefined> {
+		return this.getSession(session);
+	}
+
+	listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessions();
+	}
+
+	listSessionV2RegistrationsForImport(): Promise<readonly IAgentHostDatabaseSession[]> {
+		return this.listSessionV2Registrations();
+	}
+
+	isSessionV2RegistryEmpty(): Promise<boolean> {
+		return this.isSessionRegistryEmpty();
+	}
+
+	async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> { return undefined; }
+	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> { return []; }
+	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> { return []; }
+	async markSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
+	async getSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
+	async markAllSessionsV2PayloadsDirty(): Promise<void> { }
+	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
+	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
+	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
+	async markSessionChatCatalogLegacyMirrored(_session: string, _expectedRevision: number): Promise<boolean> { return false; }
+	async recordSessionChatCatalogLegacyMirrorPayload(_session: string, _expectedRevision: number, _payload: string): Promise<boolean> { return false; }
 
 	async close(): Promise<void> { }
 	dispose(): void { }
@@ -218,6 +323,21 @@ suite('AgentSessionRegistry', () => {
 			keys: [a.toString()],
 			listCalls: 1,
 			updates: [],
+		});
+	});
+
+	test('compatibility keys include legacy-only identities without changing current listing', async () => {
+		await database.registerSession(a.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registry = createRegistry();
+
+		assert.deepStrictEqual({
+			current: [...await registry.listSessionKeys()],
+			compatible: [...await registry.listRuntimeCompatibleSessionKeys()],
+			listed: await registry.list(),
+		}, {
+			current: [],
+			compatible: [a.toString()],
+			listed: [],
 		});
 	});
 
@@ -300,6 +420,28 @@ suite('AgentSessionRegistry', () => {
 
 		await registry.tombstone(a);
 		assert.deepStrictEqual((await list(registry)).map(s => s.session.toString()), [b.toString()]);
+	});
+
+	test('normal registration and unregister mirror the legacy registry', async () => {
+		const registry = createRegistry();
+		await registerExplicit(registry, a, 'copilot', 100);
+
+		assert.deepStrictEqual({
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, {
+			legacy: { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 100, external: false, source: 'explicit' },
+			current: { session: a.toString(), provider: 'copilot', startTime: 100, modifiedTime: 100, external: false, source: 'explicit' },
+		});
+
+		await registry.unregister(a);
+		assert.deepStrictEqual({
+			legacy: await database.getSession(a.toString()),
+			current: await database.getSessionV2Registration(a.toString()),
+		}, {
+			legacy: undefined,
+			current: undefined,
+		});
 	});
 
 	test('register preserves startTime and advances modifiedTime monotonically', async () => {
@@ -422,6 +564,35 @@ suite('AgentSessionRegistry', () => {
 		);
 	});
 
+	test('projection-versioned backfill markers are independent from legacy markers', async () => {
+		const registry = createRegistry();
+		await registry.markBackfilled();
+		await registry.markProviderBackfilled('copilot');
+
+		assert.deepStrictEqual({
+			legacyGlobal: await registry.isBackfilled(),
+			legacyProvider: await registry.isProviderBackfilled('copilot'),
+			currentV4: await registry.isSessionsV2Backfilled('copilot', 4),
+			currentV5: await registry.isSessionsV2Backfilled('copilot', 5),
+		}, {
+			legacyGlobal: true,
+			legacyProvider: true,
+			currentV4: false,
+			currentV5: false,
+		});
+
+		await registry.markSessionsV2Backfilled('copilot', 5);
+		assert.deepStrictEqual({
+			currentV4: await registry.isSessionsV2Backfilled('copilot', 4),
+			currentV5: await registry.isSessionsV2Backfilled('copilot', 5),
+			claudeV5: await registry.isSessionsV2Backfilled('claude', 5),
+		}, {
+			currentV4: false,
+			currentV5: true,
+			claudeV5: false,
+		});
+	});
+
 	test('register persistence failure can be retried', async () => {
 		await database.close();
 		database = new TestAgentHostDatabase();
@@ -531,6 +702,27 @@ suite('AgentSessionRegistry', () => {
 
 		await registry.clearTombstone(a);
 		assert.strictEqual(await registry.isTombstoned(a), false);
+	});
+
+	test('current-v2 exclusions are exposed and eligible registration clears them', async () => {
+		const registry = createRegistry();
+		await registry.markSessionsV2Excluded({
+			provider: 'copilot',
+			session: a.toString(),
+			reason: 'providerAbsent',
+			fingerprint: 'enumeration-v1',
+		});
+
+		assert.deepStrictEqual({
+			single: await registry.getSessionsV2Exclusion('copilot', a),
+			list: await registry.listSessionsV2Exclusions('copilot'),
+		}, {
+			single: { provider: 'copilot', session: a.toString(), reason: 'providerAbsent', fingerprint: 'enumeration-v1' },
+			list: [{ provider: 'copilot', session: a.toString(), reason: 'providerAbsent', fingerprint: 'enumeration-v1' }],
+		});
+
+		await registerDiscovered(registry, a, 'copilot', 100);
+		assert.strictEqual(await registry.getSessionsV2Exclusion('copilot', a), undefined);
 	});
 
 	test('discovery declines to register (or resurrect) a tombstoned session', async () => {

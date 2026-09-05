@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -16,6 +16,7 @@ import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, typ
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
+	private _catalogSyncSnapshot: ISessionCatalogSyncSnapshot | undefined;
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
@@ -96,6 +97,81 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this.setMetadataCalls.push({ key, value });
 			this._metadata.set(key, value);
 		}
+	}
+
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+		this._validateCatalogSyncSnapshot(snapshot);
+		const existing = this._catalogSyncSnapshot;
+		if (existing && snapshot.sessionGeneration !== existing.sessionGeneration) {
+			throw new Error(`Catalog sync snapshot generation ${snapshot.sessionGeneration} does not match stored generation ${existing.sessionGeneration}`);
+		}
+		if (existing && snapshot.sourceRevision < existing.sourceRevision) {
+			throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} is stale; current revision is ${existing.sourceRevision}`);
+		}
+		if (existing && snapshot.sourceRevision === existing.sourceRevision) {
+			const isExactReplay = snapshot.sessionGeneration === existing.sessionGeneration
+				&& snapshot.projectionVersion === existing.projectionVersion
+				&& snapshot.payloadHash === existing.payloadHash
+				&& (existing.state === 'acknowledged' || snapshot.payload === existing.payload);
+			if (!isExactReplay) {
+				throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} conflicts with the stored snapshot`);
+			}
+		}
+
+		if (existing?.sourceRevision === snapshot.sourceRevision) {
+			return 'replayed';
+		}
+		for (const [key, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+		this._catalogSyncSnapshot = { ...snapshot, acknowledgedHash: existing?.acknowledgedHash };
+		return 'applied';
+	}
+
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+		this._validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
+		this._validateCatalogSyncSnapshot(snapshot);
+		if (snapshot.sessionGeneration === expectedSessionGeneration) {
+			throw new Error(`Catalog sync generation transition must change the session generation`);
+		}
+		if (this._catalogSyncSnapshot?.sessionGeneration !== expectedSessionGeneration) {
+			return false;
+		}
+		for (const [key, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+		this._catalogSyncSnapshot = { ...snapshot, acknowledgedHash: undefined };
+		return true;
+	}
+
+	async getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
+		return this._catalogSyncSnapshot ? { ...this._catalogSyncSnapshot } : undefined;
+	}
+
+	async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {
+		this._validateCatalogSyncAcknowledgement(acknowledgement);
+		const snapshot = this._catalogSyncSnapshot;
+		if (!snapshot
+			|| snapshot.state !== 'pending'
+			|| acknowledgement.sessionGeneration !== snapshot.sessionGeneration
+			|| acknowledgement.sourceRevision !== snapshot.sourceRevision
+			|| acknowledgement.projectionVersion !== snapshot.projectionVersion
+			|| acknowledgement.payloadHash !== snapshot.payloadHash
+		) {
+			return false;
+		}
+		this._catalogSyncSnapshot = {
+			sessionGeneration: snapshot.sessionGeneration,
+			sourceRevision: snapshot.sourceRevision,
+			projectionVersion: snapshot.projectionVersion,
+			payload: undefined,
+			payloadHash: snapshot.payloadHash,
+			acknowledgedHash: snapshot.payloadHash,
+			state: 'acknowledged',
+		};
+		return true;
 	}
 
 	async deleteMetadata(keys: readonly string[]): Promise<void> {
@@ -304,6 +380,33 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async getAllCheckpointRefs(): Promise<string[]> { return []; }
 
 	async whenIdle(): Promise<void> { }
+
+	private _validateCatalogSyncSnapshot(snapshot: ISessionCatalogSyncPendingSnapshot): void {
+		this._validateCatalogSyncIdentity('sessionGeneration', snapshot.sessionGeneration);
+		this._validateCatalogSyncInteger('sourceRevision', snapshot.sourceRevision);
+		this._validateCatalogSyncInteger('projectionVersion', snapshot.projectionVersion);
+		this._validateCatalogSyncIdentity('payload', snapshot.payload);
+		this._validateCatalogSyncIdentity('payloadHash', snapshot.payloadHash);
+	}
+
+	private _validateCatalogSyncAcknowledgement(acknowledgement: ISessionCatalogSyncAcknowledgement): void {
+		this._validateCatalogSyncIdentity('sessionGeneration', acknowledgement.sessionGeneration);
+		this._validateCatalogSyncInteger('sourceRevision', acknowledgement.sourceRevision);
+		this._validateCatalogSyncInteger('projectionVersion', acknowledgement.projectionVersion);
+		this._validateCatalogSyncIdentity('payloadHash', acknowledgement.payloadHash);
+	}
+
+	private _validateCatalogSyncInteger(name: string, value: number): void {
+		if (!Number.isSafeInteger(value) || value < 0) {
+			throw new Error(`Catalog sync ${name} must be a non-negative safe integer`);
+		}
+	}
+
+	private _validateCatalogSyncIdentity(name: string, value: string): void {
+		if (value.length === 0) {
+			throw new Error(`Catalog sync ${name} must be nonempty`);
+		}
+	}
 
 	private _toEditRecords(edits: (IFileEditRecord & IFileEditContent)[]): IFileEditRecord[] {
 		return edits.map(({ beforeContent: _, afterContent: _2, ...metadata }) => metadata);
