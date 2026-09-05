@@ -10,6 +10,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 	detectIndentation: true,
 	trimAutoWhitespace: true,
 	largeFileOptimizations: true,
+	largeFileSizeLimit: 50,
 	bracketPairColorizationOptions: {
 		enabled: true,
 		independentColorPoolPerBracketType: false,
