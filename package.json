@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.137.0",
+  "version": "1.138.0",
   "distro": "e89f2ac3aa7f31b63c96b60b1c598aaf7e8bc076",
   "author": {
     "name": "Microsoft Corporation"
@@ -161,7 +161,7 @@
     "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
-    "tas-client": "0.4.3",
+    "tas-client": "0.4.6",
     "undici": "^7.28.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",

@@ -3177,6 +3177,53 @@ suite('ChatService', () => {
 			]);
 		});
 
+		test('hides a live workspace-continuation request while keeping its response boundary and provider output', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const { resource } = setupRemoteProvider({
+				history: [],
+				progressObs,
+				isCompleteObs: observableValue<boolean>('complete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({
+				id: 'workspace-continuation',
+				prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.',
+				isSystemInitiated: true,
+				isRequestHidden: true,
+			});
+			progressObs.set([{
+				kind: 'systemNotification',
+				content: new MarkdownString('Now working in vscode'),
+				presentation: 'workspaceTransition',
+				workspaceName: 'vscode',
+				accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+			}, {
+				kind: 'markdownContent',
+				content: new MarkdownString('Provider continued work'),
+			}], undefined);
+
+			const request = ref.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requestHidden: request.isRequestHiddenFromTranscript,
+				responseHidden: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+				responseParts: request.response?.response.value.map(part => part.kind),
+			}, {
+				requestHidden: true,
+				responseHidden: false,
+				visibleItems: ['response'],
+				responseParts: ['systemNotification', 'markdownContent'],
+			});
+		});
+
 		test('remote resume reopens the existing request without duplicating it', async () => {
 			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
 			const progressObs = observableValue<IChatProgress[]>('progress', []);

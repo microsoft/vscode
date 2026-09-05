@@ -58,10 +58,11 @@ class ReadOnlyChatSession extends Disposable implements IChatSession {
 }
 
 /**
- * Content provider for cloud sandbox sessions whose environment is gone.
+ * Content provider for cloud sandbox sessions served from Mission Control's persisted history
+ * rather than a live host — a dormant environment, or one whose connect failed.
  *
- * Registered only after a connect attempt has failed terminally, and disposed as soon as a real
- * connection is established, so it never shadows the live handler.
+ * Registered only while no connection exists, and disposed as soon as one is established, so it
+ * never shadows the live handler.
  */
 export class CloudSandboxReadOnlySessionHandler extends Disposable implements IChatSessionContentProvider {
 

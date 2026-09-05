@@ -19,6 +19,7 @@ import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOp
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -279,6 +280,30 @@ suite('Changes View Actions', () => {
 			hasActiveEditorGate: true,
 			hasTextCompareEditorGate: true,
 			hasMultiDiffEditorGate: true,
+		});
+	});
+
+	test('multi-diff layout debug state is contributed to the command palette for the Changes editor', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === OpenMultiDiffEditorLayoutDebugAction.ID && item.when?.serialize().includes(SessionChangesEditor.ID));
+
+		assert.ok(item, 'expected the multi-diff layout debug action in the command palette');
+		const when = item.when?.serialize() ?? '';
+		assert.deepStrictEqual({
+			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasSharedPrecondition: !!item.command.precondition,
+		}, {
+			title: 'Open Multi Diff Editor Layout Debug State',
+			category: 'Developer',
+			hasSessionsWindowGate: true,
+			hasActiveEditorGate: true,
+			hasSinglePaneConfigGate: true,
+			hasSharedPrecondition: false,
 		});
 	});
 
