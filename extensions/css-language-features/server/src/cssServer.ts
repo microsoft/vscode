@@ -173,6 +173,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	function updateConfiguration(settings: { [languageId: string]: LanguageSettings }) {
 		for (const languageId in languageServices) {
 			languageServices[languageId].configure(settings[languageId]);
+			languageServices[languageId].clearCache();
 		}
 		// reset all document settings
 		documentSettings = {};
@@ -236,9 +237,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(documentDefinitionParams.textDocument.uri);
 			if (document) {
-				await dataProvidersReady;
+				const [settings] = await Promise.all([
+					getDocumentSettings(document),
+					dataProvidersReady
+				]);
+				const languageService = getLanguageService(document);
+
+				// Apply per-document configuration
+				if (settings) {
+					languageService.configure(settings);
+				}
+
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDefinition(document, documentDefinitionParams.position, stylesheet);
+				return languageService.findDefinition(document, documentDefinitionParams.position, stylesheet);
 			}
 			return null;
 		}, null, `Error while computing definitions for ${documentDefinitionParams.textDocument.uri}`, token);
@@ -261,10 +272,19 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(documentLinkParams.textDocument.uri);
 			if (document) {
-				await dataProvidersReady;
+				const settingsPromise = getDocumentSettings(document);
+				const [settings] = await Promise.all([settingsPromise, dataProvidersReady]);
+
+				const languageService = getLanguageService(document);
+
+				// Apply per-document configuration
+				if (settings) {
+					languageService.configure(settings);
+				}
+
 				const documentContext = getDocumentContext(document.uri, workspaceFolders);
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentLinks2(document, stylesheet, documentContext);
+				return languageService.findDocumentLinks2(document, stylesheet, documentContext);
 			}
 			return [];
 		}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);
