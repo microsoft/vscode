@@ -113,6 +113,8 @@ interface DocState {
 /** Arguments for {@link NextEditProvider._rebaseAndCacheStreamedEdit}. */
 interface RebaseAndCacheStreamedEditArgs {
 	readonly statePerDoc: CachedFunction<DocumentId, DocState>;
+	/** Predicate identifying documents `statePerDoc` can resolve without throwing. */
+	readonly isKnownDocument: (id: DocumentId) => boolean;
 	readonly streamedEdit: StreamedEdit;
 	/** Zero-based index of this edit within the stream. */
 	readonly ithEdit: number;
@@ -129,7 +131,14 @@ interface RebaseAndCacheStreamedEditArgs {
 	readonly logger: ILogger;
 }
 
-function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xtabEditHistory: readonly IXtabHistoryEntry[]): CachedFunction<DocumentId, DocState> {
+function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xtabEditHistory: readonly IXtabHistoryEntry[]): { statePerDoc: CachedFunction<DocumentId, DocState>; isKnownDocument: (id: DocumentId) => boolean } {
+	const isKnownDocument = (id: DocumentId): boolean => {
+		if (projectedDocuments.some(d => d.nextEditDoc.id === id)) {
+			return true;
+		}
+		return xtabEditHistory.some(entry => entry.docId === id && entry.kind === 'edit');
+	};
+
 	const statePerDoc = new CachedFunction((id: DocumentId) => {
 		const doc = projectedDocuments.find(d => d.nextEditDoc.id === id);
 		if (!doc) {
@@ -160,7 +169,7 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 	});
 
 
-	return statePerDoc;
+	return { statePerDoc, isKnownDocument };
 }
 
 /**
@@ -784,7 +793,16 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	 * `firstEdit`, stream-end handling) stays with the callers.
 	 */
 	private _rebaseAndCacheStreamedEdit(args: RebaseAndCacheStreamedEditArgs): { lineEdit: LineEdit; rebasedEdit: StringEdit; docContentsBeforeEdit: StringText; cachedEdit: CachedOrRebasedEdit | undefined; crossFileCached: boolean } | undefined {
-		const { statePerDoc, streamedEdit, ithEdit, activeDoc, userEditSince, modelTelemetry, source, logger } = args;
+		const { statePerDoc, isKnownDocument, streamedEdit, ithEdit, activeDoc, userEditSince, modelTelemetry, source, logger } = args;
+
+		// The streamed edit's target document is model-produced and may reference a document
+		// that was never part of this request (neither a projected document nor an edit-history
+		// entry). Skip such edits instead of letting `statePerDoc.get` throw a BugIndicatingError;
+		// both callers already treat an `undefined` result as "edit could not be rebased".
+		if (!isKnownDocument(streamedEdit.targetDocument)) {
+			logger.trace(`skipping streamed edit ${ithEdit} for unknown target document "${streamedEdit.targetDocument.baseName}"`);
+			return undefined;
+		}
 
 		const targetDocState = statePerDoc.get(streamedEdit.targetDocument);
 
@@ -937,7 +955,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		}) : undefined);
 
 
-		const statePerDoc = createDocStateLookupMap(projectedDocuments, xtabEditHistory);
+		const { statePerDoc, isKnownDocument } = createDocStateLookupMap(projectedDocuments, xtabEditHistory);
 
 		const editStream = this._statelessNextEditProvider.provideNextEdit(nextEditRequest, logger, logContext, nextEditRequest.cancellationTokenSource.token);
 
@@ -959,6 +977,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 			const cached = this._rebaseAndCacheStreamedEdit({
 				statePerDoc,
+				isKnownDocument,
 				streamedEdit,
 				ithEdit,
 				activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset: activeDocSelection?.start },
@@ -1479,7 +1498,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const xtabEditHistory = nextEditRequest.xtabEditHistory;
 
-		const statePerDoc = createDocStateLookupMap(projectedDocuments, xtabEditHistory);
+		const { statePerDoc, isKnownDocument } = createDocStateLookupMap(projectedDocuments, xtabEditHistory);
 
 		const logContext = req.log;
 		const editStream = this._statelessNextEditProvider.provideNextEdit(
@@ -1511,6 +1530,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 						const cached = this._rebaseAndCacheStreamedEdit({
 							statePerDoc,
+							isKnownDocument,
 							streamedEdit,
 							ithEdit,
 							activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset },
