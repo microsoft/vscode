@@ -48,7 +48,7 @@ interface WebviewContent {
 }
 
 namespace WebviewState {
-	export const enum Type { Initializing, Ready }
+	export const enum Type { Initializing, Ready, Failed }
 
 	export class Initializing {
 		readonly type = Type.Initializing;
@@ -65,7 +65,16 @@ namespace WebviewState {
 
 	export const Ready = { type: Type.Ready } as const;
 
-	export type State = typeof Ready | Initializing;
+	/**
+	 * Terminal state entered when a fatal error has given up on the
+	 * webview (e.g. a service worker registration failure that exhausted
+	 * its reload budget). Queued messages are settled when entering this
+	 * state and further sends resolve as not delivered. Reinitializing
+	 * the webview returns it to the Initializing state.
+	 */
+	export const Failed = { type: Type.Failed } as const;
+
+	export type State = typeof Ready | typeof Failed | Initializing;
 }
 
 interface WebviewActionContext {
@@ -271,6 +280,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			// future registration failures must start from a fresh retry
 			// budget.
 			this._serviceWorkerReloadAttempt = 0;
+
+			// If a fatal error was previously fired for this webview (e.g.
+			// the retry budget was exhausted before this document
+			// succeeded), let consumers that gave up on it retry their
+			// initialization.
+			if (this._fatalErrorFired) {
+				this._fatalErrorFired = false;
+				this._onFatalErrorResolved.fire();
+			}
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
@@ -419,6 +437,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public readonly onFatalError = this._onFatalError.event;
 
+	/**
+	 * Fired when the webview has recovered after a previous `onFatalError`:
+	 * it was reinitialized and the fresh document successfully registered
+	 * its service worker. Consumers that gave up on the webview when the
+	 * fatal error fired can retry their initialization.
+	 */
+	private readonly _onFatalErrorResolved = this._register(new Emitter<void>());
+	public readonly onFatalErrorResolved = this._onFatalErrorResolved.event;
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
@@ -431,6 +458,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			const { promise, resolve } = promiseWithResolvers<boolean>();
 			this._state.pendingMessages.push({ channel, data, transferable: _createElement, resolve });
 			return promise;
+		} else if (this._state.type === WebviewState.Type.Failed) {
+			// The webview terminally failed and is not expected to recover
+			// on its own. Settle the send as not delivered instead of
+			// queueing it indefinitely.
+			return false;
 		} else {
 			return this.doPostMessage(channel, data, _createElement);
 		}
@@ -678,6 +710,28 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	 * the webview is reinitialized with a fresh document.
 	 */
 	private _serviceWorkerTerminalFailure = false;
+	/**
+	 * Whether `onFatalError` has fired for this webview without it
+	 * recovering since. Used to fire `onFatalErrorResolved` exactly once
+	 * when a reinitialized document reports that it is working again.
+	 */
+	private _fatalErrorFired = false;
+
+	/**
+	 * Marks the webview as terminally failed: settles every queued message
+	 * as not delivered, makes further sends resolve as not delivered, and
+	 * cuts the connection to the failed document. Reinitializing the
+	 * webview returns it to the Initializing state.
+	 */
+	private enterTerminalFailureState(): void {
+		if (this._state.type === WebviewState.Type.Initializing) {
+			this._state.pendingMessages.forEach(({ resolve }) => resolve(false));
+			this._state.pendingMessages = [];
+		}
+		this._state = WebviewState.Failed;
+		this._messagePort?.close();
+		this._messagePort = undefined;
+	}
 
 	/**
 	 * Handles a fatal error reported by the webview. Service worker registration
@@ -754,6 +808,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 			this._serviceWorkerTerminalFailure = true;
 			this._logService.error(`Webview(${this.id}): service worker registration failed after ${this._serviceWorkerReloadAttempt} reload retries (${message})`);
+			// Settle queued sends as not delivered and stop queueing new
+			// ones: the webview is not expected to recover on its own.
+			// Reinitializing (e.g. through the reload action below)
+			// returns it to the Initializing state.
+			this.enterTerminalFailureState();
 			// Track the notification so it can be closed when the webview is
 			// disposed or reinitialized; otherwise its action closure would
 			// keep the disposed webview's object graph alive until the user
@@ -774,10 +833,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					}
 				}]);
 			this._serviceWorkerErrorNotification.value = toDisposable(() => notificationHandle.close());
+			this._fatalErrorFired = true;
 			this._onFatalError.fire({ message });
 			return;
 		}
 
+		this.enterTerminalFailureState();
+		this._fatalErrorFired = true;
 		this._notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", message));
 		this._onFatalError.fire({ message });
 	}
@@ -806,7 +868,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// everything sent to the previous (failed) document — before or
 		// after its failure — is still queued in the Initializing state.
 		// Carry it over so it is replayed once the fresh document becomes
-		// ready instead of being dropped.
+		// ready instead of being dropped. (After a terminal failure the
+		// queue was already settled as not delivered, so the fresh
+		// document starts empty; the content posted below is requeued.)
 		const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
 		this._state = new WebviewState.Initializing(pendingMessages);
 		this._messagePort?.close();
