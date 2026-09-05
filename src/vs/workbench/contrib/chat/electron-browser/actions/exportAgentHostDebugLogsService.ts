@@ -30,19 +30,17 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<URI | undefined> {
+	async selectDestination(exportName: string): Promise<URI | undefined> {
 		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
-		const saveUri = await this.fileDialogService.showSaveDialog({
+		return this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
 			defaultUri,
 			filters: [{ name: localize('exportDebugLogs.zipFilter', "Zip Archive"), extensions: ['zip'] }],
 			availableFileSystems: [Schemas.file],
 		});
+	}
 
-		if (!saveUri) {
-			return undefined;
-		}
-
+	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<void> {
 		const zipFiles: INativeZipFile[] = files.map(file => {
 			return hasKey(file, { contents: true })
 				? file
@@ -74,13 +72,13 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				}
 			}
 			try {
-				await this.nativeHostService.createZipFile(saveUri, zipFiles, zipOptions);
+				await this.nativeHostService.createZipFile(destination, zipFiles, zipOptions);
 			} catch (error) {
 				if (!hostArchiveIncluded) {
 					throw error;
 				}
 				this.logService.warn(`[ExportAgentHostDebugLogs] Failed to merge Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
-				await this.nativeHostService.createZipFile(saveUri, zipFiles.slice(0, -1), zipOptions);
+				await this.nativeHostService.createZipFile(destination, zipFiles.slice(0, -1), zipOptions);
 			}
 		} finally {
 			if (temporaryHostArchive) {
@@ -93,7 +91,6 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 				}
 			}
 		}
-		return saveUri;
 	}
 }
 

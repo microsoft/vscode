@@ -929,6 +929,7 @@ export class CopilotAgentSession extends Disposable {
 				include: {
 					events: includeSessionLogs,
 					processLogs: true,
+					previousProcessLogLimit: 1,
 					shellLogs: includeSessionLogs,
 				},
 			});
