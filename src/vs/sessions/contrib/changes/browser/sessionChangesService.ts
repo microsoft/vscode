@@ -21,6 +21,8 @@ import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
 export { ISessionChangesService } from '../common/sessionChangesService.js';
 export type { ISessionChangesEditorOptions } from '../common/sessionChangesService.js';
@@ -34,12 +36,12 @@ interface IChangesMultiDiffUriFields {
 export class SessionChangesService extends Disposable implements ISessionChangesService {
 
 	declare readonly _serviceBrand: undefined;
-	readonly activeSessionChangeCountObs: IObservable<number>;
+	readonly activeSessionChangeCountObs: IObservable<number | undefined>;
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<readonly URI[]>());
 
-	private _decoratedChangeCount = 0;
 	private _decoratedResource: URI | undefined;
+	private _decoratedChangeCount: number | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -47,10 +49,22 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IDecorationsService decorationsService: IDecorationsService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
-		this.activeSessionChangeCountObs = derived(this, reader => changesViewService.activeSessionChangesObs.read(reader).length);
+		this.activeSessionChangeCountObs = derived(this, reader => {
+			const activeSession = sessionsService.activeSession.read(reader);
+			if (activeSession?.status.read(reader) !== SessionStatus.Untitled) {
+				return undefined;
+			}
+
+			if (changesViewService.activeSessionChangesetObs.read(reader)?.id !== UNCOMMITTED_CHANGES_CHANGESET_ID) {
+				return undefined;
+			}
+
+			return changesViewService.activeSessionChangesObs.read(reader).length;
+		});
 
 		if (!layoutService.isSinglePaneLayoutEnabled) {
 			return;
@@ -145,7 +159,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	}
 
 	private _provideDecoration(resource: URI): IDecorationData | undefined {
-		if (this._decoratedChangeCount === 0 || !isEqual(resource, this._decoratedResource)) {
+		if (!this._decoratedChangeCount || !isEqual(resource, this._decoratedResource)) {
 			return undefined;
 		}
 

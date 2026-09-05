@@ -103,6 +103,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push('hasUncommittedChanges');
 		return this.uncommitted;
 	}
+	async createStash(): Promise<void> { }
 	async commitAll(_workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;

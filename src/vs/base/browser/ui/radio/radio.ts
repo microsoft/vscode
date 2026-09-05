@@ -12,7 +12,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { Button } from '../button/button.js';
-import { DisposableMap, DisposableStore } from '../../../common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
 export interface IRadioStyles {
@@ -82,6 +82,21 @@ export class Radio extends Widget {
 		}
 
 		this.setItems(opts.items);
+	}
+
+	/** The option buttons in item order, for callers that need to measure or decorate them. */
+	get optionElements(): readonly HTMLElement[] {
+		return this.orderedButtons.map(button => button.element);
+	}
+	/** Shows `text` on an option until the returned disposable puts the item's own label back. */
+	overrideOptionLabel(index: number, text: string): IDisposable {
+		const button = this.orderedButtons[index];
+		const item = this.items[index];
+		if (!button || !item) {
+			return Disposable.None;
+		}
+		button.label = text;
+		return toDisposable(() => { button.label = item.text; });
 	}
 
 	setItems(items: ReadonlyArray<IRadioOptionItem>): void {

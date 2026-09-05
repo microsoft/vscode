@@ -39,6 +39,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -473,6 +474,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -482,7 +484,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header.initial', 'Thinking');
 
-		super(extractedTitle, context, undefined, hoverService, configurationService);
+		super(extractedTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.containsReasoning = containsReasoning;
 		this.reasoningDurationMs = content.reasoningDurationMs;
@@ -648,6 +650,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			scrollableDomNode.style.maxHeight = '0px';
 			scrollableDomNode.getBoundingClientRect();
 		}
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'thinking';
 	}
 
 	protected override expansionDidChange(expanded: boolean): void {

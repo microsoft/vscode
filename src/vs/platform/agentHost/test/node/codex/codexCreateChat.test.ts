@@ -334,7 +334,22 @@ suite('CodexAgent createChat', () => {
 	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
 
-		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+		assert.deepStrictEqual({
+			multipleChats: agent.getDescriptor().capabilities?.multipleChats,
+			agentHostCapabilities: agent.agentHostCapabilities,
+		}, {
+			multipleChats: { fork: true, sideChat: true },
+			agentHostCapabilities: { workspaceConversion: false },
+		});
+	});
+
+	test('setWorkingDirectory rejects because Codex does not advertise workspace conversion', async () => {
+		const agent = await createAgent(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('codex:/chat'), URI.parse('codex:/session'), URI.file('/workspace')),
+			/Codex does not support changing the working directory/,
+		);
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {

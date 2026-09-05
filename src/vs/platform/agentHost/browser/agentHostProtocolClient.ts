@@ -13,12 +13,13 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -52,6 +53,8 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
+import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 // AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
@@ -400,6 +403,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -1951,6 +1956,44 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case RequestAgentHostWorkspaceTrustExtensionMethod: {
+						if (typeof p.workspace !== 'string') {
+							throw new Error('Missing workspace');
+						}
+						const hostWorkspace = URI.parse(p.workspace, true);
+						if (hostWorkspace.scheme !== Schemas.file || !hostWorkspace.path.startsWith('/')) {
+							throw new Error('Workspace must be an absolute file URI');
+						}
+						const workspace = this.resourceUris.fromAgentHost(hostWorkspace);
+						if (p.trustedParent !== undefined) {
+							if (typeof p.trustedParent !== 'string') {
+								throw new Error('Invalid trustedParent');
+							}
+							const hostParent = URI.parse(p.trustedParent, true);
+							if (hostParent.scheme !== Schemas.file || !hostParent.path.startsWith('/')) {
+								throw new Error('Trusted parent must be an absolute file URI');
+							}
+							if (!isWorktreeUnderRepository(hostWorkspace, hostParent)) {
+								throw new Error('Workspace is not a managed worktree under the trusted parent');
+							}
+							const parent = this.resourceUris.fromAgentHost(hostParent);
+							const parentTrust = await this._workspaceTrustManagementService.getUriTrustInfo(parent);
+							if (parentTrust.trusted) {
+								const workspaceTrust = await this._workspaceTrustManagementService.getUriTrustInfo(workspace);
+								if (!workspaceTrust.trusted) {
+									await this._workspaceTrustManagementService.setUrisTrust([workspace], true);
+								}
+								sendResult({ trusted: true } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']);
+								return;
+							}
+						}
+						const trusted = await this._workspaceTrustRequestService.requestResourcesTrust({
+							uri: workspace,
+							message: localize('agentHost.trustWorkspaceMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+						});
+						sendResult({ trusted: trusted === true } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']);
+						return;
+					}
 					case 'resourceList': {
 						if (!p.uri) { throw new Error('Missing uri'); }
 						const result = await this._resourceService.list(identity, URI.parse(p.uri as string));

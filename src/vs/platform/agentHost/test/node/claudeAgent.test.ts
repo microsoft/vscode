@@ -1305,8 +1305,17 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0 },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+		);
+	});
+
+	test('setWorkingDirectory rejects because Claude does not advertise workspace conversion', async () => {
+		const { agent } = createTestContext(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('claude:/chat'), URI.parse('claude:/session'), URI.file('/workspace')),
+			/Claude does not support changing the working directory/,
 		);
 	});
 
@@ -6873,6 +6882,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			name: 'viewUnreviewedComments',
 			description: 'View unreviewed comments',
 			inputSchema: { type: 'object', properties: {} },
+		}, {
+			name: 'set_workspace',
+			description: 'Set workspace',
+			inputSchema: { type: 'object', properties: {} },
 		}];
 		readonly toolNames = this.definitions.map(definition => definition.name);
 		confirmationRequiredForSession = false;
@@ -6986,6 +6999,40 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: {} },
 			pendingConfirmations: 0,
+		});
+	});
+
+	test('set_workspace uses a plain-language confirmation without raw input', async () => {
+		const host = new FakeServerToolHost();
+		host.confirmationRequiredForSession = true;
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { workspaceFolder: '/workspace/app', isolation: true };
+		const resultPromise = canUseTool('mcp__host__set_workspace', input, makeOptions('tu_set_workspace'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_set_workspace', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			confirmation: confirmation?.kind === 'pending_confirmation' ? {
+				displayName: confirmation.state.displayName,
+				invocationMessage: confirmation.state.invocationMessage,
+				toolInput: confirmation.state.toolInput,
+				confirmationTitle: confirmation.state.confirmationTitle,
+				permissionKind: confirmation.permissionKind,
+			} : undefined,
+		}, {
+			result: { behavior: 'allow', updatedInput: input },
+			confirmation: {
+				displayName: 'Set Workspace',
+				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				toolInput: undefined,
+				confirmationTitle: 'Continue in app?',
+				permissionKind: 'mcp',
+			},
 		});
 	});
 

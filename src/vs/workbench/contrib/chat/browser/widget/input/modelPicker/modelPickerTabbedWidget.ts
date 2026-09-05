@@ -115,7 +115,12 @@ export class TabbedModelPicker extends Disposable {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
 		this._register(this._widget.onDidChangeTab(id => { this._activeDestination = id; }));
-		this._register(this._widget.onDidHide(() => this._onDidHide.fire()));
+		this._register(this._widget.onDidHide(() => {
+			// Search is a transient view. Left on, it would also size the next popup from
+			// its flattened cross-provider list.
+			this._searchVisible = false;
+			this._onDidHide.fire();
+		}));
 	}
 
 	hide(): void {
@@ -154,6 +159,8 @@ export class TabbedModelPicker extends Disposable {
 			anchor,
 			tabs: destinations.map((destination): ITabDescriptor => ({ id: destination.id, label: destination.label, icon: destination.icon, tooltip: destination.label })),
 			initialTab: this._activeDestination,
+			// The built-in provider fixes the popup's height.
+			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			// Recomputed on every render so a tab switch reflects the current Auto state.
