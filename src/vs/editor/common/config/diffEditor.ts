@@ -37,5 +37,5 @@ export const diffEditorDefaultOptions = {
 	renderSideBySideInlineBreakpoint: 900,
 	useInlineViewWhenSpaceIsLimited: true,
 	compactMode: false,
-	hideOriginalLineNumbers: true,
+	hideOriginalLineNumbers: false,
 } satisfies ValidDiffEditorBaseOptions;

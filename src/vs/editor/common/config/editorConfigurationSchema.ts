@@ -235,7 +235,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.hideOriginalLineNumbers': {
 			type: 'boolean',
-			default: diffEditorDefaultOptions.hideOriginalLineNumbers,
+			default: true,
 			description: nls.localize('hideOriginalLineNumbers', "When enabled, the diff editor does not show the line numbers of the file before changes when the inline view is used."),
 		},
 		'diffEditor.ignoreTrimWhitespace': {
