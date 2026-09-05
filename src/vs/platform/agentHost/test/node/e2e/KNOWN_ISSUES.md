@@ -807,6 +807,22 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
 
+### Claude file deletion replay on Windows
+
+A user can ask Claude to delete a file from the workspace through its shell tool. On Windows, the bundled Claude runtime can exit during this turn instead of reporting the tool result, which interrupts the session even though the same portable Node.js command succeeds in adjacent file-operation scenarios.
+
+- Test: `deletes a workspace file`.
+- Scope: Claude deterministic replay on Windows.
+- Expected: Claude runs the recorded `node` deletion command, reports a successful tool call, and completes the turn.
+- Observed: the Agent Host receives `Claude Code process exited with code 1` while driving the delete turn. The adjacent rename and deterministic-shell scenarios complete on the same worker.
+- Gate: `fileDeleteReplayUnstableOnWindows: true`. Recording and other platforms remain enabled.
+- Failing run: [PR #334648](https://github.com/microsoft/vscode/actions/runs/33930389356/job/101207609438?pr=334648).
+- Reproduce: temporarily clear the gate and run:
+
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
+  ```
+
 ### Copilot custom subagent without a display name
 
 A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
