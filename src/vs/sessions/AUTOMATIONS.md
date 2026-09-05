@@ -78,6 +78,10 @@ Workspace targets may omit `providerId` and `sessionTypeId`. Such definitions us
 
 At most one non-terminal run may occupy an Automation's active-run slot within one authority.
 
+### Catalogue availability
+
+Every Automation store exposes whether its complete catalogue is `loading`, `ready`, or in `error`. An empty catalogue is authoritative only in the `ready` state. Provider stores map their connection and persistence lifecycle into this provider-neutral state. Agent Host stores become ready when an authoritative catalogue snapshot is available, independently of migration authority. Disconnected stores and an aggregate with no registered providers remain non-authoritative. `ProviderAutomationService` reports `error` when any store fails, otherwise `loading` while any store is loading, and `ready` only when all current stores are ready.
+
 ## Multi-host routing
 
 VS Code may register one local Agent Host provider and multiple remote Agent Host providers at the same time. A remote connection has its own provider identity, Automation store, AHP catalogue, and migration state.
@@ -311,6 +315,7 @@ Updates that do not change the target remain allowed while an active run delays 
 8. Migration and retargeting preserve concurrent edits through snapshot comparison.
 9. Mixed expected deferrals and real failures are reported as failures.
 10. Provider-specific state stays behind `ISessionsProviderAutomations`; UI and tools consume provider-neutral models.
+11. Consumers distinguish a confirmed empty catalogue from loading and failure through the provider-neutral catalogue state.
 
 ## Concrete behavior
 

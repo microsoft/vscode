@@ -78,8 +78,15 @@ suite('AutomationService', () => {
 
 	test('starts with an empty ledger when nothing is persisted', () => {
 		const { service } = createService();
-		assert.deepStrictEqual(service.automations.get(), []);
-		assert.deepStrictEqual(service.runs.get(), []);
+		assert.deepStrictEqual({
+			automations: service.automations.get(),
+			runs: service.runs.get(),
+			catalogueState: service.catalogueState.get(),
+		}, {
+			automations: [],
+			runs: [],
+			catalogueState: 'ready',
+		});
 	});
 
 	test('provider stores isolate ledgers by storage key', async () => {
@@ -613,6 +620,7 @@ suite('AutomationService', () => {
 		// but the service is now in read-only mode.
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
+		assert.strictEqual(service.catalogueState.get(), 'error');
 
 		// A subsequent mutation must be rejected (read-only mode) and must not
 		// destroy the on-disk newer ledger.
@@ -638,7 +646,29 @@ suite('AutomationService', () => {
 
 		// The onDidChangeValue refresh must NOT clear our observables to
 		// empty. We keep displaying what we last knew about.
-		assert.strictEqual(service.automations.get().length, 1);
+		assert.deepStrictEqual({
+			automationCount: service.automations.get().length,
+			catalogueState: service.catalogueState.get(),
+		}, {
+			automationCount: 1,
+			catalogueState: 'error',
+		});
+	});
+
+	test('refreshFromStorage reports malformed storage after a newer valid revision', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+
+		storage.store('chat.automations.ledger', '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual({
+			automationCount: service.automations.get().length,
+			catalogueState: service.catalogueState.get(),
+		}, {
+			automationCount: 1,
+			catalogueState: 'error',
+		});
 	});
 
 	test('persist bumps the revision counter on every write', async () => {

@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAutomation, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationService } from './automationService.js';
@@ -40,6 +40,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -49,6 +50,29 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		super();
 		this.legacyStore = this._register(instantiationService.createInstance(AutomationService));
 		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
+		this.catalogueState = derived(this, reader => {
+			this.providersChanged.read(reader);
+			const providerStores = this.getProviderStores();
+			const legacyState = this.legacyStore.catalogueState.read(reader);
+			if (providerStores.length === 0 && legacyState === 'ready' && this.legacyStore.automations.read(reader).length === 0) {
+				return 'loading';
+			}
+			if (legacyState === 'error') {
+				return 'error';
+			}
+
+			let state = legacyState;
+			for (const entry of providerStores) {
+				const storeState = entry.store.catalogueState.read(reader);
+				if (storeState === 'error') {
+					return 'error';
+				}
+				if (storeState === 'loading') {
+					state = 'loading';
+				}
+			}
+			return state;
+		});
 		this.automations = derived(this, reader => {
 			this.providersChanged.read(reader);
 			return distinctById(
@@ -202,11 +226,14 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.migrationPromise;
 	}
 
-	private getStores(): IAutomationStoreEntry[] {
-		const providerStores = this.sessionsProvidersService.getProviders()
+	private getProviderStores(): IAutomationStoreEntry[] {
+		return this.sessionsProvidersService.getProviders()
 			.filter(provider => provider.automations)
 			.map(provider => ({ providerId: provider.id, store: provider.automations! }));
-		return [...providerStores, { providerId: undefined, store: this.legacyStore }];
+	}
+
+	private getStores(): IAutomationStoreEntry[] {
+		return [...this.getProviderStores(), { providerId: undefined, store: this.legacyStore }];
 	}
 
 	private getCreationStore(options: ICreateAutomationOptions): ISessionsProviderAutomations {

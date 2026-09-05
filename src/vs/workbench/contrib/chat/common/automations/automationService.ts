@@ -12,6 +12,8 @@ import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomatio
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
+export type AutomationCatalogueState = 'loading' | 'ready' | 'error';
+
 /** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
 export type AutomationMutationGuard = () => void;
 
@@ -134,6 +136,9 @@ export interface IAutomationRunClaim {
  * cross-window propagation, persistence, and observables consistent.
  */
 export interface IAutomationStore {
+	/** Whether the complete Automation catalogue is available for presentation. */
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
+
 	/** All defined automations, newest first. */
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 
