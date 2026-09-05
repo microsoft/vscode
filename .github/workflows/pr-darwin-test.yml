@@ -231,6 +231,10 @@ jobs:
         run: ps -ef
         continue-on-error: true
 
+      - name: Start Docker for Dev Container smoke tests
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        run: bash test/smoke/scripts/ensure-docker.sh
+
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
