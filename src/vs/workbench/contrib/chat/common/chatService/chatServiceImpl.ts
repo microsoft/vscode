@@ -1110,8 +1110,11 @@ export class ChatService extends Disposable implements IChatService {
 					ensureCancellationTracking();
 				}
 
-				// Process only new progress items
-				if (lastRequest && progressArray.length > lastProgressLength) {
+				// Process only new progress items. Guard against a contributed session's
+				// progressObs emitting further items after its response has already been
+				// completed (e.g. progress and completion delivered across separate ticks):
+				// acceptResponseProgress throws when the response is complete.
+				if (lastRequest && lastRequest.response && !lastRequest.response.isComplete && progressArray.length > lastProgressLength) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
