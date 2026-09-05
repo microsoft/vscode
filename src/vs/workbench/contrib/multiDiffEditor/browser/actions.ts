@@ -82,10 +82,14 @@ export class GoToFileAction extends Action2 {
 }
 
 export class OpenMultiDiffEditorLayoutDebugAction extends Action2 {
+
+	static readonly ID = 'multiDiffEditor.openLayoutDebug';
+	static readonly TITLE = localize2('openMultiDiffEditorLayoutDebug', 'Open Multi Diff Editor Layout Debug State');
+
 	constructor() {
 		super({
-			id: 'multiDiffEditor.openLayoutDebug',
-			title: localize2('openMultiDiffEditorLayoutDebug', 'Open Multi Diff Editor Layout Debug State'),
+			id: OpenMultiDiffEditorLayoutDebugAction.ID,
+			title: OpenMultiDiffEditorLayoutDebugAction.TITLE,
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), EditorContextKeys.inMultiDiffEditor),
 			f1: true,

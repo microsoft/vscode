@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
-import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
@@ -266,8 +266,8 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeSessionInputPillStats(this._session.read(reader), changesStatsCache, reader);
 		});
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+		const pillsEnabled = constObservable(true);
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
@@ -280,9 +280,8 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined
-			|| (turnStatusPillsEnabled.read(reader) && !this._isSubagentChat.read(reader)));
-		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled, constObservable(true)));
+		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
+		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const gitHubInfo = derived(this, reader => {
 			const session = this._session.read(reader);
 			const workspace = session?.workspace.read(reader);
@@ -300,7 +299,7 @@ export class SessionChatInputToolbar extends Disposable {
 			const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
 			return { ref, issue: reference.object.issue.read(reader) };
 		}));
-		const issuesActive = derived(this, reader => pillsEnabled.read(reader) && visibility.isVisible(SessionChatPillKind.Issues, reader));
+		const issuesActive = derived(this, reader => visibility.isVisible(SessionChatPillKind.Issues, reader));
 		this._register(autorun(reader => {
 			if (!issuesActive.read(reader)) {
 				return;
@@ -358,7 +357,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
-			enabled: pillsEnabled,
+			enabled: pillsVisible,
 			sources: constObservable(sources.sources),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,

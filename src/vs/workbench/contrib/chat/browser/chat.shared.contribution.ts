@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
@@ -148,12 +149,14 @@ import './voiceInputMode/voiceInputMode.js';
 import { ChatVoiceInputModeAction, ChatVoiceInputModeToggleListenAction, registerVoiceInputModeSimulateActions } from './voiceInputMode/voiceInputModeActionViewItem.js';
 
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
 
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
 import './aiCustomization/aiCustomizationItemsModel.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';
+import { CustomizationMigrationCategoryId } from './aiCustomization/customizationMigrationCategories.js';
 import './attachments/chatAttachmentModel.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from './attachments/chatAttachmentWidgetRegistry.js';
@@ -262,6 +265,18 @@ jsonContributionRegistry.registerSchema(HOOK_SCHEMA_URI, hookFileSchema);
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const migrateLocationSettingsLink = createMarkdownCommandLink({
+	id: AICustomizationManagementCommands.OpenEditor,
+	text: nls.localize('chat.locations.migrate', "Migrate Location Settings"),
+	tooltip: nls.localize('chat.locations.migrate.tooltip', "Open Migrate Location Settings"),
+	arguments: [{ migration: true, migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations }],
+});
+const migratePromptFilesLink = createMarkdownCommandLink({
+	id: AICustomizationManagementCommands.OpenEditor,
+	text: nls.localize('chat.promptFiles.migrate', "Migrate Prompt Files"),
+	tooltip: nls.localize('chat.promptFiles.migrate.tooltip', "Open Migrate Prompt Files"),
+	arguments: [{ migration: true, migrationCategory: CustomizationMigrationCategoryId.PromptFiles }],
+});
 configurationRegistry.registerConfiguration({
 	id: 'chatSidebar',
 	title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
@@ -467,11 +482,11 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
-		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
+		[ChatConfiguration.CustomizationEntryPoints]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available and, when supported, a No workspace option."),
+			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -952,11 +967,6 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			default: 10000,
 		},
-		[ChatConfiguration.PasteGitHubLinksAsReferences]: {
-			markdownDescription: nls.localize('chat.pasteGitHubLinksAsReferences', "Controls whether pasted GitHub issue and pull request URLs are shown as compact clickable references in the chat input."),
-			type: 'boolean',
-			default: true,
-		},
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
@@ -1051,37 +1061,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
-		},
-		[ChatConfiguration.TurnStatusPills]: {
-			anyOf: [
-				{
-					type: 'boolean',
-				},
-				{
-					type: 'object',
-					properties: {
-						changes: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
-						},
-						preview: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
-						},
-						browser: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.browser', "Show a pill for browser activity in the turn."),
-						},
-					},
-					additionalProperties: false,
-					deprecationMessage: nls.localize('chat.turnStatusPills.objectDeprecated', "The per-pill object form is deprecated. Use a boolean value instead."),
-				},
-			],
-			markdownDescription: nls.localize('chat.turnStatusPills', "Controls whether agent status pills are shown above the chat input and inside completed responses. Only applies to agent sessions."),
-			default: true,
 		},
 		[mcpAccessConfig]: {
 			type: 'string',
@@ -1961,6 +1940,8 @@ configurationRegistry.registerConfiguration({
 			default: {
 				...DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
+			markdownDeprecationMessage: nls.localize('chat.instructions.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move instructions into supported locations.", migrateLocationSettingsLink),
+			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
@@ -1993,6 +1974,8 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
 			},
+			markdownDeprecationMessage: nls.localize('chat.reusablePrompts.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to convert prompt files into skills.", migratePromptFilesLink),
+			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			propertyNames: {
@@ -2026,7 +2009,8 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			deprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting is deprecated and will be removed in future releases. Chat modes are now called custom agents and are located in `.github/agents`"),
+			markdownDeprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Chat modes are now called custom agents and are located in `.github/agents`. Use {0} in the Agent Customizations editor to move them into supported locations.", migrateLocationSettingsLink),
+			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
 			restricted: true,
@@ -2058,6 +2042,8 @@ configurationRegistry.registerConfiguration({
 				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
 				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: true,
 			},
+			markdownDeprecationMessage: nls.localize('chat.agents.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move agents into supported locations.", migrateLocationSettingsLink),
+			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
@@ -2164,6 +2150,8 @@ configurationRegistry.registerConfiguration({
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
+			markdownDeprecationMessage: nls.localize('chat.agentSkillsLocations.deprecated', "This setting and the Local agent harness will be removed in a future release. Use {0} in the Agent Customizations editor to move skills into supported locations.", migrateLocationSettingsLink),
+			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,

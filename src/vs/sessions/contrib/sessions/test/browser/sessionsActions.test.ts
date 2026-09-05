@@ -13,7 +13,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -26,6 +25,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
 import { createTestSession } from './sessionsListTestUtils.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 suite('Sessions - Actions', () => {
 
@@ -136,7 +136,7 @@ suite('Sessions - Actions', () => {
 			let focusedSessionId: string | undefined;
 
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.ConsolidatedRemoteWorkspaces]: consolidatedRemoteWorkspaces,
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: consolidatedRemoteWorkspaces,
 			}));
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override isQuickChatTargetAvailable(): boolean {
