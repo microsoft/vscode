@@ -59,7 +59,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
-import { IChatModel, IChatModelInputState, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatRequestModel, IChatResponseModel, logChangesToStateModel } from '../../common/model/chatModel.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
@@ -215,6 +215,24 @@ export function shouldUnlockChatPetRequestRevision(isEditing: boolean, isUserQue
 
 export function shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery: boolean, queue: ChatRequestQueueKind | undefined): boolean {
 	return isUserQuery && queue !== undefined;
+}
+
+/**
+ * Clears the widgets that a request pushed into the input part (question carousel, plan review) for
+ * every request that is no longer rendered in the transcript.
+ *
+ * Those widgets are normally cleaned up by the list renderer when the owning response renders again.
+ * Restoring a checkpoint hides the undone requests instead, so without this their widgets would be
+ * left orphaned above the input box. A disablement that carries an undo stop only hides part of the
+ * response, so the request keeps rendering and its widgets are left alone.
+ */
+export function clearInputWidgetsForHiddenRequests(input: Pick<ChatInputPart, 'clearQuestionCarousel' | 'clearPlanReview'> | undefined, requests: readonly IChatRequestModel[]): void {
+	for (const request of requests) {
+		if (request.shouldBeRemovedOnSend && !request.shouldBeRemovedOnSend.afterUndoStop) {
+			input?.clearQuestionCarousel(request.id);
+			input?.clearPlanReview(request.id);
+		}
+	}
 }
 
 type ChatHandoffClickEvent = {
@@ -2868,6 +2886,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				this.chatSuggestNextWidget.hide();
 				this._sessionIsEmptyContextKey.set((this.viewModel?.model.getRequests().length ?? 0) === 0);
+			}
+			// Requests undone by a checkpoint restore stop rendering, so clean up what they left behind
+			if (e.kind === 'setHidden') {
+				clearInputWidgetsForHiddenRequests(this.inputPartDisposable.value, model.getRequests());
 			}
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {

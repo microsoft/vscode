@@ -15,10 +15,11 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, clearInputWidgetsForHiddenRequests, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -301,6 +302,25 @@ suite('ChatWidget', () => {
 			undefined,
 			undefined,
 			undefined,
+		]);
+	});
+
+	test('clears input widgets left behind by requests hidden from the transcript', () => {
+		const requests = [
+			upcastPartial<IChatRequestModel>({ id: 'kept', shouldBeRemovedOnSend: undefined }),
+			upcastPartial<IChatRequestModel>({ id: 'partiallyUndone', shouldBeRemovedOnSend: { requestId: 'partiallyUndone', afterUndoStop: 'undoStop' } }),
+			upcastPartial<IChatRequestModel>({ id: 'undone', shouldBeRemovedOnSend: { requestId: 'undone' } }),
+		];
+		const cleared: unknown[] = [];
+
+		clearInputWidgetsForHiddenRequests({
+			clearQuestionCarousel: responseId => cleared.push(['clearQuestionCarousel', responseId]),
+			clearPlanReview: responseId => cleared.push(['clearPlanReview', responseId]),
+		}, requests);
+
+		assert.deepStrictEqual(cleared, [
+			['clearQuestionCarousel', 'undone'],
+			['clearPlanReview', 'undone'],
 		]);
 	});
 
