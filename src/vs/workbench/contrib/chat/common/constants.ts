@@ -53,7 +53,7 @@ export enum ChatConfiguration {
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
-	ConsolidatedRemoteWorkspaces = 'chat.agentSessions.consolidatedRemoteWorkspaces',
+	CustomizationEntryPoints = 'chat.agentSessions.customizationEntryPoints',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',

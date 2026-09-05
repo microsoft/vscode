@@ -504,6 +504,47 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the request edit input opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendEditInput = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
+			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
+			const inlineInputPart = dom.append(editContainer, dom.$('.interactive-input-part'));
+			const composerInputPart = dom.append(session, dom.$('.interactive-input-part.editing'));
+			return {
+				inline: dom.append(inlineInputPart, dom.$('.chat-input-container')),
+				composer: dom.append(composerInputPart, dom.$('.chat-input-container')),
+			};
+		};
+		const background = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
+		const plain = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const inlineStyle = dom.getWindow(background.inline).getComputedStyle(background.inline);
+		const composerStyle = dom.getWindow(background.composer).getComputedStyle(background.composer);
+		const plainInlineStyle = dom.getWindow(plain.inline).getComputedStyle(plain.inline);
+		assert.deepStrictEqual({
+			inlineBackgroundColor: inlineStyle.backgroundColor,
+			inlineBackgroundImage: inlineStyle.backgroundImage,
+			composerBackgroundColor: composerStyle.backgroundColor,
+			composerBackgroundImage: composerStyle.backgroundImage,
+			plainInlineBackgroundColor: plainInlineStyle.backgroundColor,
+			plainInlineBackgroundImage: plainInlineStyle.backgroundImage,
+		}, {
+			inlineBackgroundColor: 'rgb(32, 32, 32)',
+			inlineBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			composerBackgroundColor: 'rgb(32, 32, 32)',
+			composerBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			plainInlineBackgroundColor: 'rgba(255, 255, 255, 0.3)',
+			plainInlineBackgroundImage: 'none',
+		});
+	});
+
 	test('applies a borderless translucent side fade to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');

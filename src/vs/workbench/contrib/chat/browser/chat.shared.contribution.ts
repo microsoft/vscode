@@ -482,11 +482,11 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
-		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
+		[ChatConfiguration.CustomizationEntryPoints]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available and, when supported, a No workspace option."),
+			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
