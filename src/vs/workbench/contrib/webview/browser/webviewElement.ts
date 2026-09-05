@@ -636,6 +636,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _serviceWorkerReloadAttempt = 0;
 	private _serviceWorkerLastFailureTime = 0;
 	private readonly _serviceWorkerReloadTimeout = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * Whether service worker registration has terminally failed for the
+	 * current document. Further registration errors are suppressed until
+	 * the webview is reinitialized with a fresh document.
+	 */
+	private _serviceWorkerTerminalFailure = false;
 
 	/**
 	 * Handles a fatal error reported by the webview. Service worker registration
@@ -652,6 +658,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			// scheduled. Otherwise each report would replace the pending
 			// reload and exhaust the retry budget without ever reloading.
 			if (this._serviceWorkerReloadTimeout.value) {
+				return;
+			}
+
+			// Once the reload retry budget is exhausted, the failed document
+			// reports the same registration error for every subsequent
+			// content update. Suppress those duplicates so the error is not
+			// relogged, the notification is not recreated, and onFatalError
+			// does not refire, until the webview is reinitialized.
+			if (this._serviceWorkerTerminalFailure) {
 				return;
 			}
 
@@ -685,6 +700,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				return;
 			}
 
+			this._serviceWorkerTerminalFailure = true;
 			this._logService.error(`Webview(${this.id}): service worker registration failed after ${this._serviceWorkerReloadAttempt} reload retries (${message})`);
 			this._notificationService.prompt(Severity.Error,
 				localize('fatalErrorMessage', "Error loading webview: {0}", message),
@@ -714,6 +730,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	public reinitializeAfterDismount(): void {
+		// A fresh document gets a fresh service worker retry cycle, so clear
+		// any terminal registration failure from the previous document
+		this._serviceWorkerTerminalFailure = false;
+
 		// Preserve messages that were queued while the previous document was
 		// failing to load, so that they are replayed once the new document
 		// becomes ready instead of being dropped
