@@ -2372,7 +2372,7 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const existing = model.getPendingRequests();
+		const existing = [...model.getPendingRequests()];
 		const existingById = new Map(existing.map(request => [request.request.id, request]));
 		const reconciled: IChatPendingRequest[] = requests.map(remote => {
 			const variableData = remote.variableData ?? { variables: [] };
