@@ -41,6 +41,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { OPEN_TURN_METADATA_KEY } from '../../node/chatContributions/interruptedTurn/interruptedTurnContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -820,6 +821,13 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedTurnUsage');
 		return originalGetTurnUsages();
 	};
+	const originalGetMetadata = usageDatabase.getMetadata.bind(usageDatabase);
+	usageDatabase.getMetadata = async key => {
+		if (key === OPEN_TURN_METADATA_KEY) {
+			observed?.push('interruptedTurn');
+		}
+		return originalGetMetadata(key);
+	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const services = new ServiceCollection(
@@ -1524,7 +1532,7 @@ suite('AgentHostChatContributions', () => {
 			{ ...hydrationTurn('built-in-hydration-order'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
 		]);
 
-		assert.deepStrictEqual(observed, ['persistedTurnUsage']);
+		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'interruptedTurn']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
 	});

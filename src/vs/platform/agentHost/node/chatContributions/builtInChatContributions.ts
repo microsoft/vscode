@@ -10,6 +10,7 @@ import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
+import { InterruptedTurnContribution } from './interruptedTurn/interruptedTurnContribution.js';
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
@@ -33,6 +34,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
+	registrations.add(contributions.registerContribution(InterruptedTurnContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
