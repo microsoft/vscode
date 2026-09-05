@@ -9,7 +9,7 @@ import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
+import { ChatResponseResource, IChatProgressResponseContent } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
@@ -106,6 +106,37 @@ function makeImageVariableEntry(overrides: Partial<IImageVariableEntry> & Pick<I
 
 suite('extractImagesFromChatResponse', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves source URIs for referenced images but not generated tool output', async () => {
+		const fileUri = URI.file('/photos/file.png');
+		const providerUri = URI.parse('image-provider://host/photos/provider.png');
+		const generatedUri = ChatResponseResource.createUri(URI.parse('chat-session://test/session'), 'call_1', 0, 'file.png');
+		const tool = makeToolInvocation({
+			pastTenseMessage: { value: 'Viewed image', uris: { '0': providerUri.toJSON() } },
+			resultDetails: { output: { type: 'data', mimeType: 'image/png', base64Data: 'AQID' } } satisfies IToolResultOutputDetailsSerialized,
+		});
+
+		const result = await extractImagesFromChatResponse(makeResponse([tool, makeInlineReference(fileUri)]), fakeReadFile);
+
+		assert.deepStrictEqual(result.images.map(({ uri, sourceUri, source }) => ({ uri: uri.toString(), sourceUri: sourceUri?.toString(), source })), [
+			{ uri: generatedUri.toString(), sourceUri: undefined, source: 'Tool: test-tool' },
+			{ uri: providerUri.toString(), sourceUri: providerUri.toString(), source: 'Tool: test-tool' },
+			{ uri: fileUri.toString(), sourceUri: fileUri.toString(), source: 'File' },
+		]);
+	});
+
+	test('does not treat data or generated resource references as source URIs', async () => {
+		const uris = [
+			URI.from({ scheme: 'data', path: 'image.png' }),
+			ChatResponseResource.createUri(URI.parse('chat-session://test/session'), 'call_1', 0, 'file.png'),
+		];
+		const tool = makeToolInvocation({
+			pastTenseMessage: { value: 'Viewed images', uris: Object.fromEntries(uris.map((uri, index) => [index, uri.toJSON()])) },
+		});
+		const result = await extractImagesFromChatResponse(makeResponse([tool, ...uris.map(uri => makeInlineReference(uri))]), fakeReadFile);
+
+		assert.deepStrictEqual(result.images.map(({ uri, sourceUri }) => ({ uri, sourceUri })), [...uris, ...uris].map(uri => ({ uri, sourceUri: undefined })));
+	});
 
 	test('returns empty images when response has no items', async () => {
 		const response = makeResponse([]);
@@ -445,6 +476,27 @@ suite('extractImagesFromToolInvocationMessages', () => {
 
 suite('extractImagesFromChatRequest', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains attachment source URIs without changing synthetic image identities or labels', () => {
+		const references = [
+			URI.file('/photos/file.png'),
+			URI.parse('image-provider://host/photos/provider.png'),
+			URI.from({ scheme: 'data', path: 'image.png' }),
+			ChatResponseResource.createUri(URI.parse('chat-session://test/session'), 'call_1', 0, 'file.png'),
+			undefined,
+		];
+		const request = makeRequest(references.map((uri, index) => makeImageVariableEntry({
+			id: `img-${index}`,
+			value: new Uint8Array([index]),
+			references: uri ? [{ kind: 'reference', reference: uri }] : undefined,
+		})));
+
+		assert.deepStrictEqual(extractImagesFromChatRequest(request).map(({ uri, sourceUri, source }) => ({ uri: uri.toString(), sourceUri: sourceUri?.toString(), source })), references.map((uri, index) => ({
+			uri: (uri ?? URI.from({ scheme: 'data', path: `img-${index}/cat.png` })).toString(),
+			sourceUri: index < 2 ? uri?.toString() : undefined,
+			source: 'Attachment',
+		})));
+	});
 
 	test('extracts image attachment from Uint8Array', () => {
 		const request = makeRequest([
