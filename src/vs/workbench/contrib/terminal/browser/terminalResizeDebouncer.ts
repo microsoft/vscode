@@ -68,26 +68,36 @@ export class TerminalResizeDebouncer extends Disposable {
 			return;
 		}
 
-		// Resize in an idle callback if the terminal is not visible
+		// Resize in an idle callback if the terminal is not visible.
+		// Only queue callbacks for axes whose dimensions actually changed to avoid
+		// redundant PTY resizes (same reasoning as the visible path below).
 		const win = getWindow(xterm.raw.element);
 		if (win && !this._isVisible()) {
-			if (!this._resizeXJob.value) {
-				this._resizeXJob.value = runWhenWindowIdle(win, async () => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._resizeXCallback(this._latestX);
-					this._resizeXJob.clear();
-				});
+			if (rows !== xterm.raw.rows) {
+				if (!this._resizeYJob.value) {
+					this._resizeYJob.value = runWhenWindowIdle(win, async () => {
+						if (this._store.isDisposed) {
+							return;
+						}
+						this._resizeYCallback(this._latestY);
+						this._resizeYJob.clear();
+					});
+				}
+			} else {
+				this._resizeYJob.clear();
 			}
-			if (!this._resizeYJob.value) {
-				this._resizeYJob.value = runWhenWindowIdle(win, async () => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._resizeYCallback(this._latestY);
-					this._resizeYJob.clear();
-				});
+			if (cols !== xterm.raw.cols) {
+				if (!this._resizeXJob.value) {
+					this._resizeXJob.value = runWhenWindowIdle(win, async () => {
+						if (this._store.isDisposed) {
+							return;
+						}
+						this._resizeXCallback(this._latestX);
+						this._resizeXJob.clear();
+					});
+				}
+			} else {
+				this._resizeXJob.clear();
 			}
 			return;
 		}
