@@ -39,7 +39,7 @@ export class ReplacePattern {
 			this._regExp = strings.createRegExp(this._regExp.source, true, { matchCase: !this._regExp.ignoreCase, wholeWord: false, multiline: this._regExp.multiline, global: false });
 		}
 
-		this._caseOpsRegExp = new RegExp(/([\s\S]*?)((?:\\[uUlL])+?|)(\$[0-9]+)([\s\S]*?)/g);
+		this._caseOpsRegExp = new RegExp(/([\s\S]*?)((?:\\[uUlL])+?|)(\$[0-9]+|\$\{[a-zA-Z_][a-zA-Z0-9_]*\})([\s\S]*?)/g);
 	}
 
 	get hasParameters(): boolean {
@@ -76,6 +76,20 @@ export class ReplacePattern {
 	}
 
 	/**
+	 * Substitutes ${name} patterns in the replace string with the actual named group values.
+	 */
+	private substituteNamedGroups(replaceString: string, match: RegExpExecArray): string {
+		if (!match.groups) {
+			return replaceString;
+		}
+		// Replace ${name} patterns with the actual group values
+		return replaceString.replace(/\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (_, groupName) => {
+			const value = match.groups?.[groupName];
+			return value ?? '';
+		});
+	}
+
+	/**
 	 * replaceWithCaseOperations applies case operations to relevant replacement strings and applies
 	 * the affected $N arguments. It then passes unaffected $N arguments through to string.replace().
 	 *
@@ -85,33 +99,53 @@ export class ReplacePattern {
 	 * \L			=> lower-cases ALL remaining characters in a match.
 	 */
 	private replaceWithCaseOperations(text: string, regex: RegExp, replaceString: string): string {
-		// Short-circuit the common path.
-		if (!/\\[uUlL]/.test(replaceString)) {
-			return text.replace(regex, replaceString);
-		}
-		// Store the values of the search parameters.
+		// Get the first match to extract named groups
 		const firstMatch = regex.exec(text);
 		if (firstMatch === null) {
 			return text.replace(regex, replaceString);
 		}
 
+		// Substitute named groups in the replace string first
+		const substitutedReplaceString = this.substituteNamedGroups(replaceString, firstMatch);
+
+		// Short-circuit the common path (no case operations).
+		if (!/\\[uUlL]/.test(replaceString)) {
+			// Reset regex lastIndex since we consumed a match
+			regex.lastIndex = 0;
+			return text.replace(regex, substitutedReplaceString);
+		}
+
+		// Reset regex lastIndex for case operations processing
+		regex.lastIndex = 0;
+
 		let patMatch: RegExpExecArray | null;
 		let newReplaceString = '';
 		let lastIndex = 0;
 		let lastMatch = '';
-		// For each annotated $N, perform text processing on the parameters and perform the substitution.
+		// For each annotated $N or ${name}, perform text processing on the parameters and perform the substitution.
 		while ((patMatch = this._caseOpsRegExp.exec(replaceString)) !== null) {
 			lastIndex = patMatch.index;
 			const fullMatch = patMatch[0];
 			lastMatch = fullMatch;
 			let caseOps = patMatch[2]; // \u, \l\u, etc.
-			const money = patMatch[3]; // $1, $2, etc.
+			const money = patMatch[3]; // $1, $2, ${name}, etc.
 
 			if (!caseOps) {
 				newReplaceString += fullMatch;
 				continue;
 			}
-			const replacement = firstMatch[parseInt(money.slice(1))];
+
+			// Get replacement value from either numbered group or named group
+			let replacement: string | undefined;
+			if (money.startsWith('${')) {
+				// Named group: ${name}
+				const groupName = money.slice(2, -1);
+				replacement = firstMatch.groups?.[groupName];
+			} else {
+				// Numbered group: $1, $2, etc.
+				replacement = firstMatch[parseInt(money.slice(1))];
+			}
+
 			if (!replacement) {
 				newReplaceString += fullMatch;
 				continue;
@@ -234,6 +268,18 @@ export class ReplacePattern {
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
+					case CharCode.OpenCurlyBrace: {
+						// ${name} - named capture group reference
+						const closeBraceIndex = replaceString.indexOf('}', i + 1);
+						if (closeBraceIndex !== -1) {
+							const groupName = replaceString.substring(i + 1, closeBraceIndex);
+							if (groupName.length > 0 && this.isValidIdentifier(groupName)) {
+								this._hasParameters = true;
+								i = closeBraceIndex;
+							}
+						}
+						break;
+					}
 					default: {
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
 						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
@@ -280,5 +326,24 @@ export class ReplacePattern {
 
 	private between(value: number, from: number, to: number): boolean {
 		return from <= value && value <= to;
+	}
+
+	private isValidIdentifier(str: string): boolean {
+		if (str.length === 0) {
+			return false;
+		}
+		const firstCh = str.charCodeAt(0);
+		const isLetter = (firstCh >= CharCode.a && firstCh <= CharCode.z) || (firstCh >= CharCode.A && firstCh <= CharCode.Z);
+		if (!isLetter && firstCh !== CharCode.Underline) {
+			return false;
+		}
+		for (let i = 1; i < str.length; i++) {
+			const ch = str.charCodeAt(i);
+			const isLetterOrDigit = (ch >= CharCode.a && ch <= CharCode.z) || (ch >= CharCode.A && ch <= CharCode.Z) || (ch >= CharCode.Digit0 && ch <= CharCode.Digit9);
+			if (!isLetterOrDigit && ch !== CharCode.Underline) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
