@@ -1896,6 +1896,10 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 	position: relative;
 	overflow: hidden;
 }
+.chat-debug-wirelog-body > .monaco-scrollable-element,
+.chat-debug-wirelog-body .chat-debug-wirelog-list {
+	height: 100%;
+}
 .chat-debug-wirelog-loadmore {
 	display: flex;
 	align-items: center;

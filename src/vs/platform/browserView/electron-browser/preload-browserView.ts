@@ -535,6 +535,7 @@ class ElementPicker {
 
 		const commentPreviewHitArea = document.createElement('div');
 		commentPreviewHitArea.className = 'comment-preview-hit-area';
+		commentPreviewHitArea.style.setProperty('--comment-preview-hit-padding', `${ElementPicker._COMMENT_PREVIEW_HIT_PADDING}px`);
 		commentPreviewHitArea.style.display = 'none';
 		root.appendChild(commentPreviewHitArea);
 		this._commentPreviewHitArea = commentPreviewHitArea;
@@ -1259,13 +1260,8 @@ class ElementPicker {
 			return;
 		}
 
-		const padding = ElementPicker._COMMENT_PREVIEW_HIT_PADDING;
-		this._commentPreviewHitArea.style.left = `${left - padding}px`;
-		this._commentPreviewHitArea.style.top = `${top - padding}px`;
-		this._commentPreviewHitArea.style.width = `${surface.offsetWidth + padding * 2}px`;
-		this._commentPreviewHitArea.style.height = `${surface.offsetHeight + padding * 2}px`;
-		surface.style.left = `${padding}px`;
-		surface.style.top = `${padding}px`;
+		this._commentPreviewHitArea.style.left = `${left}px`;
+		this._commentPreviewHitArea.style.top = `${top}px`;
 	}
 
 	private _updateHighlight(target: Element | undefined): void {
@@ -1852,11 +1848,16 @@ class ElementPicker {
 			}
 			.comment-preview-hit-area {
 				position: fixed;
+				box-sizing: content-box;
+				width: max-content;
+				height: max-content;
+				margin: calc(-1 * var(--comment-preview-hit-padding)) 0 0 calc(-1 * var(--comment-preview-hit-padding));
+				padding: var(--comment-preview-hit-padding);
 				pointer-events: none;
 				z-index: 4;
 			}
 			.comment-preview {
-				position: absolute;
+				position: relative;
 				align-items: flex-start;
 				gap: 8px;
 				max-height: 96px;

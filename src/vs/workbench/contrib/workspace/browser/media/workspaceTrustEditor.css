@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 .workspace-trust-editor {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr);
 	max-width: 1600px;
 	padding-top: 12px;
 	margin: 0;
 	height: calc(100% - 12px);
+}
+
+.workspace-trust-editor > .monaco-scrollable-element {
+	min-height: 0;
 }
 
 .workspace-trust-editor:focus {

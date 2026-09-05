@@ -610,11 +610,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			...this._notebookOptions.computeDiffWebviewOptions(),
 			fontFamily: this._generateFontFamily()
 		}, undefined) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview.element.classList.add('notebook-diff-webview', 'modified');
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		this._modifiedWebview.createWebview(this.window);
-		this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
-		this._modifiedWebview.element.style.left = `calc(50%)`;
 	}
 	_generateFontFamily(): string {
 		return this.fontInfo.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
@@ -627,11 +626,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			...this._notebookOptions.computeDiffWebviewOptions(),
 			fontFamily: this._generateFontFamily()
 		}, undefined) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview.element.classList.add('notebook-diff-webview', 'original');
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		this._originalWebview.createWebview(this.window);
-		this._originalWebview.element.style.width = `calc(50% - 16px)`;
-		this._originalWebview.element.style.left = `16px`;
 	}
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
@@ -966,16 +964,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.inlineDiffWidget?.hide();
 			this._listViewContainer.style.display = 'block';
 			this._list?.layout(this._dimension.height, this._dimension.width);
-
-			if (this._modifiedWebview) {
-				this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
-				this._modifiedWebview.element.style.left = `calc(50%)`;
-			}
-
-			if (this._originalWebview) {
-				this._originalWebview.element.style.width = `calc(50% - 16px)`;
-				this._originalWebview.element.style.left = `16px`;
-			}
 
 			if (this._webviewTransparentCover) {
 				this._webviewTransparentCover.style.height = `${this._dimension.height}px`;
