@@ -60,6 +60,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../../../github/common/types.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -287,7 +288,7 @@ function createProviderWithConfig(
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
-	configService.setUserConfiguration(ChatConfiguration.ConsolidatedRemoteWorkspaces, opts?.consolidatedRemoteWorkspaces ?? false);
+	configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, opts?.consolidatedRemoteWorkspaces ?? false);
 	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
@@ -526,7 +527,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
 		const legacyActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
 
-		configService.setUserConfiguration(ChatConfiguration.ConsolidatedRemoteWorkspaces, true);
+		configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
 		const unifiedActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
 
 		assert.deepStrictEqual({
