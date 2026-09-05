@@ -15,6 +15,7 @@ import { WebviewEditor } from '../../webviewPanel/browser/webviewEditor.js';
 import { CustomEditorInput } from './customEditorInput.js';
 import { CustomEditorDiffInput, CustomEditorSideBySideDiffInput } from './customEditorDiffInput.js';
 import { CustomEditorService } from './customEditors.js';
+import './customEditorOutline.js';
 
 registerSingleton(ICustomEditorService, CustomEditorService, InstantiationType.Delayed);
 
