@@ -14,6 +14,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
@@ -24,7 +25,7 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
+import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -34,7 +35,9 @@ import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
+import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -55,106 +58,21 @@ export interface IAgentCustomizationScope extends IDisposable {
 	whenResolved(): Promise<void>;
 }
 
-/** Registration-level customization state for an agent harness. */
-export interface IAgentRegistration extends IDisposable {
-	readonly syncProvider: ICustomizationSyncProvider;
-	/** Acquires (or shares) the scope for `roots`. Refcounted: torn down when the last holder disposes. */
-	acquireScope(roots: readonly URI[]): IAgentCustomizationScope;
-	/** Recovers provenance for a synced URI produced by any scope of this agent. */
-	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
-	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
-}
-
-export type IAgentRegistrationOptions = ILocalCustomizationSyncOptions;
-
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
-
-	/** Registers an agent harness and its registration-level customization sync provider. */
-	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration;
-
-	/** Acquires a customization scope for a registered agent. Returns `undefined` when `sessionType` has no registration. */
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined;
+	/** Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails. */
+	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope;
+	/**
+	 * Acquires a shared MCP support scope for a Copilot CLI harness; `undefined` roots mean unknown applicability while an empty array means no workspace.
+	 * Returns `undefined` for harnesses whose MCP delivery is not assessed by the client.
+	 */
+	acquireMcpServerSupportScope(sessionType: string, roots: readonly URI[] | undefined): IAgentHostMcpServerSupportScope | undefined;
+	/** The persisted customization sync provider for `sessionType`. */
+	getSyncProvider(sessionType: string): ICustomizationSyncProvider;
+	/** Recovers provenance for a synced URI produced by any scope. */
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
-}
-
-class AgentRegistration extends Disposable implements IAgentRegistration {
-
-	readonly syncProvider: ICustomizationSyncProvider;
-
-	private readonly _scopes = new Map<string, AgentCustomizationScope>();
-	private _isDisposed = false;
-
-	constructor(
-		private readonly _sessionType: string,
-		private readonly _options: IAgentRegistrationOptions | undefined,
-		private readonly _instantiationService: IInstantiationService,
-		storageService: IStorageService,
-		private readonly _extUri: IExtUri,
-		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
-		private readonly _onDispose: () => void,
-	) {
-		super();
-		this.syncProvider = this._register(new AgentCustomizationSyncProvider(_sessionType, storageService));
-	}
-
-	acquireScope(roots: readonly URI[]): IAgentCustomizationScope {
-		const normalizedRoots = normalizeRoots(roots, this._extUri);
-		const scopeKey = getScopeKey(normalizedRoots, this._extUri);
-		let scope = this._scopes.get(scopeKey);
-		if (!scope) {
-			// Referenced by the teardown callback below, which only runs once the
-			// scope has been constructed.
-			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
-				AgentCustomizationScope,
-				this._sessionType,
-				normalizedRoots,
-				scopeKey,
-				this.syncProvider,
-				this._options,
-				this._getClientTools,
-				() => this._removeScope(scopeKey, createdScope),
-			);
-			scope = createdScope;
-			this._scopes.set(scopeKey, scope);
-		}
-		return scope.acquire();
-	}
-
-	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
-		for (const scope of this._scopes.values()) {
-			const origin = scope.getOrigin(syncedUri);
-			if (origin) {
-				return origin;
-			}
-		}
-		return undefined;
-	}
-
-	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
-		return [...this._scopes.values()].some(scope => scope.isBundledMcpServer(pluginUri, serverName));
-	}
-
-	override dispose(): void {
-		if (this._isDisposed) {
-			return;
-		}
-		this._isDisposed = true;
-		const scopes = [...this._scopes.values()];
-		this._scopes.clear();
-		for (const scope of scopes) {
-			scope.dispose();
-		}
-		super.dispose();
-		this._onDispose();
-	}
-
-	private _removeScope(scopeKey: string, scope: AgentCustomizationScope): void {
-		if (this._scopes.get(scopeKey) === scope) {
-			this._scopes.delete(scopeKey);
-		}
-	}
 }
 
 /** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
@@ -192,7 +110,7 @@ class AgentCustomizationScope extends Disposable {
 		private readonly _roots: readonly URI[],
 		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
-		private readonly _options: IAgentRegistrationOptions | undefined,
+		private readonly _options: ILocalCustomizationSyncOptions | undefined,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
 		private readonly _onDispose: () => void,
 		@IFileService private readonly _fileService: IFileService,
@@ -354,7 +272,9 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
 	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
-	private readonly _registrationsByType = new Map<string, AgentRegistration>();
+	private readonly _scopes = new Map<string, AgentCustomizationScope>();
+	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
+	private readonly _syncProviders = new Map<string, AgentCustomizationSyncProvider>();
 	private _isDisposed = false;
 
 	constructor(
@@ -371,28 +291,68 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._semanticSearchEnabled = observableConfigValue(CopilotSemanticSearchEnabledSettingId, false, configurationService);
 	}
 
-	registerForAgent(sessionType: string, options?: IAgentRegistrationOptions): IAgentRegistration {
-		// Referenced by the teardown callback below, which only runs once the
-		// registration has been constructed.
-		const registration: AgentRegistration = new AgentRegistration(
-			sessionType,
-			options,
-			this._instantiationService,
-			this._storageService,
-			this._uriIdentityService.extUri,
-			type => this._getClientTools(type),
-			() => {
-				if (this._registrationsByType.get(sessionType) === registration) {
-					this._registrationsByType.delete(sessionType);
-				}
-			},
-		);
-		this._registrationsByType.set(sessionType, registration);
-		return registration;
+	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+		const normalizedRoots = normalizeRoots(roots, this._uriIdentityService.extUri);
+		const scopeKey = getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
+		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
+		let scope = this._scopes.get(serviceScopeKey);
+		if (!scope) {
+			// A host that does not share the client's filesystem needs user storage shipped over the wire.
+			const options = isRemoteAgentHostSessionType(sessionType) ? { includeUserStorage: true } : undefined;
+			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
+				AgentCustomizationScope,
+				sessionType,
+				normalizedRoots,
+				scopeKey,
+				this.getSyncProvider(sessionType),
+				options,
+				type => this._getClientTools(type),
+				() => this._removeScope(serviceScopeKey, createdScope),
+			);
+			scope = createdScope;
+			this._scopes.set(serviceScopeKey, scope);
+		}
+		return scope.acquire();
 	}
 
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined {
-		return this._registrationsByType.get(sessionType)?.acquireScope(roots);
+	acquireMcpServerSupportScope(sessionType: string, roots: readonly URI[] | undefined): IAgentHostMcpServerSupportScope | undefined {
+		if (!isCopilotCliSessionType(sessionType)) {
+			return undefined;
+		}
+		const normalizedRoots = roots === undefined ? undefined : normalizeRoots(roots, this._uriIdentityService.extUri);
+		const rootsKey = normalizedRoots === undefined ? undefined : getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
+		const serviceScopeKey = JSON.stringify([sessionType, rootsKey]);
+		let scope = this._mcpServerSupportScopes.get(serviceScopeKey);
+		if (!scope) {
+			const createdScope = this._instantiationService.createInstance(
+				AgentHostMcpServerSupportScope,
+				sessionType,
+				normalizedRoots,
+				() => this._removeMcpServerSupportScope(serviceScopeKey, createdScope),
+			);
+			scope = createdScope;
+			this._mcpServerSupportScopes.set(serviceScopeKey, scope);
+		}
+		return scope.acquire();
+	}
+
+	getSyncProvider(sessionType: string): ICustomizationSyncProvider {
+		let syncProvider = this._syncProviders.get(sessionType);
+		if (!syncProvider) {
+			syncProvider = this._register(new AgentCustomizationSyncProvider(sessionType, this._storageService));
+			this._syncProviders.set(sessionType, syncProvider);
+		}
+		return syncProvider;
+	}
+
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
+		for (const scope of this._scopes.values()) {
+			const origin = scope.getOrigin(syncedUri);
+			if (origin) {
+				return origin;
+			}
+		}
+		return undefined;
 	}
 
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean {
@@ -400,7 +360,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	}
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
-		return [...this._registrationsByType.values()].some(registration => registration.isBundledMcpServer(pluginUri, serverName));
+		return Iterable.some([...this._scopes.values()], scope => scope.isBundledMcpServer(pluginUri, serverName));
 	}
 
 	private _getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
@@ -454,12 +414,29 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			return;
 		}
 		this._isDisposed = true;
-		const registrations = [...this._registrationsByType.values()];
-		this._registrationsByType.clear();
-		for (const registration of registrations) {
-			registration.dispose();
+		const scopes = [...this._scopes.values()];
+		this._scopes.clear();
+		const mcpServerSupportScopes = [...this._mcpServerSupportScopes.values()];
+		this._mcpServerSupportScopes.clear();
+		for (const scope of scopes) {
+			scope.dispose();
+		}
+		for (const scope of mcpServerSupportScopes) {
+			scope.dispose();
 		}
 		super.dispose();
+	}
+
+	private _removeScope(scopeKey: string, scope: AgentCustomizationScope): void {
+		if (this._scopes.get(scopeKey) === scope) {
+			this._scopes.delete(scopeKey);
+		}
+	}
+
+	private _removeMcpServerSupportScope(scopeKey: string, scope: AgentHostMcpServerSupportScope): void {
+		if (this._mcpServerSupportScopes.get(scopeKey) === scope) {
+			this._mcpServerSupportScopes.delete(scopeKey);
+		}
 	}
 }
 
@@ -487,6 +464,10 @@ export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefine
 
 function getScopeKey(roots: readonly URI[], extUri: IExtUri): string {
 	return roots.map(root => extUri.getComparisonKey(root)).join('\n');
+}
+
+function getServiceScopeKey(sessionType: string, scopeKey: string): string {
+	return JSON.stringify([sessionType, scopeKey]);
 }
 
 function createScopeAuthority(sessionType: string, scopeKey: string): string {

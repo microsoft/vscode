@@ -15,11 +15,15 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/bu
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
+	MessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
@@ -30,9 +34,13 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ErrorInfo,
+	type ErrorResponsePart,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -57,26 +65,22 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputRequestPurpose,
-	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
-	type ResponsePart,
+	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type AutomationState, type AutomationRunState,
+	type SessionConfigState,
+	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -103,6 +107,82 @@ export {
 	type Message
 } from './protocol/state.js';
 
+export function getErrorResponsePart(turn: Turn | ActiveTurn | undefined): ErrorResponsePart | undefined {
+	if (!turn) {
+		return undefined;
+	}
+	const part = turn.responseParts.at(-1);
+	return part?.kind === ResponsePartKind.Error ? part : undefined;
+}
+
+export function createErrorResponsePart(error: ErrorInfo, resumable = false): ErrorResponsePart {
+	return {
+		kind: ResponsePartKind.Error,
+		error,
+		...(resumable ? { resumable: true } : {}),
+	};
+}
+
+export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: UsageInfo | undefined): UsageInfo | undefined {
+	if (!previous) {
+		return current;
+	}
+	if (!current) {
+		return previous;
+	}
+
+	const previousMeta = readUsageInfoMeta(previous);
+	const currentMeta = readUsageInfoMeta(current);
+	const cost = sumDefined(previousMeta.cost, currentMeta.cost);
+	const totalNanoAiu = sumDefined(previousMeta.copilotUsage?.totalNanoAiu, currentMeta.copilotUsage?.totalNanoAiu);
+	const turnTokenTotals = mergeTurnTokenTotals(previousMeta.turnTokenTotals, currentMeta.turnTokenTotals);
+	const directTotalNanoAiu = sumDefined(previousMeta.directCopilotUsage?.totalNanoAiu, currentMeta.directCopilotUsage?.totalNanoAiu);
+	const directTurnTokenTotals = mergeTurnTokenTotals(previousMeta.directTurnTokenTotals, currentMeta.directTurnTokenTotals);
+	const meta = previous._meta !== undefined || current._meta !== undefined ? {
+		...previous._meta,
+		...current._meta,
+		...(cost !== undefined ? { cost } : {}),
+		...(previousMeta.copilotUsage || currentMeta.copilotUsage ? {
+			copilotUsage: {
+				...previousMeta.copilotUsage,
+				...currentMeta.copilotUsage,
+				...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+			},
+		} : {}),
+		...(turnTokenTotals ? { turnTokenTotals } : {}),
+		...(directTotalNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: directTotalNanoAiu } } : {}),
+		...(directTurnTokenTotals ? { directTurnTokenTotals } : {}),
+	} : undefined;
+
+	return {
+		...previous,
+		...current,
+		model: current.model ?? previous.model,
+		...(meta ? { _meta: meta } : {}),
+	};
+}
+
+function sumDefined(first: number | undefined, second: number | undefined): number | undefined {
+	return first === undefined ? second : second === undefined ? first : first + second;
+}
+
+function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], current: UsageInfoMeta['turnTokenTotals']): UsageInfoMeta['turnTokenTotals'] {
+	if (!previous && !current) {
+		return undefined;
+	}
+	const totals = new Map<string, ITurnTokenTotal>();
+	for (const total of [...previous ?? [], ...current ?? []]) {
+		const existing = totals.get(total.model);
+		totals.set(total.model, existing ? {
+			model: total.model,
+			inputTokens: existing.inputTokens + total.inputTokens,
+			cachedTokens: existing.cachedTokens + total.cachedTokens,
+			outputTokens: existing.outputTokens + total.outputTokens,
+		} : { ...total });
+	}
+	return [...totals.values()];
+}
+
 /**
  * Well-known keys that may appear on {@link UsageInfo._meta}.
  * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
@@ -126,10 +206,8 @@ export interface UsageInfoMeta {
 		[key: string]: unknown;
 	};
 	/**
-	 * Per-category account quota snapshots reported by the backend on the
-	 * model-call usage event, keyed by quota type (e.g. `chat`,
-	 * `premium_interactions`). Clients MAY use these to keep the account quota
-	 * UI current without a separate quota fetch.
+	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
+	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
 	 */
 	quotaSnapshots?: {
 		[quotaType: string]: {
@@ -141,6 +219,10 @@ export interface UsageInfoMeta {
 			readonly overageAllowedWithExhaustedQuota?: boolean;
 			/** ISO 8601 date when the quota resets, if applicable. */
 			readonly resetDate?: string;
+			/** Whether this snapshot is billed against an AI-credits allocation. */
+			readonly tokenBasedBilling?: boolean;
+			/** Additional-usage budget cap in AI credits, when the backend reports one. */
+			readonly overageEntitlement?: number;
 		} | undefined;
 	};
 	/**
@@ -158,22 +240,75 @@ export interface UsageInfoMeta {
 	 * what a completed turn consumed in aggregate.
 	 */
 	turnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
+	directTurnTokenTotals?: readonly ITurnTokenTotal[];
+	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
+	directCopilotUsage?: {
+		readonly totalNanoAiu?: number;
+	};
 	[key: string]: unknown;
+}
+
+/**
+ * Singleton channel containing the host-owned automation catalogue.
+ */
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
+
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
 }
 
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
 const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
+const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
+const MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY = 'vscode.chat.systemInitiatedLabel';
 
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean } {
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean; readonly systemInitiatedLabel: string | undefined } {
 	const meta = message._meta;
+	const systemInitiatedLabel = meta?.[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY];
+	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
 	return {
-		hiddenFromTranscript: meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true,
+		hiddenFromTranscript,
+		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
+			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
+		systemInitiatedLabel: typeof systemInitiatedLabel === 'string' ? systemInitiatedLabel : undefined,
 	};
 }
 
 export function isMessageHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).hiddenFromTranscript
-		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
+	return readMessageMeta(message).hiddenFromTranscript;
+}
+
+/** Whether only the message's request row is hidden while its response remains visible. */
+export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
+	return readMessageMeta(message).requestHiddenFromTranscript;
+}
+
+export function readMessageSystemInitiatedLabel(message: Message): string | undefined {
+	return readMessageMeta(message).systemInitiatedLabel;
 }
 
 export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
@@ -188,6 +323,60 @@ export function withMessageHiddenFromTranscript(message: Message, hidden: boolea
 			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
 		},
 	};
+}
+
+/** Marks only the message's request row as hidden while preserving its response. */
+export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
+	if (!hidden || isMessageHiddenFromTranscript(message)) {
+		return message;
+	}
+	return {
+		...message,
+		text: message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
+		_meta: {
+			...message._meta,
+			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
+export function withMessageSystemInitiatedLabel(message: Message, label: string): Message {
+	return {
+		...message,
+		_meta: {
+			...message._meta,
+			[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY]: label,
+		},
+	};
+}
+
+/**
+ * Whether `turn` is a hidden system notification the host appended purely to
+ * carry a message (e.g. an Agent Merge status change). It never reaches the
+ * provider and never captures a checkpoint, so it can never own file changes
+ * and must be skipped when resolving a "last turn" for per-turn changes.
+ *
+ * A *visible* system notification (a background-agent completion, an Agent
+ * Merge repair prompt) is a real turn and is deliberately not matched.
+ * A hidden workspace-continuation request is also a real provider turn.
+ */
+export function isHostNoticeTurn(turn: { readonly message: Message }): boolean {
+	return turn.message.origin.kind === MessageKind.SystemNotification
+		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message))
+		&& !isAgentWorkspaceContinuationMessage(turn.message);
+}
+
+/** Returns the last turn id that can own file changes, or `undefined` if there is none. */
+export function lastAttributableTurnId(turns: readonly { readonly id: string; readonly message: Message }[] | undefined): string | undefined {
+	if (!turns) {
+		return undefined;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (!isHostNoticeTurn(turns[i])) {
+			return turns[i].id;
+		}
+	}
+	return undefined;
 }
 
 /** Whole-turn token consumption attributed to a single model. */
@@ -241,6 +430,8 @@ function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefi
 	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
 	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
 	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
+	if (typeof raw['tokenBasedBilling'] === 'boolean') { snapshot.tokenBasedBilling = raw['tokenBasedBilling']; }
+	if (typeof raw['overageEntitlement'] === 'number') { snapshot.overageEntitlement = raw['overageEntitlement']; }
 	return snapshot;
 }
 
@@ -284,6 +475,17 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
 	if (turnTokenTotals) {
 		result.turnTokenTotals = turnTokenTotals;
+	}
+	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
+	if (directTurnTokenTotals) {
+		result.directTurnTokenTotals = directTurnTokenTotals;
+	}
+	const directCopilotUsage = meta['directCopilotUsage'];
+	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
+		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
+		if (typeof totalNanoAiu === 'number') {
+			result.directCopilotUsage = { totalNanoAiu };
+		}
 	}
 	return result;
 }
@@ -437,7 +639,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
@@ -918,6 +1120,14 @@ export function createActiveTurn(id: string, message: Message, startedAt: string
 	};
 }
 
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
+}
+
 export const enum StateComponents {
 	Root,
 	Session,
@@ -925,6 +1135,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -934,6 +1146,8 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -1040,6 +1254,12 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
 }
 
 /**
@@ -1462,11 +1682,10 @@ export interface ISessionGitHubState {
 	readonly initialPullRequestUrls?: readonly string[];
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
-	/**
-	 * URLs of the GitHub issues referenced by the session's user messages, in
-	 * order of first appearance.
-	 */
-	readonly issueUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
 	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
@@ -1521,10 +1740,15 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 		pullRequestUrl,
 		...(gitHubState?.pullRequestUrls ?? [])
 	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
 
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
 	};
 }
 
@@ -1553,17 +1777,6 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 			...(pullRequestUrl ? [pullRequestUrl] : []),
 			...(gitHubState?.initialPullRequestUrls ?? [])
 		])
-	};
-}
-
-/** Returns state that records a user-referenced pull request without changing checkout PR state. */
-export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
-	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
-		pullRequestUrl,
-		...(gitHubState?.associatedPullRequestUrls ?? [])
-	]);
-	return {
-		associatedPullRequestUrls,
 	};
 }
 
@@ -1668,7 +1881,8 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
-		issueUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
 		pullRequestBranchName?: string;
 	} = {};
 
@@ -1691,7 +1905,10 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
-	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
+	if (raw['pullRequestState'] === 'open' || raw['pullRequestState'] === 'closed' || raw['pullRequestState'] === 'merged') {
+		result.pullRequestState = raw['pullRequestState'];
+	}
+	if (typeof raw['pullRequestStateUrl'] === 'string') { result.pullRequestStateUrl = raw['pullRequestStateUrl']; }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
@@ -1736,60 +1953,47 @@ export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, dept
 	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
-export type SessionIdleNotification = 'once' | 'always';
-export type SessionCreatorNotificationState = 'waitingForCompletion' | 'notified';
+export const SESSION_META_CREATED_BY_SESSION_KEY = 'agentHost/createdBySession';
+export const AH_META_CREATED_BY_SESSION_DB_KEY = 'agentHost.createdBySession';
 
-export interface ISessionOrchestration {
-	readonly parentSession: string;
-	readonly creatorSession: string;
-	readonly label?: string;
-	readonly coordinateWithCreator: boolean;
-	readonly notifyOnIdle?: SessionIdleNotification;
-	/** Durable delivery state used to wait for a work outcome and deduplicate replayed statuses. */
-	readonly creatorNotificationState?: SessionCreatorNotificationState;
+export interface ISessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
 }
 
-export const SESSION_META_ORCHESTRATION_KEY = 'agentHost/orchestration';
-export const AH_META_ORCHESTRATION_DB_KEY = 'agentHost.orchestration';
+export function readSessionCreationReference(meta: SessionSummaryMeta | undefined): ISessionCreationReference | undefined {
+	return parseSessionCreationReferenceValue(meta?.[SESSION_META_CREATED_BY_SESSION_KEY]);
+}
 
-export function readSessionOrchestration(meta: SessionSummaryMeta | undefined): ISessionOrchestration | undefined {
-	const value = meta?.[SESSION_META_ORCHESTRATION_KEY];
+function parseSessionCreationReferenceValue(value: unknown): ISessionCreationReference | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}
 	const candidate = value as { [key: string]: unknown };
-	if (typeof candidate.parentSession !== 'string' || typeof candidate.coordinateWithCreator !== 'boolean') {
+	if (typeof candidate.session !== 'string') {
 		return undefined;
 	}
-	const creatorSession = typeof candidate.creatorSession === 'string' ? candidate.creatorSession : candidate.parentSession;
-	const label = typeof candidate.label === 'string' ? candidate.label : undefined;
-	const notifyOnIdle = candidate.notifyOnIdle === 'once' || candidate.notifyOnIdle === 'always' ? candidate.notifyOnIdle : undefined;
-	const creatorNotificationState = candidate.creatorNotificationState === 'waitingForCompletion' || candidate.creatorNotificationState === 'notified'
-		? candidate.creatorNotificationState
-		: undefined;
 	return {
-		parentSession: candidate.parentSession,
-		creatorSession,
-		coordinateWithCreator: candidate.coordinateWithCreator,
-		...(label !== undefined ? { label } : {}),
-		...(notifyOnIdle !== undefined ? { notifyOnIdle } : {}),
-		...(creatorNotificationState !== undefined ? { creatorNotificationState } : {}),
+		session: candidate.session,
+		...(typeof candidate.chat === 'string' ? { chat: candidate.chat } : {}),
+		...(typeof candidate.turnId === 'string' ? { turnId: candidate.turnId } : {}),
 	};
 }
 
-export function parseSessionOrchestration(value: string | undefined): ISessionOrchestration | undefined {
-	if (value === undefined) {
+export function parseSessionCreationReference(value: string | undefined): ISessionCreationReference | undefined {
+	if (!value) {
 		return undefined;
 	}
 	try {
-		return readSessionOrchestration({ [SESSION_META_ORCHESTRATION_KEY]: JSON.parse(value) });
+		return readSessionCreationReference({ [SESSION_META_CREATED_BY_SESSION_KEY]: JSON.parse(value) });
 	} catch {
 		return undefined;
 	}
 }
 
-export function withSessionOrchestration(meta: SessionSummaryMeta | undefined, orchestration: ISessionOrchestration): SessionSummaryMeta {
-	return { ...meta, [SESSION_META_ORCHESTRATION_KEY]: orchestration };
+export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
 /**
@@ -1810,6 +2014,15 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  * on resume) and never persist it themselves.
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/** Session-database marker indicating that retained turns include workspace-transition boundaries. */
+export const AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY = 'agentHost.hasWorkspaceTransitions';
+
+/** Summary metadata mirror of {@link AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}. */
+export const SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY = 'hasWorkspaceTransitions';
+
+/** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
+export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
 
 /**
  * Session-database metadata key recording whether a session is archived. Written by
@@ -1865,6 +2078,22 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether retained turns in this session include host-owned workspace transitions. */
+export function readSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] === true;
+}
+
+/** Returns summary metadata with the workspace-transition history marker updated. */
+export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined, hasTransitions: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (hasTransitions) {
+		next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] = true;
+	} else {
+		delete next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -1929,6 +2158,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
 }
 
 /**

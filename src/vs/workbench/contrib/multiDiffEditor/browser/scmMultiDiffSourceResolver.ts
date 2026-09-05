@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent, ValueWithChangeEventFromObservable, waitForState } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
@@ -143,9 +143,12 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId } = ScmHistoryItemResolver.parseUri(uri)!;
 
-		const repository = this._scmService.getRepository(repositoryId);
-		const historyProvider = repository?.provider.historyProvider.get();
-		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+		const repository = await waitForState(observableFromEvent(this,
+			this._scmService.onDidAddRepository,
+			() => this._scmService.getRepository(repositoryId))
+		);
+		const historyProvider = await waitForState(repository.provider.historyProvider);
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
 
 		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
 			historyItemChanges.map(change => {

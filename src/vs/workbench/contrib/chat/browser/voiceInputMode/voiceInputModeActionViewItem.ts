@@ -73,8 +73,8 @@ async function retargetVoiceToCurrentSession(commandService: ICommandService, co
 	}
 }
 
-/** Number of animated waveform bars shown in the voice segment. */
-const WAVEFORM_BAR_COUNT = 5;
+/** Number of strokes in the 12px `voice-mode-compact` codicon. */
+const WAVEFORM_BAR_COUNT = 4;
 
 /**
  * Height bounds (px) of an audio-reactive waveform bar. These mirror the
@@ -83,7 +83,7 @@ const WAVEFORM_BAR_COUNT = 5;
  * against the 12px waveform box.
  */
 const WAVEFORM_BAR_MIN_HEIGHT = 2;
-const WAVEFORM_BAR_MAX_HEIGHT = 10;
+const WAVEFORM_BAR_MAX_HEIGHT = 12;
 
 /**
  * Menu placeholder action for the segmented voice input mode toggle. The actual UI is
@@ -97,7 +97,7 @@ export class ChatVoiceInputModeAction extends Action2 {
 		super({
 			id: ChatVoiceInputModeAction.ID,
 			title: localize2('voiceInputMode', "Voice Input Mode"),
-			icon: Codicon.mic,
+			icon: Codicon.micCompact,
 			precondition: SegmentedVoiceInputModePillActive,
 			menu: {
 				id: MenuId.ChatExecute,
@@ -630,7 +630,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			// spinner, which the `.preparing` CSS animates.
 			const dictationIcon = dictationBusy
 				? dictationDownloading.read(reader) ? Codicon.micDownloadCompact : Codicon.loadingCompact
-				: isDictating ? Codicon.micFilled : Codicon.mic;
+				: isDictating ? Codicon.micFilled : Codicon.micCompact;
 			this._dictationIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(dictationIcon)}`;
 
 			// Wrap the download glyph in a determinate progress ring during an
@@ -672,7 +672,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._muteCell!.classList.toggle('collapsed', !mutePresent);
 			this._muteCell!.classList.toggle('active', muted);
 			this._muteCell!.setAttribute('aria-pressed', String(muted));
-			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.mic : Codicon.mute)}`;
+			this._muteIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(muted ? Codicon.micCompact : Codicon.micOffCompact)}`;
 			this._updateAriaLabels();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
@@ -706,11 +706,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		// Respect reduced-motion: skip both the rAF audio-reactive loop and the CSS
-		// keyframe fallback, rendering the bars at a flat static height instead.
+		// keyframe fallback, leaving the compact codicon silhouette at rest.
 		if (this.accessibilityService.isMotionReduced()) {
 			for (const bar of this._voiceBarEls) {
 				bar.style.animation = 'none';
-				bar.style.height = `${WAVEFORM_BAR_MIN_HEIGHT}px`;
+				bar.style.removeProperty('height');
 			}
 			return;
 		}

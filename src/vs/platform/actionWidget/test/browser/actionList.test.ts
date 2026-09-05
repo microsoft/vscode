@@ -187,7 +187,7 @@ suite('ActionListWidget', () => {
 			standaloneClass: row?.classList.contains('has-standalone-toggle'),
 			label: row?.querySelector('.title')?.textContent,
 			toggleLabelCount: row?.querySelectorAll('.action-list-item-inline-toggle-label').length,
-			switchChecked: row?.querySelector('.action-list-inline-switch')?.classList.contains('checked'),
+			switchChecked: row?.querySelector('.monaco-switch')?.classList.contains('checked'),
 			title: row?.title,
 		}, {
 			checked: true,
@@ -216,17 +216,17 @@ suite('ActionListWidget', () => {
 
 		widget.focus();
 		widget.acceptSelected();
-		const toggle = widget.domNode.querySelector<HTMLElement>('.action-list-inline-switch');
+		const toggle = widget.domNode.querySelector<HTMLElement>('.monaco-switch');
 
 		assert.deepStrictEqual({
 			changeCount,
 			checked: toggle?.classList.contains('checked'),
-			disabled: toggle?.getAttribute('aria-disabled'),
+			disabled: (toggle as HTMLButtonElement | null)?.disabled,
 			title: toggle?.getAttribute('aria-label'),
 		}, {
 			changeCount: 0,
 			checked: true,
-			disabled: 'true',
+			disabled: true,
 			title: 'Managed by your organization',
 		});
 	});
@@ -357,6 +357,92 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('does not double count a detail row toolbar when computing max width', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+			],
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.getBoundingClientRect = () => new mainWindow.DOMRect(0, 0, 240, 48);
+
+		const width = widget.computeMaxWidth(0);
+
+		assert.deepStrictEqual({
+			width,
+			restoredWidth: row.style.width,
+		}, {
+			width: 240,
+			restoredWidth: '',
+		});
+	});
+
+	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('plain'),
+				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
+				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
+			],
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+
+		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const detailRow = rows[1];
+		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
+		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
+		const verticalScrollbar = widget.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
+		const initial = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+		};
+		detailRow.classList.add('focused');
+		const focused = {
+			rowHeight: detailRow.getBoundingClientRect().height,
+			detailTop: detail.getBoundingClientRect().top,
+			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
+			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
+		};
+
+		assert.deepStrictEqual({
+			rows: rows.slice(0, 2).map(row => ({
+				hasDetail: row.classList.contains('has-detail'),
+				hasToolbar: row.classList.contains('has-toolbar'),
+			})),
+			initial,
+			focused,
+		}, {
+			rows: [
+				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: true, hasToolbar: true },
+			],
+			initial: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'hidden',
+				toolbarMarginRight: '10px',
+			},
+			focused: {
+				rowHeight: 48,
+				detailTop: initial.detailTop,
+				toolbarDisplay: 'flex',
+				toolbarVisibility: 'visible',
+				toolbarMarginRight: '10px',
+				clearsScrollbar: true,
+			},
+		});
+	});
+
 	test('keeps titled separator above first filtered match', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -387,6 +473,38 @@ suite('ActionListWidget', () => {
 		typeFilter(widget, 'beta');
 
 		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
+	});
+
+	test('excludes separators from accessible list positions after filtering', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('selected'),
+				separator(),
+				action('alpha'),
+				action('beta'),
+			],
+		});
+		const getAriaPositions = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row[role="option"]')).map(row => ({
+			label: row.getAttribute('aria-label'),
+			setSize: row.getAttribute('aria-setsize'),
+			posInSet: row.getAttribute('aria-posinset'),
+		}));
+
+		const initial = getAriaPositions();
+		typeFilter(widget, 'a');
+		const filtered = getAriaPositions();
+
+		assert.deepStrictEqual({ initial, filtered }, {
+			initial: [
+				{ label: 'selected', setSize: '3', posInSet: '1' },
+				{ label: 'alpha', setSize: '3', posInSet: '2' },
+				{ label: 'beta', setSize: '3', posInSet: '3' },
+			],
+			filtered: [
+				{ label: 'alpha', setSize: '2', posInSet: '1' },
+				{ label: 'beta', setSize: '2', posInSet: '2' },
+			],
+		});
 	});
 
 	test('leaves room for action widget chrome when clamping dynamic height', () => withWindowInnerHeight(300, () => {
@@ -436,6 +554,97 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(
 			{ dismissed, layoutRequested, headerCleared: widget.headerContainer === undefined, headerStillInDom: header!.isConnected },
 			{ dismissed: true, layoutRequested: true, headerCleared: true, headerStillInDom: false },
+		);
+	});
+
+	test('an expandable row names the panel it opens, and stops when it closes', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('auto'), hover: { content: 'panel', expandable: true } }, action('plain')],
+			listOptions: { reserveSubmenuSpace: 'always' },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action'));
+		const state = () => rows().map(row => ({
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		// The chevron is what opens the panel; ArrowRight does the same from the keyboard.
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const opened = state();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+		const panelRole = panel?.getAttribute('role');
+		const panelLabel = panel?.getAttribute('aria-label');
+		// Escape inside the panel is the way back to the row.
+		panel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		const closed = state();
+
+		assert.deepStrictEqual(
+			{ initial, opened, closed, panelRole, panelLabel },
+			{
+				// The plain row opens nothing, so it says nothing.
+				initial: [{ haspopup: 'dialog', expanded: 'false' }, { haspopup: null, expanded: null }],
+				opened: [{ haspopup: 'dialog', expanded: 'true' }, { haspopup: null, expanded: null }],
+				closed: [{ haspopup: 'dialog', expanded: 'false' }, { haspopup: null, expanded: null }],
+				panelRole: 'dialog',
+				panelLabel: 'auto',
+			},
+		);
+	});
+
+	test('the submenu gutter follows the items the list currently holds', () => {
+		const expandable = (id: string): IActionListItem<ITestActionItem> => ({ ...action(id), hover: { content: 'panel', expandable: true } });
+		const gutters = (widget: ActionListWidget<ITestActionItem>) =>
+			Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row .action-list-submenu-indicator'))
+				.map(el => el.style.display === 'none' ? 'none' : (el.style.visibility || 'shown'));
+
+		const widget = createActionListWidget(disposables, { items: [expandable('one'), action('two')] });
+		const always = createActionListWidget(disposables, {
+			items: [expandable('one'), action('two')],
+			listOptions: { reserveSubmenuSpace: 'always' },
+		});
+
+		const before = { byDefault: gutters(widget), always: gutters(always) };
+		// The chevrons go away, so by default the gutter goes with them.
+		widget.updateItems([action('one'), action('two')]);
+		always.updateItems([action('one'), action('two')]);
+
+		assert.deepStrictEqual(
+			{ before, afterLosingChevrons: { byDefault: gutters(widget), always: gutters(always) } },
+			{
+				before: { byDefault: ['shown', 'hidden'], always: ['shown', 'hidden'] },
+				afterLosingChevrons: { byDefault: ['none', 'none'], always: ['hidden', 'hidden'] },
+			},
+		);
+	});
+
+	test('rebuilding the items in place re-measures only when the row count changed', () => {
+		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
+		const layouts: string[] = [];
+		disposables.add(widget.onDidRequestLayout(() => { layouts.push(getVisibleRowText(widget).join(',')); }));
+
+		widget.updateItems([action('one'), action('two-renamed')]);
+		const afterSameCount = layouts.length;
+		widget.updateItems([action('one'), action('two-renamed'), action('three')]);
+
+		assert.deepStrictEqual(
+			{ afterSameCount, afterGrowing: layouts, rows: getVisibleRowText(widget) },
+			{ afterSameCount: 0, afterGrowing: ['one,two-renamed,three'], rows: ['one', 'two-renamed', 'three'] },
+		);
+	});
+
+	test('rebuilding the items in place leaves focus alone when the list does not have it', () => {
+		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
+		const outside = document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add({ dispose: () => outside.remove() });
+		outside.focus();
+
+		widget.updateItems([action('one'), action('two'), action('three')]);
+
+		assert.deepStrictEqual(
+			{ focusStayedOutside: document.activeElement === outside, rows: getVisibleRowText(widget) },
+			{ focusStayedOutside: true, rows: ['one', 'two', 'three'] },
 		);
 	});
 

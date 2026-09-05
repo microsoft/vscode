@@ -18,10 +18,11 @@ import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestPars
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
+import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ElicitationState, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatQuestion, IChatService, IChatSystemNotificationPart } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
@@ -34,9 +35,11 @@ import { SessionType } from '../../../../contrib/chat/common/chatSessionsService
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
+import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
+import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -52,14 +55,21 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
+		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
+		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
 	readonly responseComplete?: boolean;
+	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
+	readonly isSystemInitiated?: boolean;
+	/** Whether the request half of the turn stays out of the transcript. */
+	readonly requestHidden?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
 	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
@@ -100,9 +110,13 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
 	readonly linkPresentationService?: ILinkPresentationService;
+	/** Registers fixture-specific services after the shared chat service graph. */
+	readonly additionalServices?: (registration: ServiceRegistration) => void;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
+	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
+	readonly persistentContentHeight?: number;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -159,6 +173,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			reg.definePartialInstance(ITerminalChatService, {
+				getTerminalInstanceByExecutionId: () => undefined,
+			});
 			if (options.linkPresentationService) {
 				reg.defineInstance(ILinkPresentationService, options.linkPresentationService);
 			}
@@ -212,6 +229,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					override async assess(): Promise<IToolRiskAssessment | undefined> { return new Promise(() => { }); }
 				}());
 			}
+			options.additionalServices?.(reg);
 		},
 	});
 
@@ -245,7 +263,29 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	chatService.addSession(model);
 
 	for (const message of options.messages) {
-		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
+		const request = model.addRequest(
+			makeUserMessage(message.user),
+			{ variables: [] },
+			0,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			message.isSystemInitiated,
+			undefined,
+			undefined,
+			undefined,
+			message.timestamp,
+			undefined,
+			undefined,
+			message.requestHidden,
+		);
 		const response = request.response!;
 		if (message.fileChanges) {
 			const fileEdits = message.fileChanges.map(makeFileDiff);
@@ -257,6 +297,15 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'progress') {
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
+			} else if (part.kind === 'systemNotification') {
+				model.acceptResponseProgress(request, part.notification);
+			} else if (part.kind === 'questionCarousel') {
+				model.acceptResponseProgress(request, {
+					kind: 'questionCarousel',
+					questions: part.questions,
+					allowSkip: part.allowSkip ?? true,
+					message: part.message,
+				});
 			} else if (part.kind === 'elicitation') {
 				const elicitation = new ChatElicitationRequestPart(
 					part.title,
@@ -328,6 +377,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
+	if (options.persistentContentHeight) {
+		// Same switch `ChatWidget.render` flips.
+		session.classList.add(chatFloatingPersistentContentClass);
+		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
+	}
 	auxContent.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
@@ -369,6 +423,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
+		override readonly input = inputPart;
 		override readonly inputPart = inputPart;
 	}();
 	widgetHolder.current = fixtureWidget;
@@ -397,6 +452,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				listBackground,
 			},
 			location: ChatAgentLocation.Chat,
+			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
@@ -820,6 +876,70 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 	}));
 }
 
+async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureContext): Promise<void> {
+	const targetWindow = dom.getWindow(context.container);
+	const instantiationService = createEditorServices(context.disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: registerChatFixtureServices,
+	});
+	context.container.style.width = '720px';
+	context.container.style.height = '600px';
+	const movementBounds = dom.append(context.container, dom.$('.disabled-pet-movement-bounds'));
+	const petHost = dom.append(movementBounds, dom.$('.disabled-pet-host'));
+	const dragBounds = dom.append(petHost, dom.$('.disabled-pet-drag-bounds'));
+	const trigger = dom.append(dragBounds, dom.$('.disabled-pet-resize-observer-trigger'));
+	movementBounds.style.width = '100%';
+	movementBounds.style.height = '200px';
+	petHost.style.width = '100%';
+	petHost.style.height = '100px';
+	dragBounds.style.width = '100%';
+	dragBounds.style.height = '100%';
+	trigger.style.width = '10px';
+	trigger.style.height = '10px';
+	context.disposableStore.add(instantiationService.createInstance(
+		ChatPetWidget,
+		{
+			parent: petHost,
+			dragBounds,
+			movementBounds,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: Event.None,
+			getPlatformTop: () => undefined,
+			onDidChangePlatform: Event.None,
+		},
+		undefined,
+	));
+
+	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
+	status.role = 'status';
+	status.textContent = 'Running disabled pet observer probe';
+	status.dataset['warningCount'] = '0';
+	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
+		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
+			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
+			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+		}
+	}));
+
+	let triggerCallbacks = 0;
+	const triggerObserver = context.disposableStore.add(new dom.DisposableResizeObserver('DisabledPetFixture.deepTrigger', () => {
+		triggerCallbacks++;
+		if (triggerCallbacks === 2) {
+			dragBounds.style.height = `${dragBounds.getBoundingClientRect().height + 1}px`;
+		}
+	}, targetWindow));
+	context.disposableStore.add(triggerObserver.observe(trigger));
+
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	await nextFrame();
+	trigger.style.width = '11px';
+	await nextFrame();
+	await nextFrame();
+	status.textContent = 'Completed disabled pet observer probe';
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
@@ -844,6 +964,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		labels: { kind: 'animated' },
 		virtualTime: { enabled: false },
 		render: context => renderResizeObserverLoopHarness(context, 'none'),
+	}),
+	DisabledPetResizeObserverProbe: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderDisabledPetResizeObserverProbe,
 	}),
 	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({

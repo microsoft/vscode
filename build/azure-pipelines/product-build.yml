@@ -43,6 +43,10 @@ parameters:
     values:
       - Product
       - CI
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    displayName: "Build Title Prefix"
+    type: string
+    default: none
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
@@ -135,6 +139,11 @@ parameters:
     default: auto
 
 variables:
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_BUILD_TITLE_PREFIX }}
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
@@ -217,7 +226,7 @@ variables:
   - name: ARTIFACT_PREFIX
     value: ''
 
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+name: "$(VSCODE_BUILD_TITLE_PREFIX)$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
 resources:
   repositories:

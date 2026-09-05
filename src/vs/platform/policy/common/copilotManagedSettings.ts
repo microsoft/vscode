@@ -16,6 +16,11 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
+/** Whether a raw managed-settings document contains at least one top-level setting. */
+export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
+	return data !== undefined && Object.keys(data).length > 0;
+}
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -72,6 +77,9 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 
+/** Managed-settings key that permits explicitly bypassing the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
+
 /**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
@@ -79,6 +87,7 @@ export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -174,16 +183,24 @@ export function strictPluginOnlyCustomizationValue(policyData: IPolicyData): Man
 	}
 }
 
+export type IForceRemoteSettingsRefreshResolution =
+	| { readonly effective: true; readonly source: ManagedSettingsChannel }
+	| { readonly effective: false };
+
 /**
- * Resolves the startup refresh control with native MDM taking precedence over the cached server
- * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ * Resolve the fail-closed startup refresh control across every delivery channel, reusing
+ * {@link pickManagedSettings} precedence rather than re-implementing it. A non-boolean value is
+ * treated as absent, so a malformed high-precedence value cannot mask a well-formed lower one.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
-	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
-	if (typeof nativeValue === 'boolean') {
-		return nativeValue;
+export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IForceRemoteSettingsRefreshResolution {
+	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
+	const contribution = resolution?.contributions.find(candidate => typeof candidate.value === 'boolean');
+	if (!contribution) {
+		return { effective: false };
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	return contribution.value === true
+		? { effective: true, source: contribution.channel }
+		: { effective: false };
 }
 
 export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
@@ -229,6 +246,11 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 	return managedModelValueCallback;
 }
 
+/** Forces a boolean setting off while the user is governed by managed settings. */
+export function managedSettingsDisabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.managedSettingsActive === true ? false : undefined;
+}
+
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
@@ -239,9 +261,7 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
-		? false
-		: undefined;
+	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
@@ -723,6 +743,7 @@ export interface IFileManagedSettingsService {
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
@@ -731,4 +752,6 @@ export class NullFileManagedSettingsService implements IFileManagedSettingsServi
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
+
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }

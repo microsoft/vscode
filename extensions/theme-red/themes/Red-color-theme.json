@@ -66,11 +66,9 @@
 		"extensionButton.prominentHoverBackground": "#cc333388",
 		// modern ui
 		"surface.border": "#00000000",
-		// "agentsBottomPanel.border": "#00000000",
-		// "agentsCard.border": "#00000000",
-		"modernActivityBar.background": "#00000000",
-		"modernActivityBar.activeBackground": "#580000",
-		"modernActivityBar.hoverBackground": "#58000087",
+		"modernActivityBar.background": "#330000",
+		"modernActivityBarItem.activeBackground": "#770000",
+		"modernActivityBarItem.hoverBackground": "#58000087",
 	},
 	"tokenColors": [
 		{

@@ -7,7 +7,7 @@ import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
 import { isString } from '../../../../base/common/types.js';
 import { IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { normalizeManagedSettings, StrictPluginOnlyCustomizationSelector } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { hasRawManagedSettings, normalizeManagedSettings, StrictPluginOnlyCustomizationSelector } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
  * Client identity VS Code reports to the managed settings service. It names this codebase's own
@@ -40,6 +40,9 @@ export type IManagedMcpServerMatcher =
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		readonly allow?: readonly string[];
+		readonly ask?: readonly string[];
+		readonly deny?: readonly string[];
 		/**
 		 * Legacy location for the default chat model. Retained for deployments authored against
 		 * the original schema; the top-level {@link IManagedSettingsResponse.model} wins when both
@@ -144,5 +147,9 @@ export function parseManagedSettingsCompatibilityError(response: unknown): IMana
  * Exported for unit-testing the shape transformation independently of network I/O.
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	return { managedSettings: normalizeManagedSettings(response as Record<string, unknown>, onWarn) };
+	const managedSettings = normalizeManagedSettings(response as Record<string, unknown>, onWarn);
+	return {
+		managedSettings,
+		...(Object.keys(managedSettings).length === 0 && hasRawManagedSettings(response) ? { managedSettingsActive: true } : {}),
+	};
 }

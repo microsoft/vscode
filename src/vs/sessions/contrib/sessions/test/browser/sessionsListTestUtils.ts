@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -25,6 +26,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -42,7 +44,12 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
+	readonly archived: ISession[] = [];
+	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
+	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
+	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
+	renameChatError: Error | undefined;
 
 	constructor(sessions: ISession[]) {
 		super();
@@ -61,6 +68,22 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.renamed.push({ session, title });
 		if (this.renameError) {
 			throw this.renameError;
+		}
+	}
+
+	override async archiveSession(session: ISession): Promise<void> {
+		this.archived.push(session);
+	}
+
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+		this.deletedChats.push({ session, chatResource });
+		this.deleteChatOptions.push(options);
+	}
+
+	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
+		this.renamedChats.push({ session, chatResource, title });
+		if (this.renameChatError) {
+			throw this.renameChatError;
 		}
 	}
 }
@@ -87,6 +110,10 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const mainChat = new class extends mock<IChat>() {
+		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly status = status;
+	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
@@ -120,7 +147,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(mainChat),
 		capabilities,
 	};
 	return { session, capabilities, status, isArchived };
@@ -135,7 +162,15 @@ export interface IListHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly managementService: TestSessionsManagementService;
 	readonly commandService: TestCommandService;
+	/** Manual sort-key changes applied through the sessions list model service. */
+	readonly sortChanges: ISortChangeRecord[];
 	createContainer(width?: number, height?: number): HTMLElement;
+}
+
+/** A recorded manual reorder applied through the sessions list model service. */
+export interface ISortChangeRecord {
+	readonly set: ReadonlyMap<string, number>;
+	readonly clear: readonly string[];
 }
 
 export interface IListHarnessOptions {
@@ -156,6 +191,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const groups = options.groups ?? [];
 	const memberships = options.memberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const sortChanges: ISortChangeRecord[] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
@@ -170,7 +206,15 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 		}
-		override getStatusIcon() { return Codicon.circleSmallFilled; }
+		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+		}
+		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
+			sortChanges.push({ set: new Map(set), clear: [...clear] });
+		}
+		override getStatusIcon(status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedStateIcon?: ThemeIcon) {
+			return status === SessionStatus.Error ? Codicon.error : completedStateIcon ?? Codicon.circleSmallFilled;
+		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 		override readonly onDidChange = Event.None;
@@ -189,7 +233,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
-		override readonly selectedProviderId = undefined;
+		override readonly selectedHostId = undefined;
+		override readonly selectedHost = undefined;
 	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;
@@ -198,6 +243,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
+		override getProvider() { return undefined; }
 	});
 	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 		override readonly pendingResponseVersion = constObservable(0);
@@ -222,5 +268,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, createContainer };
+	return { store, instantiationService, managementService, commandService, sortChanges, createContainer };
 }

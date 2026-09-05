@@ -9,7 +9,7 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
-import type { Message } from '../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -135,6 +135,29 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			usage   TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 10,
+		sql: `CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 11,
+		// Workspace-transition boundaries are host-owned turn data. Keeping
+		// them as children of `turns` makes every truncate/delete path bound
+		// their lifetime to the provider history they enrich.
+		sql: `CREATE TABLE IF NOT EXISTS turn_workspace_transition (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			transition TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 12,
+		sql: `INSERT OR REPLACE INTO session_metadata (key, value)
+			SELECT '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}', 'true'
+			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -250,12 +273,12 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	private readonly _metadataSequencer = new Sequencer();
-	private readonly _transactionSequencer = new Sequencer();
+	private readonly _mutationSequencer = new Sequencer();
 
 	/**
-	 * Serializes every `turn_usage` access — writes, prunes, the fork remap, and the restore read
-	 * alike. `@vscode/sqlite3` runs in parallelized mode (see {@link _metadataSequencer}), so a
-	 * fire-and-forget `setTurnUsage` submitted before a truncation can otherwise complete *after*
+	 * Serializes turn-child writes, prunes, fork remaps, and restore reads.
+	 * `@vscode/sqlite3` runs in parallelized mode (see {@link _metadataSequencer}), so a
+	 * fire-and-forget child write submitted before a truncation can otherwise complete *after*
 	 * it and resurrect a row the truncation was meant to remove, and a read can otherwise overtake
 	 * a write it was submitted after. Mutations must go through {@link _mutateTurnUsage} rather
 	 * than queueing on this directly, so they are tracked for {@link whenIdle}.
@@ -263,11 +286,60 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _turnUsageSequencer = new Sequencer();
 
 	/**
-	 * Runs a mutation that touches `turn_usage`, tracked for {@link whenIdle}
-	 * and serialized against every other such mutation.
+	 * Queues a mutation on the shared connection. Transaction bodies call
+	 * their statements directly after acquiring this sequencer to avoid
+	 * reentrant acquisition.
+	 */
+	protected _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._mutationSequencer.queue(async () => operation(await this._ensureDb()));
+	}
+
+	private _mutate<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._track(() => this._queueMutation(operation));
+	}
+
+	private _queueTransaction<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._queueMutation(async db => {
+			await dbExec(db, 'BEGIN TRANSACTION');
+			try {
+				const result = await operation(db);
+				await dbExec(db, 'COMMIT');
+				return result;
+			} catch (err) {
+				await dbExec(db, 'ROLLBACK');
+				throw err;
+			}
+		});
+	}
+
+	/**
+	 * Runs a mutation that touches sequenced turn data, tracked for
+	 * {@link whenIdle} and serialized against every other such mutation.
 	 */
 	private _mutateTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
-		return this._track(() => this._turnUsageSequencer.queue(async () => operation(await this._ensureDb())));
+		return this._track(() => this._turnUsageSequencer.queue(() => this._queueMutation(operation)));
+	}
+
+	/**
+	 * Runs an atomic mutation touching metadata and sequenced turn data.
+	 * Always acquire sequencers in metadata, turn-data, mutation order.
+	 */
+	protected _mutateMetadataAndTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(() =>
+			this._turnUsageSequencer.queue(() =>
+				this._queueTransaction(operation)
+			)
+		));
+	}
+
+	private async _deleteWorkspaceTransitionMarkerIfEmpty(db: Database): Promise<void> {
+		await dbRun(
+			db,
+			`DELETE FROM session_metadata
+				WHERE key = ?
+				AND NOT EXISTS (SELECT 1 FROM turn_workspace_transition)`,
+			[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY],
+		);
 	}
 
 	/**
@@ -341,22 +413,21 @@ export class SessionDatabase implements ISessionDatabase {
 	// ---- Turns ----------------------------------------------------------
 
 	createTurn(turnId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
 		});
 	}
 
 	deleteTurn(turnId: string): Promise<void> {
-		return this._mutateTurnUsage(async db => {
-			// File edits and turn usage cascade-delete via their foreign keys.
+		return this._mutateMetadataAndTurnUsage(async db => {
+			// Turn-owned file edits, usage, and workspace transitions cascade-delete.
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
 	setTurnEventId(turnId: string, eventId: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
 			// Only set the event ID if not already set — steering messages
 			// trigger additional user.message events within the same turn,
@@ -436,9 +507,78 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	setTurnDelegation(turnId: string, delegation: string): Promise<void> {
+		return this._mutate(async db => {
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_delegation (turn_id, delegation) VALUES (?, ?)', [turnId, delegation]);
+		});
+	}
+
+	async getTurnDelegations(): Promise<Map<string, string>> {
+		await this.whenIdle();
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT d.turn_id AS turn_id, t.event_id AS event_id, d.delegation AS delegation
+			FROM turn_delegation d LEFT JOIN turns t ON t.id = d.turn_id`,
+			[],
+		);
+		const result = new Map<string, string>();
+		for (const row of rows) {
+			const delegation = row.delegation as string;
+			result.set(row.turn_id as string, delegation);
+			const eventId = row.event_id as string | null;
+			if (eventId) {
+				result.set(eventId, delegation);
+			}
+		}
+		return result;
+	}
+
+	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void> {
+		return this.setWorkspaceConversion(turnId, transition, {});
+	}
+
+	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'INSERT OR REPLACE INTO turn_workspace_transition (turn_id, transition) VALUES (?, ?)', [turnId, transition]);
+			for (const [key, value] of Object.entries({ ...metadata, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: 'true' })) {
+				await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+			}
+		});
+	}
+
+	deleteTurnWorkspaceTransition(turnId: string): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			await dbRun(db, 'DELETE FROM turn_workspace_transition WHERE turn_id = ?', [turnId]);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
+		});
+	}
+
+	async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
+		return this._turnUsageSequencer.queue(() => this._queueMutation(async db => {
+			const rows = await dbAll(
+				db,
+				`SELECT w.turn_id AS turn_id, t.event_id AS event_id, w.transition AS transition
+				FROM turn_workspace_transition w LEFT JOIN turns t ON t.id = w.turn_id`,
+				[],
+			);
+			const result = new Map<string, string>();
+			for (const row of rows) {
+				const transition = row.transition as string;
+				result.set(row.turn_id as string, transition);
+				const eventId = row.event_id as string | null;
+				if (eventId) {
+					result.set(eventId, transition);
+				}
+			}
+			return result;
+		}));
+	}
+
 	setTurnCheckpointRef(turnId: string, ref: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
 			await dbRun(db, 'UPDATE turns SET checkpoint_ref = ? WHERE id = ?', [ref, turnId]);
 		});
@@ -470,40 +610,41 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	truncateFromTurn(turnId: string): Promise<void> {
-		return this._mutateTurnUsage(async db => {
+		return this._mutateMetadataAndTurnUsage(async db => {
 			// Delete the target turn and all turns inserted after it (by rowid order).
-			// File edits and turn usage cascade-delete via their foreign keys.
+			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
 	deleteTurnsAfter(turnId: string): Promise<void> {
-		return this._mutateTurnUsage(async db => {
+		return this._mutateMetadataAndTurnUsage(async db => {
 			// Delete all turns inserted after the given turn (by rowid order),
-			// keeping the given turn itself. File edits and turn usage
-			// cascade-delete via their foreign keys.
+			// keeping the given turn itself. Turn-owned child records cascade-delete.
 			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
 	deleteAllTurns(): Promise<void> {
-		return this._mutateTurnUsage(async db => {
-			// File edits and turn usage cascade-delete via their foreign keys.
+		return this._mutateMetadataAndTurnUsage(async db => {
+			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbExec(db, 'DELETE FROM turns');
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
 	// ---- Local (host-injected) turns ------------------------------------
 
 	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db,
 				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
 				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
@@ -524,21 +665,21 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
-		return this._track(async () => {
+		return this._track(() => {
 			if (turnIds.length === 0) {
-				return;
+				return Promise.resolve();
 			}
-			const db = await this._ensureDb();
-			const placeholders = turnIds.map(() => '?').join(',');
-			await dbRun(db, `DELETE FROM local_turns WHERE turn_id IN (${placeholders})`, [...turnIds]);
+			return this._queueMutation(async db => {
+				const placeholders = turnIds.map(() => '?').join(',');
+				await dbRun(db, `DELETE FROM local_turns WHERE turn_id IN (${placeholders})`, [...turnIds]);
+			});
 		});
 	}
 
 	// ---- File edits -----------------------------------------------------
 
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
-		return this._track(() => this._fileEditSequencer.queue(edit.filePath, async () => {
-			const db = await this._ensureDb();
+		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(async db => {
 			// Ensure the turn exists — lazily insert since the turn record
 			// may not have been created by an explicit createTurn() call.
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
@@ -559,7 +700,7 @@ export class SessionDatabase implements ISessionDatabase {
 					edit.removedLines ?? null,
 				],
 			);
-		}));
+		})));
 	}
 
 	async getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]> {
@@ -676,34 +817,54 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(async () => {
-			const db = await this._ensureDb();
+		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
-		}));
+		})));
 	}
 
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-		return this._track(() => this._metadataSequencer.queue(async () => {
-			const db = await this._ensureDb();
-			await this._transactionSequencer.queue(async () => {
-				await dbExec(db, 'BEGIN TRANSACTION');
-				try {
-					for (const [key, value] of Object.entries(values)) {
-						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
-					}
-					await dbExec(db, 'COMMIT');
-				} catch (err) {
-					await dbExec(db, 'ROLLBACK');
-					throw err;
+		return this._track(() => this._metadataSequencer.queue(() =>
+			this._queueTransaction(async db => {
+				for (const [key, value] of Object.entries(values)) {
+					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 				}
+			})
+		));
+	}
+
+	deleteMetadata(keys: readonly string[]): Promise<void> {
+		return this._track(() => this._metadataSequencer.queue(() => {
+			if (keys.length === 0) {
+				return Promise.resolve();
+			}
+			return this._queueMutation(async db => {
+				const placeholders = keys.map(() => '?').join(',');
+				await dbRun(db, `DELETE FROM session_metadata WHERE key IN (${placeholders})`, [...keys]);
 			});
 		}));
 	}
 
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
+		return this._track(() => this._metadataSequencer.queue(() =>
+			this._queueTransaction(async db => {
+				const existing = await dbGet(db, 'SELECT 1 FROM session_metadata WHERE key = ?', [key]);
+				if (existing) {
+					return false;
+				}
+				for (const [targetKey, value] of Object.entries(values)) {
+					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [targetKey, value]);
+				}
+				for (const [targetKey, sourceKey] of Object.entries(copies)) {
+					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) SELECT ?, value FROM session_metadata WHERE key = ?', [targetKey, sourceKey]);
+				}
+				return true;
+			})
+		));
+	}
+
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const chatUri = chat.toString();
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			if (!draft) {
 				await dbRun(db, 'DELETE FROM chat_drafts WHERE chat_uri = ?', [chatUri]);
 				return;
@@ -728,15 +889,13 @@ export class SessionDatabase implements ISessionDatabase {
 	// ---- Reviewed files -------------------------------------------------
 
 	markFileReviewed(uri: URI, nonce: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db, 'INSERT OR IGNORE INTO reviewed_files (uri, nonce) VALUES (?, ?)', [uri.toString(), nonce]);
 		});
 	}
 
 	unmarkFileReviewed(uri: URI, nonce: string): Promise<void> {
-		return this._track(async () => {
-			const db = await this._ensureDb();
+		return this._mutate(async db => {
 			await dbRun(db, 'DELETE FROM reviewed_files WHERE uri = ? AND nonce = ?', [uri.toString(), nonce]);
 		});
 	}
@@ -760,62 +919,56 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
-		// Mutates `turn_usage`, so it must serialize with every other such
-		// mutation — a usage write racing the fork transaction would otherwise
-		// land against either the old or the new turn id unpredictably.
-		return this._mutateTurnUsage(async db => {
-			await this._transactionSequencer.queue(async () => {
-				// Defer FK checks to commit time so we can update turns.id and
-				// file_edits.turn_id in any order without mid-statement violations.
-				// This pragma auto-resets after the transaction ends.
-				await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
-				await dbExec(db, 'BEGIN TRANSACTION');
-				try {
-					// Delete turns not present in the mapping (e.g. turns beyond
-					// the fork point). File edits cascade-delete via FK.
-					const oldIds = [...mapping.keys()];
-					if (oldIds.length > 0) {
-						const placeholders = oldIds.map(() => '?').join(',');
-						await dbRun(db,
-							`DELETE FROM turns WHERE id NOT IN (${placeholders})`,
-							oldIds,
-						);
-					}
+		// Mutates turn-owned child data, so it must serialize with every other
+		// such mutation or a write racing the fork transaction could land
+		// against either the old or the new turn id unpredictably.
+		return this._mutateMetadataAndTurnUsage(async db => {
+			// Defer FK checks to commit time so we can update turns.id and
+			// file_edits.turn_id in any order without mid-statement violations.
+			// This pragma auto-resets after the transaction ends.
+			await dbExec(db, 'PRAGMA defer_foreign_keys = ON');
+			// Delete turns not present in the mapping (e.g. turns beyond
+			// the fork point). File edits cascade-delete via FK.
+			const oldIds = [...mapping.keys()];
+			if (oldIds.length > 0) {
+				const placeholders = oldIds.map(() => '?').join(',');
+				await dbRun(db,
+					`DELETE FROM turns WHERE id NOT IN (${placeholders})`,
+					oldIds,
+				);
+			}
 
-					// Remap the remaining turn IDs to their new values
-					for (const [oldId, newId] of mapping) {
-						await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
-						await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-					}
-					for (const [turnId, eventId] of eventIds ?? []) {
-						await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
-					}
+			// Remap the remaining turn IDs to their new values
+			for (const [oldId, newId] of mapping) {
+				await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+			}
+			for (const [turnId, eventId] of eventIds ?? []) {
+				await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
+			}
 
-					if (oldIds.length > 0) {
-						const placeholders = oldIds.map(() => '?').join(',');
-						await dbRun(db,
-							`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
-							oldIds,
-						);
-					}
-					for (const [oldId, newId] of mapping) {
-						await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-						await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
-					}
+			if (oldIds.length > 0) {
+				const placeholders = oldIds.map(() => '?').join(',');
+				await dbRun(db,
+					`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
+					oldIds,
+				);
+			}
+			for (const [oldId, newId] of mapping) {
+				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+			}
 
-					// Rows past the fork point were already removed by the `turns`
-					// delete above, via the same cascade as file edits. The surviving
-					// ids still need remapping (the FK cascades deletes, not updates),
-					// or the forked session would restore with no gauge and zero cost.
-					for (const [oldId, newId] of mapping) {
-						await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-					}
-					await dbExec(db, 'COMMIT');
-				} catch (err) {
-					await dbExec(db, 'ROLLBACK');
-					throw err;
-				}
-			});
+			// Rows past the fork point were already removed by the `turns`
+			// delete above, via the same cascade as file edits. The surviving
+			// ids still need remapping (the FK cascades deletes, not updates),
+			// or the forked session would restore with no gauge and zero cost.
+			for (const [oldId, newId] of mapping) {
+				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+			}
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
@@ -832,9 +985,10 @@ export class SessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async vacuumInto(targetPath: string) {
-		const db = await this._ensureDb();
-		await dbRun(db, 'VACUUM INTO ?', [targetPath]);
+	vacuumInto(targetPath: string): Promise<void> {
+		return this._mutate(async db => {
+			await dbRun(db, 'VACUUM INTO ?', [targetPath]);
+		});
 	}
 
 	/**

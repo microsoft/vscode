@@ -46,6 +46,15 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('marks permission rules as active when they are retained only in the raw response', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			permissions: { deny: ['Shell'] },
+		}), {
+			managedSettings: {},
+			managedSettingsActive: true,
+		});
+	});
+
 	test('parses the stable compatibility error and optional versions', () => {
 		assert.deepStrictEqual(parseManagedSettingsCompatibilityError({
 			error_code: 'client_update_required',
@@ -291,7 +300,7 @@ suite('adaptManagedSettings', () => {
 		} as IManagedSettingsResponse, msg => warnings.push(msg));
 		assert.deepStrictEqual(
 			{ result, warned: warnings.length, mentionsRepo: warnings.some(w => w.includes('requires "repo"')) },
-			{ result: { managedSettings: {} }, warned: 1, mentionsRepo: true }
+			{ result: { managedSettings: {}, managedSettingsActive: true }, warned: 1, mentionsRepo: true }
 		);
 	});
 
@@ -300,6 +309,7 @@ suite('adaptManagedSettings', () => {
 			extraKnownMarketplaces: ['https://plugins.acme.com'] as unknown as IManagedSettingsResponse['extraKnownMarketplaces'],
 		} as IManagedSettingsResponse), {
 			managedSettings: {},
+			managedSettingsActive: true,
 		});
 	});
 

@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatPet.css';
+import { BroadcastDataChannel } from '../../../../../base/browser/broadcast.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { GlobalPointerMoveMonitor } from '../../../../../base/browser/globalPointerMoveMonitor.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { triggerConfettiAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -24,12 +27,27 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 
 export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
+
+export interface IChatPetWidgetHost {
+	readonly parent: HTMLElement;
+	readonly dragBounds: HTMLElement;
+	readonly movementBounds: HTMLElement;
+	readonly model: IObservable<IChatModel | undefined>;
+	readonly hasInput: IObservable<boolean>;
+	readonly inputChanged: (listener: () => void) => IDisposable;
+	readonly getPlatformTop: (petCenterX: number | undefined) => number | undefined;
+	readonly onDidChangePlatform: Event<void>;
+}
+
+/** The layer the pet is positioned in, spanning its host. */
+export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
+const CHAT_PET_RUN_LAYER_CLASS = 'chat-pet-run-layer';
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
@@ -37,6 +55,10 @@ export const CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION = 10_000;
 export const CHAT_PET_ICON_TRANSFORMATION_CHANCE = 1 / 100;
 export const CHAT_PET_YAPPING_CHANCE = 1 / 100;
 export const CHAT_PET_WALL_IMPACT_DURATION = 48;
+export const CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION = 500;
+export const CHAT_PET_BOUNCE_RESULT_DURATION = 5_000;
+export const CHAT_PET_CONFETTI_SCORE = 20;
+export const CHAT_PET_WINDOW_OWNERSHIP_CHANNEL = 'vscode-chat-pet-window-ownership';
 const TRANSIENT_STATE_DURATION = 2_000;
 const COMPLETE_STATE_DURATION = 960;
 const BUTTON_PRESS_STATE_DURATION = 2_850;
@@ -50,7 +72,6 @@ const DIZZY_STATE_DURATION = 2_200;
 const WAKE_STATE_DURATION = 880;
 const DIZZY_DIRECTION_CHANGE_COUNT = 8;
 const DIZZY_DIRECTION_CHANGE_MAX_INTERVAL = 600;
-const SEARCH_INTERVAL = 10_000;
 const RESPAWN_EFFECT_DURATION = 800;
 const RESPAWN_EFFECT_REDUCED_MOTION_DURATION = 400;
 const DRAG_THRESHOLD = 2;
@@ -63,6 +84,7 @@ const BLINK_MIN_DELAY = 1_400;
 const BLINK_MAX_DELAY = 3_400;
 const POSITION_EPSILON = 0.5;
 const THROW_VELOCITY_SAMPLE_DURATION = 100;
+const POINTER_VELOCITY_SAMPLE_LIMIT = 8;
 const THROW_RELEASE_GRACE_DURATION = 80;
 const THROW_MIN_VELOCITY = 650;
 const THROW_MAX_VELOCITY = 2_400;
@@ -76,6 +98,14 @@ const THROW_CEILING_RESTITUTION = 0.2;
 const THROW_ROTATION_PER_PIXEL = 0.65;
 const THROW_SELF_RIGHTING_START_VELOCITY = -450;
 const THROW_SELF_RIGHTING_SPEED = 720;
+const MOUSE_BOUNCE_MIN_UPWARD_VELOCITY = 760;
+const MOUSE_BOUNCE_MAX_UPWARD_VELOCITY = 1_800;
+const MOUSE_BOUNCE_VERTICAL_RESTITUTION = 0.65;
+const MOUSE_BOUNCE_UPWARD_TRANSFER = 0.4;
+const MOUSE_BOUNCE_HORIZONTAL_RETENTION = 0.65;
+const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
+const MOUSE_BOUNCE_EDGE_KICK = 320;
+const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -203,6 +233,7 @@ interface ChatPetThrowBounds {
 interface ChatPetThrowGeometry {
 	readonly bounds: ChatPetThrowBounds;
 	readonly displaySize: number;
+	readonly inputTop: number;
 	readonly overlayLeft: number;
 	readonly overlayTop: number;
 	readonly platformLeft: number;
@@ -485,16 +516,20 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
-export function shouldReserveChatPetSpace(enabled: boolean, isLatestFocusedWidget: boolean): boolean {
-	return enabled && isLatestFocusedWidget;
+export function shouldReserveChatPetSpace(enabled: boolean, visible: boolean): boolean {
+	return enabled && visible;
 }
 
-export function isChatPetVisible(enabled: boolean, isLatestFocusedWidget: boolean, windowFocused = true): boolean {
-	return shouldReserveChatPetSpace(enabled, isLatestFocusedWidget) && windowFocused;
+export function isChatPetVisible(enabled: boolean, windowActive = true): boolean {
+	return enabled && windowActive;
 }
 
-export function isChatPetWindowActive(applicationFocused: boolean, activeWindowId: number, targetWindowId: number): boolean {
-	return applicationFocused && activeWindowId === targetWindowId;
+export function isChatPetWindowActive(activeWindowId: number, targetWindowId: number): boolean {
+	return activeWindowId === targetWindowId;
+}
+
+export function shouldClaimChatPetWindowOnConstruction(windowActive: boolean, documentFocused: boolean): boolean {
+	return windowActive && documentFocused;
 }
 
 export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
@@ -762,6 +797,29 @@ export function getChatPetRelativeHorizontalPosition(left: number, minimumLeft: 
 	return Math.max(0, Math.min(1, (left - minimumLeft) / horizontalRange));
 }
 
+export interface ChatPetHorizontalAnchor {
+	readonly edge: 'left' | 'right';
+	readonly inset: number;
+}
+
+export function getChatPetHorizontalAnchor(left: number, minimumLeft: number, maximumLeft: number): ChatPetHorizontalAnchor {
+	const clampedLeft = getChatPetHorizontalPosition(left, minimumLeft, maximumLeft);
+	const normalizedMaximumLeft = Math.max(minimumLeft, maximumLeft);
+	const leftInset = clampedLeft - minimumLeft;
+	const rightInset = normalizedMaximumLeft - clampedLeft;
+	return leftInset <= rightInset
+		? { edge: 'left', inset: leftInset }
+		: { edge: 'right', inset: rightInset };
+}
+
+export function getChatPetAnchoredHorizontalPosition(anchor: ChatPetHorizontalAnchor, minimumLeft: number, maximumLeft: number): number {
+	const normalizedMaximumLeft = Math.max(minimumLeft, maximumLeft);
+	const left = anchor.edge === 'left'
+		? minimumLeft + anchor.inset
+		: normalizedMaximumLeft - anchor.inset;
+	return getChatPetHorizontalPosition(left, minimumLeft, normalizedMaximumLeft);
+}
+
 export function getChatPetScale(scale: number, delta: number): number {
 	return Math.max(CHAT_PET_MIN_SCALE, Math.round((scale + delta) * 10) / 10);
 }
@@ -812,6 +870,68 @@ export function getChatPetWallReboundVelocity(velocity: ChatPetThrowVelocity): C
 		x: -velocity.x * THROW_WALL_RESTITUTION,
 		y: velocity.y,
 	};
+}
+
+export function getChatPetMouseBounceVelocity(motion: ChatPetThrowVelocity, pointerVelocity: ChatPetThrowVelocity, pointerX: number, petLeft: number, petWidth: number): ChatPetThrowVelocity {
+	const petCenter = petLeft + petWidth / 2;
+	const horizontalOffset = petWidth > 0 ? Math.max(-1, Math.min(1, (petCenter - pointerX) / (petWidth / 2))) : 0;
+	const horizontalVelocity = motion.x * MOUSE_BOUNCE_HORIZONTAL_RETENTION
+		+ pointerVelocity.x * MOUSE_BOUNCE_HORIZONTAL_TRANSFER
+		+ horizontalOffset * MOUSE_BOUNCE_EDGE_KICK;
+	const upwardVelocity = Math.max(
+		MOUSE_BOUNCE_MIN_UPWARD_VELOCITY,
+		Math.max(0, motion.y) * MOUSE_BOUNCE_VERTICAL_RESTITUTION + Math.max(0, -pointerVelocity.y) * MOUSE_BOUNCE_UPWARD_TRANSFER,
+	);
+	return {
+		x: Math.max(-MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY, Math.min(MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY, horizontalVelocity)),
+		y: -Math.min(MOUSE_BOUNCE_MAX_UPWARD_VELOCITY, upwardVelocity),
+	};
+}
+
+export function isChatPetMouseContact(pointerX: number, pointerY: number, petBounds: Pick<DOMRect, 'bottom' | 'left' | 'right' | 'top'>): boolean {
+	return pointerX >= petBounds.left && pointerX <= petBounds.right && pointerY >= petBounds.top && pointerY <= petBounds.bottom;
+}
+
+export function isChatPetMouseBounceEligible(verticalVelocity: number): boolean {
+	return verticalVelocity > 0;
+}
+
+export function isChatPetMouseBounceGracePeriodElapsed(now: number, availableAt: number): boolean {
+	return now >= availableAt;
+}
+
+export function shouldDismissChatPetBounceResult(state: ChatPetState): boolean {
+	return state !== 'idle' && state !== 'splat';
+}
+
+export function shouldCelebrateChatPetBounceScore(score: number): boolean {
+	return score >= CHAT_PET_CONFETTI_SCORE;
+}
+
+function getChatPetMouseCollisionAxisInterval(start: number, end: number, minimum: number, maximum: number): readonly [number, number] | undefined {
+	const delta = end - start;
+	if (delta === 0) {
+		return start >= minimum && start <= maximum ? [0, 1] : undefined;
+	}
+	const first = (minimum - start) / delta;
+	const second = (maximum - start) / delta;
+	const entry = Math.min(first, second);
+	const exit = Math.max(first, second);
+	if (exit < 0 || entry > 1) {
+		return undefined;
+	}
+	return [Math.max(0, entry), Math.min(1, exit)];
+}
+
+export function getChatPetMouseCollisionTime(previousLeft: number, previousTop: number, left: number, top: number, petWidth: number, petHeight: number, pointerX: number, pointerY: number): number | undefined {
+	const horizontal = getChatPetMouseCollisionAxisInterval(previousLeft, left, pointerX - petWidth, pointerX);
+	const vertical = getChatPetMouseCollisionAxisInterval(previousTop, top, pointerY - petHeight, pointerY);
+	if (!horizontal || !vertical) {
+		return undefined;
+	}
+	const entry = Math.max(horizontal[0], vertical[0]);
+	const exit = Math.min(horizontal[1], vertical[1]);
+	return entry <= exit ? entry : undefined;
 }
 
 export function getChatPetThrowRotation(rotation: number, horizontalDistance: number, verticalVelocity: number, elapsed: number): number {
@@ -867,12 +987,18 @@ export function shouldSettleChatPetThrow(startTime: number, currentTime: number,
 	return currentTime - startTime >= THROW_MAX_DURATION || (top > floorTop && verticalVelocity >= 0);
 }
 
-export function getChatPetFallTarget(petLeft: number, petTop: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorBottom: number): { readonly top: number; readonly landsOnPlatform: boolean } {
+export function getChatPetFallTarget(petLeft: number, petTop: number, petWidth: number, petHeight: number, platformLeft: number, platformRight: number, platformTop: number, floorBottom: number, fallbackPlatformTop?: number): { readonly top: number; readonly landsOnPlatform: boolean } {
 	const petCenter = petLeft + petWidth / 2;
-	const landsOnPlatform = petCenter >= platformLeft && petCenter <= platformRight && petTop + petHeight <= platformTop;
+	const isWithinPlatform = petCenter >= platformLeft && petCenter <= platformRight;
+	const petBottom = petTop + petHeight;
+	const landingPlatformTop = isWithinPlatform && petBottom <= platformTop
+		? platformTop
+		: isWithinPlatform && fallbackPlatformTop !== undefined && petBottom <= fallbackPlatformTop
+			? fallbackPlatformTop
+			: undefined;
 	return {
-		top: landsOnPlatform ? platformTop - petHeight : floorBottom - petHeight,
-		landsOnPlatform,
+		top: landingPlatformTop !== undefined ? landingPlatformTop - petHeight : floorBottom - petHeight,
+		landsOnPlatform: landingPlatformTop !== undefined,
 	};
 }
 
@@ -906,10 +1032,82 @@ export function getChatPetVerticalOffset(hostTop: number, inputTop: number): num
 }
 
 export function getChatPetPlatformTop(hostTop: number, inputTop: number, substantiveSurfaceTop?: number): number {
-	if (substantiveSurfaceTop !== undefined && substantiveSurfaceTop >= hostTop && substantiveSurfaceTop <= inputTop) {
+	if (substantiveSurfaceTop !== undefined && substantiveSurfaceTop <= inputTop) {
 		return substantiveSurfaceTop;
 	}
 	return hostTop + getChatPetVerticalOffset(hostTop, inputTop);
+}
+
+function getChatPetProjectedPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, petLeft: number, petWidth: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
+	return getChatPetPlatformTop(hostTop, inputTop, getPlatformTop(overlayLeft + petLeft + petWidth / 2));
+}
+
+export function getChatPetSweptPlatformTop(hostTop: number, inputTop: number, overlayLeft: number, previousLeft: number, previousTop: number, left: number, top: number, petWidth: number, petHeight: number, getPlatformTop: (petCenterX: number) => number | undefined): number {
+	const fallbackPlatformTop = getChatPetPlatformTop(hostTop, inputTop);
+	if (top <= previousTop) {
+		return fallbackPlatformTop;
+	}
+
+	const getProjectedPlatformTop = (petLeft: number) => getChatPetProjectedPlatformTop(hostTop, inputTop, overlayLeft, petLeft, petWidth, getPlatformTop);
+	const candidatePlatformTops = [getProjectedPlatformTop(previousLeft), getProjectedPlatformTop(left)]
+		.filter((candidate, index, candidates) => Math.abs(candidate - fallbackPlatformTop) > POSITION_EPSILON && candidates.indexOf(candidate) === index)
+		.sort((first, second) => first - second);
+	for (const candidatePlatformTop of candidatePlatformTops) {
+		const landingTop = candidatePlatformTop - hostTop - petHeight;
+		if (previousTop > landingTop || top < landingTop) {
+			continue;
+		}
+
+		const landingLeft = previousLeft + (left - previousLeft) * (landingTop - previousTop) / (top - previousTop);
+		if (Math.abs(getProjectedPlatformTop(landingLeft) - candidatePlatformTop) <= POSITION_EPSILON) {
+			return candidatePlatformTop;
+		}
+	}
+	return fallbackPlatformTop;
+}
+
+export function getChatPetPillPlatformTop(petCenterX: number, pillBounds: readonly Pick<DOMRect, 'height' | 'left' | 'right' | 'top' | 'width'>[]): number | undefined {
+	for (const bounds of pillBounds) {
+		if (bounds.width > 0 && bounds.height > 0 && petCenterX >= bounds.left && petCenterX <= bounds.right) {
+			return bounds.top;
+		}
+	}
+	return undefined;
+}
+
+/** Top of the topmost surface showing above the input, else the input's own top. */
+export function getChatPetStackPlatformTop(container: HTMLElement, inputContainer: HTMLElement, startAfter?: Element): number {
+	const inputTop = inputContainer.getBoundingClientRect().top;
+	let current = container;
+	let previousElement = startAfter;
+	while (true) {
+		const children = Array.from(current.children);
+		const startIndex = previousElement ? children.indexOf(previousElement) + 1 : 0;
+		let nestedContainer: HTMLElement | undefined;
+		for (let index = startIndex; index < children.length; index++) {
+			const child = children[index];
+			// The pet's own overlay spans the host, so it is never a platform.
+			if (!dom.isHTMLElement(child) || child.classList.contains(CHAT_PET_OVERLAY_CLASS)) {
+				continue;
+			}
+			if (child === inputContainer) {
+				return inputTop;
+			}
+			if (child.contains(inputContainer)) {
+				nestedContainer = child;
+				break;
+			}
+			const bounds = child.getBoundingClientRect();
+			if (bounds.height > 0 && bounds.top <= inputTop) {
+				return bounds.top;
+			}
+		}
+		if (!nestedContainer) {
+			return inputTop;
+		}
+		current = nestedContainer;
+		previousElement = undefined;
+	}
 }
 
 export function shouldPlaceChatPetSpeechBubbleLeft(state: ChatPetState | undefined, buttonRight: number, inputRight: number, scale = 1): boolean {
@@ -1010,9 +1208,16 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
+	private parent: HTMLElement;
+	private dragBounds: HTMLElement;
+	private movementBounds: HTMLElement;
+	private readonly _host: ISettableObservable<IChatPetWidgetHost>;
+	private readonly _hostLayoutDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _overlay: HTMLElement;
 	private readonly _button: Button;
 	private readonly _visual: HTMLElement;
+	private readonly _bounceCounter: HTMLElement;
+	private readonly _confettiAnchor: HTMLElement;
 	private readonly _respawnEffect: ChatPetSpriteElement;
 	private readonly _sprites: readonly ChatPetSpriteElement[];
 	private readonly _speechBubble: ChatPetSpriteElement;
@@ -1039,8 +1244,8 @@ export class ChatPetWidget extends Disposable {
 	private readonly _idleScheduler = this._register(new RunOnceScheduler(() => this._idleExpired.set(true, undefined), CHAT_PET_IDLE_SLEEP_DELAY));
 	private readonly _confirmationAttentionScheduler = this._register(new RunOnceScheduler(() => this._confirmationAttentionExpired.set(true, undefined), CHAT_PET_CONFIRMATION_ATTENTION_DURATION));
 	private readonly _transientScheduler = this._register(new RunOnceScheduler(() => this._transientState.set(undefined, undefined), TRANSIENT_STATE_DURATION));
-	private readonly _searchScheduler: RunOnceScheduler;
 	private readonly _clickSuppressionScheduler = this._register(new RunOnceScheduler(() => this._suppressNextPointerClick = false, 0));
+	private readonly _bounceResultScheduler = this._register(new RunOnceScheduler(() => this._resetBounceCount(), CHAT_PET_BOUNCE_RESULT_DURATION));
 	private readonly _spriteAnimation = this._register(new MutableDisposable());
 	private readonly _speechAnimation = this._register(new MutableDisposable());
 	private readonly _respawnAnimation = this._register(new MutableDisposable());
@@ -1049,7 +1254,10 @@ export class ChatPetWidget extends Disposable {
 	private readonly _respawnFallScheduler = this._register(new RunOnceScheduler(() => this._beginRespawnFall(), RESPAWN_EFFECT_DURATION));
 	private readonly _hopController = this._register(new ChatPetHopController({
 		onDirectionChange: direction => this._button.element.dataset.hopDirection = direction < 0 ? 'left' : 'right',
-		onMove: delta => this._setHorizontalPosition(this._getCurrentLeft() + delta),
+		onMove: delta => {
+			this._setHorizontalPosition(this._getCurrentLeft() + delta);
+			this._updateVerticalPosition();
+		},
 		onStart: () => {
 			if (this._transientState.get() === 'jump') {
 				this._renderState('jump', true);
@@ -1062,6 +1270,13 @@ export class ChatPetWidget extends Disposable {
 	}));
 	private readonly _contextMenuActions = this._register(new MutableDisposable<DisposableStore>());
 	private _cursorPosition: readonly [number, number] | undefined;
+	private readonly _cursorSamples: ChatPetPointerSample[] = [];
+	private _cursorContactingPet = false;
+	private _mouseBounceArmed = false;
+	private _mouseBounceAvailableAt = 0;
+	private _bounceCount = 0;
+	private _bounceResultVisible = false;
+	private _throwBounceHandler: ((pointerX: number, pointerVelocity: ChatPetThrowVelocity, requireDescending: boolean, collisionMotion?: ChatPetThrowMotion) => boolean) | undefined;
 	private _activeSprite: ChatPetSpriteElement | undefined;
 	private _activeSource: ChatPetSpriteSource | undefined;
 	private _pendingRender: ChatPetPendingRender | undefined;
@@ -1078,6 +1293,7 @@ export class ChatPetWidget extends Disposable {
 	private _enablementInitialized = false;
 	private _positionInitialized = false;
 	private _hasCustomPosition = false;
+	private _horizontalAnchor: ChatPetHorizontalAnchor | undefined;
 	private _suppressNextPointerClick = false;
 	private _contextMenuVisible = false;
 	private _lastClickInteraction: ChatPetClickInteraction | undefined;
@@ -1087,20 +1303,14 @@ export class ChatPetWidget extends Disposable {
 	private _deathPosition: readonly [number, number] | undefined;
 	private _respawnPhase: 'none' | 'despawning' | 'respawning' | 'falling' = 'none';
 	private _respawnPosition: readonly [number, number] | undefined;
-	private _platformTopProvider: (() => number | undefined) | undefined;
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
 	private _variant: ChatPetVariant;
 	private _selectedAccessory: ChatPetAccessoryId | undefined;
 	private _scale = 1;
 
 	constructor(
-		private readonly parent: HTMLElement,
-		private readonly dragBounds: HTMLElement,
-		private readonly movementBounds: HTMLElement,
-		model: IObservable<IChatModel | undefined>,
-		hasInput: IObservable<boolean>,
-		isLatestFocusedWidget: IObservable<boolean>,
-		inputChanged: (listener: () => void) => IDisposable,
+		host: IChatPetWidgetHost,
+		resizeObserverCtor: typeof ResizeObserver | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1110,19 +1320,27 @@ export class ChatPetWidget extends Disposable {
 	) {
 		super();
 
+		this.parent = host.parent;
+		this.dragBounds = host.dragBounds;
+		this.movementBounds = host.movementBounds;
+		this._host = observableValue(this, host);
 		this._variant = this.chatPetService.variant.get();
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
-		this._searchScheduler = this._register(new RunOnceScheduler(() => this._trySearch(), SEARCH_INTERVAL));
 		this.parent.classList.add('chat-pet-host');
-		this._overlay = dom.$('.chat-pet-overlay');
+		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
-		this._register(toDisposable(() => this._overlay.remove()));
+		this._register(toDisposable(() => {
+			this.parent.classList.remove('chat-pet-host');
+			this._overlay.remove();
+		}));
 		this._button = this._register(new Button(this._overlay, {
 			ariaLabel: this._getAriaLabel(false, false),
 		}));
 		this._button.element.classList.add('chat-pet-button');
 		this._button.element.dataset.facing = this._facingController.direction;
 		this._visual = dom.append(this._button.element, dom.$('.chat-pet-visual'));
+		this._bounceCounter = dom.append(this._overlay, dom.$('span.chat-pet-bounce-counter.hidden', { 'aria-hidden': 'true' }));
+		this._confettiAnchor = dom.append(this._overlay, dom.$('.chat-pet-confetti-anchor', { 'aria-hidden': 'true' }));
 		const respawnEffectCanvas = dom.append(this._overlay, dom.$('canvas.chat-pet-canvas.chat-pet-respawn-effect.hidden')) as HTMLCanvasElement;
 		respawnEffectCanvas.width = CHAT_PET_SOURCE_SIZE;
 		respawnEffectCanvas.height = CHAT_PET_SOURCE_SIZE;
@@ -1179,51 +1397,17 @@ export class ChatPetWidget extends Disposable {
 		speechBubbleImage.alt = '';
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
 		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
-		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => {
-			if (!this._enabled || this._getHorizontalBounds() === undefined) {
-				return;
-			}
-			if (!this._positionInitialized) {
-				this._updateVerticalPosition();
-				this._restoreHorizontalPosition();
-				return;
-			}
-			this._updateSpeechBubblePosition();
-			const isAirborne = this._isAirborne();
-			if (this._isDead.get()) {
-				this._updateRespawnEffectPosition();
-			} else if (isAirborne) {
-				if (this._button.element.classList.contains('throwing')) {
-					this._throwGeometryDirty = true;
-				}
-				return;
-			} else if (this._fallLandsOnPlatform && !this._isDragging.get()) {
-				if (this._hasCustomPosition) {
-					this._setPlatformPosition(this._getCurrentLeft());
-				} else {
-					this._setDefaultPlatformPosition();
-				}
-			} else {
-				this._updateVerticalPosition();
-				if (this._hasCustomPosition && !this._isDragging.get()) {
-					this._setHorizontalPosition(this._getCurrentLeft());
-				} else if (!this._isDragging.get()) {
-					this._setDefaultHorizontalPosition();
-				}
-			}
-		}, dom.getWindow(this._button.element)));
-		this._register(this._resizeObserver.observe(this.dragBounds));
-		this._register(this._resizeObserver.observe(this.movementBounds));
-		this._register(this._resizeObserver.observe(this.parent));
+		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element), { resizeObserverCtor }));
+		this._observeHost(host);
 		if (this._getHorizontalBounds() !== undefined) {
-			this._updateVerticalPosition();
 			this._restoreHorizontalPosition();
+			this._updateVerticalPosition();
 			this._updateSpeechBubblePosition();
 		}
 		this._register(dom.addDisposableListener(speechBubbleImage, 'load', () => this._updateSpeechBubble(this._renderedState, true)));
 		this._gazeScheduler = this._register(new dom.AnimationFrameScheduler(this._button.element, () => this._updateGaze()));
 		this._register(dom.addDisposableListener(dom.getWindow(this._button.element).document, dom.EventType.POINTER_MOVE, (event: PointerEvent) => {
-			this._cursorPosition = [event.clientX, event.clientY];
+			this._trackCursor(event);
 			if (this._enabled && doesChatPetStateTrackCursor(this._renderedState)) {
 				this._gazeScheduler.schedule();
 			}
@@ -1235,8 +1419,6 @@ export class ChatPetWidget extends Disposable {
 				this._finishDisable();
 			} else if (event.animationName === 'chat-pet-yapping-fall' && !this._isDragging.get() && event.target === this._activeSprite?.container && this._button.element.dataset.state === 'yapping') {
 				this._transientState.set('yappingMouthOpen', undefined);
-			} else if (event.animationName === 'chat-pet-search-down' && this._button.element.dataset.state === 'searchingDown') {
-				this._transientState.set(undefined, undefined);
 			} else if ((event.animationName === 'chat-pet-eye-blink' || event.animationName === 'chat-pet-tall-eye-blink') && event.target === this._pupils[0]) {
 				this._blinkController.onAnimationComplete();
 			}
@@ -1246,6 +1428,9 @@ export class ChatPetWidget extends Disposable {
 		const onTransitionComplete = (event: TransitionEvent) => {
 			if (event.propertyName === 'top' && this._button.element.classList.contains('falling')) {
 				this._finishFall();
+			} else if (event.target === this._button.element && event.propertyName === 'transform') {
+				this._button.element.classList.remove('returning-from-run');
+				this._updateRunLayer();
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1256,17 +1441,29 @@ export class ChatPetWidget extends Disposable {
 			if (!this._enabled) {
 				return;
 			}
+			this._dismissBounceResult();
 			dom.EventHelper.stop(event, true);
 			this._showContextMenu(event);
 		}));
-		this._register(inputChanged(() => {
-			if (this._enabled && !this.chatPetService.onTheRun.get()) {
-				this._wake();
-			}
+		this._register(autorun(reader => {
+			const currentHost = this._host.read(reader);
+			reader.store.add(currentHost.inputChanged(() => {
+				if (this._enabled && !this.chatPetService.onTheRun.read(undefined)) {
+					this._wake();
+				}
+			}));
 		}));
 
 		this._register(this._button.onDidClick(e => {
 			dom.EventHelper.stop(e, true);
+			this._dragMonitor.stopMonitoring(false);
+			if (this._isAirborne()) {
+				if (e.type === dom.EventType.KEY_DOWN) {
+					const bounds = this._button.element.getBoundingClientRect();
+					this._bounceAirbornePet(bounds.left + bounds.width / 2, { x: 0, y: 0 });
+				}
+				return;
+			}
 			if (this._contextMenuVisible) {
 				return;
 			}
@@ -1336,9 +1533,26 @@ export class ChatPetWidget extends Disposable {
 		const motionReduced = observableFromEvent(this, this.accessibilityService.onDidChangeReducedMotion, () => this.accessibilityService.isMotionReduced());
 		const targetWindow = dom.getWindow(this._button.element);
 		const targetWindowId = dom.getWindowId(targetWindow);
-		const applicationFocused = observableFromEvent(this, this.hostService.onDidChangeFocus, () => this.hostService.hasFocus);
-		const activeWindowId = observableFromEvent(this, this.hostService.onDidChangeActiveWindow, windowId => windowId ?? dom.getWindowId(dom.getActiveWindow()));
-		const windowFocused = derived(this, reader => isChatPetWindowActive(applicationFocused.read(reader), activeWindowId.read(reader), targetWindowId));
+		const windowActive = observableValue(this, isChatPetWindowActive(dom.getWindowId(dom.getActiveWindow()), targetWindowId));
+		const ownershipChannel = this._register(new BroadcastDataChannel<{ readonly windowId: number }>(CHAT_PET_WINDOW_OWNERSHIP_CHANNEL));
+		this._register(ownershipChannel.onDidReceiveData(({ windowId }) => {
+			windowActive.set(isChatPetWindowActive(windowId, targetWindowId), undefined);
+		}));
+		const claimWindowOwnership = () => {
+			windowActive.set(true, undefined);
+			ownershipChannel.postData({ windowId: targetWindowId });
+		};
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.FOCUS, claimWindowOwnership));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			if (isChatPetWindowActive(windowId, targetWindowId)) {
+				claimWindowOwnership();
+			} else {
+				windowActive.set(false, undefined);
+			}
+		}));
+		if (shouldClaimChatPetWindowOnConstruction(windowActive.get(), targetWindow.document.hasFocus())) {
+			claimWindowOwnership();
+		}
 		this._register(autorun(reader => {
 			const wasMotionReduced = this._motionReduced;
 			this._motionReduced = motionReduced.read(reader);
@@ -1349,13 +1563,12 @@ export class ChatPetWidget extends Disposable {
 				this._finishThrow();
 			}
 			const serviceEnabled = this.chatPetService.enabled.read(reader);
-			const latestFocusedWidget = isLatestFocusedWidget.read(reader);
-			const isWindowFocused = windowFocused.read(reader);
+			const isWindowActive = windowActive.read(reader);
 			const scale = this.chatPetService.scale.read(reader);
 			if (scale !== this._scale) {
 				this._setScale(scale);
 			}
-			const enabled = isChatPetVisible(serviceEnabled, latestFocusedWidget, isWindowFocused);
+			const enabled = isChatPetVisible(serviceEnabled, isWindowActive);
 			const variant = this.chatPetService.variant.read(reader);
 			const variantChanged = variant !== this._variant;
 			this._variant = variant;
@@ -1367,8 +1580,15 @@ export class ChatPetWidget extends Disposable {
 			}
 			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
+			if (onTheRun || this._motionReduced) {
+				this._button.element.classList.remove('returning-from-run');
+			} else if (this._enabled && this._button.element.classList.contains('on-the-run')) {
+				this._button.element.classList.add('returning-from-run');
+			}
 			this._button.element.classList.toggle('on-the-run', onTheRun);
-			const chatModel = model.read(reader);
+			this._updateRunLayer();
+			const currentHost = this._host.read(reader);
+			const chatModel = currentHost.model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
 			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
 			let confirmationAttentionExpired = this._confirmationAttentionExpired.read(reader);
@@ -1382,7 +1602,7 @@ export class ChatPetWidget extends Disposable {
 				this._confirmationAttentionScheduler.schedule();
 			}
 			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
-			const inputHasContent = hasInput.read(reader);
+			const inputHasContent = currentHost.hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
@@ -1393,6 +1613,7 @@ export class ChatPetWidget extends Disposable {
 				const wasInitialized = this._enablementInitialized;
 				this._enablementInitialized = true;
 				this._enabled = enabled;
+				this._observeHost(this._host.read(undefined));
 				if (enabled) {
 					if (isDead) {
 						this._showRespawnSequence();
@@ -1400,7 +1621,7 @@ export class ChatPetWidget extends Disposable {
 						this._startEnableAnimation();
 					}
 				} else if (wasInitialized) {
-					if (serviceEnabled && (!latestFocusedWidget || !isWindowFocused)) {
+					if (serviceEnabled && !isWindowActive) {
 						this._finishDisable();
 					} else {
 						this._startDisableAnimation();
@@ -1413,7 +1634,6 @@ export class ChatPetWidget extends Disposable {
 			if (!enabled) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				if (transientState !== undefined) {
 					this._transientState.set(undefined, undefined);
@@ -1427,23 +1647,18 @@ export class ChatPetWidget extends Disposable {
 			if (isDead) {
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				this._searchScheduler.cancel();
 				this._transientScheduler.cancel();
 				this._showRespawnSequence();
 				return;
 			}
 
 			if (onTheRun) {
+				this._dismissBounceResult();
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
-				if (!this._searchScheduler.isScheduled()) {
-					this._searchScheduler.schedule();
-				}
-				const state = transientState === 'searching' || transientState === 'searchingDown' ? transientState : 'onTheRun';
-				this._renderState(state, variantChanged);
+				this._renderState('onTheRun', variantChanged);
 				return;
 			}
-			this._searchScheduler.cancel();
 
 			if (this._busy) {
 				this._idleScheduler.cancel();
@@ -1462,6 +1677,9 @@ export class ChatPetWidget extends Disposable {
 				this._transientState.set(undefined, undefined);
 			}
 			const renderedState = getChatPetRenderedState(baseState, transientState, isDragging);
+			if (shouldDismissChatPetBounceResult(renderedState)) {
+				this._dismissBounceResult();
+			}
 			if (renderedState !== 'jump' || this._motionReduced) {
 				this._hopController.cancel();
 			}
@@ -1469,7 +1687,7 @@ export class ChatPetWidget extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const chatModel = model.read(reader);
+			const chatModel = this._host.read(reader).model.read(reader);
 			const response = chatModel?.lastRequestObs.read(reader)?.response;
 			if (!response) {
 				return;
@@ -1482,21 +1700,84 @@ export class ChatPetWidget extends Disposable {
 		}));
 	}
 
-	setPlatformTopProvider(provider: () => number | undefined): void {
-		this._platformTopProvider = provider;
+	setHost(host: IChatPetWidgetHost): void {
+		if (this._host.get() === host) {
+			return;
+		}
+
+		this.parent.classList.remove('chat-pet-host');
+		this.parent = host.parent;
+		this.dragBounds = host.dragBounds;
+		this.movementBounds = host.movementBounds;
+		this.parent.classList.add('chat-pet-host');
+		this.parent.prepend(this._overlay);
+		this._observeHost(host);
+		this._host.set(host, undefined);
+		this._handleHostLayoutChange();
+	}
+
+	private _observeHost(host: IChatPetWidgetHost): void {
+		const store = new DisposableStore();
+		if (this._enabled) {
+			store.add(this._resizeObserver.observe(host.dragBounds));
+			store.add(this._resizeObserver.observe(host.movementBounds));
+			store.add(this._resizeObserver.observe(host.parent));
+		}
+		store.add(host.onDidChangePlatform(() => this._updatePlatformPosition()));
+		this._hostLayoutDisposables.value = store;
+	}
+
+	private _handleHostLayoutChange(): void {
+		if (!this._enabled || this._getHorizontalBounds() === undefined) {
+			return;
+		}
+		if (!this._positionInitialized) {
+			this._restoreHorizontalPosition();
+			this._updateVerticalPosition();
+			return;
+		}
+		this._updateSpeechBubblePosition();
+		if (this._isDead.get()) {
+			this._updateRespawnEffectPosition();
+		} else if (this._isAirborne()) {
+			if (this._button.element.classList.contains('throwing')) {
+				this._throwGeometryDirty = true;
+			}
+		} else {
+			this._updateRestingPosition();
+		}
+	}
+
+	private _updatePlatformPosition(): void {
+		if (!this._enabled || this._isDead.get() || this._getHorizontalBounds() === undefined) {
+			return;
+		}
 		if (this._isAirborne()) {
 			if (this._button.element.classList.contains('throwing')) {
 				this._throwGeometryDirty = true;
 			}
 			return;
 		}
-		this._updateVerticalPosition();
-		if (this._fallLandsOnPlatform && !this._isDragging.get()) {
+		this._updateRestingPosition();
+	}
+
+	private _updateRestingPosition(): void {
+		if (this._isDragging.get()) {
+			return;
+		}
+		if (this._fallLandsOnPlatform) {
 			if (this._hasCustomPosition) {
-				this._setPlatformPosition(this._getCurrentLeft());
+				this._setAnchoredPlatformPosition();
 			} else {
 				this._setDefaultPlatformPosition();
 			}
+		} else {
+			if (this._hasCustomPosition) {
+				this._setAnchoredHorizontalPosition();
+			} else {
+				this._setDefaultHorizontalPosition();
+			}
+			this._updateVerticalPosition();
 		}
 	}
 
@@ -1538,17 +1819,21 @@ export class ChatPetWidget extends Disposable {
 				this._isDragging.set(true, undefined);
 			}
 			dom.EventHelper.stop(moveEvent, true);
+			this._trackCursor(moveEvent);
 			this._setDragPosition(startLeft + deltaX, startTop + deltaY);
-		}, () => {
+		}, browserEvent => {
+			if (browserEvent instanceof targetWindow.PointerEvent) {
+				this._trackCursor(browserEvent);
+			}
 			this._button.element.classList.remove('dragging', 'resisting', 'soft-resisting');
 			if (didDrag) {
 				this._suppressNextPointerClick = true;
 				this._clickSuppressionScheduler.schedule();
 				const throwVelocity = getChatPetThrowVelocity(pointerSamples, targetWindow.performance.now());
 				if (!this._motionReduced && throwVelocity) {
-					this._beginThrow(throwVelocity);
+					this._beginThrow(throwVelocity, false, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION);
 				} else {
-					this._beginFall();
+					this._beginFall(CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION);
 				}
 			}
 		});
@@ -1576,6 +1861,7 @@ export class ChatPetWidget extends Disposable {
 	private _getFallTarget(): { readonly top: number; readonly landsOnPlatform: boolean } {
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const platformBounds = this._getPlatformBounds();
+		const fallbackPlatformBounds = this._getPlatformBounds(false);
 		const movementBounds = this.movementBounds.getBoundingClientRect();
 		return getChatPetFallTarget(
 			Number.parseFloat(this._button.element.style.left),
@@ -1586,6 +1872,7 @@ export class ChatPetWidget extends Disposable {
 			platformBounds.right - overlayBounds.left,
 			platformBounds.top - overlayBounds.top,
 			movementBounds.bottom - overlayBounds.top,
+			fallbackPlatformBounds.top - overlayBounds.top,
 		);
 	}
 
@@ -1595,11 +1882,21 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.classList.toggle('resisting', !landsOnPlatform);
 	}
 
-	private _getThrowGeometry(): ChatPetThrowGeometry {
+	private _getThrowGeometry(platformPetLeft?: number): ChatPetThrowGeometry {
 		const overlayBounds = this._overlay.getBoundingClientRect();
+		const inputBounds = this.dragBounds.getBoundingClientRect();
 		const movementBounds = this.movementBounds.getBoundingClientRect();
-		const platformBounds = this._getPlatformBounds();
 		const displaySize = this._getDisplaySize();
+		const platformTop = platformPetLeft === undefined
+			? getChatPetPlatformTop(overlayBounds.top, inputBounds.top)
+			: getChatPetProjectedPlatformTop(
+				overlayBounds.top,
+				inputBounds.top,
+				overlayBounds.left,
+				platformPetLeft,
+				displaySize,
+				petCenterX => this._host.get().getPlatformTop(petCenterX),
+			);
 		return {
 			bounds: {
 				minimumLeft: movementBounds.left - overlayBounds.left,
@@ -1607,16 +1904,17 @@ export class ChatPetWidget extends Disposable {
 				minimumTop: movementBounds.top - overlayBounds.top,
 			},
 			displaySize,
+			inputTop: inputBounds.top,
 			overlayLeft: overlayBounds.left,
 			overlayTop: overlayBounds.top,
-			platformLeft: platformBounds.left - overlayBounds.left,
-			platformRight: platformBounds.right - overlayBounds.left,
-			platformTop: platformBounds.top - overlayBounds.top,
+			platformLeft: inputBounds.left - overlayBounds.left,
+			platformRight: inputBounds.right - overlayBounds.left,
+			platformTop: platformTop - overlayBounds.top,
 			floorTop: movementBounds.bottom - overlayBounds.top - displaySize,
 		};
 	}
 
-	private _beginThrow(velocity: ChatPetThrowVelocity): void {
+	private _beginThrow(velocity: ChatPetThrowVelocity, preserveBounceCount = false, mouseBounceDelay = 0, startWithBounceImpact = false): void {
 		const targetWindow = dom.getWindow(this._button.element);
 		let geometry = this._getThrowGeometry();
 		const buttonBounds = this._button.element.getBoundingClientRect();
@@ -1628,9 +1926,19 @@ export class ChatPetWidget extends Disposable {
 		};
 		let rotation = 0;
 		let wallImpact: { readonly wall: ChatPetWall; readonly endsAt: number } | undefined;
-		const startTime = targetWindow.performance.now();
+		let bounceImpactEndsAt: number | undefined;
+		let startTime = targetWindow.performance.now();
 		let lastFrameTime = startTime;
 
+		if (!preserveBounceCount) {
+			this._resetBounceCount();
+		}
+		this._cursorSamples.length = 0;
+		this._mouseBounceAvailableAt = startTime + mouseBounceDelay;
+		this._button.element.classList.remove('falling');
+		this._button.element.style.transitionDuration = '';
+		this._mouseBounceArmed = false;
+		this._cursorContactingPet = this._cursorPosition !== undefined && isChatPetMouseContact(this._cursorPosition[0], this._cursorPosition[1], buttonBounds);
 		if (velocity.x !== 0) {
 			this._setFacingDirection(velocity.x < 0 ? 'left' : 'right');
 		}
@@ -1643,6 +1951,34 @@ export class ChatPetWidget extends Disposable {
 		this._isDragging.set(false, undefined);
 		this._renderState('falling', true);
 		this._button.element.classList.add('throwing');
+		const beginBounceImpact = () => {
+			const now = targetWindow.performance.now();
+			startTime = now;
+			lastFrameTime = now;
+			bounceImpactEndsAt = now + CHAT_PET_WALL_IMPACT_DURATION;
+			rotation = 0;
+			this._button.element.style.transform = '';
+			this._button.element.classList.add('bounce-impact');
+			this._transientState.set('wallImpact', undefined);
+		};
+		this._throwBounceHandler = (pointerX, pointerVelocity, requireDescending, exactCollisionMotion) => {
+			const now = targetWindow.performance.now();
+			const collisionMotion = exactCollisionMotion ?? advanceChatPetThrow(motion, Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime)), geometry.bounds);
+			if (!this._button.element.classList.contains('throwing') || wallImpact || bounceImpactEndsAt !== undefined || (requireDescending && !isChatPetMouseBounceEligible(collisionMotion.y))) {
+				return false;
+			}
+			const bounds = this._button.element.getBoundingClientRect();
+			motion = {
+				...collisionMotion,
+				...getChatPetMouseBounceVelocity(collisionMotion, pointerVelocity, pointerX, bounds.left, bounds.width),
+			};
+			this._throwWallImpact = undefined;
+			beginBounceImpact();
+			return true;
+		};
+		if (startWithBounceImpact) {
+			beginBounceImpact();
+		}
 
 		const animationDisposables = new DisposableStore();
 		const scheduledFrame = animationDisposables.add(new MutableDisposable<IDisposable>());
@@ -1668,6 +2004,18 @@ export class ChatPetWidget extends Disposable {
 				this._finishThrow();
 				return;
 			}
+			if (bounceImpactEndsAt !== undefined) {
+				if (now < bounceImpactEndsAt) {
+					scheduleFrame();
+					return;
+				}
+				bounceImpactEndsAt = undefined;
+				lastFrameTime = now;
+				this._button.element.classList.remove('bounce-impact');
+				this._transientState.set('falling', undefined);
+				scheduleFrame();
+				return;
+			}
 			if (wallImpact) {
 				if (now < wallImpact.endsAt) {
 					scheduleFrame();
@@ -1689,14 +2037,48 @@ export class ChatPetWidget extends Disposable {
 
 			const elapsed = Math.min(THROW_MAX_FRAME_DURATION, Math.max(0, now - lastFrameTime));
 			lastFrameTime = now;
-			const previousLeft = motion.left;
-			const previousTop = motion.top;
-			const step = advanceChatPetThrow(motion, elapsed, geometry.bounds);
+			const previousMotion = motion;
+			const step = advanceChatPetThrow(previousMotion, elapsed, geometry.bounds);
+			const platformTop = getChatPetSweptPlatformTop(
+				geometry.overlayTop,
+				geometry.inputTop,
+				geometry.overlayLeft,
+				previousMotion.left,
+				previousMotion.top,
+				step.left,
+				step.top,
+				geometry.displaySize,
+				geometry.displaySize,
+				petCenterX => this._host.get().getPlatformTop(petCenterX),
+			) - geometry.overlayTop;
+			const landing = getChatPetThrowLanding(previousMotion.left, previousMotion.top, step.left, step.top, geometry.displaySize, geometry.displaySize, geometry.platformLeft, geometry.platformRight, platformTop, geometry.floorTop);
+			const landingTime = landing && step.top !== previousMotion.top ? (landing.top - previousMotion.top) / (step.top - previousMotion.top) : undefined;
+			const cursorPosition = this._cursorPosition;
+			const mouseCollisionTime = isChatPetMouseBounceGracePeriodElapsed(now, this._mouseBounceAvailableAt) && this._mouseBounceArmed && !this._cursorContactingPet && cursorPosition
+				? getChatPetMouseCollisionTime(
+					geometry.overlayLeft + previousMotion.left,
+					geometry.overlayTop + previousMotion.top,
+					geometry.overlayLeft + step.left,
+					geometry.overlayTop + step.top,
+					geometry.displaySize,
+					geometry.displaySize,
+					cursorPosition[0],
+					cursorPosition[1],
+				)
+				: undefined;
+			if (cursorPosition && mouseCollisionTime !== undefined && (landingTime === undefined || mouseCollisionTime < landingTime)) {
+				motion = advanceChatPetThrow(previousMotion, elapsed * mouseCollisionTime, geometry.bounds);
+				rotation = getChatPetThrowRotation(rotation, motion.left - previousMotion.left, motion.y, elapsed * mouseCollisionTime);
+				this._setThrowPosition(motion.left, motion.top);
+				if (isChatPetMouseBounceEligible(motion.y) && this._bounceAirbornePet(cursorPosition[0], this._getCursorVelocity(now), true, motion)) {
+					this._cursorContactingPet = true;
+					scheduleFrame();
+					return;
+				}
+			}
 			motion = step;
-			rotation = getChatPetThrowRotation(rotation, motion.left - previousLeft, motion.y, elapsed);
+			rotation = getChatPetThrowRotation(rotation, motion.left - previousMotion.left, motion.y, elapsed);
 			this._setThrowPosition(motion.left, motion.top);
-
-			const landing = getChatPetThrowLanding(previousLeft, previousTop, motion.left, motion.top, geometry.displaySize, geometry.displaySize, geometry.platformLeft, geometry.platformRight, geometry.platformTop, geometry.floorTop);
 			if (motion.y >= 0 && landing) {
 				motion = {
 					...motion,
@@ -1733,10 +2115,11 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.style.right = 'auto';
 		this._button.element.style.bottom = 'auto';
 		this._hasCustomPosition = true;
+		this._updateBounceCounterPosition();
 	}
 
 	private _getThrowSettleTarget(): { readonly top: number; readonly landsOnPlatform: true } {
-		const geometry = this._getThrowGeometry();
+		const geometry = this._getThrowGeometry(this._getCurrentLeft());
 		return {
 			top: geometry.platformTop - geometry.displaySize,
 			landsOnPlatform: true,
@@ -1750,9 +2133,11 @@ export class ChatPetWidget extends Disposable {
 
 		const resolvedTarget = target ?? this._getThrowSettleTarget();
 		const wallImpact = this._throwWallImpact;
+		this._throwBounceHandler = undefined;
 		this._throwWallImpact = undefined;
 		this._throwGeometryDirty = false;
 		this._throwAnimation.clear();
+		this._button.element.classList.remove('bounce-impact');
 		this._button.element.style.transform = '';
 		this._button.element.style.top = `${resolvedTarget.top}px`;
 		this._button.element.getBoundingClientRect();
@@ -1765,20 +2150,26 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.classList.contains('falling') || this._button.element.classList.contains('throwing');
 	}
 
-	private _beginFall(): void {
+	private _beginFall(mouseBounceDelay = 0): void {
 		const top = Number.parseFloat(this._button.element.style.top);
 		const target = this._getFallTarget();
+		this._resetBounceCount();
+		this._cursorSamples.length = 0;
+		this._mouseBounceAvailableAt = dom.getWindow(this._button.element).performance.now() + mouseBounceDelay;
 		this._transientScheduler.cancel();
 		this._throwAnimation.clear();
+		this._throwBounceHandler = undefined;
 		this._throwWallImpact = undefined;
 		this._throwGeometryDirty = false;
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('throwing');
+		this._button.element.classList.remove('bounce-impact', 'throwing');
 		this._button.element.classList.remove('resisting', 'soft-resisting');
 		this._fallLandsOnPlatform = target.landsOnPlatform;
 		this._transientState.set('falling', undefined);
 		this._isDragging.set(false, undefined);
 		this._renderState('falling', true);
+		const bounds = this._button.element.getBoundingClientRect();
+		this._cursorContactingPet = this._cursorPosition !== undefined && isChatPetMouseContact(this._cursorPosition[0], this._cursorPosition[1], bounds);
 		this._button.element.style.transitionDuration = `${getChatPetFallDuration(target.top - top)}ms`;
 		this._button.element.getBoundingClientRect();
 		this._button.element.classList.add('falling');
@@ -1808,6 +2199,8 @@ export class ChatPetWidget extends Disposable {
 				this._showTransientState('splat');
 				if (respawned) {
 					status(localize('chatPet.respawned', "The VS Code pet respawned"));
+				} else if (shouldCelebrateChatPetBounceScore(this._bounceCount)) {
+					status(localize('chatPet.bounceMilestone', "The VS Code pet landed with a {0}-bounce streak", this._bounceCount));
 				} else if (wallImpact === 'left') {
 					status(localize('chatPet.bouncedOffLeftWall', "The VS Code pet bounced off the left wall and landed on the chat input"));
 				} else if (wallImpact === 'right') {
@@ -1816,9 +2209,12 @@ export class ChatPetWidget extends Disposable {
 					status(localize('chatPet.landed', "The VS Code pet landed on the chat input"));
 				}
 			}
+			this._showBounceResult();
+			this._showBounceConfetti();
 			return;
 		}
 
+		this._resetBounceCount();
 		this._deathPosition = [
 			Number.parseFloat(this._button.element.style.left),
 			Number.parseFloat(this._button.element.style.top),
@@ -1865,6 +2261,10 @@ export class ChatPetWidget extends Disposable {
 			this.chatPetService.setScale(scale);
 			status(localize('chatPet.shrank', "VS Code pet size: {0} percent", Math.round(scale * 100)));
 		}));
+		const resetSize = actions.add(new Action('chat.pet.resetSize', localize('chatPet.resetSize.action', "Reset Size"), undefined, this._scale !== CHAT_PET_DEFAULT_SCALE, () => {
+			this.chatPetService.resetScale();
+			status(localize('chatPet.sizeReset', "VS Code pet size: {0} percent", CHAT_PET_DEFAULT_SCALE * 100));
+		}));
 		const onTheRunAction = actions.add(new Action(
 			'chat.pet.onTheRun',
 			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
@@ -1885,6 +2285,7 @@ export class ChatPetWidget extends Disposable {
 				interactionSeparator,
 				grow,
 				shrink,
+				resetSize,
 				appearanceSeparator,
 				stable,
 				insiders,
@@ -1899,6 +2300,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _onKeyDown(event: KeyboardEvent): void {
+		if (!this._isDragging.get()) {
+			this._dragMonitor.stopMonitoring(false);
+		}
 		const hasPointerInteraction = this._isDragging.get() || this._dragMonitor.isMonitoring();
 		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne(), this.chatPetService.onTheRun.get())) {
 			return;
@@ -1949,7 +2353,7 @@ export class ChatPetWidget extends Disposable {
 			? localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.")
 			: onTheRun
 				? localize('chatPet.restore', "Bring back the VS Code pet")
-				: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+				: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
 	}
 
 	private _getCurrentLeft(): number {
@@ -1966,26 +2370,14 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.style.width = `${displaySize}px`;
 		this._button.element.style.height = `${displaySize}px`;
 		this._visual.style.transform = `scale(${scale})`;
+		this._updateBounceCounterPosition();
 		if (this._button.element.classList.contains('throwing')) {
 			this._throwGeometryDirty = true;
 		}
-		if (this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
+		if (!this._enabled || this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			return;
 		}
-		if (this._fallLandsOnPlatform) {
-			if (this._hasCustomPosition) {
-				this._setPlatformPosition(this._getCurrentLeft());
-			} else {
-				this._setDefaultPlatformPosition();
-			}
-		} else {
-			this._updateVerticalPosition();
-			if (this._hasCustomPosition) {
-				this._setHorizontalPosition(this._getCurrentLeft());
-			} else {
-				this._setDefaultHorizontalPosition();
-			}
-		}
+		this._updateRestingPosition();
 	}
 
 	private _setHorizontalPosition(left: number): boolean {
@@ -1993,15 +2385,33 @@ export class ChatPetWidget extends Disposable {
 		if (!bounds) {
 			return false;
 		}
+		return this._applyHorizontalPosition(left, bounds, true);
+	}
+
+	private _setAnchoredHorizontalPosition(): void {
+		const bounds = this._getHorizontalBounds();
+		if (!bounds) {
+			return;
+		}
+		const left = this._horizontalAnchor
+			? getChatPetAnchoredHorizontalPosition(this._horizontalAnchor, bounds.minimumLeft, bounds.maximumLeft)
+			: this._getCurrentLeft();
+		this._applyHorizontalPosition(left, bounds, false);
+	}
+
+	private _applyHorizontalPosition(left: number, bounds: { readonly minimumLeft: number; readonly maximumLeft: number }, updateAnchor: boolean): boolean {
 		const { minimumLeft, maximumLeft } = bounds;
 		const clampedLeft = getChatPetHorizontalPosition(left, minimumLeft, maximumLeft);
 		this._button.element.style.left = `${clampedLeft}px`;
 		this._button.element.style.right = 'auto';
 		this._positionInitialized = true;
 		this._hasCustomPosition = true;
-		const relativePosition = getChatPetRelativeHorizontalPosition(clampedLeft, minimumLeft, maximumLeft);
-		if (relativePosition !== undefined) {
-			this.chatPetService.setHorizontalPosition(relativePosition);
+		if (updateAnchor) {
+			this._horizontalAnchor = getChatPetHorizontalAnchor(clampedLeft, minimumLeft, maximumLeft);
+			const relativePosition = getChatPetRelativeHorizontalPosition(clampedLeft, minimumLeft, maximumLeft);
+			if (relativePosition !== undefined) {
+				this.chatPetService.setHorizontalPosition(relativePosition);
+			}
 		}
 		this._updateSpeechBubblePosition();
 		return clampedLeft !== left;
@@ -2017,6 +2427,7 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.style.right = 'auto';
 		this._positionInitialized = true;
 		this._hasCustomPosition = false;
+		this._horizontalAnchor = undefined;
 		this._updateSpeechBubblePosition();
 	}
 
@@ -2032,36 +2443,52 @@ export class ChatPetWidget extends Disposable {
 		};
 	}
 
-	private _getPlatformBounds(): { readonly left: number; readonly right: number; readonly top: number } {
+	private _getPlatformBounds(includeHorizontalPlatform = true): { readonly left: number; readonly right: number; readonly top: number } {
 		const hostBounds = this._overlay.getBoundingClientRect();
 		const inputBounds = this.dragBounds.getBoundingClientRect();
+		const petCenterX = includeHorizontalPlatform ? hostBounds.left + this._getCurrentLeft() + this._getDisplaySize() / 2 : undefined;
 		return {
 			left: inputBounds.left,
 			right: inputBounds.right,
-			top: getChatPetPlatformTop(hostBounds.top, inputBounds.top, this._platformTopProvider?.()),
+			top: getChatPetPlatformTop(hostBounds.top, inputBounds.top, this._host.get().getPlatformTop(petCenterX)),
 		};
+	}
+
+	private _updateRunLayer(): void {
+		this._overlay.classList.toggle(
+			CHAT_PET_RUN_LAYER_CLASS,
+			this._button.element.classList.contains('on-the-run') || this._button.element.classList.contains('returning-from-run')
+		);
 	}
 
 	private _updateVerticalPosition(): void {
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const platformTop = this._getPlatformBounds().top;
+		this._button.element.style.top = 'auto';
 		this._button.element.style.bottom = `calc(100% - ${platformTop - overlayBounds.top}px)`;
 	}
 
 	private _setPlatformPosition(left: number): void {
+		this._setHorizontalPosition(left);
+		this._updatePlatformVerticalPosition();
+		this._updateBounceCounterPosition();
+	}
+
+	private _setAnchoredPlatformPosition(): void {
+		this._setAnchoredHorizontalPosition();
+		this._updatePlatformVerticalPosition();
+	}
+
+	private _updatePlatformVerticalPosition(): void {
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const platformBounds = this._getPlatformBounds();
 		this._button.element.style.top = `${platformBounds.top - overlayBounds.top - this._getDisplaySize()}px`;
 		this._button.element.style.bottom = 'auto';
-		this._setHorizontalPosition(left);
 	}
 
 	private _setDefaultPlatformPosition(): void {
-		const overlayBounds = this._overlay.getBoundingClientRect();
-		const platformBounds = this._getPlatformBounds();
-		this._button.element.style.top = `${platformBounds.top - overlayBounds.top - this._getDisplaySize()}px`;
-		this._button.element.style.bottom = 'auto';
 		this._setDefaultHorizontalPosition();
+		this._updatePlatformVerticalPosition();
 	}
 
 	private _showRespawnSequence(): void {
@@ -2148,6 +2575,7 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		this._respawnPhase = 'falling';
+		this._resetBounceCount();
 		this._respawnAnimation.clear();
 		this._respawnEffect.container.classList.add('hidden');
 		this._deathPosition = undefined;
@@ -2191,6 +2619,147 @@ export class ChatPetWidget extends Disposable {
 			this._eyes,
 			this._eyeAccessoryContainer,
 		]);
+	}
+
+	private _tryMouseBounce(now: number, previousCursorPosition?: readonly [number, number]): boolean {
+		if (!this._enabled || this._motionReduced || this._isDead.get() || !this._isAirborne() || !this._cursorPosition) {
+			this._cursorContactingPet = false;
+			return false;
+		}
+		if (!isChatPetMouseBounceGracePeriodElapsed(now, this._mouseBounceAvailableAt)) {
+			const bounds = this._button.element.getBoundingClientRect();
+			this._cursorContactingPet = isChatPetMouseContact(this._cursorPosition[0], this._cursorPosition[1], bounds);
+			this._mouseBounceArmed = false;
+			return false;
+		}
+		const bounds = this._button.element.getBoundingClientRect();
+		let pointerX = this._cursorPosition[0];
+		const currentlyContacting = isChatPetMouseContact(pointerX, this._cursorPosition[1], bounds);
+		if (this._cursorContactingPet) {
+			this._cursorContactingPet = currentlyContacting;
+			this._mouseBounceArmed = !currentlyContacting;
+			return false;
+		}
+		let contacting = currentlyContacting;
+		if (!contacting && previousCursorPosition) {
+			const collisionTime = getChatPetMouseCollisionTime(
+				bounds.left - previousCursorPosition[0],
+				bounds.top - previousCursorPosition[1],
+				bounds.left - this._cursorPosition[0],
+				bounds.top - this._cursorPosition[1],
+				bounds.width,
+				bounds.height,
+				0,
+				0,
+			);
+			if (collisionTime !== undefined) {
+				pointerX = previousCursorPosition[0] + (this._cursorPosition[0] - previousCursorPosition[0]) * collisionTime;
+				contacting = true;
+			}
+		}
+		if (!contacting) {
+			this._cursorContactingPet = false;
+			return false;
+		}
+		const bounced = this._bounceAirbornePet(pointerX, this._getCursorVelocity(now), true);
+		this._cursorContactingPet = bounced;
+		return bounced;
+	}
+
+	private _trackCursor(event: PointerEvent): void {
+		const now = dom.getWindow(this._button.element).performance.now();
+		const previousCursorPosition = this._cursorPosition;
+		this._cursorPosition = [event.clientX, event.clientY];
+		this._mouseBounceArmed = isChatPetMouseBounceGracePeriodElapsed(now, this._mouseBounceAvailableAt);
+		this._cursorSamples.push({ x: event.clientX, y: event.clientY, time: now });
+		while (this._cursorSamples.length > 2 && (this._cursorSamples.length > POINTER_VELOCITY_SAMPLE_LIMIT || now - this._cursorSamples[0].time > THROW_VELOCITY_SAMPLE_DURATION)) {
+			this._cursorSamples.shift();
+		}
+		this._tryMouseBounce(now, previousCursorPosition);
+	}
+
+	private _getCursorVelocity(now: number): ChatPetThrowVelocity {
+		return getChatPetThrowVelocity(this._cursorSamples, now) ?? { x: 0, y: 0 };
+	}
+
+	private _bounceAirbornePet(pointerX: number, pointerVelocity: ChatPetThrowVelocity, requireDescending = false, collisionMotion?: ChatPetThrowMotion): boolean {
+		if (!this._enabled || this._motionReduced || this._isDead.get()) {
+			return false;
+		}
+		let bounced = false;
+		if (this._button.element.classList.contains('throwing')) {
+			bounced = this._throwBounceHandler?.(pointerX, pointerVelocity, requireDescending, collisionMotion) ?? false;
+		} else if (this._button.element.classList.contains('falling')) {
+			const bounds = this._button.element.getBoundingClientRect();
+			const velocity = getChatPetMouseBounceVelocity({ x: 0, y: 0 }, pointerVelocity, pointerX, bounds.left, bounds.width);
+			this._beginThrow(velocity, true, 0, true);
+			bounced = true;
+		}
+		if (bounced) {
+			this._bounceResultScheduler.cancel();
+			this._mouseBounceArmed = false;
+			this._bounceResultVisible = false;
+			this._bounceCount++;
+			this._bounceCounter.textContent = String(this._bounceCount);
+			this._bounceCounter.classList.remove('hidden');
+			this._updateBounceCounterPosition();
+			status(localize('chatPet.bounceCount', "VS Code pet bounce count: {0}", this._bounceCount));
+		}
+		return bounced;
+	}
+
+	private _updateBounceCounterPosition(): void {
+		if (this._bounceCount === 0) {
+			return;
+		}
+		const left = Number.parseFloat(this._button.element.style.left);
+		const top = Number.parseFloat(this._button.element.style.top);
+		if (!Number.isFinite(left) || !Number.isFinite(top)) {
+			return;
+		}
+		this._bounceCounter.style.left = `${left + this._getDisplaySize()}px`;
+		this._bounceCounter.style.top = `${top}px`;
+	}
+
+	private _showBounceConfetti(): void {
+		if (this._motionReduced || !shouldCelebrateChatPetBounceScore(this._bounceCount)) {
+			return;
+		}
+		const overlayBounds = this._overlay.getBoundingClientRect();
+		const petBounds = this._button.element.getBoundingClientRect();
+		this._confettiAnchor.style.left = `${petBounds.left - overlayBounds.left}px`;
+		this._confettiAnchor.style.top = `${petBounds.top - overlayBounds.top}px`;
+		this._confettiAnchor.style.width = `${petBounds.width}px`;
+		this._confettiAnchor.style.height = `${petBounds.height}px`;
+		triggerConfettiAnimation(this._confettiAnchor);
+	}
+
+	private _resetBounceCount(): void {
+		this._bounceResultScheduler.cancel();
+		this._bounceCount = 0;
+		this._bounceResultVisible = false;
+		this._cursorContactingPet = false;
+		this._mouseBounceArmed = false;
+		this._mouseBounceAvailableAt = 0;
+		this._bounceCounter.textContent = '';
+		this._bounceCounter.classList.add('hidden');
+	}
+
+	private _showBounceResult(): void {
+		this._cursorContactingPet = false;
+		this._mouseBounceArmed = false;
+		this._mouseBounceAvailableAt = 0;
+		this._bounceResultVisible = this._bounceCount > 0;
+		if (this._bounceResultVisible) {
+			this._updateBounceCounterPosition();
+			this._bounceResultScheduler.schedule();
+		}
+	}
+
+	private _dismissBounceResult(): void {
+		if (this._bounceResultVisible) {
+			this._resetBounceCount();
+		}
 	}
 
 	private _updateGaze(): void {
@@ -2254,6 +2823,7 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.classList.remove('hidden', 'exiting', 'entering');
 		this._button.element.tabIndex = 0;
 		this._restoreHorizontalPosition();
+		this._updateVerticalPosition();
 		this._button.element.getBoundingClientRect();
 		this._gazeScheduler.schedule();
 		if (!this._motionReduced) {
@@ -2267,10 +2837,12 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		const relativePosition = this.chatPetService.horizontalPosition.get();
-		this._button.element.style.left = `${getChatPetRestoredHorizontalPosition(relativePosition, bounds.minimumLeft, bounds.maximumLeft)}px`;
+		const left = getChatPetRestoredHorizontalPosition(relativePosition, bounds.minimumLeft, bounds.maximumLeft);
+		this._button.element.style.left = `${left}px`;
 		this._button.element.style.right = 'auto';
 		this._positionInitialized = true;
 		this._hasCustomPosition = relativePosition !== undefined;
+		this._horizontalAnchor = relativePosition === undefined ? undefined : getChatPetHorizontalAnchor(left, bounds.minimumLeft, bounds.maximumLeft);
 		this._updateSpeechBubblePosition();
 	}
 
@@ -2300,9 +2872,12 @@ export class ChatPetWidget extends Disposable {
 			this._isDragging.set(false, undefined);
 		}
 		this._throwAnimation.clear();
+		this._throwBounceHandler = undefined;
 		this._throwGeometryDirty = false;
+		this._resetBounceCount();
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
+		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
+		this._updateRunLayer();
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();
@@ -2364,20 +2939,8 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _trySearch(): void {
-		if (!this._enabled || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		if (this._motionReduced) {
-			this._searchScheduler.schedule();
-			return;
-		}
-		this._transientState.set('searching', undefined);
-		this._renderState('searching', true);
-		this._searchScheduler.schedule();
-	}
-
 	private _wake(): void {
+		this._dismissBounceResult();
 		const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 		this._idleExpired.set(false, undefined);
 		if (this._busy) {
@@ -2696,14 +3259,7 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (state === 'jump') {
 			this._hopController.onAnimationComplete();
-			return;
 		}
-		if (state !== 'searching' || !this.chatPetService.onTheRun.get()) {
-			return;
-		}
-		this._transientState.set('searchingDown', undefined);
-		this._button.element.dataset.state = 'searchingDown';
-		this._renderedState = 'searchingDown';
 	}
 
 	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {

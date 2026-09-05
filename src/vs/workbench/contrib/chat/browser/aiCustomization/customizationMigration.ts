@@ -8,10 +8,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 
@@ -49,11 +51,7 @@ const retainedPromptHeaderKeys = new Set([
  * Prompt files become skills because agent-host harnesses have no prompt-file concept;
  * every other customization keeps its type and only changes location.
  */
-export function getCustomizationMigrationTargetType(customization: IPromptPath): PromptsType {
-	return customization.type === PromptsType.prompt ? PromptsType.skill : customization.type;
-}
-
-export function migratePromptFileToSkill(promptFile: IPromptPath, content: string, skillNameOverride?: string): IMigratedPromptFile {
+export function migratePromptFileToSkill(promptFile: MigratableConfiguration, content: string, skillNameOverride?: string): IMigratedPromptFile {
 	const parser = new PromptFileParser();
 	const parsed = parser.parse(promptFile.uri, content);
 	const friendlyName = promptFile.name?.trim() || parsed.header?.name?.trim() || getCleanPromptName(promptFile.uri);
@@ -102,7 +100,7 @@ function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttrib
 }
 
 export async function migrateCustomizations(
-	customizations: readonly IPromptPath[],
+	customizations: readonly MigratableConfiguration[],
 	targetFolders: CustomizationMigrationTargetFolders,
 	fileService: IFileService,
 	onMigrationError?: (error: Error) => void,
@@ -115,7 +113,7 @@ export async function migrateCustomizations(
 	const migratedCustomizations: IMigratedCustomization[] = [];
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
-	const customizationsBySource = new ResourceMap<IPromptPath[]>();
+	const customizationsBySource = new ResourceMap<MigratableConfiguration[]>();
 
 	for (const customization of customizations) {
 		const sourceCustomizations = customizationsBySource.get(customization.uri) ?? [];
@@ -150,20 +148,35 @@ export async function migrateCustomizations(
 					}
 					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 					migratedContent = migratedSkill.content;
+				} else if (customization.type === PromptsType.skill) {
+					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
+					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, basename(dirname(customization.uri)), reservedNamesForFolder, fileService);
+					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 				} else {
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
 					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
 				}
 
 				await fileService.createFolder(targetFolder.uri);
-				await fileService.createFolder(dirname(targetUri));
-				await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
-				writtenTargetUris.push(targetUri);
+				if (customization.type === PromptsType.skill) {
+					const sourceFolder = dirname(customization.uri);
+					const targetSkillFolder = dirname(targetUri);
+					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
+					writtenTargetUris.push(stagingFolder);
+					await fileService.copy(sourceFolder, stagingFolder, false);
+					await fileService.move(stagingFolder, targetSkillFolder, false);
+					writtenTargetUris.push(targetSkillFolder);
+				} else {
+					await fileService.createFolder(dirname(targetUri));
+					await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
+					writtenTargetUris.push(targetUri);
+				}
 				migratedSourceCustomizations.push({ uri: targetUri, type: targetType });
 			}
 
 			if (deleteOriginalFiles) {
-				await fileService.del(sourceCustomization.uri);
+				const sourceToDelete = sourceCustomization.type === PromptsType.skill ? dirname(sourceCustomization.uri) : sourceCustomization.uri;
+				await fileService.del(sourceToDelete, { recursive: sourceCustomization.type === PromptsType.skill });
 			}
 			for (const key of sourceUnsupportedHeaderKeys) {
 				unsupportedHeaderKeys.add(key);
@@ -194,7 +207,7 @@ async function rollbackMigrationTargets(targetUris: readonly URI[], fileService:
 		const targetUri = targetUris[index];
 		try {
 			if (await fileService.exists(targetUri)) {
-				await fileService.del(targetUri);
+				await fileService.del(targetUri, { recursive: true });
 			}
 		} catch (error) {
 			errors.push(error instanceof Error ? error : new Error(String(error)));
@@ -212,7 +225,7 @@ function getOrCreateReservedNames(folder: URI, reservedNames: Map<string, Set<st
 
 async function getAvailableMigratedFileUri(
 	targetFolder: URI,
-	customization: IPromptPath,
+	customization: MigratableConfiguration,
 	reservedNames: Set<string>,
 	fileService: IFileService,
 ): Promise<URI> {
@@ -269,7 +282,7 @@ async function getAvailableMigratedSkillName(
 ): Promise<string> {
 	let candidate = baseSkillName;
 	let counter = 2;
-	while (reservedNames.has(candidate) || await fileService.exists(createSkillFileUri(skillSourceFolder, candidate))) {
+	while (reservedNames.has(candidate) || await fileService.exists(URI.joinPath(skillSourceFolder, candidate))) {
 		const suffix = `-${counter++}`;
 		const trimmedBaseName = trimSkillName(baseSkillName, suffix.length);
 		candidate = `${trimmedBaseName}${suffix}`;

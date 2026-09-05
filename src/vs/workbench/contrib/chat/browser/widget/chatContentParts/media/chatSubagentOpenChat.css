@@ -15,20 +15,21 @@
 	min-width: 0;
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+.chat-subagent-open-chat-toolbar .actions-container .action-item.chat-subagent-pill-widget {
 	display: inline-flex;
 	flex-direction: column;
 	align-items: flex-start;
 	width: 100%;
 	max-width: 100%;
 	line-height: 1.4em;
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
 	color: var(--vscode-descriptionForeground);
 	background: none;
 	cursor: default;
 	white-space: nowrap;
 	text-decoration: none;
+	outline: none;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-header {
@@ -59,6 +60,23 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type::after {
+	content: '\00b7';
+	margin-left: var(--vscode-spacing-size40);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-agent-type.hidden {
+	display: none;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label.rendered-markdown,
@@ -134,7 +152,7 @@
 	margin-top: var(--vscode-spacing-size40);
 	margin-left: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 1.4em;
 }
 
@@ -305,10 +323,11 @@
 	height: var(--vscode-spacing-size120);
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-credits {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	font-style: italic;
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
@@ -316,7 +335,13 @@
 	pointer-events: none;
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration.hidden {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration:not(.hidden) + .chat-subagent-pill-credits::before {
+	content: '\00b7';
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration.hidden,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-credits.hidden {
 	display: none;
 }
 
@@ -331,8 +356,8 @@
 	border-radius: var(--vscode-cornerRadius-circle);
 	color: var(--vscode-editor-background);
 	background: var(--vscode-list-warningForeground);
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label .monaco-button,
@@ -341,6 +366,6 @@
 	display: none;
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only::after {
+.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label::after {
 	display: none;
 }

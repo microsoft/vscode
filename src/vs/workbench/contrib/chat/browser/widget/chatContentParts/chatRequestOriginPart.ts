@@ -53,7 +53,9 @@ export class ChatRequestOriginPart extends Disposable {
 		this._register(hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
 			this.domNode,
-			localize('chat.requestOrigin.openSource', "Open source chat"),
+			requestOrigin?.delegationScope === 'session'
+				? localize('chat.requestOrigin.openSourceSession', "Open source session")
+				: localize('chat.requestOrigin.openSource', "Open source chat"),
 		));
 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -85,13 +87,24 @@ export class ChatRequestOriginPart extends Disposable {
 
 	private _renderRequestOrigin(origin: IChatRequestOrigin): void {
 		switch (origin.kind) {
-			case ChatRequestOriginKind.Delegation:
+			case ChatRequestOriginKind.Delegation: {
+				const isFromAnotherChat = origin.delegationScope === 'chat';
+				const isFromAnotherSession = origin.delegationScope === 'session';
 				this._renderContent(
-					localize('chat.requestOrigin.delegation', "Sent by Codex from another chat"),
+					isFromAnotherChat
+						? localize('chat.requestOrigin.delegation.chat', "Sent from another chat")
+						: isFromAnotherSession
+							? localize('chat.requestOrigin.delegation.session', "Sent by another session")
+							: localize('chat.requestOrigin.delegation', "Sent by Codex from another chat"),
 					undefined,
-					localize('chat.requestOrigin.delegationAriaLabel', "Sent by Codex from another chat. Select to open the source chat."),
+					isFromAnotherChat
+						? localize('chat.requestOrigin.delegationAriaLabel.chat', "Sent from another chat. Select to open the source.")
+						: isFromAnotherSession
+							? localize('chat.requestOrigin.delegationAriaLabel.session', "Sent by another session. Select to open the source.")
+							: localize('chat.requestOrigin.delegationAriaLabel', "Sent by Codex from another chat. Select to open the source chat."),
 				);
 				break;
+			}
 		}
 	}
 

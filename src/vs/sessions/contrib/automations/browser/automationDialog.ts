@@ -15,12 +15,15 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -54,6 +57,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { AutomationInputCompletions } from './automationInputCompletions.js';
 
 const $ = DOM.$;
 
@@ -67,12 +71,13 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
 export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
-		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
+		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content, .suggest-widget'
 	);
 }
 
-export function isAutomationDialogEditCommand(commandId: string, target: HTMLElement): boolean {
-	return (commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target);
+export function shouldPassThroughAutomationDialogCommand(commandId: string, target: HTMLElement): boolean {
+	return commandId === 'acceptSelectedSuggestion'
+		|| ((commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target));
 }
 
 export async function canSelectAutomationWorkspace(
@@ -103,6 +108,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	targetWindow: Window & typeof globalThis,
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
+	acceptPromptSuggestion: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -131,6 +137,11 @@ export function registerAutomationDialogKeyboardNavigation(
 		}
 		suppressPopupEscapeKeyUp = false;
 		if (event.key !== 'Tab') {
+			return;
+		}
+		if (!event.shiftKey && acceptPromptSuggestion()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
 			return;
 		}
 
@@ -200,6 +211,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: () => Promise<void>;
 	readonly getFocusableElements: () => readonly HTMLElement[];
+	readonly acceptPromptSuggestion: () => boolean;
 }
 
 export type AutomationSessionDraftTarget =
@@ -442,6 +454,10 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				this.cancelBranchRequest();
 			}
 		});
+	}
+
+	showPicker(anchor: HTMLElement): void {
+		this.branchPicker.showPicker(anchor);
 	}
 
 	private refreshTargetCapability(): void {
@@ -994,12 +1010,16 @@ export function renderForm(
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
+	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
+	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-input-background)',
 	};
+	let automationIsolationAction: IAction | undefined;
+	const overflowIsolationItem = disposables.add(new MutableDisposable<AutomationIsolationGroupActionViewItem>());
 
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -1024,7 +1044,36 @@ export function renderForm(
 		// reserve the default 24px margin and lay the editor out too narrow,
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
+		editorOverflowWidgetsDomNode,
 		sessionTypePickerDelegate: sessionTypeDelegate,
+		secondaryToolbarOverflowActionHandler: (actionId, anchor) => {
+			if (actionId === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+				sessionTypePicker.showPicker(anchor);
+				return true;
+			}
+			if (actionId === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				workspacePicker.showPicker(false, anchor);
+				return true;
+			}
+			if (actionId === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID && automationIsolationAction) {
+				const item = instantiationService.createInstance(
+					AutomationIsolationGroupActionViewItem,
+					automationIsolationAction,
+					state,
+					isolationModel,
+					isolationModel.folderUriObs,
+					onDidChangeSessionTarget.event,
+					revalidate,
+					undefined,
+					workspaceControlsVisible,
+				);
+				overflowIsolationItem.value = item;
+				item.render(DOM.$('.automation-overflow-isolation-picker'));
+				item.showPicker(anchor);
+				return true;
+			}
+			return false;
+		},
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
@@ -1036,6 +1085,7 @@ export function renderForm(
 				}, undefined, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+				automationIsolationAction = action;
 				const item = instantiationService.createInstance(
 					AutomationIsolationGroupActionViewItem,
 					action,
@@ -1080,6 +1130,7 @@ export function renderForm(
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
+	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 
 	if (initialMode) {
 		const getUnfilteredInitialMode = () => {
@@ -1208,6 +1259,14 @@ export function renderForm(
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
+		},
+		acceptPromptSuggestion: () => {
+			const suggestController = SuggestController.get(chatInput.inputEditor);
+			if (!suggestController || suggestController.model.state === SuggestState.Idle || !suggestController.widget.value.getFocusedItem()) {
+				return false;
+			}
+			suggestController.acceptSelectedSuggestion(true, false);
+			return true;
 		},
 	};
 }
@@ -1382,6 +1441,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		EditorContextKeys.textInputFocus,
 		ChatContextKeys.inAutomationsDialog,
+		SuggestContext.Visible.toNegated(),
 	),
 	primary: KeyCode.Enter,
 	handler: (accessor) => {

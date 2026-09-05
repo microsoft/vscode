@@ -10,28 +10,64 @@ import { ISettableObservable, observableValue } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
+import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 
 suite('aiCustomizationManagementEditor', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes the customization target in the modal title', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		const labels = [[input.getName(), input.getDescription()]];
+		input.setTargetLabels('Copilot');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels(undefined);
+		labels.push([input.getName(), input.getDescription()]);
+		assert.deepStrictEqual(labels, [
+			['Agent Customizations', undefined],
+			['Agent Customizations', '(Copilot)'],
+			['Agent Customizations', '(Copilot · vscode)'],
+			['Agent Customizations', undefined],
+		]);
+	});
+
+	test('rejects stale plugin contribution navigation', () => {
+		assert.deepStrictEqual([
+			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
+			isCurrentPluginContributionNavigation(1, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
+			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
+			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
+		], [true, false, false, false]);
+	});
 
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
-		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>;
+		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
+		customizationMigrationInProgress: boolean;
+		customizationMigrationWritesInProgress: boolean;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -40,20 +76,27 @@ suite('aiCustomizationManagementEditor', () => {
 		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
 		dimension: undefined;
 		hoverService: IHoverService;
+		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI> };
 		migrationListContainer: HTMLElement | undefined;
+		migrationSectionLists: readonly unknown[];
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
+		migrationClearSettingsCheckbox: Checkbox | undefined;
+		migrationClearSettingsContainer: HTMLElement | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
-		migrationSearchQuery: string;
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
-		collapsedCustomizationMigrationGroups: Set<string>;
 		migrationPageDisposables: DisposableStore;
+		migrationBannerDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
+		quickInputService: {
+			pick(items: readonly { folder: ICustomizationSourceFolder }[]): Promise<{ folder: ICustomizationSourceFolder } | undefined>;
+		};
+		notificationService: { error(message: string): void };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
@@ -64,13 +107,21 @@ suite('aiCustomizationManagementEditor', () => {
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
+		refreshCustomizationMigrationInfoFromPromptChange(): void;
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationPage(): void;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
-		filterCustomizationMigrationCandidatesByTargetFolders(customizations: readonly IPromptPath[], targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>): readonly IPromptPath[];
-		isCustomizationSelectedForMigration(customization: IPromptPath): boolean;
-		setCustomizationSelectedForMigration(customization: IPromptPath, selected: boolean): void;
+		updateCustomizationMigrationActionState(): void;
+		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
+		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
+		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
+		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
+		resolveCustomizationMigrationTargetFolders(
+			customizations: readonly MigratableConfiguration[],
+			availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+			sessionResource: URI,
+		): Promise<ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>> | undefined>;
 		updateContentVisibility(): void;
 		setVisible(visible: boolean): void;
 	};
@@ -84,6 +135,13 @@ suite('aiCustomizationManagementEditor', () => {
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
+			inspect: (key: string) => ({
+				key,
+				value: merged[key],
+				defaultValue: undefined,
+				policyValue: undefined,
+			}),
+			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
 		} as unknown as IConfigurationService & { setValue(key: string, value: unknown): void };
 	}
 
@@ -94,6 +152,8 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
 		editor.customizationMigrationTargetFoldersByType = new Map();
+		editor.customizationMigrationInProgress = false;
+		editor.customizationMigrationWritesInProgress = false;
 		editor.activeMigrationCategoryId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -110,22 +170,30 @@ suite('aiCustomizationManagementEditor', () => {
 				update() { },
 			}),
 		} as unknown as IHoverService;
+		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
 		editor.configurationService = configurationService ?? createConfigurationServiceStub();
 		editor.migrationListContainer = undefined;
+		editor.migrationSectionLists = [];
 		editor.migrationMigrateButton = undefined;
+		editor.migrationClearSettingsCheckbox = undefined;
+		editor.migrationClearSettingsContainer = undefined;
 		editor.migrationTitleElement = undefined;
 		editor.migrationDescriptionElement = undefined;
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
-		editor.migrationSearchQuery = '';
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
-		editor.collapsedCustomizationMigrationGroups = new Set();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.migrationBannerDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
 		};
-		editor.showEmbeddedEditor = async () => { };
-		editor.getActiveHarnessLabel = () => 'Copilot [Agent Host]';
+		editor.quickInputService = {
+			pick: async items => items[0],
+		};
+		editor.notificationService = {
+			error: () => { },
+		};
+		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
 		editor.editorPreviewRenderScheduler = {
@@ -161,6 +229,28 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
 		assert.strictEqual(editor.getEditorModeButtonTooltip(), 'Edit the raw markdown file');
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('ignores programmatic open requests for synthetic built-ins without source content', async () => {
+		const editor = createTestEditor();
+		const builtInUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/init' });
+
+		await editor.showEmbeddedEditor(
+			toAgentHostUri(builtInUri, 'remote'),
+			'init',
+			PromptsType.skill,
+			AICustomizationSources.builtin,
+			false,
+			true
+		);
+
+		assert.deepStrictEqual({
+			viewMode: editor.viewMode,
+		}, {
+			viewMode: 'list',
+		});
 
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -249,6 +339,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const configurationService = createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
+			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: false,
 		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
 		const editor = createTestEditor(undefined, configurationService);
 		editor.customizationsByMigrationCategory = new Map([
@@ -257,13 +348,19 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath]],
+			} as MigratableConfiguration]],
 			[CustomizationMigrationCategoryId.UserData, [{
 				uri: URI.file('/user-data/prompts/legacy.agent.md'),
 				storage: PromptsStorage.user,
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
-			} as IPromptPath]],
+			} as MigratableConfiguration]],
+			[CustomizationMigrationCategoryId.ConfiguredLocations, [{
+				uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.skill,
+				source: PromptFileSource.ConfigWorkspace,
+			} as MigratableConfiguration]],
 		]);
 		editor.welcomePage = {
 			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
@@ -274,11 +371,15 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.refreshCustomizationMigrationUi();
 		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
 		editor.refreshCustomizationMigrationUi();
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled, true);
+		configurationService.setValue('chat.agentFilesLocations', { '/workspace/custom-agents': true });
+		editor.refreshCustomizationMigrationUi();
 
 		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
 			[],
 			[CustomizationMigrationCategoryId.UserData],
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
+			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData, CustomizationMigrationCategoryId.ConfiguredLocations],
 		]);
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -288,19 +389,19 @@ suite('aiCustomizationManagementEditor', () => {
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
 		const sharedUri = URI.file('/home/user/shared.prompt.md');
-		const workspacePrompt: IPromptPath = {
+		const workspacePrompt: MigratableConfiguration = {
 			uri: sharedUri,
 			storage: PromptsStorage.local,
 			type: PromptsType.prompt,
 			source: PromptFileSource.ConfigWorkspace,
 		};
-		const userPrompt: IPromptPath = {
+		const userPrompt: MigratableConfiguration = {
 			uri: sharedUri,
 			storage: PromptsStorage.user,
 			type: PromptsType.prompt,
 			source: PromptFileSource.ConfigPersonal,
 		};
-		const candidates = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>([
+		const candidates = new Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>([
 			[CustomizationMigrationCategoryId.PromptFiles, [workspacePrompt, userPrompt]],
 		]);
 
@@ -336,12 +437,12 @@ suite('aiCustomizationManagementEditor', () => {
 					storage: PromptsStorage.user,
 					type: PromptsType.instructions,
 					source: PromptFileSource.UserData,
-				} as IPromptPath],
+				} as MigratableConfiguration],
 			]]);
 			editor.customizationMigrationTargetFoldersByType = new Map([[
 				PromptsType.instructions,
 				[{
-					uri: URI.file(`/home/test/.test-harness${sessionResource.path}/instructions`),
+					uri: URI.file('/home/test/.test-harness' + sessionResource.path + '/instructions'),
 					label: sessionResource.path,
 					source: AICustomizationSources.user,
 				}],
@@ -363,38 +464,149 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('only offers migration candidates with a supported destination folder', () => {
+	test('suppresses prompt change refreshes only while migration writes are in progress', () => {
 		const editor = createTestEditor();
-		const promptFile: IPromptPath = {
-			uri: URI.file('/user-data/prompts/review.prompt.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.prompt,
-			source: PromptFileSource.UserData,
+		let refreshCount = 0;
+		editor.refreshCustomizationMigrationInfo = async () => {
+			refreshCount++;
 		};
-		const agent: IPromptPath = {
+
+		editor.customizationMigrationInProgress = true;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+		editor.customizationMigrationWritesInProgress = true;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+		editor.customizationMigrationWritesInProgress = false;
+		editor.refreshCustomizationMigrationInfoFromPromptChange();
+
+		assert.strictEqual(refreshCount, 2);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('disables migration while another migration is in progress', () => {
+		const editor = createTestEditor();
+		const customization: MigratableConfiguration = {
 			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
 			storage: PromptsStorage.user,
 			type: PromptsType.agent,
 			source: PromptFileSource.UserData,
 		};
-		const instruction: IPromptPath = {
-			uri: URI.file('/user-data/prompts/style.instructions.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.instructions,
-			source: PromptFileSource.UserData,
-		};
-		const targetFolders = new Map([
-			[PromptsType.skill, [{ uri: URI.file('/home/test/.copilot/skills'), label: 'Skills', source: AICustomizationSources.user }]],
-		]);
+		editor.migrationMigrateButton = { enabled: true, label: '' };
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.UserData, [customization]]]), new Map());
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.UserData;
 
-		assert.deepStrictEqual(
-			editor.filterCustomizationMigrationCandidatesByTargetFolders([promptFile, agent, instruction], targetFolders).map(customization => customization.uri.path),
-			['/user-data/prompts/review.prompt.md'],
-		);
+		editor.customizationMigrationInProgress = true;
+		editor.updateCustomizationMigrationActionState();
+
+		assert.strictEqual(editor.migrationMigrateButton.enabled, false);
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('user data migration banner states the Settings Sync trade-off and replaces the description', () => {
+	test('keeps clearing enabled and clears only settings unused after the selected migrations', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agentSettingId = 'chat.agentFilesLocations';
+		const instructionsSettingId = 'chat.instructionsFilesLocations';
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+			[agentSettingId]: { '/custom/agents': true },
+			[instructionsSettingId]: { '/custom/instructions': true },
+		}));
+		const customizations: MigratableConfiguration[] = [
+			{
+				uri: URI.file('/custom/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/custom/style.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		];
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		editor.migrationClearSettingsCheckbox = new Checkbox('Clear unused location settings after migration', true, defaultCheckboxStyles);
+		editor.setCustomizationsToMigrate(new Map([[category.id, customizations]]), new Map());
+		editor.activeMigrationCategoryId = category.id;
+		editor.migrationListContainer = document.createElement('div');
+		document.body.appendChild(editor.migrationListContainer);
+
+		editor.renderCustomizationMigrationPage();
+		const settingsGroupToggle = editor.migrationListContainer.querySelector<HTMLButtonElement>('.prompt-migration-settings-group .customization-section-toggle');
+		const settingsGroupItems = editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-settings-group .prompt-migration-group-items');
+		const allSelected = {
+			enabled: editor.migrationClearSettingsCheckbox.enabled,
+			checked: editor.migrationClearSettingsCheckbox.checked,
+			settingsToClear: editor.getConfiguredLocationSettingsToClear(category, customizations),
+			settingsGroupTitle: editor.migrationListContainer.querySelector('.prompt-migration-settings-group .prompt-migration-group-title')?.textContent,
+			settingsGroupToggle: {
+				ariaExpanded: settingsGroupToggle?.getAttribute('aria-expanded'),
+				ariaLabel: settingsGroupToggle?.getAttribute('aria-label'),
+			},
+			settingsItemLabel: editor.migrationListContainer.querySelector('.prompt-migration-settings-item-label')?.textContent,
+			settingsItemDescription: editor.migrationListContainer.querySelector('.prompt-migration-settings-item-description')?.textContent,
+		};
+		settingsGroupToggle?.click();
+		const collapsedSettingsGroup = {
+			ariaExpanded: settingsGroupToggle?.getAttribute('aria-expanded'),
+			itemsHidden: settingsGroupItems?.hidden,
+		};
+
+		editor.setCustomizationSelectedForMigration(customizations[0], false);
+		editor.updateCustomizationMigrationActionState();
+		const partiallySelected = {
+			enabled: editor.migrationClearSettingsCheckbox.enabled,
+			checked: editor.migrationClearSettingsCheckbox.checked,
+			settingsToClear: editor.getConfiguredLocationSettingsToClear(category, [customizations[1]]),
+		};
+
+		assert.deepStrictEqual({ allSelected, collapsedSettingsGroup, partiallySelected }, {
+			allSelected: {
+				enabled: true,
+				checked: true,
+				settingsToClear: [agentSettingId, instructionsSettingId],
+				settingsGroupTitle: 'Settings',
+				settingsGroupToggle: {
+					ariaExpanded: 'true',
+					ariaLabel: 'Collapse Settings',
+				},
+				settingsItemLabel: 'Clear unused location settings',
+				settingsItemDescription: 'Remove deprecated settings that are no longer needed after the selected customizations migrate successfully.',
+			},
+			collapsedSettingsGroup: {
+				ariaExpanded: 'false',
+				itemsHidden: true,
+			},
+			partiallySelected: {
+				enabled: true,
+				checked: true,
+				settingsToClear: [instructionsSettingId],
+			},
+		});
+		editor.migrationListContainer.remove();
+		editor.migrationClearSettingsCheckbox.dispose();
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('clears each configured location setting without changing its target', async () => {
+		const updates: [string, unknown][] = [];
+		const editor = createTestEditor(undefined, {
+			updateValue: async (key: string, value: unknown) => { updates.push([key, value]); },
+		} as unknown as IConfigurationService);
+
+		await editor.clearConfiguredLocationSettings([
+			'chat.agentFilesLocations',
+			'chat.modeFilesLocations',
+		]);
+
+		assert.deepStrictEqual(updates, [
+			['chat.agentFilesLocations', undefined],
+			['chat.modeFilesLocations', undefined],
+		]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('migration banners include destination consequences when applicable', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -406,14 +618,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.user,
 				type: PromptsType.agent,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/style.instructions.md'),
 				name: 'style.instructions.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.instructions,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		const promptFiles = [
 			{
@@ -422,7 +634,7 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([
 			[CustomizationMigrationCategoryId.UserData, userDataCustomizations],
@@ -442,12 +654,11 @@ suite('aiCustomizationManagementEditor', () => {
 		document.body.appendChild(editor.migrationListContainer);
 
 		const readBanner = () => ({
-			title: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title')?.textContent ?? '',
 			message: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-message')?.textContent ?? '',
 			consequence: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '',
-			consequenceMentionsSync: (editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '').includes('Settings Sync'),
 			bannerHidden: editor.migrationBannerContainer!.style.display === 'none',
 			descriptionHidden: editor.migrationDescriptionElement!.style.display === 'none',
+			linkInBanner: editor.migrationLinkElement!.closest('.customization-migration-banner-content') !== null,
 		});
 
 		try {
@@ -455,27 +666,24 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationPage();
 			const userData = readBanner();
 
-			// The prompt-file migration keeps its plain description, with no banner.
 			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
 			editor.renderCustomizationMigrationPage();
 			const prompts = readBanner();
 
 			assert.deepStrictEqual({ userData, prompts }, {
 				userData: {
-					title: '2 customizations are not available to Copilot [Agent Host]',
 					message: 'They are stored in user data, which only VS Code reads. Move them to \'~/.copilot\' so both VS Code and this harness can use them, keeping their name, type, and content.',
 					consequence: 'Migrated files aren\'t currently included in Settings Sync.',
-					consequenceMentionsSync: true,
 					bannerHidden: false,
 					descriptionHidden: true,
+					linkInBanner: true,
 				},
 				prompts: {
-					title: '',
-					message: '',
+					message: 'Prompts are no longer supported by Copilot. Convert them to skills to keep them available in both VS Code and this harness.',
 					consequence: '',
-					consequenceMentionsSync: false,
-					bannerHidden: true,
-					descriptionHidden: false,
+					bannerHidden: false,
+					descriptionHidden: true,
+					linkInBanner: true,
 				},
 			});
 		} finally {
@@ -489,7 +697,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
-		const promptFile: IPromptPath = {
+		const promptFile: MigratableConfiguration = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
 			name: 'Review',
 			storage: PromptsStorage.local,
@@ -536,6 +744,51 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
+	test('virtualized migration rows keep checkbox selection and keyboard traversal aligned', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const promptFiles = Array.from({ length: 6 }, (_, index): MigratableConfiguration => ({
+			uri: URI.file(`/workspace/.github/prompts/workspace-${index}.prompt.md`),
+			name: `workspace-${index}.prompt.md`,
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		}));
+		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
+		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		document.body.appendChild(editor.migrationListContainer);
+
+		try {
+			editor.renderCustomizationMigrationPage();
+			const firstRow = editor.migrationListContainer.querySelector<HTMLElement>('.monaco-list-row[data-index="0"]');
+			firstRow?.click();
+			const lastVisibleMoreButton = editor.migrationListContainer.querySelector<HTMLElement>('.monaco-list-row[data-index="4"] .prompt-migration-more-action');
+			const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+			Object.defineProperty(tabEvent, 'keyCode', { get: () => 9 });
+			lastVisibleMoreButton?.dispatchEvent(tabEvent);
+
+			assert.deepStrictEqual({
+				firstRowSelected: firstRow?.classList.contains('selected'),
+				firstRowAriaSelected: firstRow?.getAttribute('aria-selected') === 'true',
+				focusedRowIndex: document.activeElement?.closest('.monaco-list-row')?.getAttribute('data-index'),
+				focusedControlIsCheckbox: document.activeElement?.classList.contains('monaco-checkbox'),
+			}, {
+				firstRowSelected: false,
+				firstRowAriaSelected: false,
+				focusedRowIndex: '5',
+				focusedControlIsCheckbox: true,
+			});
+		} finally {
+			editor.migrationListContainer.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
 	test('group migration selection retains keyboard focus', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -547,14 +800,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
@@ -562,6 +815,7 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.setCustomizationSelectedForMigration(promptFile, true);
 		}
 		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
 		editor.migrationMigrateButton = { enabled: false, label: '' };
 		document.body.appendChild(editor.migrationListContainer);
 
@@ -603,7 +857,7 @@ suite('aiCustomizationManagementEditor', () => {
 					groupChecked: 'false',
 					itemCheckboxes: ['false', 'false'],
 					selectedItems: [false, false],
-					migrateButton: { enabled: false, label: 'Migrate' },
+					migrateButton: { enabled: false, label: 'Convert to Skills' },
 				},
 				afterReselecting: {
 					groupRetainedFocus: true,
@@ -611,7 +865,7 @@ suite('aiCustomizationManagementEditor', () => {
 					groupChecked: 'true',
 					itemCheckboxes: ['true', 'true'],
 					selectedItems: [true, true],
-					migrateButton: { enabled: true, label: 'Migrate (2)' },
+					migrateButton: { enabled: true, label: 'Convert 2 to Skills' },
 				},
 			});
 		} finally {
@@ -621,7 +875,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
-	test('customization migration groups can be collapsed independently', () => {
+	test('customization migration groups render as flat source sections', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
@@ -632,28 +886,28 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/user-a.prompt.md'),
 				name: 'user-a.prompt.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.prompt,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/user-data/prompts/user-b.prompt.md'),
 				name: 'user-b.prompt.md',
 				storage: PromptsStorage.user,
 				type: PromptsType.prompt,
 				source: PromptFileSource.UserData,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
@@ -670,22 +924,16 @@ suite('aiCustomizationManagementEditor', () => {
 		try {
 			editor.renderCustomizationMigrationPage();
 
-			const groupToggles = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle')] as HTMLButtonElement[];
-			assert.deepStrictEqual(groupToggles.map(button => button.getAttribute('aria-expanded')), ['true', 'true']);
-
-			groupToggles[0].click();
-
 			const groupContainers = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-items')] as HTMLElement[];
-			assert.deepStrictEqual(groupContainers.map(container => container.style.display), ['none', '']);
-			assert.deepStrictEqual(
-				[...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle')].map(button => button.getAttribute('aria-expanded')),
-				['false', 'true'],
-			);
-
-			editor.renderCustomizationMigrationPage();
-
-			const rerenderedContainers = [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-items')] as HTMLElement[];
-			assert.deepStrictEqual(rerenderedContainers.map(container => container.style.display), ['none', '']);
+			assert.deepStrictEqual({
+				groupTitles: [...editor.migrationListContainer.querySelectorAll('.prompt-migration-group-title')].map(element => element.textContent),
+				groupContainers: groupContainers.map(container => container.style.display),
+				collapseButtons: editor.migrationListContainer.querySelectorAll('.prompt-migration-group-toggle').length,
+			}, {
+				groupTitles: ['Workspace', 'User'],
+				groupContainers: ['', ''],
+				collapseButtons: 0,
+			});
 		} finally {
 			editor.migrationListContainer.remove();
 			editor.migrationPageDisposables.dispose();
@@ -704,14 +952,14 @@ suite('aiCustomizationManagementEditor', () => {
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 			{
 				uri: URI.file('/workspace/.github/prompts/workspace-b.prompt.md'),
 				name: 'workspace-b.prompt.md',
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
 				source: PromptFileSource.GitHubWorkspace,
-			} as IPromptPath,
+			} as MigratableConfiguration,
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
@@ -719,6 +967,7 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.setCustomizationSelectedForMigration(promptFile, true);
 		}
 		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
 		editor.migrationTitleElement = document.createElement('h2');
 		editor.migrationDescriptionElement = document.createElement('p');
 		editor.migrationLinkElement = document.createElement('a');
@@ -733,7 +982,7 @@ suite('aiCustomizationManagementEditor', () => {
 			const readGroupChecked = () => groupCheckbox?.getAttribute('aria-checked');
 
 			const initiallyChecked = readGroupChecked();
-			// Unchecking only one item already breaks "all selected", so the group checkbox should clear.
+			// Unchecking only one item leaves a partial group selection.
 			itemCheckboxes[0].click();
 			const afterFirstUncheck = readGroupChecked();
 			// Unchecking the last remaining item must keep the group checkbox cleared (issue #331330).
@@ -753,13 +1002,164 @@ suite('aiCustomizationManagementEditor', () => {
 			}, {
 				itemCount: 2,
 				initiallyChecked: 'true',
-				afterFirstUncheck: 'false',
+				afterFirstUncheck: 'mixed',
 				afterLastUncheck: 'false',
 				afterRecheckingAll: 'true',
 			});
 		} finally {
 			editor.migrationListContainer.remove();
 			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('mixed user data migration chooses one destination root', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		const pickedFolders: ICustomizationSourceFolder[] = [];
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				pickedFolders.push(...items.map(item => item.folder));
+				return items[0];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
+			]],
+		]);
+
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				pickerFolders: pickedFolders.map(folder => folder.uri.path),
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.copilot/instructions',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('automatic migration target does not constrain a later folder choice', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				return items[1];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user, destinationGroupId: 'copilot' },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user, destinationGroupId: 'claude' },
+			]],
+		]);
+
+		try {
+			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.deepStrictEqual({
+				pickerInvocationCount,
+				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+			}, {
+				pickerInvocationCount: 1,
+				agentTarget: '/home/test/.copilot/agents',
+				instructionsTarget: '/home/test/.claude/rules',
+			});
+		} finally {
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('does not infer migration destination groups from folder parents', async () => {
+		const editor = createTestEditor();
+		const sessionResource = editor.harnessService.activeSessionResource.get();
+		let pickerInvocationCount = 0;
+		editor.quickInputService = {
+			pick: async items => {
+				pickerInvocationCount++;
+				return items[0];
+			},
+		};
+		const customizations = [
+			{
+				uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			},
+			{
+				uri: URI.file('/user-data/prompts/review.instructions.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			},
+		] as const satisfies readonly MigratableConfiguration[];
+		const availableSourceFolders = new Map<PromptsType, readonly ICustomizationSourceFolder[]>([
+			[PromptsType.agent, [
+				{ uri: URI.file('/home/test/.copilot/agents'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/agents'), label: 'Claude', source: PromptsStorage.user },
+			]],
+			[PromptsType.instructions, [
+				{ uri: URI.file('/home/test/.copilot/instructions'), label: 'Copilot', source: PromptsStorage.user },
+				{ uri: URI.file('/home/test/.claude/rules'), label: 'Claude', source: PromptsStorage.user },
+			]],
+		]);
+
+		try {
+			await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+
+			assert.strictEqual(pickerInvocationCount, 2);
+		} finally {
 			editor.editorPreviewDisposables.dispose();
 		}
 	});

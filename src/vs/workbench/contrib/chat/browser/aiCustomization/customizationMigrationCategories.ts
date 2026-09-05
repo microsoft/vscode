@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { equals } from '../../../../../base/common/objects.js';
+import type { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { PromptFileSource, PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationType, FileCustomizationMigrationType, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
 	UserData = 'userData',
+	ConfiguredLocations = 'configuredLocations',
 }
 
 export interface ICustomizationMigrationGroup {
 	readonly key: string;
 	readonly label: string;
-	readonly customizations: readonly IPromptPath[];
+	readonly customizations: readonly MigratableConfiguration[];
 }
 
 export interface ICustomizationMigrationConfirmation {
@@ -27,26 +33,26 @@ export interface ICustomizationMigrationConfirmation {
 }
 
 /**
- * Prominent explanation shown above the migration list, for migrations whose
- * trade-off needs stating before the user commits.
+ * Prominent explanation shown above the migration list.
  */
 export interface ICustomizationMigrationBanner {
-	readonly title: string;
-	readonly message: string;
-	/** What the user gives up by migrating, so the choice is made knowingly. */
-	readonly consequence: string;
+	readonly message: string | IMarkdownString;
+	readonly consequence?: string;
 }
 
 /**
  * A self-contained migration flow. Each category owns its candidates, grouping,
- * and user-visible copy so the two migrations stay focused and independently readable.
+ * and user-visible copy so migrations stay focused and independently readable.
  */
 export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
+	readonly migrationType: FileCustomizationMigrationType;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes: readonly PromptsType[];
 	/** Experimental setting gating this migration. Each category is enabled independently. */
 	readonly enablementSetting: ChatConfiguration;
+	/** Settings that must differ from their defaults for this migration to apply. */
+	readonly configurationSettingIds?: readonly string[];
 	readonly shortcutLabel: string;
 	readonly shortcutTooltip: string;
 	readonly cardLabel: string;
@@ -56,18 +62,18 @@ export interface ICustomizationMigrationCategory {
 	readonly pageLinkLabel: string;
 	readonly pageLinkUrl: string;
 	readonly pageEmptyMessage: string;
-	readonly searchEmptyMessage: string;
 	readonly migrateButtonTooltip: string;
 	readonly backLabel: string;
 	readonly noFilesMigratedMessage: string;
-	isCandidate(customization: IPromptPath): boolean;
-	group(customizations: readonly IPromptPath[]): readonly ICustomizationMigrationGroup[];
+	isCandidate(customization: MigratableConfiguration): boolean;
+	group(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationGroup[];
 	getShortcutAriaLabel(count: number): string;
-	getCardDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
-	getPageDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
+	getCardDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
+	getPageDescription(customizations: readonly MigratableConfiguration[], harnessLabel: string): string;
 	/** When present, replaces the page description with a prominent banner. */
-	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationBanner;
-	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
+	getModifiedSettingIds?(configurationService: IConfigurationService): readonly string[];
+	getBanner?(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel: string | undefined, modifiedSettingIds: readonly string[]): ICustomizationMigrationBanner;
+	getConfirmation(customizations: readonly MigratableConfiguration[], harnessLabel: string, destinationLabel?: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
 	getFailedMessage(failedFileNames: readonly string[], hiddenFileCount: number): string;
@@ -75,6 +81,12 @@ export interface ICustomizationMigrationCategory {
 
 const SKILLS_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/agent-skills?referrer=in-product';
 const CUSTOMIZATION_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agent-customization/overview?referrer=in-product';
+const CONFIGURED_LOCATION_SETTING_IDS = [
+	PromptsConfig.AGENTS_LOCATION_KEY,
+	PromptsConfig.MODE_LOCATION_KEY,
+	PromptsConfig.SKILLS_LOCATION_KEY,
+	PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
+] as const;
 
 /**
  * Converts `*.prompt.md` files into skills. Agent-host harnesses ignore prompt
@@ -82,6 +94,7 @@ const CUSTOMIZATION_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agen
  */
 const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.PromptFiles,
+	migrationType: CustomizationMigrationType.PromptFiles,
 	sourceTypes: [PromptsType.prompt],
 	enablementSetting: ChatConfiguration.ChatCustomizationsPromptMigrationEnabled,
 	shortcutLabel: localize('promptMigrationShortcutLabel', "Migrate Prompts"),
@@ -93,15 +106,11 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	pageLinkLabel: localize('promptMigrationLearnMore', "Learn more about agent skills"),
 	pageLinkUrl: SKILLS_DOCUMENTATION_URL,
 	pageEmptyMessage: localize('promptMigrationPageEmpty', "No prompt files are available to migrate."),
-	searchEmptyMessage: localize('promptMigrationSearchEmpty', "No prompt files match your search."),
 	migrateButtonTooltip: localize('promptMigrationPageButtonTooltip', "Convert selected prompt files to skills"),
 	backLabel: localize('backToPromptMigration', "Back to Migrate Prompt Files"),
 	noFilesMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
 
-	isCandidate(customization) {
-		return customization.type === PromptsType.prompt
-			&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
-	},
+	isCandidate: isPromptFileMigrationCandidate,
 
 	group(customizations) {
 		return [
@@ -171,6 +180,16 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 		);
 	},
 
+	getBanner(_customizations, harnessLabel) {
+		return {
+			message: localize(
+				'promptMigrationBannerMessage',
+				"Prompts are no longer supported by {0}. Convert them to skills to keep them available in both VS Code and this harness.",
+				harnessLabel,
+			),
+		};
+	},
+
 	getConfirmation(customizations) {
 		const { workspaceCount, userCount } = countPromptStorages(customizations);
 		const detail = workspaceCount > 0 && userCount > 0
@@ -213,6 +232,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
  */
 const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.UserData,
+	migrationType: CustomizationMigrationType.UserData,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions],
 	enablementSetting: ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled,
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
@@ -224,15 +244,11 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	pageLinkLabel: localize('userDataMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
 	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No user data customizations are available to migrate."),
-	searchEmptyMessage: localize('userDataMigrationSearchEmpty', "No user data customizations match your search."),
 	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected user data customizations to the active harness"),
 	backLabel: localize('backToUserDataMigration', "Back to Migrate User Data Customizations"),
 	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
-	isCandidate(customization) {
-		return customization.source === PromptFileSource.UserData
-			&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
-	},
+	isCandidate: isUserDataMigrationCandidate,
 
 	group(customizations) {
 		return [
@@ -290,15 +306,8 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			);
 	},
 
-	getBanner(customizations, harnessLabel, destinationLabel) {
-		const { totalCount } = countUserDataTypes(customizations);
-
+	getBanner(_customizations, harnessLabel, destinationLabel) {
 		return {
-			title: totalCount === 1
-				? localize('userDataMigrationBannerTitleSingle', "1 customization is not available to {0}", harnessLabel)
-				: localize('userDataMigrationBannerTitle', "{0} customizations are not available to {1}", totalCount, harnessLabel),
-			// The grouped list below already breaks these down by type, so the
-			// message explains the move rather than repeating the counts.
 			message: destinationLabel
 				? localize(
 					'userDataMigrationBannerMessageWithDestination',
@@ -396,9 +405,139 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	},
 };
 
+const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
+	id: CustomizationMigrationCategoryId.ConfiguredLocations,
+	migrationType: CustomizationMigrationType.ConfiguredLocations,
+	sourceTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.skill],
+	enablementSetting: ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled,
+	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
+	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Location Settings"),
+	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
+	cardLabel: localize('configuredLocationsMigrationCardLabel', "Migrate Location Settings"),
+	cardActionLabel: localize('configuredLocationsMigrationCardAction', "Migrate..."),
+	cardActionAriaLabel: localize('configuredLocationsMigrationCardActionAriaLabel', "Migrate customizations from unsupported configured locations"),
+	pageTitle: localize('configuredLocationsMigrationPageTitle', "Migrate Location Settings"),
+	pageLinkLabel: localize('configuredLocationsMigrationLearnMore', "Learn more about agent customizations"),
+	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
+	pageEmptyMessage: localize('configuredLocationsMigrationPageEmpty', "No customizations in unsupported configured locations are available to migrate."),
+	migrateButtonTooltip: localize('configuredLocationsMigrationPageButtonTooltip', "Move the selected customizations to locations supported by the active harness"),
+	backLabel: localize('backToConfiguredLocationsMigration', "Back to Migrate Location Settings"),
+	noFilesMigratedMessage: localize('configuredLocationsMigrationNoFilesMigrated', "No customizations from configured locations were migrated."),
+
+	isCandidate: isConfiguredLocationMigrationCandidate,
+
+	getModifiedSettingIds(configurationService) {
+		return CONFIGURED_LOCATION_SETTING_IDS.filter(settingId => {
+			const inspected = configurationService.inspect(settingId);
+			return !equals(inspected.value, inspected.defaultValue);
+		});
+	},
+
+	group(customizations) {
+		return [
+			{
+				key: PromptsType.agent,
+				label: localize('configuredLocationsMigrationAgentsGroup', "Agents"),
+				customizations: customizations.filter(customization => customization.type === PromptsType.agent),
+			},
+			{
+				key: PromptsType.instructions,
+				label: localize('configuredLocationsMigrationInstructionsGroup', "Instructions"),
+				customizations: customizations.filter(customization => customization.type === PromptsType.instructions),
+			},
+			{
+				key: PromptsType.skill,
+				label: localize('configuredLocationsMigrationSkillsGroup', "Skills"),
+				customizations: customizations.filter(customization => customization.type === PromptsType.skill),
+			},
+		].filter(group => group.customizations.length > 0);
+	},
+
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('configuredLocationsMigrationShortcutAriaLabelSingle', "Locations, 1 customization needs migration")
+			: localize('configuredLocationsMigrationShortcutAriaLabelWithCount', "Locations, {0} customizations need migration", count);
+	},
+
+	getCardDescription(customizations, harnessLabel) {
+		return customizations.length === 1
+			? localize('configuredLocationsMigrationCardDescriptionSingle', "Found 1 customization in a configured location that {0} does not use. Move it to keep it available.", harnessLabel)
+			: localize('configuredLocationsMigrationCardDescription', "Found {0} customizations in configured locations that {1} does not use. Move them to keep them available.", customizations.length, harnessLabel);
+	},
+
+	getPageDescription(customizations, harnessLabel) {
+		return customizations.length === 0
+			? localize('configuredLocationsMigrationPageDescriptionEmpty', "Select customizations to move to locations supported by the active harness.")
+			: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings that {1} does not use. Move them to supported harness locations.", customizations.length, harnessLabel);
+	},
+
+	getBanner(_customizations, harnessLabel, destinationLabel, modifiedSettingIds) {
+		const settingsLinks = modifiedSettingIds.map(settingId => `[${settingId}](${createCommandUri('workbench.action.openSettings', { query: `@id:${settingId}` })})`);
+		const settingsList = formatSettingLinks(settingsLinks);
+		const message = settingsLinks.length === 1
+			? destinationLabel
+				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel)
+			: destinationLabel
+				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel);
+		return {
+			message: new MarkdownString(message, {
+				isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
+			}),
+			consequence: localize('configuredLocationsMigrationBannerConsequence', "The option to clear unused location settings after migration is selected by default."),
+		};
+	},
+
+	getConfirmation(customizations, harnessLabel, destinationLabel) {
+		return {
+			message: destinationLabel
+				? localize('configuredLocationsMigrationConfirmMessageWithDestination', "Migrate customizations to '{0}'?", destinationLabel)
+				: localize('configuredLocationsMigrationConfirmMessage', "Migrate customizations to {0}?", harnessLabel),
+			detail: customizations.length === 1
+				? localize('configuredLocationsMigrationConfirmDetailSingle', "This moves 1 customization out of an unsupported configured location.")
+				: localize('configuredLocationsMigrationConfirmDetail', "This moves {0} customizations out of unsupported configured locations.", customizations.length),
+			primaryButton: localize('configuredLocationsMigrationConfirmButton', "Migrate"),
+			deleteOriginalsLabel: localize('configuredLocationsMigrationDeleteOriginalFilesCheckbox', "Delete the original files after migration"),
+		};
+	},
+
+	getMigratedMessage(migratedCount) {
+		return migratedCount === 1
+			? localize('configuredLocationsMigrationCompletedSingle', "Migrated 1 customization from a configured location.")
+			: localize('configuredLocationsMigrationCompleted', "Migrated {0} customizations from configured locations.", migratedCount);
+	},
+
+	getFailedMessage(failedFileNames, hiddenFileCount) {
+		const failedCount = failedFileNames.length + hiddenFileCount;
+		if (failedCount === 1) {
+			return localize('configuredLocationsMigrationFileFailed', "Failed to migrate 1 customization: {0}.", failedFileNames[0]);
+		}
+		return hiddenFileCount > 0
+			? localize('configuredLocationsMigrationFilesFailedWithRemainder', "Failed to migrate {0} customizations: {1}, and {2} more.", failedCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('configuredLocationsMigrationFilesFailed', "Failed to migrate {0} customizations: {1}.", failedCount, failedFileNames.join(', '));
+	},
+};
+
+function formatSettingLinks(settingsLinks: readonly string[]): string {
+	switch (settingsLinks.length) {
+		case 1:
+			return settingsLinks[0];
+		case 2:
+			return localize('twoConfiguredLocationSettings', "{0} and {1}", settingsLinks[0], settingsLinks[1]);
+		case 3:
+			return localize('threeConfiguredLocationSettings', "{0}, {1}, and {2}", settingsLinks[0], settingsLinks[1], settingsLinks[2]);
+		case 4:
+			return localize('fourConfiguredLocationSettings', "{0}, {1}, {2}, and {3}", settingsLinks[0], settingsLinks[1], settingsLinks[2], settingsLinks[3]);
+		default:
+			throw new Error('Expected at least one configured location setting');
+	}
+}
+
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
 	promptFilesMigrationCategory,
 	userDataMigrationCategory,
+	configuredLocationsMigrationCategory,
 ];
 
 export function getCustomizationMigrationCategory(id: CustomizationMigrationCategoryId): ICustomizationMigrationCategory {
@@ -416,13 +555,13 @@ export function getCustomizationMigrationSourceTypes(categories: readonly ICusto
 	return Array.from(new Set(categories.flatMap(category => category.sourceTypes)));
 }
 
-function countPromptStorages(customizations: readonly IPromptPath[]): { workspaceCount: number; userCount: number; totalCount: number } {
+function countPromptStorages(customizations: readonly MigratableConfiguration[]): { workspaceCount: number; userCount: number; totalCount: number } {
 	const workspaceCount = customizations.filter(customization => customization.storage === PromptsStorage.local).length;
 	const userCount = customizations.filter(customization => customization.storage === PromptsStorage.user).length;
 	return { workspaceCount, userCount, totalCount: workspaceCount + userCount };
 }
 
-function countUserDataTypes(customizations: readonly IPromptPath[]): { agentCount: number; instructionsCount: number; totalCount: number } {
+function countUserDataTypes(customizations: readonly MigratableConfiguration[]): { agentCount: number; instructionsCount: number; totalCount: number } {
 	const agentCount = customizations.filter(customization => customization.type === PromptsType.agent).length;
 	const instructionsCount = customizations.filter(customization => customization.type === PromptsType.instructions).length;
 	return { agentCount, instructionsCount, totalCount: agentCount + instructionsCount };

@@ -12,7 +12,7 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -49,6 +49,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -81,7 +82,7 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		if (value === 'assisted') {
 			return Codicon.sparkle;
 		}
-		return Codicon.shield;
+		return Codicon.key;
 	}
 	if (property === ClaudeSessionConfigKey.PermissionMode && typeof value === 'string') {
 		switch (value) {
@@ -139,7 +140,7 @@ export function getAgentHostSandboxSettingId(sessionType: string | undefined, cu
 	return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled, windows);
 }
 
-export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined, sandboxed: boolean): string {
+export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 	let label: string;
 	if (schema.type === 'boolean') {
 		label = value === true
@@ -151,6 +152,10 @@ export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema,
 	} else {
 		label = schema.title;
 	}
+	return label;
+}
+
+export function getConfigPickerAccessibleTriggerLabel(label: string, sandboxed: boolean): string {
 	return sandboxed
 		? localize('agentHostChatInputPicker.sandboxedLabel', "{0} (sandboxed)", label)
 		: label;
@@ -185,7 +190,7 @@ function getEnumValueDescription(schema: SessionConfigPropertySchema, value: unk
 	return index >= 0 ? schema.enumDescriptions?.[index] : undefined;
 }
 
-export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): string {
+export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, sandboxed = false): string {
 	if (property === CodexSessionConfigKey.PermissionsPreset) {
 		return getEnumValueDescription(schema, value) ?? schema.description ?? schema.title;
 	}
@@ -193,9 +198,12 @@ export function getConfigPickerTriggerHover(property: string, schema: SessionCon
 		return schema.description ?? schema.title;
 	}
 
-	const hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
+	let hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
 	if (isReadOnly) {
-		return localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+		hover = localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+	}
+	if (sandboxed) {
+		hover = localize('agentHostChatInputPicker.approvalsLevelHoverSandboxed', "{0} Terminal commands are sandboxed.", hover);
 	}
 	return hover;
 }
@@ -286,10 +294,11 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
  *
- * `WorktreeBranchPrefix` likewise has no chip: it is a carrier value seeded by
- * the client (from `git.branchPrefix`) and consumed by the agent for worktree
- * isolation, never edited by the user. Including it here keeps the generic lane
- * from surfacing it as a chip in the chat input.
+ * Host-owned worktree configuration also has no chip. Including those properties
+ * here keeps the generic lane from surfacing them in the chat input. The same
+ * applies to `ShellInitScripts`, which is generated rather than user-edited:
+ * `readOnly` keeps it out of the session-settings file but does not by itself
+ * suppress the generic chip.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
@@ -299,7 +308,9 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.ShellInitScripts,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
 ]);
@@ -354,6 +365,9 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
 	private readonly _initialResolveCts = this._registerInitialResolveCts();
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _pickerDisposables = this._register(new DisposableStore());
+	private readonly _sandboxToggleDisabled = derived(this, reader => this._agentHostEnablementService.managedSandboxEnforced.read(reader)
+		&& !this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader));
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & { readonly sub: IAgentSubscription<SessionState>; readonly backendSession: URI }>());
 
@@ -414,6 +428,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		container.classList.add('agent-host-chat-input-picker-host');
 		container.classList.add(`agent-host-chat-input-picker-host-${this._property}`);
 		this._renderChip();
+	}
+
+	show(anchor: HTMLElement): void {
+		void this._showPicker(anchor);
 	}
 
 	private _reattach(): void {
@@ -504,6 +522,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._trigger = undefined;
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
+		this._container.classList.remove('agent-host-chat-input-picker-has-icon');
 
 		const ctx = this._readContext();
 		// For sessions that have already started (i.e. no longer untitled —
@@ -537,10 +556,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
 		this._trigger = trigger;
-		const tooltip = getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly);
-		if (tooltip) {
-			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
-		}
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({
+			content: getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly, this._isSandboxed())
+		})));
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
@@ -548,20 +566,28 @@ export class AgentHostChatInputPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const icon = getConfigIcon(this._property, value);
+		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		// Mirror the sessions-side picker: elevated approval levels get themed colors.
 		if (this._property === SessionConfigKey.AutoApprove) {
 			trigger.classList.toggle('warning', value === 'autopilot' || value === 'assisted');
 			trigger.classList.toggle('info', value === 'autoApprove');
 		}
-		const label = this._labelFor(schema, value);
+		const label = getConfigPickerTriggerLabel(schema, value);
 		const labelSpan = dom.append(trigger, dom.$('span.agent-host-chat-input-picker-label'));
 		labelSpan.textContent = label;
+		const sandboxed = this._isSandboxed();
+		if (sandboxed) {
+			const sandboxIcon = dom.append(trigger, renderIcon(Codicon.shield));
+			sandboxIcon.classList.add('agent-host-chat-input-picker-sandbox-icon');
+			sandboxIcon.ariaHidden = 'true';
+		}
+		const accessibleLabel = getConfigPickerAccessibleTriggerLabel(label, sandboxed);
 		trigger.setAttribute('aria-label', isReadOnly
-			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
-			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, label));
+			? localize('agentHostChatInputPicker.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, accessibleLabel)
+			: localize('agentHostChatInputPicker.triggerAria', "{0}: {1}", schema.title, accessibleLabel));
 	}
 
 	private _refreshTrigger(): void {
@@ -576,11 +602,10 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
-	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
-		const sandboxed = this._property === SessionConfigKey.AutoApprove
+	private _isSandboxed(): boolean {
+		return this._property === SessionConfigKey.AutoApprove
 			&& this._isSandboxToggleSettingEnabled()
 			&& this._isSandboxingEnabled();
-		return getConfigPickerTriggerLabel(schema, value, sandboxed);
 	}
 
 	private _readContext(): { backendSession: URI; schema: SessionConfigPropertySchema; value: unknown | undefined } | undefined {
@@ -678,7 +703,10 @@ export class AgentHostChatInputPicker extends Disposable {
 					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
 				})
 				: undefined,
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				this._pickerDisposables.clear();
+				trigger.focus();
+			},
 		};
 
 		this._actionWidgetService.show<IConfigPickerItem>(
@@ -700,6 +728,15 @@ export class AgentHostChatInputPicker extends Disposable {
 					: {}),
 			}),
 		);
+		if (actionItems.some(item => item.standaloneToggle)) {
+			this._pickerDisposables.add(autorun(reader => {
+				this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+				this._sandboxToggleDisabled.read(reader);
+				this._actionWidgetService.updateItems(actionItems.map(item => item.standaloneToggle
+					? { ...item, standaloneToggle: this._getSandboxStandaloneToggle() }
+					: item));
+			}));
+		}
 	}
 
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
@@ -721,21 +758,28 @@ export class AgentHostChatInputPicker extends Disposable {
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
 	}
 
+	private _isSandboxToggleDisabled(): boolean {
+		return this._sandboxToggleDisabled.get();
+	}
+
 	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
 		const settingId = this._getSandboxSettingId();
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
 		const managed = this._agentHostEnablementService.managedSandboxEnforced.get();
+		const disabled = this._isSandboxToggleDisabled();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
 			title: managed
-				? localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				? disabled
+					? localize('agentHostChatInputPicker.requiredSandboxToggleTitle', "Sandboxing is required by your organization")
+					: localize('agentHostChatInputPicker.editableManagedSandboxToggleTitle', "Sandboxing is enabled by your organization, but you may disable it")
 				: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managed,
+			disabled,
 			onChange: checked => {
-				if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+				if (this._isSandboxToggleDisabled()) {
 					return;
 				}
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;

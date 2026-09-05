@@ -5,7 +5,8 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { stableStringify } from '../../../base/common/objects.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -25,6 +26,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
+	private readonly _operationLanes = new Map<string, Promise<InvokeChangesetOperationResult>>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -45,7 +47,28 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (this._handlerRegistrations.has(contribution)) {
 			throw new Error('Changeset operation contribution already registered');
 		}
-		this._handlerRegistrations.set(contribution, contribution.registerHandlers(this._registry));
+		const handlerRegistrations = new DisposableStore();
+		const registeredHandlers = new Set<IDisposable>();
+		const registry: IChangesetOperationRegistry = {
+			...this._registry,
+			registerChangesetOperationHandler: (operationId, handler) => {
+				const registration = handlerRegistrations.add(this._registry.registerChangesetOperationHandler(operationId, handler));
+				registeredHandlers.add(registration);
+				return registration;
+			},
+		};
+		try {
+			const registration = contribution.registerHandlers(registry);
+			for (const registeredHandler of registeredHandlers) {
+				handlerRegistrations.deleteAndLeak(registeredHandler);
+			}
+			handlerRegistrations.dispose();
+			this._handlerRegistrations.set(contribution, registration);
+		} catch (error) {
+			handlerRegistrations.dispose();
+			contribution.dispose();
+			throw error;
+		}
 		return toDisposable(() => {
 			this._handlerRegistrations.deleteAndDispose(contribution);
 			contribution.dispose();
@@ -232,47 +255,62 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		handler: IChangesetOperationHandler,
 		params: InvokeChangesetOperationParams,
 	): Promise<InvokeChangesetOperationResult> {
-		const operationKey = `${params.channel}\x00${params.operationId}\x00${JSON.stringify(params.target ?? null)}`;
+		const operationLane = `${params.channel}\x00${params.operationId}`;
+		const operationKey = `${operationLane}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
-		if (inFlightOperationResult) {
+		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
 		}
 
+		const runningOperation = this._operationLanes.get(operationLane);
+		const operationPromise = runningOperation
+			? runningOperation.then(
+				() => this._executeChangesetOperation(handler, params),
+				() => this._executeChangesetOperation(handler, params),
+			)
+			: this._executeChangesetOperation(handler, params);
+		this._operationLanes.set(operationLane, operationPromise);
+		this._inFlightOperations.set(operationKey, operationPromise);
+
+		const clearOperation = () => {
+			if (this._inFlightOperations.get(operationKey) === operationPromise) {
+				this._inFlightOperations.delete(operationKey);
+			}
+			if (this._operationLanes.get(operationLane) === operationPromise) {
+				this._operationLanes.delete(operationLane);
+			}
+		};
+		void operationPromise.then(clearOperation, clearOperation);
+
+		return operationPromise;
+	}
+
+	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		this._stateManager.dispatchServerAction(params.channel, {
 			type: ActionType.ChangesetOperationStatusChanged,
 			operationId: params.operationId,
 			status: ChangesetOperationStatus.Running,
 		});
 
-		const operationPromise = handler.invoke(params, CancellationToken.None)
-			.then(result => {
-				this._stateManager.dispatchServerAction(params.channel, {
-					type: ActionType.ChangesetOperationStatusChanged,
-					operationId: params.operationId,
-					status: ChangesetOperationStatus.Idle,
-				});
-
-				return result;
-			})
-			.catch((error) => {
-				this._stateManager.dispatchServerAction(params.channel, {
-					type: ActionType.ChangesetOperationStatusChanged,
-					operationId: params.operationId,
-					status: ChangesetOperationStatus.Error,
-					error: toChangesetOperationError(error),
-				});
-
-				throw error;
-			})
-			.finally(() => {
-				if (this._inFlightOperations.get(operationKey) === operationPromise) {
-					this._inFlightOperations.delete(operationKey);
-				}
+		try {
+			const result = await handler.invoke(params, CancellationToken.None);
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChangesetOperationStatusChanged,
+				operationId: params.operationId,
+				status: ChangesetOperationStatus.Idle,
 			});
 
-		this._inFlightOperations.set(operationKey, operationPromise);
+			return result;
+		} catch (error) {
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChangesetOperationStatusChanged,
+				operationId: params.operationId,
+				status: ChangesetOperationStatus.Error,
+				error: toChangesetOperationError(error),
+			});
 
-		return operationPromise;
+			throw error;
+		}
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {

@@ -54,6 +54,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart.updateVisibleSessions(visible, active);
 	}
 
+	setContentVisible(visible: boolean): void {
+		this._mainPart.setContentVisible(visible);
+	}
+
 	toggleMaximizeSession(session: IActiveSession | undefined): void {
 		if (!session) {
 			this._mainPart.toggleMaximizeSession(undefined);
@@ -71,6 +75,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._mainPart.getSessionView(sessionId);
+	}
+
+	getFocusedSessionView(): SessionView | undefined {
+		return this._mainPart.getFocusedSessionView();
 	}
 
 	getProgressIndicator(): IProgressIndicator {

@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../../../platform/configur
 import { ILogService } from '../../../../../../../../platform/log/common/log.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
 import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
@@ -86,6 +86,92 @@ suite('Chat Paste Providers', () => {
 				referenceText: '#attachment:Pasted text #2',
 				pastedLines: '12 lines',
 			},
+		});
+	});
+
+	test('attaches pasted GitHub issue and pull request URLs while preserving prompt text', async () => {
+		const attachments: IChatRequestVariableEntry[] = [];
+		const target: IChatPasteTarget = {
+			sessionResource: URI.parse('chat-session:/test'),
+			get attachments() { return attachments; },
+			get inlineReferences() { return []; },
+			addAttachments: entries => attachments.push(...entries),
+			removeAttachments: ids => {
+				for (const id of ids) {
+					const index = attachments.findIndex(attachment => attachment.id === id);
+					if (index >= 0) {
+						attachments.splice(index, 1);
+					}
+				}
+			},
+			addInlineAttachment: () => { },
+			addInlineReference: () => { },
+			isTerminalCommandPaste: () => false,
+		};
+		const modelUri = URI.from({ scheme: Schemas.vscodeChatInput, path: 'github-paste-test' });
+		const pasteTargetService = new class extends mock<IChatPasteTargetService>() {
+			override getTarget(uri: URI): IChatPasteTarget | undefined {
+				return uri === modelUri ? target : undefined;
+			}
+		};
+		const provider = new PasteTextProvider(
+			pasteTargetService,
+			new class extends mock<IModelService>() { },
+			new class extends mock<ILogService>() { },
+			new class extends mock<IConfigurationService>() {
+				override getValue<T>(): T { return pastedTextArtifactDefaultMinLength as T; }
+			},
+		);
+		const model = upcastPartial<ITextModel>({ uri: modelUri });
+		const text = 'Fix https://github.com/microsoft/vscode/issues/334548 and review https://www.github.com/microsoft/vscode/pull/334544#discussion.';
+		const transfer = new VSDataTransfer();
+		transfer.append(Mimes.text, createStringDataTransferItem(text));
+
+		const session = await provider.provideDocumentPasteEdits(model, [new Range(1, 1, 1, 1)], transfer, { triggerKind: DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+		const edit = session?.edits[0];
+		const customEdit = edit?.additionalEdit?.edits[0] as ICustomEdit | undefined;
+		await customEdit?.redo();
+		const attached = attachments.map(attachment => ({
+			id: attachment.id,
+			kind: attachment.kind,
+			name: attachment.name,
+			icon: attachment.icon?.id,
+			value: attachment.value,
+		}));
+		await customEdit?.undo();
+
+		assert.deepStrictEqual({
+			insertText: edit?.insertText,
+			title: edit?.title,
+			attached,
+			attachmentsAfterUndo: attachments,
+			parsedInvalidLinks: [
+				'https://github.com/microsoft/vscode/discussions/1',
+				'https://github.com/microsoft/vscode/issues/333845-not-an-issue',
+				'https://github.com/microsoft/vscode/pull/123invalid',
+				'https://github.com/microsoft/vscode/pull/123_invalid',
+			].flatMap(link => getGitHubIssueOrPullRequestAttachments(link)),
+		}, {
+			insertText: text,
+			title: 'Paste GitHub Context',
+			attached: [
+				{
+					id: 'github-context:https://github.com/microsoft/vscode/issues/334548',
+					kind: 'generic',
+					name: 'microsoft/vscode#334548',
+					icon: 'issues',
+					value: 'GitHub context: https://github.com/microsoft/vscode/issues/334548',
+				},
+				{
+					id: 'github-context:https://github.com/microsoft/vscode/pull/334544',
+					kind: 'generic',
+					name: 'microsoft/vscode#334544',
+					icon: 'git-pull-request',
+					value: 'GitHub context: https://github.com/microsoft/vscode/pull/334544',
+				},
+			],
+			attachmentsAfterUndo: [],
+			parsedInvalidLinks: [],
 		});
 	});
 

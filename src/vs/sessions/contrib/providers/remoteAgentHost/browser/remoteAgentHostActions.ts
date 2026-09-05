@@ -21,18 +21,19 @@ import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorB
 import { EndOfLinePreference } from '../../../../../editor/common/model.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
-import { ITunnelHostService } from '../../../../../workbench/contrib/chat/common/tunnelHost.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -74,6 +75,7 @@ registerAction2(class extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
@@ -117,7 +119,7 @@ registerAction2(class extends Action2 {
 
 		// Connect
 		try {
-			await remoteAgentHostService.addRemoteAgentHost({
+			await addWebSocketRemoteAgentHostEntry(configurationService, {
 				name: name.trim(),
 				connectionToken: parsed.parsed.connectionToken,
 				connection: {
@@ -125,6 +127,7 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
@@ -610,8 +613,7 @@ async function promptForRemoteFolder(
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
-	// The provider is created synchronously during addManagedConnection's
-	// onDidChangeConnections event, so it should exist by now.
+	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
 		return;
@@ -838,6 +840,10 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
+function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
+	return [...tunnels].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function promptToConnectViaTunnel(
 	accessor: ServicesAccessor,
 	options: { showBackButton?: boolean } = {},
@@ -849,7 +855,42 @@ async function promptToConnectViaTunnel(
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
 	const dialogService = accessor.get(IDialogService);
-	const tunnelHostService = accessor.get(ITunnelHostService);
+	const remoteTunnelService = accessor.get(IRemoteTunnelService);
+	const store = new DisposableStore();
+	let remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+	let hasReceivedRemoteTunnelStatus = false;
+	let tunnels: ITunnelInfo[] = [];
+	// eslint-disable-next-line prefer-const
+	let tunnelPicker: IQuickPick<ITunnelPickItem> | undefined;
+	const deleteTunnelButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+	};
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(remoteTunnelStatus.type === 'connected' ? remoteTunnelStatus.info : undefined, tunnel);
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => sortTunnelsByName(tunnelInfos)
+		.filter(tunnel => !isHostedTunnel(tunnel))
+		.map(tunnel => ({
+			label: tunnel.name,
+			description: tunnel.hostConnectionCount > 0
+				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
+			tunnel,
+		}));
+	const updateTunnelPickerItems = () => {
+		if (tunnelPicker) {
+			tunnelPicker.items = toTunnelPickItems(tunnels);
+		}
+	};
+	store.add(remoteTunnelService.onDidChangeTunnelStatus(status => {
+		hasReceivedRemoteTunnelStatus = true;
+		remoteTunnelStatus = status;
+		updateTunnelPickerItems();
+	}));
+	const initialRemoteTunnelStatus = await remoteTunnelService.getTunnelStatus();
+	if (!hasReceivedRemoteTunnelStatus) {
+		remoteTunnelStatus = initialRemoteTunnelStatus;
+	}
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -863,13 +904,13 @@ async function promptToConnectViaTunnel(
 			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
 		}
 	} catch {
+		store.dispose();
 		notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
 		return;
 	}
 
 	// Step 2: Show tunnel picker immediately in busy state while enumerating
-	const store = new DisposableStore();
-	const tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
+	tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
 	tunnelPicker.title = localize('tunnelPickTitle', "Connect via Dev Tunnel");
 	tunnelPicker.placeholder = localize('tunnelPickPlaceholder', "Select a dev tunnel to connect to");
 	tunnelPicker.busy = true;
@@ -878,7 +919,6 @@ async function promptToConnectViaTunnel(
 	}
 	tunnelPicker.show();
 
-	let tunnels: ITunnelInfo[];
 	try {
 		tunnels = await tunnelService.listTunnels();
 	} catch (err) {
@@ -893,25 +933,6 @@ async function promptToConnectViaTunnel(
 		return;
 	}
 
-	const deleteTunnelButton: IQuickInputButton = {
-		iconClass: ThemeIcon.asClassName(Codicon.trash),
-		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
-	};
-	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(tunnelHostService.sharingInfo, tunnel);
-	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => tunnelInfos
-		.filter(tunnel => !isHostedTunnel(tunnel))
-		.map(tunnel => ({
-			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
-			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
-			tunnel,
-		}));
-
-	const updateTunnelPickerItems = () => {
-		tunnelPicker.items = toTunnelPickItems(tunnels);
-	};
 	if (toTunnelPickItems(tunnels).length === 0) {
 		store.dispose();
 		notificationService.info(localize('tunnelOnlyLocalFound', "This machine is already hosting the only available dev tunnel."));
@@ -919,7 +940,6 @@ async function promptToConnectViaTunnel(
 	}
 
 	updateTunnelPickerItems();
-	store.add(tunnelHostService.onDidChangeStatus(updateTunnelPickerItems));
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection
@@ -951,6 +971,10 @@ async function promptToConnectViaTunnel(
 			if (event.button !== deleteTunnelButton || isDeleting) {
 				return;
 			}
+			if (isHostedTunnel(event.item.tunnel)) {
+				updateTunnelPickerItems();
+				return;
+			}
 
 			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
 			isDeleting = true;
@@ -964,6 +988,10 @@ async function promptToConnectViaTunnel(
 					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
 				});
 				if (!confirmation.confirmed) {
+					return;
+				}
+				if (isHostedTunnel(event.item.tunnel)) {
+					updateTunnelPickerItems();
 					return;
 				}
 
@@ -1021,7 +1049,8 @@ async function promptToConnectViaTunnel(
 	try {
 		// `connect` caches the tunnel internally before wiring the live
 		// connection — no separate `cacheTunnel` call needed here.
-		await tunnelService.connect(picked.tunnel, authProvider);
+		tunnelService.clearTunnelDismissal(picked.tunnel.tunnelId);
+		await tunnelService.connect(picked.tunnel, authProvider, { userInitiated: true });
 		handle.close();
 	} catch (err) {
 		handle.close();
@@ -1070,7 +1099,7 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -1261,7 +1290,7 @@ async function promptForWSLFolder(
 	}
 
 	sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
