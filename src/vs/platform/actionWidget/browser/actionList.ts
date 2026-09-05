@@ -750,6 +750,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _filterText = '';
 	private _imeSessionInProgress = false;
 	private _suppressHover = false;
+	private _ignoreInitialHover = true;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
@@ -950,7 +951,21 @@ export class ActionListWidget<T> extends Disposable {
 		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
-		this._register(this._list.onMouseOver(e => this.onListHover(e)));
+		// Ignore mouseover from opening a menu under a stationary cursor so it doesn't take keyboard focus.
+		this._register(this._list.onMouseOver(e => {
+			if (!this._ignoreInitialHover) {
+				this.onListHover(e);
+			}
+		}));
+		this._register(this._list.onMouseMove(e => {
+			if (this._ignoreInitialHover && (e.browserEvent.movementX !== 0 || e.browserEvent.movementY !== 0)) {
+				this._ignoreInitialHover = false;
+				this.onListHover(e);
+			}
+		}));
+		this._register(this._list.onMouseDown(() => {
+			this._ignoreInitialHover = false;
+		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		if (this._options?.persistentHover) {
