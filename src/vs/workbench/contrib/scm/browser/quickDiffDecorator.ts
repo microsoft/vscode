@@ -274,7 +274,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	private onDidChangeDiffWidthConfiguration(): void {
 		let width = this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth');
 
-		if (isNaN(width) || width <= 0 || width > 5) {
+		if (isNaN(width) || width <= 0 || width > 10) {
 			width = 3;
 		}
 
