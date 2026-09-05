@@ -1767,7 +1767,8 @@ export class ListView<T> implements IListView<T> {
 		const diffs = new Array<number>(range.end - range.start).fill(0);
 		const measurements: IDynamicHeightMeasurement<T>[] = [];
 
-		for (let index = range.start; index < range.end; index++) {
+		// Re-check `this.items.length` each iteration so a reentrant splice that shrinks the model mid-loop cannot read out of bounds.
+		for (let index = range.start; index < range.end && index < this.items.length; index++) {
 			const item = this.items[index];
 			const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
 			if (delegateHeightDiff !== undefined) {
