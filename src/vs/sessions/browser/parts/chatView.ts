@@ -73,6 +73,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	readonly hasVisibleTranscriptContent: IObservable<boolean> = constObservable(false);
 
 	/**
+	 * Whether this view is still resolving its chat model, during which
+	 * {@link hasVisibleTranscriptContent} is not yet meaningful — it reads `false` for a transcript
+	 * that simply has not arrived yet as well as for one that does not exist. Views that never load
+	 * a model report `false`, since for them the answer is already final.
+	 */
+	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
+
+	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.

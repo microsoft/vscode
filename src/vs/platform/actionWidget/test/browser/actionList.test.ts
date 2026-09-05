@@ -26,6 +26,7 @@ import { AnchorPosition } from '../../../../base/common/layout.js';
 
 interface ITestActionItem {
 	readonly id: string;
+	readonly checked?: boolean;
 }
 
 function action(id: string): IActionListItem<ITestActionItem> {
@@ -40,6 +41,7 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	readonly items?: readonly IActionListItem<ITestActionItem>[];
 	readonly onFilter?: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
 	readonly onHide?: () => void;
+	readonly onSelect?: (item: ITestActionItem) => void;
 	readonly listOptions?: Partial<IActionListOptions>;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -49,12 +51,12 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	const delegate = options.onFilter
 		? {
 			onHide: options.onHide ?? (() => { }),
-			onSelect: () => { },
+			onSelect: options.onSelect ?? (() => { }),
 			onFilter: options.onFilter,
 		}
 		: {
 			onHide: options.onHide ?? (() => { }),
-			onSelect: () => { },
+			onSelect: options.onSelect ?? (() => { }),
 		};
 
 	const widget = disposables.add(instantiationService.createInstance(
@@ -163,6 +165,49 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createPersistentPreview(side: 'left' | 'right' = 'right') {
+		const selected: string[] = [];
+		const contents = ['first', 'second', 'third'].map(label => {
+			const content = document.createElement('div');
+			content.textContent = `Details for ${label}`;
+			content.style.cssText = 'width: 180px; height: 180px;';
+			return content;
+		});
+		const widget = createActionListWidget(disposables, {
+			items: [
+				...contents.map((content, index) => ({
+					...action(['first', 'second', 'third'][index]),
+					hover: { content },
+				})),
+				action('plain'),
+			],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false, persistentHover: true, headerText: 'Cache hint' },
+		});
+		const popup = document.createElement('div');
+		popup.className = 'action-widget';
+		popup.style.cssText = `position: fixed; top: 120px; left: ${side === 'left' ? mainWindow.innerWidth - 320 : 40}px; width: 260px; padding: 8px;`;
+		document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		popup.appendChild(widget.domNode);
+		widget.layout(120, 240);
+		const rows = () => widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		const hover = (index: number, clientX?: number) => {
+			const row = rows()[index];
+			const bounds = row.getBoundingClientRect();
+			const point = { x: clientX ?? bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: point.x, clientY: point.y }));
+			return point;
+		};
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const isCenteredOnRow = (index: number) => {
+			const rowBounds = rows()[index].getBoundingClientRect();
+			const panelBounds = panel.getBoundingClientRect();
+			return Math.abs(panelBounds.top + panelBounds.height / 2 - rowBounds.top - rowBounds.height / 2) < 1;
+		};
+		return { widget, popup, panel, contents, selected, rows, hover, isCenteredOnRow };
+	}
 
 	test('renders and activates a standalone toggle row', () => {
 		let checked = false;
@@ -618,6 +663,39 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('hidden hover chevrons preserve keyboard access without reserving a gutter', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('model'), hover: { content: 'Model details', expandable: true, showIndicator: false } }],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+		const indicator = row.querySelector<HTMLElement>('.action-list-submenu-indicator')!;
+		const initial = {
+			indicator: indicator.style.display,
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		};
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const opened = {
+			role: panel.getAttribute('role'),
+			focused: document.activeElement === panel,
+			expanded: row.getAttribute('aria-expanded'),
+		};
+		panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+
+		assert.deepStrictEqual({
+			initial,
+			opened,
+			closed: { expanded: row.getAttribute('aria-expanded'), focusReturned: widget.domNode.contains(document.activeElement) && !panel.contains(document.activeElement) },
+		}, {
+			initial: { indicator: 'none', haspopup: 'dialog', expanded: 'false' },
+			opened: { role: 'dialog', focused: true, expanded: 'true' },
+			closed: { expanded: 'false', focusReturned: true },
+		});
+	});
+
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const layouts: string[] = [];
@@ -659,6 +737,170 @@ suite('ActionListWidget', () => {
 		await timeout(1000);
 
 		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
+	}));
+
+	test('persistent previews follow each row immediately without selecting or taking pointer focus', () => {
+		const { widget, panel, selected, hover, isCenteredOnRow } = createPersistentPreview();
+		const outside = document.createElement('button');
+		document.body.appendChild(outside);
+		disposables.add({ dispose: () => outside.remove() });
+		outside.focus();
+
+		hover(0);
+		const first = panel.textContent;
+		const firstCentered = isCenteredOnRow(0);
+		hover(1);
+		const second = panel.textContent;
+		const secondCentered = isCenteredOnRow(1);
+		const pointerFocusPreserved = document.activeElement === outside;
+		widget.focus();
+		widget.focusNext();
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			keyboard: panel.textContent,
+			pointerFocusPreserved,
+			selected,
+			centeredOnRows: [firstCentered, secondCentered, isCenteredOnRow(2)],
+		}, {
+			first: 'Details for first',
+			second: 'Details for second',
+			keyboard: 'Details for third',
+			pointerFocusPreserved: true,
+			selected: [],
+			centeredOnRows: [true, true, true],
+		});
+	});
+
+	test('persistent previews start with the focused item when the tab has no checked item', () => {
+		const { widget, panel, selected } = createPersistentPreview();
+		widget.focus();
+		widget.showHoverForCheckedItem();
+
+		assert.deepStrictEqual({
+			content: panel.textContent,
+			selected,
+			focused: widget.getFocusedElement()?.item?.id,
+		}, { content: 'Details for first', selected: [], focused: 'first' });
+	});
+
+	test('persistent previews remain visible over chrome, plain rows, and pointer gaps', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { widget, panel, contents, hover } = createPersistentPreview();
+		hover(0);
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		panel.dispatchEvent(new MouseEvent('mouseenter'));
+		panel.dispatchEvent(new MouseEvent('mouseleave'));
+		widget.headerContainer!.dispatchEvent(new MouseEvent('mouseenter'));
+		hover(3);
+		await timeout(1000);
+
+		assert.deepStrictEqual({
+			display: panel.style.display,
+			content: panel.textContent,
+			sameContent: panel.firstElementChild === contents[0],
+		}, { display: '', content: 'Details for first', sameContent: true });
+	}));
+
+	test('persistent previews close when their source items are replaced', () => {
+		const { widget, panel, hover } = createPersistentPreview();
+		hover(0);
+		widget.updateItems([action('replacement')]);
+		assert.deepStrictEqual({ display: panel.style.display, content: panel.textContent }, { display: 'none', content: '' });
+	});
+
+	test('persistent previews retain their last row position during virtualization', () => {
+		const { widget, panel, contents, hover } = createPersistentPreview();
+		hover(2);
+		const top = panel.getBoundingClientRect().top;
+		widget.layout(24, 240);
+
+		assert.deepStrictEqual({
+			display: panel.style.display,
+			sameContent: panel.firstElementChild === contents[2],
+			positionRetained: Math.abs(panel.getBoundingClientRect().top - top) < 1,
+		}, { display: '', sameContent: true, positionRetained: true });
+	});
+
+	test('persistent previews keep their side and width across differently sized content', () => {
+		const { popup, panel, contents, hover, isCenteredOnRow } = createPersistentPreview();
+		popup.style.left = `${mainWindow.innerWidth - 480}px`;
+		contents[0].style.width = '260px';
+		contents[1].style.width = '120px';
+		hover(0);
+		const first = panel.getBoundingClientRect();
+		const firstCentered = isCenteredOnRow(0);
+		hover(1);
+		const second = panel.getBoundingClientRect();
+		const parent = popup.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			firstOnLeft: Math.abs(first.right - parent.left) < 1,
+			secondOnLeft: Math.abs(second.right - parent.left) < 1,
+			centeredOnRows: [firstCentered, isCenteredOnRow(1)],
+			widthUnchanged: first.width === second.width,
+		}, { firstOnLeft: true, secondOnLeft: true, centeredOnRows: [true, true], widthUnchanged: true });
+	});
+
+	for (const side of ['left', 'right'] as const) {
+		test(`pointer travel into the ${side} preview does not switch to a crossed row`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { panel, hover } = createPersistentPreview(side);
+			const origin = hover(0);
+			hover(1, origin.x + (side === 'right' ? 60 : -60));
+			const duringTravel = panel.textContent;
+			await timeout(100);
+			panel.dispatchEvent(new MouseEvent('mouseenter'));
+			await timeout(300);
+			const afterEntering = panel.textContent;
+			panel.dispatchEvent(new MouseEvent('mouseleave'));
+			hover(1);
+
+			assert.deepStrictEqual({ duringTravel, afterEntering, afterReturning: panel.textContent }, {
+				duringTravel: 'Details for first',
+				afterEntering: 'Details for first',
+				afterReturning: 'Details for second',
+			});
+		}));
+	}
+
+	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { panel, hover } = createPersistentPreview();
+		const origin = hover(0);
+		hover(1, origin.x + 60);
+		await timeout(150);
+		hover(2, origin.x + 80);
+		const beforeExpiry = panel.textContent;
+		await timeout(60);
+
+		assert.deepStrictEqual({ beforeExpiry, afterExpiry: panel.textContent }, {
+			beforeExpiry: 'Details for first',
+			afterExpiry: 'Details for third',
+		});
+	}));
+
+	test('keyboard navigation supersedes a pending pointer preview', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { widget, panel, hover } = createPersistentPreview();
+		const origin = hover(0);
+		hover(1, origin.x + 60);
+		widget.focus();
+		widget.focusNext();
+		const immediate = panel.textContent;
+		await timeout(300);
+
+		assert.deepStrictEqual({ immediate, afterDelay: panel.textContent }, {
+			immediate: 'Details for third',
+			afterDelay: 'Details for third',
+		});
+	}));
+
+	test('disposing a persistent preview cancels pending pointer travel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { widget, panel, hover } = createPersistentPreview();
+		const origin = hover(0);
+		hover(1, origin.x + 60);
+		widget.dispose();
+		await timeout(300);
+
+		assert.strictEqual(panel.textContent, 'Details for first');
 	}));
 
 	test('does not open a row hover panel once the pointer has left the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -720,6 +962,113 @@ suite('ActionListWidget', () => {
 
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
 	});
+
+	test('opening the checked hover reveals a model in a collapsed section', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('pinned'),
+				{
+					...action('active'),
+					item: { id: 'active', checked: true },
+					section: 'other',
+					hover: { content: 'Active model details' },
+				},
+			],
+			listOptions: { showFilter: false, collapsedByDefault: new Set(['other']) },
+		});
+		widget.focus();
+		widget.showHoverForCheckedItem();
+
+		assert.deepStrictEqual({
+			focused: widget.getFocusedElement()?.item?.id,
+			details: widget.domNode.querySelector('.action-list-submenu-panel')?.textContent,
+		}, { focused: 'active', details: 'Active model details' });
+	});
+
+	for (const activeIndex of [2, 8]) {
+		test(`width measurement keeps the hover anchored to visible item ${activeIndex}`, async () => {
+			const content = document.createElement('div');
+			content.textContent = 'Model details';
+			content.style.cssText = 'width: 120px; height: 80px;';
+			const widget = createActionListWidget(disposables, {
+				items: [
+					...Array.from({ length: 10 }, (_, index) => index === activeIndex
+						? { ...action('active'), item: { id: 'active', checked: true }, hover: { content, alignToParent: true } }
+						: action(`visible-${index}`)),
+					...Array.from({ length: 20 }, (_, index) => ({ ...action(`hidden-${index}`), section: 'other' })),
+				],
+				listOptions: { showFilter: false, collapsedByDefault: new Set(['other']) },
+			});
+			const popup = document.createElement('div');
+			popup.className = 'action-widget';
+			popup.style.cssText = 'position: fixed; top: 160px; left: 40px; width: 260px; padding: 8px;';
+			document.body.appendChild(popup);
+			disposables.add({ dispose: () => popup.remove() });
+			popup.appendChild(widget.domNode);
+			widget.layout(120, 240);
+			widget.focus();
+			widget.showHoverForCheckedItem();
+
+			const settleLayout = () => new Promise<void>(resolve => {
+				mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve()));
+			});
+			const measure = () => {
+				const row = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'active');
+				const rowBounds = row?.getBoundingClientRect();
+				const listBounds = widget.domNode.getBoundingClientRect();
+				const panelBounds = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!.getBoundingClientRect();
+				return {
+					rowVisible: !!rowBounds && rowBounds.top >= listBounds.top && rowBounds.bottom <= listBounds.bottom,
+					centeredOnRow: !!rowBounds && Math.abs(rowBounds.top + rowBounds.height / 2 - panelBounds.top - panelBounds.height / 2) < 1,
+					expanded: row?.getAttribute('aria-expanded'),
+					focused: widget.getFocusedElement()?.item?.id,
+				};
+			};
+			await settleLayout();
+			const before = measure();
+			widget.computeMaxWidth(240);
+			widget.layout(120, 240);
+			content.style.height = '100px';
+			await settleLayout();
+
+			const expected = { rowVisible: true, centeredOnRow: true, expanded: 'true', focused: 'active' };
+			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
+		});
+	}
+
+	for (const side of ['left', 'right']) {
+		for (const zoom of [1, 1.25]) {
+			test(`hover aligns with the outer ${side} border at ${zoom} zoom`, () => {
+				const content = document.createElement('div');
+				content.textContent = 'Model details';
+				content.style.cssText = 'width: 120px; height: 80px;';
+				const widget = createActionListWidget(disposables, {
+					items: [{ ...action('active'), item: { id: 'active', checked: true }, hover: { content, alignToParent: true } }],
+					listOptions: { showFilter: false },
+				});
+				const popup = document.createElement('div');
+				popup.className = 'action-widget';
+				popup.style.cssText = `position: fixed; top: 120px; left: ${side === 'left' ? (mainWindow.innerWidth - 320) / zoom : 0}px; width: 240px; padding: 8px; zoom: ${zoom};`;
+				document.body.appendChild(popup);
+				disposables.add({ dispose: () => popup.remove() });
+				popup.appendChild(widget.domNode);
+				widget.focus();
+				const focusedElement = document.activeElement;
+
+				widget.showHoverForCheckedItem();
+
+				const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+				const parentBounds = popup.getBoundingClientRect();
+				const panelBounds = panel.getBoundingClientRect();
+				const gap = side === 'left' ? parentBounds.left - panelBounds.right : panelBounds.left - parentBounds.right;
+				assert.deepStrictEqual({
+					shown: panel.style.display !== 'none',
+					aligned: Math.abs(gap) < 1,
+					focusPreserved: document.activeElement === focusedElement,
+				}, { shown: true, aligned: true, focusPreserved: true });
+			});
+		}
+	}
 
 	test('consumes initial focus before later filtering and refocusing', () => {
 		const widget = createActionListWidget(disposables, {

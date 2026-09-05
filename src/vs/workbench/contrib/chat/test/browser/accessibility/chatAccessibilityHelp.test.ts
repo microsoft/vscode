@@ -6,11 +6,22 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents model details and activating Auto through its tiers', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			details: help.includes('selected model\'s details open beside the list'),
+			immediatePreview: help.includes('updates the details immediately without selecting a model'),
+			inactiveTiers: help.includes('tiers remain visible while Auto is off'),
+			activation: help.includes('Enter or Space to choose a tier and turn Auto on'),
+		}, { details: true, immediatePreview: true, inactiveTiers: true, activation: true });
+	});
 
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
