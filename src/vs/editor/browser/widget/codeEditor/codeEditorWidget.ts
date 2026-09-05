@@ -11,7 +11,7 @@ import { Color } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from '../../../../base/common/event.js';
 import { hash } from '../../../../base/common/hash.js';
-import { Disposable, DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import './editor.css';
 import { applyFontInfo } from '../../config/domFontInfo.js';
@@ -65,6 +65,8 @@ import { TextModelEditSource, EditSources } from '../../../common/textModelEditS
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+
+const MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME = 'monaco-editor-hide-mouse-cursor';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -268,6 +270,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public inComposition: boolean = false;
 
+	private _mouseCursorHidden: boolean = false;
+	private readonly _mouseCursorRevealListeners = this._register(new MutableDisposable<DisposableStore>());
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -312,7 +317,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.fontSize)) {
 				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
+			if ((e.hasChanged(EditorOption.hideMouseCursorOnTyping) && !options.get(EditorOption.hideMouseCursorOnTyping))
+				|| (e.hasChanged(EditorOption.readOnly) && options.get(EditorOption.readOnly))) {
+				this._showMouseCursor();
+			}
 		}));
+		this._register(this.onDidBlurEditorText(() => this._showMouseCursor()));
+		// Make sure to show the cursor again after editor is disposed so it doesn't get stuck hidden
+		this._register(toDisposable(() => this._showMouseCursor()));
 
 		this._contextKeyService = this._register(contextKeyService.createScoped(this._domElement));
 		if (codeEditorWidgetOptions.contextKeyValues) {
@@ -409,6 +421,52 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public writeScreenReaderContent(reason: string): void {
 		this._modelData?.view.writeScreenReaderContent(reason);
+	}
+
+	private _hideMouseCursor(): void {
+		if (this._mouseCursorHidden || !this._configuration.options.get(EditorOption.hideMouseCursorOnTyping)) {
+			return;
+		}
+		// Read-only input is rejected, so it must not activate the hidden cursor state.
+		if (this._configuration.options.get(EditorOption.readOnly)) {
+			return;
+		}
+		// Real keyboard input requires text focus, but public trigger calls can simulate typing in an unfocused editor.
+		if (!this.hasTextFocus()) {
+			return;
+		}
+		this._mouseCursorHidden = true;
+		this._domElement.classList.add(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
+
+		const store = new DisposableStore();
+		// Capture pointer input because editor descendants such as scrollbars and the minimap stop propagation.
+		store.add(dom.addDisposableListener(this._domElement, 'wheel', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'pointerdown', () => this._showMouseCursor(), { capture: true }));
+		store.add(dom.addDisposableListener(this._domElement, 'contextmenu', () => this._showMouseCursor(), { capture: true }));
+
+		let lastPointerPosition: { readonly screenX: number; readonly screenY: number } | undefined;
+		// Editor rendering can fire `pointermove` without actual mouse movement, so keep the cursor hidden for those events.
+		store.add(dom.addDisposableListener(this._domElement, 'pointermove', event => {
+			const hasMoved = event.movementX !== 0 || event.movementY !== 0 || (lastPointerPosition !== undefined && (event.screenX !== lastPointerPosition.screenX || event.screenY !== lastPointerPosition.screenY));
+			lastPointerPosition = { screenX: event.screenX, screenY: event.screenY };
+			if (hasMoved) {
+				this._showMouseCursor();
+			}
+		}, { capture: true }));
+		// Reveal only when the mouse leaves the entire editor; re-rendered child elements can fire their own `pointerleave` events.
+		store.add(dom.addDisposableListener(this._domElement, 'pointerleave', () => this._showMouseCursor()));
+		// Show the mouse cursor when the editor's window loses focus, even if the editor's text input still appears focused.
+		store.add(dom.addDisposableListener(dom.getWindow(this._domElement), 'blur', () => this._showMouseCursor()));
+		this._mouseCursorRevealListeners.value = store;
+	}
+
+	private _showMouseCursor(): void {
+		if (!this._mouseCursorHidden) {
+			return;
+		}
+		this._mouseCursorHidden = false;
+		this._mouseCursorRevealListeners.clear();
+		this._domElement.classList.remove(MOUSE_CURSOR_HIDDEN_CSS_CLASS_NAME);
 	}
 
 	protected _createConfiguration(isSimpleWidget: boolean, contextMenuId: MenuId, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
@@ -1193,6 +1251,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		this._modelData.viewModel.type(text, source);
 		if (source === 'keyboard') {
+			this._hideMouseCursor();
 			this._onDidType.fire(text);
 		}
 	}
@@ -1202,6 +1261,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
+		if (source === 'keyboard' && (text.length > 0 || replacePrevCharCnt !== 0 || replaceNextCharCnt !== 0)) {
+			this._hideMouseCursor();
+		}
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
@@ -2010,6 +2072,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel | null {
+		this._showMouseCursor();
 		this._contributionsDisposable?.dispose();
 		this._contributionsDisposable = undefined;
 		if (!this._modelData) {
