@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-8/S4t1vjOzZC2yL50bdHzKxIqHo1Bv7+ofuhTFI4TS8=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-EzDj/aU+QVZCdeBdI3/J89FrdxdGLov2WwjCh9qp8Jw=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -448,6 +448,17 @@
 				throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
 			}
 		}();
+
+		// Report the outcome of service worker registration to the host
+		// directly. The host only flushes queued messages (including the
+		// initial content) once registration has succeeded, so the content
+		// handler cannot be relied on to surface registration failures.
+		workerReady.then(() => {
+			hostMessaging.postMessage('worker-ready', undefined);
+		}, (/** @type {any} */ error) => {
+			console.error(`Webview fatal error: ${error}`);
+			hostMessaging.postMessage('fatal-error', { message: error + '' });
+		});
 
 		const unloadMonitor = new class {
 
@@ -1056,6 +1067,10 @@
 					await workerReady;
 					perfMark('content/workerReady');
 				} catch (e) {
+					// Backstop: the host holds content back until registration
+					// succeeded ('worker-ready'), so this should not normally
+					// fire. Report rather than render into a broken document
+					// if it somehow does.
 					console.error(`Webview fatal error: ${e}`);
 					hostMessaging.postMessage('fatal-error', { message: e + '' });
 					return;

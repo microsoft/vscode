@@ -36,6 +36,7 @@ export type FromWebviewMessage = {
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
 	'fatal-error': { message: string };
+	'worker-ready': void;
 	'no-csp-found': void;
 	'did-keydown': KeyEvent;
 	'did-keyup': KeyEvent;

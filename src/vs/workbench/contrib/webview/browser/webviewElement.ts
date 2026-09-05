@@ -249,6 +249,30 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			this.handleFatalError(e.message);
 		}));
 
+		this._register(this.on('worker-ready', () => {
+			// 'webview-ready' only hands over the message port; this signal
+			// arrives once service worker registration actually succeeded.
+			// Messages are held until then, so they cannot be lost when a
+			// failing document has to be replaced.
+			if (!this._messagePort) {
+				return;
+			}
+
+			this.perfMark('worker-ready');
+			this._logService.trace(`Webview(${this.id}): service worker ready`);
+
+			if (this._state.type === WebviewState.Type.Initializing) {
+				this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
+			}
+			this._state = WebviewState.Ready;
+
+			// The document successfully registered its service worker and is
+			// serving content: the webview is genuinely working again, so
+			// future registration failures must start from a fresh retry
+			// budget.
+			this._serviceWorkerReloadAttempt = 0;
+		}));
+
 		this._register(this.on('did-keydown', (data) => {
 			this.handleKeyEvent('keydown', data);
 		}));
@@ -552,16 +576,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 				this.element?.classList.add('ready');
 
-				if (this._state.type === WebviewState.Type.Initializing) {
-					this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
-				}
-				this._state = WebviewState.Ready;
-
-				// The document became ready, so service worker registration
-				// succeeded and content was served for it: the webview is
-				// genuinely working again. Future registration failures must
-				// start from a fresh retry budget.
-				this._serviceWorkerReloadAttempt = 0;
+				// The state intentionally stays Initializing here: the port
+				// being handed over says nothing about service worker
+				// registration. Content and other messages are only flushed
+				// once the document reports 'worker-ready', so they are not
+				// lost if this document ends up being replaced because
+				// registration failed.
 
 				subscription.dispose();
 			}
@@ -678,10 +698,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// that a document reload cannot fix either, so even if one arrives in the
 		// retryable form do not burn the reload budget on it.
 		if (/^(?:Error: )?Could not register service worker:/.test(message) && !message.includes('user denied permission')) {
-			// A failed document reports the registration failure for every
-			// content event, so ignore duplicates while a reload is already
-			// scheduled. Otherwise each report would replace the pending
-			// reload and exhaust the retry budget without ever reloading.
+			// A failed document reports its registration failure once, when
+			// its workerReady promise rejects. Ignore duplicate reports while
+			// a reload is already scheduled (e.g. if the content handler
+			// backstop also fires): each report would otherwise replace the
+			// pending reload and exhaust the retry budget without ever
+			// reloading.
 			if (this._serviceWorkerReloadTimeout.value) {
 				return;
 			}
@@ -695,13 +717,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				return;
 			}
 
-			// The retry budget is only reset when a new document successfully
-			// becomes ready (see the 'webview-ready' handling in
-			// _registerMessageHandler), never based on elapsed time between
-			// failures: a registration that rejects only after running longer
-			// than the gap to the previous failure must not reset the budget,
-			// or the host could reload forever without ever surfacing the
-			// terminal error.
+			// The retry budget is only reset when a new document reports
+			// that service worker registration succeeded ('worker-ready',
+			// see the handler registered in the constructor), never based
+			// on elapsed time between failures: a registration that rejects
+			// only after running longer than the gap to the previous failure
+			// must not reset the budget, or the host could reload forever
+			// without ever surfacing the terminal error.
 
 			if (this._serviceWorkerReloadAttempt < WebviewElement._serviceWorkerReloadDelays.length && !this._disposed && this.element?.parentElement) {
 				const attempt = ++this._serviceWorkerReloadAttempt;
@@ -775,9 +797,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// any terminal registration failure from the previous document
 		this._serviceWorkerTerminalFailure = false;
 
-		// Preserve messages that were queued while the previous document was
-		// failing to load, so that they are replayed once the new document
-		// becomes ready instead of being dropped
+		// Messages are held host-side until the document reports that
+		// service worker registration succeeded ('worker-ready'), so
+		// everything sent to the previous (failed) document — before or
+		// after its failure — is still queued in the Initializing state.
+		// Carry it over so it is replayed once the fresh document becomes
+		// ready instead of being dropped.
 		const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
 		this._state = new WebviewState.Initializing(pendingMessages);
 		this._messagePort?.close();
