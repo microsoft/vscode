@@ -280,7 +280,11 @@ function isResumeTurnConfirmationData(value: unknown): value is IResumeTurnConfi
  */
 interface ISubagentContext {
 	/** Active child-chat observers keyed by their spawning tool call. */
-	readonly observations: DisposableMap<string>;
+	readonly observations: DisposableMap<string, DisposableStore>;
+	/** Child chat URI per observed tool call, so a still-running observation can be detached at turn end. */
+	readonly childChats: Map<string, string>;
+	/** Set once the parent turn is over: its response is closed, so detached observers must stop emitting into it. */
+	turnEnded: boolean;
 }
 
 interface IOutputTerminalAttachment {
@@ -1097,6 +1101,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _shellInitRegistrations = this._register(new DisposableMap<string>());
 
 	/**
+	 * Subagent observers that outlived the turn that spawned them, keyed by {@link _subagentObservationKey}.
+	 * Background subagents, and any whose chat is created after their parent turn completes, live only here.
+	 */
+	private readonly _detachedSubagentObservations = this._register(new DisposableMap<string, DisposableStore>());
+	/** Set while {@link _detachedSubagentObservations} is being torn down, so nested turns do not detach back into it. */
+	private _detachedSubagentObservationsSuspended = false;
+
+	/**
 	 * Active default-chat subscriptions, keyed by backend session URI string.
 	 * Multi-chat is not yet surfaced: every session is served by a single
 	 * implicit default chat that carries the conversation contents (turns,
@@ -1646,6 +1658,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
+					// Shared by every chat of the backend session, exactly like the input-needed watcher above.
+					if (!this._hasOtherSessionHold(resolvedSession.toString())) {
+						this._disposeDetachedSubagentObservations(resolvedSession.toString());
+					}
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -3336,8 +3352,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
 		const subagentContext: ISubagentContext = {
-			observations: store.add(new DisposableMap()),
+			observations: new DisposableMap(),
+			childChats: new Map(),
+			turnEnded: false,
 		};
+		// Not owned by `store`: a subagent still running at turn end is detached rather than torn down.
+		store.add(toDisposable(() => this._detachLiveSubagentObservations(sessionKey, subagentContext)));
 
 		// Per response part. Markdown / reasoning / tool calls each get a
 		// dedicated setup keyed by their stable id. Per-key closures replace
@@ -4222,8 +4242,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (subagentData?.kind !== 'subagent') {
 			return;
 		}
+		const childChatUri = subagentData.chatResource
+			|| buildSubagentChatUri(opts.backendSession.toString(), toolCallId);
+		// A live in-turn observation supersedes the detached one left behind by an earlier turn.
+		this._detachedSubagentObservations.deleteAndDispose(this._subagentObservationKey(opts.backendSession.toString(), childChatUri));
 		const observationStore = new DisposableStore();
 		subagentContext.observations.set(toolCallId, observationStore);
+		subagentContext.childChats.set(toolCallId, childChatUri);
 		subagentData.isActive = true;
 		invocation.notifyToolSpecificDataChanged();
 
@@ -4246,9 +4271,79 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		const rootInvocationId = opts.subAgentInvocationId ?? toolCallId;
-		const childChatUri = subagentData.chatResource
-			|| buildSubagentChatUri(opts.backendSession.toString(), toolCallId);
-		this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, observationStore, subagentContext, perInvocationCredits, perInvocationModel);
+		const emitProgress = (parts: IChatProgress[]) => {
+			if (!subagentContext.turnEnded) {
+				opts.sink(parts);
+			}
+		};
+		this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, emitProgress, observationStore, subagentContext, perInvocationCredits, perInvocationModel);
+	}
+
+	private _subagentObservationKey(sessionUri: string, childChatUri: string): string {
+		return `${sessionUri}\0${childChatUri}`;
+	}
+
+	/** Whether a subagent's child chat has run to completion, so its observation has nothing left to watch. */
+	private _isSubagentChatSettled(sessionUri: string, childChatUri: string): boolean {
+		const state = this._getSessionState(sessionUri, childChatUri);
+		return !!state && !state.activeTurn && state.turns.length > 0;
+	}
+
+	/**
+	 * Turn-end handoff for subagent observations. A subagent that is still running, or whose chat has not
+	 * been created yet, keeps its observer and child chat subscription; settled ones are disposed.
+	 */
+	private _detachLiveSubagentObservations(sessionUri: string, subagentContext: ISubagentContext): void {
+		subagentContext.turnEnded = true;
+		// A nested turn unwinding inside a detached observation must not detach back into the map being torn down.
+		if (!this._store.isDisposed && !this._detachedSubagentObservationsSuspended) {
+			for (const toolCallId of [...subagentContext.observations.keys()]) {
+				const childChatUri = subagentContext.childChats.get(toolCallId);
+				if (!childChatUri || this._isSubagentChatSettled(sessionUri, childChatUri)) {
+					continue;
+				}
+				const observation = subagentContext.observations.deleteAndLeak(toolCallId);
+				if (observation) {
+					this._detachSubagentObservation(sessionUri, childChatUri, observation);
+				}
+			}
+		}
+		subagentContext.observations.dispose();
+	}
+
+	/** Keeps `observation` alive past its spawning turn until the subagent's chat settles. */
+	private _detachSubagentObservation(sessionUri: string, childChatUri: string, observation: DisposableStore): void {
+		const key = this._subagentObservationKey(sessionUri, childChatUri);
+		this._detachedSubagentObservations.set(key, observation);
+		// Read the ref the observation already holds rather than acquiring one, which can throw mid-teardown.
+		const childChatSub = this._additionalChatSubscriptions.get(childChatUri)?.object;
+		if (!childChatSub) {
+			return;
+		}
+		observation.add(childChatSub.onDidChange(() => {
+			if (this._detachedSubagentObservations.get(key) !== observation || !this._isSubagentChatSettled(sessionUri, childChatUri)) {
+				return;
+			}
+			this._detachedSubagentObservations.deleteAndLeak(key)?.dispose();
+		}));
+	}
+
+	/**
+	 * Drops the detached subagent observations for a backend session whose last chat has closed. They are
+	 * shared by every chat of that session, so an earlier sibling closing must leave them running.
+	 */
+	private _disposeDetachedSubagentObservations(sessionUri: string): void {
+		const prefix = `${sessionUri}\0`;
+		this._detachedSubagentObservationsSuspended = true;
+		try {
+			for (const key of [...this._detachedSubagentObservations.keys()]) {
+				if (key.startsWith(prefix)) {
+					this._detachedSubagentObservations.deleteAndDispose(key);
+				}
+			}
+		} finally {
+			this._detachedSubagentObservationsSuspended = false;
+		}
 	}
 
 	/**
