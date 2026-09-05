@@ -46,6 +46,20 @@ export interface IAgentHostAutoConnect {
 	setEnabled(enabled: boolean): void;
 }
 
+/** Localized labels shared by connection banners and recovery screens. */
+export interface IAgentHostConnectionLabels {
+	readonly unavailableTitle: string;
+	readonly unavailableDescription?: string;
+	readonly unavailable: string;
+	readonly connectingTitle: string;
+	readonly connectingDescription?: string;
+	readonly connecting: string;
+	readonly reconnecting: string;
+	reconnectingIn(seconds: number): string;
+	readonly incompatibleTitle: string;
+	readonly incompatible: string;
+}
+
 /**
  * Declares that a provider is one of many interchangeable members of a single
  * user-facing host. Members collapse into one `IAgentHostFilterEntry` that
@@ -152,6 +166,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * starting is not something VS Code can do.
 	 */
 	readonly autoConnect?: IAgentHostAutoConnect;
+
+	/** Optional labels for providers whose display name does not name the host. */
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
