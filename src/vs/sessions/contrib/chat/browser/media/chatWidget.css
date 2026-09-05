@@ -524,7 +524,7 @@
 	visibility: hidden;
 }
 
-.action-widget .actionList:not(.ignore-initial-hover) > .monaco-list .monaco-list-row.action.sessions-browse-inline-item:hover:not(.option-disabled) .description,
+.action-widget .monaco-list-row.action.sessions-browse-inline-item:hover:not(.option-disabled) .description,
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
 }
