@@ -460,6 +460,10 @@ function registerOpenEditorAPICommands(): void {
 		const configurationService = accessor.get(IConfigurationService);
 		const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 
+		if (!resourceArg) {
+			return; // guard against null/undefined resource from command arguments (e.g. SCM providers)
+		}
+
 		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.from(resourceArg, true);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
