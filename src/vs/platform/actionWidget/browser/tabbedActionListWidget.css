@@ -27,6 +27,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* A closing tab holds its old label while it shrinks, so it has to clip it. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing {
+	overflow: hidden;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {
 	display: flex;
 	align-items: center;

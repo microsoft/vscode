@@ -25,11 +25,11 @@
 	border-bottom-right-radius: 3px;
 }
 
-.monaco-custom-radio > .monaco-button:not(.active):not(:last-child) {
+.monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
 	border-right: none;
 }
 
-.monaco-custom-radio > .monaco-button.previous-active {
+.monaco-custom-radio:not(.segmented) > .monaco-button.previous-active {
 	border-left: none;
 }
 
@@ -78,12 +78,14 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
+/* Every segment carries the border box so the selected one can colour it without
+ * shifting the reel by a pixel as the selection moves. */
 .monaco-custom-radio.segmented > .monaco-button {
 	flex: 1 1 0;
 	justify-content: center;
 	height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	border: none;
+	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-circle);
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
@@ -91,15 +93,31 @@
 	white-space: nowrap;
 }
 
+/* Reserve the selected label's width without making unselected labels bold. */
+.monaco-custom-radio.segmented > .monaco-button > [data-label] {
+	display: inline-grid;
+	justify-items: center;
+}
+
+.monaco-custom-radio.segmented > .monaco-button > [data-label]::after {
+	content: attr(data-label);
+	height: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	visibility: hidden;
+	pointer-events: none;
+}
+
 .monaco-custom-radio.segmented > .monaco-button:hover:not(.active) {
 	color: var(--vscode-foreground);
 	background: transparent;
 }
 
+/* The fill only shifts the hue, so the border is what identifies the selection. */
 .monaco-custom-radio.segmented > .monaco-button.active,
 .monaco-custom-radio.segmented > .monaco-button.active:hover {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-menu-background));
+	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 	box-shadow: var(--vscode-shadow-sm);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
@@ -109,7 +127,6 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.hc-black .monaco-custom-radio.segmented > .monaco-button.active,
-.hc-light .monaco-custom-radio.segmented > .monaco-button.active {
-	border: var(--vscode-strokeThickness) solid var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
+.monaco-custom-radio.segmented > .monaco-button:focus:not(:focus-visible) {
+	outline: none;
 }
