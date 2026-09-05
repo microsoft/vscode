@@ -878,6 +878,66 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			]);
 		});
 
+		it('applies configured extra body parameters to Responses and Messages API bodies', () => {
+			const results = [
+				{
+					supportedEndpoints: [ModelSupportedEndpoint.Responses],
+					url: 'https://api.example.com/v1/responses',
+				},
+				{
+					supportedEndpoints: [ModelSupportedEndpoint.Messages],
+					url: 'https://api.example.com/v1/messages',
+				},
+			].map(({ supportedEndpoints, url }) => {
+				const metadata: IChatModelInformation = {
+					...makeMetadata(supportedEndpoints),
+					extraBody: {
+						chat_template_kwargs: {
+							enable_thinking: false
+						}
+					},
+				};
+				const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+					metadata,
+					'test-api-key',
+					url);
+				const body = endpoint.createRequestBody({
+					debugName: 'test',
+					messages: [{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+					}],
+					requestId: `test-req-${endpoint.apiType}-model-options`,
+					postOptions: {
+						stream: true,
+					},
+					finishedCb: undefined,
+					location: ChatLocation.Other,
+				});
+
+				return {
+					apiType: endpoint.apiType,
+					chat_template_kwargs: (body as any).chat_template_kwargs,
+				};
+			});
+
+			expect(results).toEqual([
+				{
+					apiType: 'responses',
+					chat_template_kwargs: {
+						enable_thinking: false
+					}
+				},
+				{
+					apiType: 'messages',
+					chat_template_kwargs: {
+						enable_thinking: false
+					}
+				},
+			]);
+		});
+
+
 		it('replaces default Bearer with user-supplied Authorization header on Chat Completions endpoints', () => {
 			const metadata = makeMetadata(undefined);
 			metadata.requestHeaders = { 'Authorization': 'Bearer user-token' };
