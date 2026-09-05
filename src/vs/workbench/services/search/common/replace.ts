@@ -111,17 +111,18 @@ export class ReplacePattern {
 				newReplaceString += fullMatch;
 				continue;
 			}
-			const replacement = firstMatch[parseInt(money.slice(1))];
-			if (!replacement) {
+			const matchIndex = parseInt(money.slice(1));
+			if (matchIndex >= firstMatch.length) {
 				newReplaceString += fullMatch;
 				continue;
 			}
+			const replacement = firstMatch[matchIndex] ?? '';
 			const replacementLen = replacement.length;
 
 			newReplaceString += patMatch[1]; // prefix
 			caseOps = caseOps.replace(/\\/g, '');
 			let i = 0;
-			for (; i < caseOps.length; i++) {
+			for (; i < caseOps.length && i < replacementLen; i++) {
 				switch (caseOps[i]) {
 					case 'U':
 						newReplaceString += replacement.slice(i).toUpperCase();
