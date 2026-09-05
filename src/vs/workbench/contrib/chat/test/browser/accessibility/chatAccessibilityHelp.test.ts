@@ -80,6 +80,22 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes the Configure tools permission picker action', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const agentViewHelpText = getAccessibilityHelpText('agentView', keybindingService, true);
+		const panelChatHelpText = getAccessibilityHelpText('panelChat', keybindingService, true);
+
+		assert.deepStrictEqual({
+			agentView: agentViewHelpText.includes('Configure tools button on the Default permissions option'),
+			panelChat: panelChatHelpText.includes('Configure tools button on the Default permissions option'),
+		}, {
+			agentView: true,
+			panelChat: false,
+		});
+	});
+
 	test('only describes the selection side chat affordance in the sessions window', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

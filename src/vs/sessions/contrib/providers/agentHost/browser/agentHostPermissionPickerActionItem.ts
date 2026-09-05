@@ -18,6 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
@@ -48,6 +49,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 		@IHoverService hoverService: IHoverService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
 		super(
@@ -63,6 +65,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			openerService,
 			storageService,
 			hoverService,
+			preferencesService,
 		);
 		this._delegate = this._register(delegate);
 		this._compact = pickerOptions.compact;
