@@ -1,14 +1,23 @@
+
 {
-	"extends": "../../../extensions/tsconfig.base.json",
 	"compilerOptions": {
 		"rootDir": "./src",
 		"outDir": "./out",
+		"module": "commonjs",
+		"target": "es2022",
+		"lib": [
+			"es2022"
+		],
 		"types": [
 			"node"
-		]
+		],
+		"moduleResolution": "node",
+		"strict": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"esModuleInterop": true
 	},
 	"include": [
-		"src/**/*",
-		"../../../src/vscode-dts/vscode.d.ts"
+		"src/**/*"
 	]
 }
