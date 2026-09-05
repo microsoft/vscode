@@ -234,6 +234,65 @@ suite('AgentHostRequestService', () => {
 		assert.deepStrictEqual({ attempts, body }, { attempts: 3, body: 'ok' });
 	});
 
+	// Verify that transient connection and proxy errors are successfully retried.
+	// Tests both direct ErrnoExceptions and undici's TypeError('fetch failed', { cause }) wrappers.
+	for (const { code, message, failCount } of [
+		{ code: 'ECONNRESET', message: 'read ECONNRESET',   failCount: 2 },
+		{ code: 'ETIMEDOUT',  message: 'connect ETIMEDOUT',  failCount: 1 },
+		{ code: 'EPIPE',      message: 'write EPIPE',        failCount: 1 },
+	]) {
+		test(`retries idempotent GET on ${code} (direct ErrnoException)`, async () => {
+			const proxyResolver = new TestProxyResolver();
+			let attempts = 0;
+			proxyResolver.fetchImpl = async () => {
+				attempts++;
+				if (attempts <= failCount) {
+					const error = new Error(message) as NodeJS.ErrnoException;
+					error.code = code;
+					throw error;
+				}
+				return new Response('ok');
+			};
+			const service = createService(proxyResolver);
+
+			const context = await service.request({
+				url: `https://example.com/retry-${code.toLowerCase()}`,
+				type: 'GET',
+				callSite: `agentHostRequestService.test.${code.toLowerCase()}`,
+			}, CancellationToken.None);
+			const body = (await streamToBuffer(context.stream)).toString();
+
+			assert.deepStrictEqual({ attempts, body }, { attempts: failCount + 1, body: 'ok' });
+		});
+
+		test(`retries idempotent GET on ${code} (undici TypeError wrapper)`, async () => {
+			// Node/undici fetch wraps TCP errors as TypeError('fetch failed', { cause: ErrnoException })
+			const proxyResolver = new TestProxyResolver();
+			let attempts = 0;
+			proxyResolver.fetchImpl = async () => {
+				attempts++;
+				if (attempts <= failCount) {
+					const cause = new Error(message) as NodeJS.ErrnoException;
+					cause.code = code;
+					// Simulate undici's wrapping: TypeError('fetch failed') with cause
+					throw new TypeError('fetch failed', { cause });
+				}
+				return new Response('ok');
+			};
+			const service = createService(proxyResolver);
+
+			const context = await service.request({
+				url: `https://example.com/retry-${code.toLowerCase()}-wrapped`,
+				type: 'GET',
+				callSite: `agentHostRequestService.test.${code.toLowerCase()}.wrapped`,
+			}, CancellationToken.None);
+			const body = (await streamToBuffer(context.stream)).toString();
+
+			assert.deepStrictEqual({ attempts, body }, { attempts: failCount + 1, body: 'ok' });
+		});
+	}
+
+
 	test('does not retry non-idempotent requests', async () => {
 		const proxyResolver = new TestProxyResolver();
 		let attempts = 0;
