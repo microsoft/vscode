@@ -658,7 +658,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// but keep the trailing colon: the non-retryable third-party cookie
 		// variant ("Could not register service worker. Please make sure...")
 		// must still fail fast without triggering a reload.
-		if (/^(?:Error: )?Could not register service worker:/.test(message)) {
+		// A permission denial ("user denied permission") is a permanent condition
+		// that a document reload cannot fix either, so even if one arrives in the
+		// retryable form do not burn the reload budget on it.
+		if (/^(?:Error: )?Could not register service worker:/.test(message) && !message.includes('user denied permission')) {
 			// A failed document reports the registration failure for every
 			// content event, so ignore duplicates while a reload is already
 			// scheduled. Otherwise each report would replace the pending

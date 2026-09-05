@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-Qewsm1WNbj0je7yaRxyN0ev2k2yRGl4lCU0y8Ub0RHA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-u7VQXHfzdvLSCfctDMQDjq5/9EXC9LfxRSkXqqtQbBU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -356,7 +356,11 @@
 
 					return resolve();
 				}).catch(error => {
-					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+					if (error instanceof Error && error.message.includes('user denied permission')) {
+						// A permission denial is a permanent condition; neither retrying
+						// here nor the host reloading the document can fix it. Report it
+						// in the period-terminated form so that the host does not
+						// classify it as retryable and burn its reload budget.
 						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
 					}
 					return reject(new Error(`Could not register service worker: ${error}.`));
