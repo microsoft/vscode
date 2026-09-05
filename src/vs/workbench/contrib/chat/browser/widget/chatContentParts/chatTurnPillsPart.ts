@@ -19,7 +19,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { EMPTY_DIFF_STATS, IDiffStats, observeTurnStatusPillsEnabled } from '../chatTurnPills.js';
+import { EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -77,9 +77,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return { files: diffs.length, insertions, deletions };
 		});
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		const changesEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
-		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
+		const showChanges = derived(this, reader => stats.read(reader).files > 0);
 
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
 		const details = root.appendChild(document.createElement('details'));
