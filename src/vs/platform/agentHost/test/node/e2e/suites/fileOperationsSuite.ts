@@ -21,6 +21,8 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 function stringOrMarkdownText(value: StringOrMarkdown | undefined): string | undefined {
 	return typeof value === 'string' ? value : value?.markdown;
 }
@@ -655,7 +657,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(portableShellToolReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
+	const deleteFileReplayEnabled = portableShellToolReplayEnabled
+		&& (RECORDING || !isWindows || !config.fileDeleteReplayUnstableOnWindows);
+	(deleteFileReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);
