@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -52,7 +53,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode, ISessionTypeSelectionTelemetry, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -74,6 +75,17 @@ import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatPa
 import { NullLanguageModelsService } from '../languageModels.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
+
+function sessionTypeSelectionTelemetry(reason: SessionTypeSelectionReason, values?: Partial<Omit<ISessionTypeSelectionTelemetry, 'reason'>>): ISessionTypeSelectionTelemetry {
+	return {
+		reason,
+		settingDefaultToCopilotHarness: false,
+		settingPreferCopilotHarness: false,
+		settingLocalAgentEnabled: true,
+		managedSandboxEnforced: false,
+		...values,
+	};
+}
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
@@ -208,6 +220,7 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
+		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService);
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -591,7 +604,7 @@ suite('ChatService', () => {
 		const forkedData = sourceRef.object.toJSON();
 		forkedData.sessionId = 'forked-session';
 
-		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', 'currentSession'));
+		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', sessionTypeSelectionTelemetry('currentSession')));
 		const response = await testService.sendRequest(forkedRef.object.sessionResource, 'hello');
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
@@ -1797,7 +1810,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 
 		// Load the untitled session to create the initial model
-		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'rememberedSelection');
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, sessionTypeSelectionTelemetry('rememberedSelection'));
 		assert.ok(untitledRef, 'Should load untitled session');
 		testDisposables.add(untitledRef);
 
@@ -2426,6 +2439,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(URI.from({ scheme: 'vscode-vfs', authority: 'test', path: '/workspace' }))));
+		instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(true), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			'chat.defaultToCopilotHarness': true,
 			'chat.editor.preferCopilotHarness': true,
@@ -2436,7 +2450,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'computedDefault');
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, sessionTypeSelectionTelemetry('computedDefault'));
 		assert.ok(ref);
 		testDisposables.add(ref);
 
@@ -2452,12 +2466,32 @@ suite('ChatService', () => {
 			isAgentHostSession: event.isAgentHostSession,
 			requestIndex: event.requestIndex,
 			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
+			selectionTimeSettingDefaultToCopilotHarness: event.selectionTimeSettingDefaultToCopilotHarness,
+			selectionTimeSettingPreferCopilotHarness: event.selectionTimeSettingPreferCopilotHarness,
+			selectionTimeSettingLocalAgentEnabled: event.selectionTimeSettingLocalAgentEnabled,
+			selectionTimeManagedSandboxEnforced: event.selectionTimeManagedSandboxEnforced,
 			isVirtualWorkspace: event.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
+			managedSandboxEnforced: event.managedSandboxEnforced,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, hasRequestId: true }]);
+		})), [0, 1].map(requestIndex => ({
+			sessionType: 'remote-agent-host',
+			isAgentHostSession: true,
+			requestIndex,
+			sessionTypeSelectionReason: 'computedDefault',
+			selectionTimeSettingDefaultToCopilotHarness: false,
+			selectionTimeSettingPreferCopilotHarness: false,
+			selectionTimeSettingLocalAgentEnabled: true,
+			selectionTimeManagedSandboxEnforced: false,
+			isVirtualWorkspace: true,
+			settingDefaultToCopilotHarness: true,
+			settingPreferCopilotHarness: true,
+			settingLocalAgentEnabled: false,
+			managedSandboxEnforced: true,
+			hasRequestId: true,
+		})));
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

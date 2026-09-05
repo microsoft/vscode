@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -54,6 +54,7 @@ import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function getAgentData(id: string): IChatAgentData {
@@ -91,6 +92,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService);
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });

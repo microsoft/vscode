@@ -399,7 +399,32 @@ export interface IDefaultNewChatSessionTypeOptions {
 export interface IResolvedNewChatSessionType {
 	/** The session type to open for the new chat. */
 	readonly sessionType: string;
-	readonly selectionReason: SessionTypeSelectionReason;
+	readonly selectionTelemetry: ISessionTypeSelectionTelemetry;
+}
+
+export interface ISessionTypeSelectionTelemetry {
+	readonly reason: SessionTypeSelectionReason;
+	readonly settingDefaultToCopilotHarness: boolean;
+	readonly settingPreferCopilotHarness: boolean;
+	readonly settingLocalAgentEnabled: boolean;
+	readonly managedSandboxEnforced: boolean;
+}
+
+/**
+ * A bare reason is only accepted where the session model is created synchronously, so completing it
+ * with the current settings is equivalent to capturing them at the call site. Paths that await before
+ * creating the model must pass a full {@link ISessionTypeSelectionTelemetry} captured at selection time.
+ */
+export type SessionTypeSelectionTelemetryInput = ISessionTypeSelectionTelemetry | SessionTypeSelectionReason;
+
+export function getSessionTypeSelectionTelemetry(configurationService: IConfigurationService, reason: SessionTypeSelectionReason, managedSandboxEnforced = false): ISessionTypeSelectionTelemetry {
+	return {
+		reason,
+		settingDefaultToCopilotHarness: configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) ?? false,
+		settingPreferCopilotHarness: configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness) ?? false,
+		settingLocalAgentEnabled: configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true,
+		managedSandboxEnforced,
+	};
 }
 
 export function getDefaultNewChatSessionType(
@@ -423,34 +448,39 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	options?: IDefaultNewChatSessionTypeOptions,
 	managedSandboxEnforced = false
 ): IResolvedNewChatSessionType {
+	const resolve = (sessionType: string, reason: SessionTypeSelectionReason): IResolvedNewChatSessionType => ({
+		sessionType,
+		selectionTelemetry: getSessionTypeSelectionTelemetry(configurationService, reason, managedSandboxEnforced),
+	});
+
 	if (options?.explicitOverride) {
-		return { sessionType: options.explicitOverride, selectionReason: 'explicitOverride' };
+		return resolve(options.explicitOverride, 'explicitOverride');
 	}
 
 	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
+		return resolve(localChatSessionType, 'virtualWorkspace');
 	}
 
 	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
 	if (remembered && (remembered !== localChatSessionType || !preferCopilotHarness)) {
-		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
+		return resolve(remembered, 'rememberedSelection');
 	}
 
 	let resolved: IResolvedNewChatSessionType;
 	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced)) {
-		resolved = { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
+		resolved = resolve(options.currentSessionType, 'currentSession');
 	} else if (remembered) {
-		resolved = { sessionType: remembered, selectionReason: 'rememberedSelection' };
+		resolved = resolve(remembered, 'rememberedSelection');
 	} else {
-		resolved = {
-			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
-			selectionReason: 'computedDefault'
-		};
+		resolved = resolve(
+			getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
+			'computedDefault'
+		);
 	}
 
 	return resolved.sessionType === localChatSessionType && preferCopilotHarness
-		? { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' }
+		? resolve(SessionType.AgentHostCopilot, 'copilotPreference')
 		: resolved;
 }
 

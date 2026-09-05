@@ -85,7 +85,7 @@ export class InlineChatSessionResolver implements IInlineChatSessionResolver {
 
 		modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, {
 			canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */,
-			sessionTypeSelectionReason: didAttemptAgentHost ? getLocalFallbackSessionTypeSelectionReason(SessionType.AgentHostCopilot, false) : undefined,
+			sessionTypeSelectionTelemetry: didAttemptAgentHost ? getLocalFallbackSessionTypeSelectionReason(SessionType.AgentHostCopilot, false) : undefined,
 		});
 		if (token.isCancellationRequested) {
 			modelRef.dispose();

@@ -595,7 +595,7 @@ export function registerChatActions() {
 		const resolved = getDefaultNewChatSessionTypeAndReason(accessor);
 		return {
 			resource: getNewChatSessionResource(resolved.sessionType),
-			options: { pinned: true, sessionTypeSelectionReason: resolved.selectionReason },
+			options: { pinned: true, sessionTypeSelectionTelemetry: resolved.selectionTelemetry },
 		};
 	}
 
@@ -1795,13 +1795,13 @@ export async function clearChatSessionPreservingType(accessor: ServicesAccessor,
 		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (newSessionType !== localChatSessionType) {
 			// Load a session of the resolved type in the sidebar.
-			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }), resolvedSessionType.selectionReason);
+			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }), resolvedSessionType.selectionTelemetry);
 		} else {
 			// The resolved type is local (an explicit request or session
 			// preservation). A plain `widget.clear()` re-acquires the computed
 			// default (a non-local harness when the agent host is enabled), so
 			// start a local session explicitly to honor the resolved type.
-			await view.startNewLocalSession(resolvedSessionType.selectionReason);
+			await view.startNewLocalSession(resolvedSessionType.selectionTelemetry);
 		}
 	} else {
 		// For the editor, thread the resolution through the clear path so

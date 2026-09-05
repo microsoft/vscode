@@ -138,7 +138,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			contributionLookups: [],
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -192,7 +192,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -210,7 +210,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: undefined } }],
 		});
 	});
 
@@ -230,7 +230,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			creationCalls: 1,
 			acquisitionCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -244,7 +244,7 @@ suite('InlineChatSessionResolver', () => {
 		}, {
 			usesLocalReference: true,
 			acquisitionCalls: [{ location: ChatAgentLocation.EditorInline, debugOwner: 'InlineChatSessionResolver#resolve' }],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -264,7 +264,7 @@ suite('InlineChatSessionResolver', () => {
 			}, {
 				usesLocalReference: true,
 				lockToAgent: undefined,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host unavailable'],
 			});
 		} finally {
@@ -286,7 +286,7 @@ suite('InlineChatSessionResolver', () => {
 				reportedErrors,
 			}, {
 				usesLocalReference: true,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionTelemetry: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host acquisition failed'],
 			});
 		} finally {

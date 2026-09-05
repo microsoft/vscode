@@ -33,7 +33,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { IChatRequestOrigin, ISerializableChatRequestOrigin, reviveChatRequestOrigin, serializeChatRequestOrigin } from '../chatRequestOrigin.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatInfoMessage, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMcpServersStartingSlow, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPlanReview, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatSystemNotificationPart, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, IChatUsagePromptTokenDetail, IChatUsedContext, IChatVoiceProgressPart, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind, ChatPermissionLevel } from '../constants.js';
+import { ChatAgentLocation, ISessionTypeSelectionTelemetry, SessionTypeSelectionReason, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from './chatProgressTypes/chatQuestionCarouselData.js';
@@ -1820,6 +1820,7 @@ export interface IChatModel extends IDisposable {
 	readonly timing: IChatSessionTiming;
 	readonly initialLocation: ChatAgentLocation;
 	readonly sessionTypeSelectionReason: SessionTypeSelectionReason | undefined;
+	readonly sessionTypeSelectionTelemetry: ISessionTypeSelectionTelemetry | undefined;
 	readonly title: string;
 	readonly hasCustomTitle: boolean;
 	readonly responderUsername: string;
@@ -2739,7 +2740,10 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private readonly _initialLocation: ChatAgentLocation;
-	readonly sessionTypeSelectionReason: SessionTypeSelectionReason | undefined;
+	readonly sessionTypeSelectionTelemetry: ISessionTypeSelectionTelemetry | undefined;
+	get sessionTypeSelectionReason(): SessionTypeSelectionReason | undefined {
+		return this.sessionTypeSelectionTelemetry?.reason;
+	}
 	get initialLocation(): ChatAgentLocation {
 		return this._initialLocation;
 	}
@@ -2758,7 +2762,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionTelemetry?: ISessionTypeSelectionTelemetry; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -2814,7 +2818,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
-		this.sessionTypeSelectionReason = initialModelProps.sessionTypeSelectionReason;
+		this.sessionTypeSelectionTelemetry = initialModelProps.sessionTypeSelectionTelemetry;
 
 		this._canUseTools = initialModelProps.canUseTools;
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
