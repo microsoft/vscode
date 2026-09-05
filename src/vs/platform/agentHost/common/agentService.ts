@@ -144,6 +144,13 @@ export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilot
 export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
 
 /**
+ * Configuration key supplying the approval mode new Claude agent-host sessions
+ * start in. Only newly created sessions read it; a restored session keeps its
+ * persisted mode and a mid-session pick always wins.
+ */
+export const AgentHostClaudeDefaultPermissionModeSettingId = 'chat.agentHost.claudeAgent.defaultPermissionMode';
+
+/**
  * Configuration key gating multiple-working-directory support for the Codex
  * agent-host provider. Hidden from the Settings UI and off by default while the
  * feature is dogfooded.

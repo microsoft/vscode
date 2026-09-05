@@ -46,7 +46,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeDefaultPermissionModeConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -1345,6 +1345,61 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('seeds a new chat from the configured default permission mode', async () => {
+		const { agent, configService } = createTestContext(disposables);
+		const readSeed = async () => (await agent.resolveChatConfig({})).values[ClaudeSessionConfigKey.PermissionMode];
+
+		const unset = await readSeed();
+		configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'plan' });
+		const configured = await readSeed();
+		configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'dontAsk' });
+		const unsupported = await readSeed();
+		configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 17 });
+		const malformed = await readSeed();
+
+		assert.deepStrictEqual({ unset, configured, unsupported, malformed }, {
+			unset: 'default',
+			configured: 'plan',
+			unsupported: 'default',
+			malformed: 'default',
+		});
+	});
+
+	test('a chat that carries a permission mode keeps it over the configured default', async () => {
+		const { agent, configService } = createTestContext(disposables);
+		configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'acceptEdits' });
+		const config = { [ClaudeSessionConfigKey.PermissionMode]: 'plan' };
+
+		// The restore path re-resolves with the persisted values, so they outrank the setting.
+		const restored = (await agent.resolveChatConfig({ config })).values[ClaudeSessionConfigKey.PermissionMode];
+
+		assert.deepStrictEqual({ restored, unchanged: config }, {
+			restored: 'plan',
+			unchanged: { [ClaudeSessionConfigKey.PermissionMode]: 'plan' },
+		});
+	});
+
+	test('an elevated configured default degrades while policy restricts auto-approval', async () => {
+		const { agent, configService } = createTestContext(disposables);
+		const readSeed = async () => (await agent.resolveChatConfig({})).values[ClaudeSessionConfigKey.PermissionMode];
+
+		configService.updateRootConfig({
+			[AgentHostClaudeDefaultPermissionModeConfigKey]: 'bypassPermissions',
+			[AgentHostAutoApprovePolicyRestrictedConfigKey]: true,
+		});
+		const elevated = await readSeed();
+		configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'plan' });
+		const unelevated = await readSeed();
+		configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false, [AgentHostClaudeDefaultPermissionModeConfigKey]: 'bypassPermissions' });
+		const unrestricted = await readSeed();
+
+		assert.deepStrictEqual({ elevated, unelevated, unrestricted }, {
+			elevated: 'default',
+			unelevated: 'plan',
+			unrestricted: 'bypassPermissions',
+		});
+	});
+
 	test('getProtectedResources returns the GitHub resource', () => {
 		const { agent } = createTestContext(disposables);
 		assert.deepStrictEqual(agent.getProtectedResources(), [{
@@ -2278,6 +2333,30 @@ suite('ClaudeAgent', () => {
 			sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 			await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 			assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.cwd, expected.fsPath);
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
+	test('a workspace-less chat starts in the configured default permission mode', async () => {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-permdef-home-`));
+		const { agent, sdk, configService } = createTestContext(disposables, { userHome });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			// No config and no working directories, so the host resolves no session config.
+			const materialize = async () => {
+				const created = await createSession(agent, {});
+				sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+				await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+				return sdk.capturedStartupOptions.at(-1)?.permissionMode;
+			};
+
+			configService.updateRootConfig({ [AgentHostClaudeDefaultPermissionModeConfigKey]: 'acceptEdits' });
+			const configured = await materialize();
+			configService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+			const restricted = await materialize();
+
+			assert.deepStrictEqual({ configured, restricted }, { configured: 'acceptEdits', restricted: 'default' });
 		} finally {
 			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 		}
