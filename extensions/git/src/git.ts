@@ -923,6 +923,13 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
+export function hasGitConfigIncludes(raw: string): boolean {
+	return GitConfigParser.parse(raw).some(section => {
+		const sectionName = section.name.toLowerCase();
+		return sectionName === 'include' || sectionName === 'includeif';
+	});
+}
+
 const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
@@ -3118,6 +3125,10 @@ export class Repository {
 
 	private async getRemotesFS(): Promise<MutableRemote[]> {
 		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
+		if (hasGitConfigIncludes(raw)) {
+			return this.getRemotesGit();
+		}
+
 		return parseGitRemotes(raw);
 	}
 
