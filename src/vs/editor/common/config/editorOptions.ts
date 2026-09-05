@@ -567,6 +567,11 @@ export interface IEditorOptions {
 	 */
 	formatOnPaste?: boolean;
 	/**
+	 * Controls the width used to render full-width characters.
+	 * Defaults to 'font'.
+	 */
+	fullwidthCharacterWidth?: 'font' | 'twoCells';
+	/**
 	 * Controls whether double-clicking next to a bracket or quote selects the content inside.
 	 * Defaults to true.
 	 */
@@ -2090,6 +2095,24 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 }
 
 //#engregion
+
+//#region effectiveFullwidthCharacterWidth
+
+class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'> {
+
+	constructor() {
+		super(EditorOption.effectiveFullwidthCharacterWidth, 'font');
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): 'font' | 'twoCells' {
+		if (options.get(EditorOption.fullwidthCharacterWidth) === 'twoCells' && env.fontInfo.isMonospace) {
+			return 'twoCells';
+		}
+		return 'font';
+	}
+}
+
+//#endregion
 
 //#region fontSize
 
@@ -5977,7 +6000,10 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	fullwidthCharacterWidth,
+	// Must come after `fullwidthCharacterWidth`, which it is computed from.
+	effectiveFullwidthCharacterWidth
 }
 
 export const EditorOptions = {
@@ -6381,6 +6407,18 @@ export const EditorOptions = {
 	formatOnType: register(new EditorBooleanOption(
 		EditorOption.formatOnType, 'formatOnType', false,
 		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing.") }
+	)),
+	fullwidthCharacterWidth: register(new EditorStringEnumOption(
+		EditorOption.fullwidthCharacterWidth, 'fullwidthCharacterWidth',
+		'font' as 'font' | 'twoCells',
+		['font', 'twoCells'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+			],
+			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
+		}
 	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
@@ -6889,7 +6927,8 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
 };
 
 type EditorOptionsType = typeof EditorOptions;

@@ -26,20 +26,20 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer {
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, useTwoCellFullwidthCharacters: boolean): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		return {
 			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak);
+				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, useTwoCellFullwidthCharacters);
 			}
 		};
 	}
 }
 
-function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): (ModelLineProjectionData | null)[] {
+function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', useTwoCellFullwidthCharacters: boolean): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(lineNumber: number): ModelLineProjectionData | null {
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		if (injectedTexts) {
@@ -69,6 +69,9 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
 	const additionalIndentSize = Math.round(tabSize * additionalIndent);
 	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
+	// Stretching full-width characters to two cells makes their width independent of the font, so the
+	// width the font reports for them must not be used anywhere below.
+	const fullwidthCharacterWidth = useTwoCellFullwidthCharacters ? 2 * fontInfo.spaceWidth : undefined;
 
 	const containerDomNode = document.createElement('div');
 	applyFontInfo(containerDomNode, fontInfo);
@@ -117,7 +120,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				const indentWidth = Math.ceil(fontInfo.spaceWidth * wrappedTextIndentLength);
 
 				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (indentWidth + fontInfo.typicalFullwidthCharacterWidth > overallWidth) {
+				if (indentWidth + (fullwidthCharacterWidth ?? fontInfo.typicalFullwidthCharacterWidth) > overallWidth) {
 					firstNonWhitespaceIndex = 0;
 					wrappedTextIndentLength = 0;
 				} else {
@@ -134,7 +137,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 				endOffset: range.endOffset - firstNonWhitespaceIndex,
 				widthInEm: range.widthInEm
 			}));
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges);
+		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, shiftedFixedWidthRanges, fullwidthCharacterWidth);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -210,7 +213,7 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[]): [number[], number[], number[]] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, fixedWidthRanges: readonly FixedWidthInjectedTextRange[], fullwidthCharacterWidth: number | undefined): [number[], number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
@@ -235,13 +238,14 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const charOffsets: number[] = [];
 	const spanStartOffsets: number[] = [0];
 	const visibleColumns: number[] = [];
-	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 	let spanOpen = true;
 
 	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		let fixedWidthRange = fixedWidthRanges[fixedWidthRangeIndex];
 		const startsFixedWidth = fixedWidthRange && fixedWidthRange.startOffset === charIndex;
+		const charCode = lineContent.charCodeAt(charIndex);
+		const isFullWidthCharacter = fullwidthCharacterWidth !== undefined && strings.isFullWidthCharacter(charCode);
 		if (startsFixedWidth) {
 			if (spanOpen) {
 				sb.appendString('</span>');
@@ -269,6 +273,15 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			}
 			spanStartOffsets.push(charOffset);
 			spanOpen = true;
+		} else if (isFullWidthCharacter) {
+			if (spanOpen) {
+				sb.appendString('</span>');
+			}
+			sb.appendString('<span class="mtkfullwidth" style="width:');
+			sb.appendString(String(fullwidthCharacterWidth));
+			sb.appendString('px;">');
+			spanStartOffsets.push(charOffset);
+			spanOpen = true;
 		} else if (!spanOpen) {
 			sb.appendString('<span>');
 			spanStartOffsets.push(charOffset);
@@ -277,65 +290,72 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			sb.appendString('</span><span>');
 			spanStartOffsets.push(charOffset);
 		}
+
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
-		const charCode = nextCharCode;
-		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
 		let producedCharacters = 1;
 		let charWidth = 1;
-		switch (charCode) {
-			case CharCode.Tab:
-				producedCharacters = (tabSize - (visibleColumn % tabSize));
-				charWidth = producedCharacters;
-				for (let space = 1; space <= producedCharacters; space++) {
-					if (space < producedCharacters) {
+		if (isFullWidthCharacter) {
+			sb.appendCharCode(charCode);
+			charWidth = 2;
+			sb.appendString('</span>');
+			spanOpen = false;
+		} else {
+			switch (charCode) {
+				case CharCode.Tab:
+					producedCharacters = (tabSize - (visibleColumn % tabSize));
+					charWidth = producedCharacters;
+					for (let space = 1; space <= producedCharacters; space++) {
+						if (space < producedCharacters) {
+							sb.appendCharCode(0xA0); // &nbsp;
+						} else {
+							sb.appendASCIICharCode(CharCode.Space);
+						}
+					}
+					break;
+
+				case CharCode.Space:
+					// `charCodeAt` past the end of the line yields `NaN`, which is not a space either.
+					if (lineContent.charCodeAt(charIndex + 1) === CharCode.Space) {
 						sb.appendCharCode(0xA0); // &nbsp;
 					} else {
 						sb.appendASCIICharCode(CharCode.Space);
 					}
-				}
-				break;
+					break;
 
-			case CharCode.Space:
-				if (nextCharCode === CharCode.Space) {
-					sb.appendCharCode(0xA0); // &nbsp;
-				} else {
-					sb.appendASCIICharCode(CharCode.Space);
-				}
-				break;
+				case CharCode.LessThan:
+					sb.appendString('&lt;');
+					break;
 
-			case CharCode.LessThan:
-				sb.appendString('&lt;');
-				break;
+				case CharCode.GreaterThan:
+					sb.appendString('&gt;');
+					break;
 
-			case CharCode.GreaterThan:
-				sb.appendString('&gt;');
-				break;
+				case CharCode.Ampersand:
+					sb.appendString('&amp;');
+					break;
 
-			case CharCode.Ampersand:
-				sb.appendString('&amp;');
-				break;
+				case CharCode.Null:
+					sb.appendString('&#00;');
+					break;
 
-			case CharCode.Null:
-				sb.appendString('&#00;');
-				break;
+				case CharCode.UTF8_BOM:
+				case CharCode.LINE_SEPARATOR:
+				case CharCode.PARAGRAPH_SEPARATOR:
+				case CharCode.NEXT_LINE:
+					sb.appendCharCode(0xFFFD);
+					break;
 
-			case CharCode.UTF8_BOM:
-			case CharCode.LINE_SEPARATOR:
-			case CharCode.PARAGRAPH_SEPARATOR:
-			case CharCode.NEXT_LINE:
-				sb.appendCharCode(0xFFFD);
-				break;
-
-			default:
-				if (strings.isFullWidthCharacter(charCode)) {
-					charWidth++;
-				}
-				if (charCode < 32) {
-					sb.appendCharCode(9216 + charCode);
-				} else {
-					sb.appendCharCode(charCode);
-				}
+				default:
+					if (strings.isFullWidthCharacter(charCode)) {
+						charWidth++;
+					}
+					if (charCode < 32) {
+						sb.appendCharCode(9216 + charCode);
+					} else {
+						sb.appendCharCode(charCode);
+					}
+			}
 		}
 
 		charOffset += producedCharacters;
