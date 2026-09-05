@@ -70,6 +70,7 @@ import { ContributionEnablementState } from '../../../../contrib/chat/common/ena
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -838,6 +839,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					override acquireMcpServerSupportScope() { return undefined; }
 				}(),
 				agentHostCustomizationService,
+				NullTelemetryService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

@@ -26,6 +26,7 @@ import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IWorkspacePickerNoWorkspaceOption } from '../../browser/sessionWorkspacePicker.js';
 import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../../common/customizations.js';
+import { CustomizationMigration, CustomizationMigrationTrigger, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -184,6 +185,11 @@ interface IRenderCustomizeTriggerHarness {
 	readonly hoverService: { setupDelayedHover(): IDisposable };
 }
 
+interface IReportCustomizationMigrationTelemetryHarness {
+	readonly customizationMigrationService: ICustomizationMigrationService;
+	readonly logService: { warn(message: string, error: unknown): void };
+}
+
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness) => void;
@@ -192,6 +198,7 @@ const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspa
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => boolean;
 const renderCustomizeTrigger = Reflect.get(NewChatWidget.prototype, '_renderCustomizeTrigger') as (this: IRenderCustomizeTriggerHarness, container: HTMLElement) => IDisposable;
+const reportCustomizationMigrationTelemetry = Reflect.get(NewChatWidget.prototype, '_reportCustomizationMigrationTelemetry') as (this: IReportCustomizationMigrationTelemetryHarness, sessionResource: URI) => Promise<void>;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -222,6 +229,22 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports customization migration telemetry from the new-session lifecycle', async () => {
+		const reports: CustomizationMigrationTrigger[] = [];
+		const harness: IReportCustomizationMigrationTelemetryHarness = {
+			customizationMigrationService: upcastPartial<ICustomizationMigrationService>({
+				_serviceBrand: undefined,
+				computeMigrations: async () => [] as CustomizationMigration[],
+				reportMigrationTelemetry: trigger => reports.push(trigger),
+			}),
+			logService: { warn: () => { } },
+		};
+
+		await reportCustomizationMigrationTelemetry.call(harness, URI.parse('agent-host-copilot:///new-session'));
+
+		assert.deepStrictEqual(reports, [CustomizationMigrationTrigger.AgentsNewSession]);
+	});
 
 	test('workspace row hosts the workspace picker before the harness and customize triggers', () => {
 		const container = document.createElement('div');

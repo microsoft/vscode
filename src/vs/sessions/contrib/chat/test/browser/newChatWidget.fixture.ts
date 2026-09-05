@@ -33,6 +33,7 @@ import { ICustomizationMigrationAvailabilityService } from '../../../../../workb
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -299,6 +300,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				_serviceBrand: undefined,
 				candidateCount: observableValue('customizationMigrationCount', migrationCount),
 			});
+			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
+				override async computeMigrations() { return []; }
+				override reportMigrationTelemetry() { }
+			}());
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
 				sessionsService,
 				new class extends mock<IChatWidgetService>() {

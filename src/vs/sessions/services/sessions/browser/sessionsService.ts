@@ -5,7 +5,7 @@
 
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -33,6 +33,7 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { CustomizationMigrationTrigger, ICustomizationMigrationService, reportCustomizationMigrationTelemetry } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -385,6 +386,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@ICustomizationMigrationService private readonly customizationMigrationService: ICustomizationMigrationService,
 	) {
 		super();
 
@@ -784,6 +786,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
 		}
+		void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
 
 		// Find the chat and update active chat
 		let chat: IChat | undefined;
@@ -889,14 +892,33 @@ export class SessionsService extends Disposable implements ISessionsService {
 			);
 			this._showSession(sessionData, options);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
+			if (!token.isCancellationRequested) {
+				void this._reportCustomizationMigrationTelemetry(sessionData, CustomizationMigrationTrigger.AgentsSessionOpen, token);
+			}
 		});
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		this._cancelRestore();
 		this._dismissCustomViewForNavigation('explicit');
-		this._startOpenSession();
-		this._showSession(this._getSession(sessionResource), options);
+		const token = this._startOpenSession();
+		const session = this._getSession(sessionResource);
+		this._showSession(session, options);
+		void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
+	}
+
+	private async _reportCustomizationMigrationTelemetry(session: ISession, trigger: CustomizationMigrationTrigger, token: CancellationToken): Promise<void> {
+		if (session.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+
+		try {
+			await reportCustomizationMigrationTelemetry(this.customizationMigrationService, session.resource, trigger, token);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.warn(`[SessionsView] Failed to report customization migration telemetry for ${session.resource.toString()}`, error);
+			}
+		}
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -1541,6 +1563,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (targets[idx].isSticky) {
 				this._visibility.toggleStickiness(session);
 			}
+			void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
 		};
 
 		// Resolve the active session first so it can act as the anchor for the
@@ -1586,6 +1609,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 			slots.push({ session: session ?? undefined, sticky: target.isSticky });
 		}
 		this._visibility.restoreGrid(slots, activeSlotIndex);
+		for (const session of resolved) {
+			if (session) {
+				void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
+			}
+		}
 
 		if (token.isCancellationRequested) {
 			return;

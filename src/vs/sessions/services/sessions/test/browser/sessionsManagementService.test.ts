@@ -48,6 +48,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { CustomizationMigration, CustomizationMigrationTrigger, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -223,6 +224,18 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
 
+class TestCustomizationMigrationService extends mock<ICustomizationMigrationService>() {
+	readonly reports: { readonly trigger: CustomizationMigrationTrigger; readonly migrations: readonly CustomizationMigration[] }[] = [];
+
+	override computeMigrations(): Promise<CustomizationMigration[]> {
+		return Promise.resolve([]);
+	}
+
+	override reportMigrationTelemetry(trigger: CustomizationMigrationTrigger, migrations: readonly CustomizationMigration[]): void {
+		this.reports.push({ trigger, migrations });
+	}
+}
+
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
@@ -230,6 +243,7 @@ function createSessionsManagementService(
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
+	customizationMigrationService: ICustomizationMigrationService = new TestCustomizationMigrationService(),
 ): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
@@ -256,7 +270,7 @@ function createSessionsManagementService(
 	}
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	const view = createView(instantiationService, service, disposables, customViewService);
+	const view = createView(instantiationService, service, disposables, customViewService, customizationMigrationService);
 	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService };
 }
 
@@ -296,12 +310,14 @@ function createView(
 	service: ISessionsManagementService,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
 	customViewService: ICustomViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))),
+	customizationMigrationService: ICustomizationMigrationService = new TestCustomizationMigrationService(),
 ): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
+	instantiationService.stub(ICustomizationMigrationService, customizationMigrationService);
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 
@@ -377,6 +393,32 @@ suite('SessionsManagementService', () => {
 		await openPromise;
 
 		assert.deepStrictEqual({ resolved }, { resolved: true });
+	});
+
+	test('openSession reports customization migration telemetry from the session-open lifecycle', async () => {
+		const session = stubSession({
+			sessionId: 'opened',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Completed),
+		});
+		const migrationService = new TestCustomizationMigrationService();
+		const { view } = createSessionsManagementService(
+			session,
+			disposables,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			migrationService,
+		);
+
+		await view.openSession(session.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual(migrationService.reports, [{
+			trigger: CustomizationMigrationTrigger.AgentsSessionOpen,
+			migrations: [],
+		}]);
 	});
 
 	test('marks the active session as read via its provider even when its provider state was unread', async () => {
@@ -1196,10 +1238,11 @@ suite('SessionsManagementService', () => {
 	});
 
 	test('restoreVisibleSessions restores the grid order, sticky and active state', async () => {
-		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
-		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });
-		const sessionC = stubSession({ sessionId: 'c', providerId: 'test' });
+		const sessionA = stubSession({ sessionId: 'a', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+		const sessionB = stubSession({ sessionId: 'b', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+		const sessionC = stubSession({ sessionId: 'c', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 		const sessions = [sessionA, sessionB, sessionC];
+		const migrationService = new TestCustomizationMigrationService();
 
 		const provider = new class extends TestSessionsProvider {
 			constructor() { super(sessionA); }
@@ -1232,18 +1275,25 @@ suite('SessionsManagementService', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-		const view = createView(instantiationService, service, disposables);
+		const view = createView(instantiationService, service, disposables, undefined, migrationService);
 
 		await view.restoreVisibleSessions();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			sticky: view.visibleSessions.get().map(s => s?.sticky.get() ?? false),
 			active: view.activeSession.get()?.sessionId,
+			migrationTriggers: migrationService.reports.map(report => report.trigger),
 		}, {
 			visible: ['a', 'b', 'c'],
 			sticky: [true, false, false],
 			active: 'b',
+			migrationTriggers: [
+				CustomizationMigrationTrigger.AgentsSessionRestore,
+				CustomizationMigrationTrigger.AgentsSessionRestore,
+				CustomizationMigrationTrigger.AgentsSessionRestore,
+			],
 		});
 	});
 
