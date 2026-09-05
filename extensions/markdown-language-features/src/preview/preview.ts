@@ -18,18 +18,40 @@ import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, Startin
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
 import type { DiffScrollSyncData, FromWebviewMessage, MarkdownPreviewLineChanges, ToWebviewMessage } from '../../types/previewMessaging';
 
+/**
+ * Identifies a document instance without retaining it. Documents are not cleared when they are
+ * closed, so holding onto one would keep its full text alive for as long as the preview lives.
+ */
+const documentIdentities = new WeakMap<vscode.TextDocument, number>();
+let lastDocumentIdentity = 0;
+
+function getDocumentIdentity(document: vscode.TextDocument): number {
+	let identity = documentIdentities.get(document);
+	if (typeof identity === 'undefined') {
+		identity = ++lastDocumentIdentity;
+		documentIdentities.set(document, identity);
+	}
+	return identity;
+}
+
 export class PreviewDocumentVersion {
 
 	public readonly resource: vscode.Uri;
+	readonly #identity: number;
 	readonly #version: number;
 
 	public constructor(document: vscode.TextDocument) {
 		this.resource = document.uri;
+		this.#identity = getDocumentIdentity(document);
 		this.#version = document.version;
 	}
 
 	public equals(other: PreviewDocumentVersion): boolean {
-		return areUrisEqual(this.resource, other.resource)
+		// Compare document identity, not just the uri. Once a document has been closed,
+		// re-opening the file creates a new document whose version numbering restarts, so a
+		// version recorded from a different document object must never be allowed to suppress
+		// an update. Identity implies the uris match, so they are not compared separately.
+		return this.#identity === other.#identity
 			&& this.#version === other.#version;
 	}
 }
