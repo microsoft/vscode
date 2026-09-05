@@ -444,6 +444,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		if (reloadPage) {
 			this.#webviewPanel.webview.html = html;
 			this.#webviewHtmlOutOfDate = false;
+		} else if (!this.#webviewPanel.visible) {
+			// The panel was hidden while the body was rendering. That hide saw up to date html and
+			// scheduled nothing, and the webview the body was meant for is already discarded.
+			this.#webviewHtmlOutOfDate = true;
+			this.refresh(true);
 		} else {
 			this.#webviewHtmlOutOfDate = true;
 			this.postMessage({
