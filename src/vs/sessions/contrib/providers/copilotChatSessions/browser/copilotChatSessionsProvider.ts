@@ -184,6 +184,10 @@ function isNewSession(session: ICopilotChatSession): session is NewSession {
 	return session instanceof CopilotCLISession || session instanceof RemoteNewSession;
 }
 
+function isChangesSummary(changes: IAgentSession['changes']): changes is { readonly files: number; readonly insertions: number; readonly deletions: number } {
+	return !!changes && !Array.isArray(changes);
+}
+
 /**
  * Builds an {@link IChat} snapshot from an {@link ICopilotChatSession}. Used to
  * seed the chat's own `mainChat` observable.
@@ -283,9 +287,6 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-
-	private readonly _changesSummary: ReturnType<typeof observableValueOpts<ISessionChangesSummary | undefined>>;
-	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
 
 	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
@@ -951,6 +952,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
+	private readonly _changesSummary: ReturnType<typeof observableValueOpts<ISessionChangesSummary | undefined>>;
+	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
+
 	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
@@ -1281,11 +1285,11 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
-		return Array.isArray(session.changes) ? session.changes as ISessionFileChange[] : [];
+		return session.changes && !isChangesSummary(session.changes) ? session.changes : [];
 	}
 
 	private _extractChangesSummary(session: IAgentSession): ISessionChangesSummary | undefined {
-		if (!session.changes || Array.isArray(session.changes)) {
+		if (!isChangesSummary(session.changes)) {
 			return undefined;
 		}
 		return {
