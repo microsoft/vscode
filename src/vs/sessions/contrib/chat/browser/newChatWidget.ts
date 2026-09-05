@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -57,6 +58,7 @@ import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICustomizationMigrationAvailabilityService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
+import { CustomizationMigrationTrigger, ICustomizationMigrationService, reportCustomizationMigrationTelemetry } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -136,6 +138,7 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 		@ICustomizationMigrationAvailabilityService private readonly customizationMigrationAvailabilityService: ICustomizationMigrationAvailabilityService,
+		@ICustomizationMigrationService private readonly customizationMigrationService: ICustomizationMigrationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -455,6 +458,20 @@ export class NewChatWidget extends Disposable {
 
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			if (session) {
+				void reportCustomizationMigrationTelemetry(
+					this.customizationMigrationService,
+					session.resource,
+					CustomizationMigrationTrigger.AgentsNewSession,
+				).catch(error => {
+					if (!isCancellationError(error)) {
+						this.logService.warn(`[NewChatWidget] Failed to report customization migration telemetry for ${session.resource.toString()}`, error);
+					}
+				});
+			}
+		}));
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.

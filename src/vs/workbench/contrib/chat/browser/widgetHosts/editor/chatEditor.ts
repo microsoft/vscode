@@ -8,6 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { raceCancellationError } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -16,6 +17,7 @@ import { ITextResourceConfigurationService } from '../../../../../../editor/comm
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -32,6 +34,7 @@ import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableCha
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { CustomizationMigrationTrigger, ICustomizationMigrationService, reportCustomizationMigrationTelemetry } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ChatEditorInput } from './chatEditorInput.js';
@@ -88,6 +91,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@ICustomizationMigrationService private readonly customizationMigrationService: ICustomizationMigrationService,
+		@ILogService private readonly logService: ILogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -285,6 +290,18 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 
 			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
+			if (!editorModel.model.hasRequests && input.sessionResource) {
+				void reportCustomizationMigrationTelemetry(
+					this.customizationMigrationService,
+					input.sessionResource,
+					CustomizationMigrationTrigger.EditorNewChat,
+					token,
+				).catch(error => {
+					if (!isCancellationError(error)) {
+						this.logService.warn(`[ChatEditor] Failed to report customization migration telemetry for ${input.sessionResource?.toString()}`, error);
+					}
+				});
+			}
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {

@@ -48,6 +48,7 @@ import { ISessionsProvidersService } from '../../browser/sessionsProvidersServic
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { CustomizationMigration, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -302,6 +303,10 @@ function createView(
 	instantiationService.stub(ICustomViewService, customViewService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(ISessionOpenTelemetryService, disposables.add(new SessionOpenTelemetryService(NullTelemetryService)));
+	instantiationService.stub(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
+		override computeMigrations(): Promise<CustomizationMigration[]> { return Promise.resolve([]); }
+		override reportMigrationTelemetry(): void { }
+	});
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
 

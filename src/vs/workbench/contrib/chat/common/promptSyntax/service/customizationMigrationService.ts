@@ -109,3 +109,16 @@ export interface ICustomizationMigrationService {
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 	reportMigrationTelemetry(trigger: CustomizationMigrationTrigger, migrations: readonly CustomizationMigration[]): void;
 }
+
+/** Computes a migration assessment and explicitly reports its aggregate telemetry for a lifecycle trigger. */
+export async function reportCustomizationMigrationTelemetry(
+	service: ICustomizationMigrationService,
+	sessionResource: URI,
+	trigger: CustomizationMigrationTrigger,
+	token = CancellationToken.None,
+): Promise<void> {
+	const migrations = await service.computeMigrations(sessionResource, token);
+	if (!token.isCancellationRequested) {
+		service.reportMigrationTelemetry(trigger, migrations);
+	}
+}
