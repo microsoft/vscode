@@ -99,19 +99,19 @@ export class IgnoreFile {
 		// Pull out all the lines that end with `/`, those only apply to directories
 		const fileLines = contentLines.filter(line => !line.endsWith('/'));
 
-		const fileIgnoreLines = fileLines.filter(line => !line.includes('!'));
+		const fileIgnoreLines = fileLines.filter(line => !line.startsWith('!'));
 		const isFileIgnored = this.gitignoreLinesToExpression(fileIgnoreLines, dirPath, true);
 
 		// TODO: Slight hack... this naive approach may reintroduce too many files in cases of weirdly complex .gitignores
-		const fileIncludeLines = fileLines.filter(line => line.includes('!')).map(line => line.replace(/!/g, ''));
+		const fileIncludeLines = fileLines.filter(line => line.startsWith('!')).map(line => line.slice(1));
 		const isFileIncluded = this.gitignoreLinesToExpression(fileIncludeLines, dirPath, false);
 
 		// When checking if a dir is ignored we can use all lines
-		const dirIgnoreLines = contentLines.filter(line => !line.includes('!'));
+		const dirIgnoreLines = contentLines.filter(line => !line.startsWith('!'));
 		const isDirIgnored = this.gitignoreLinesToExpression(dirIgnoreLines, dirPath, true);
 
 		// Same hack.
-		const dirIncludeLines = contentLines.filter(line => line.includes('!')).map(line => line.replace(/!/g, ''));
+		const dirIncludeLines = contentLines.filter(line => line.startsWith('!')).map(line => line.slice(1));
 		const isDirIncluded = this.gitignoreLinesToExpression(dirIncludeLines, dirPath, false);
 
 		const isPathIgnored = (path: string, isDir: boolean) => {
@@ -138,6 +138,9 @@ export class IgnoreFile {
 	}
 
 	private gitignoreLineToGlob(line: string, dirPath: string): string {
+		if (line.startsWith('\\!')) {
+			line = line.slice(1);
+		}
 		const firstSep = line.indexOf('/');
 		if (firstSep === -1 || firstSep === line.length - 1) {
 			line = '**/' + line;
