@@ -8,7 +8,11 @@ import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js'
 import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { ModeKind } from './protocol/generated/ModeKind.js';
+import type { ApprovalsReviewer } from './protocol/generated/v2/ApprovalsReviewer.js';
+import type { AskForApproval } from './protocol/generated/v2/AskForApproval.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
+import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
+import type { SandboxWorkspaceWrite } from './protocol/generated/v2/SandboxWorkspaceWrite.js';
 import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, narrowCodexPermissionsPreset, presetForResolvedPermissions, resolveCodexPermissionsPreset, type CodexApprovalPolicy, type ICodexResolvedPermissions } from '../../common/codexSessionConfigKeys.js';
 
 // Re-export the shared, protocol-free config-key surface so node callers can
@@ -51,7 +55,7 @@ export function narrowSandboxMode(value: unknown): SandboxMode | undefined {
 export function resolveCodexPermissions(
 	values: Record<string, unknown> | undefined,
 	defaults: { approvalPolicy: CodexApprovalPolicy; sandboxMode: SandboxMode },
-): ICodexResolvedPermissions {
+): ICodexResolvedPermissions | undefined {
 	const preset = narrowCodexPermissionsPreset(values?.[CodexSessionConfigKey.PermissionsPreset]);
 	if (preset) {
 		return resolveCodexPermissionsPreset(preset);
@@ -60,6 +64,68 @@ export function resolveCodexPermissions(
 		approvalPolicy: narrowApprovalPolicy(values?.[CodexSessionConfigKey.ApprovalPolicy]) ?? defaults.approvalPolicy,
 		sandboxMode: narrowSandboxMode(values?.[CodexSessionConfigKey.SandboxMode]) ?? defaults.sandboxMode,
 		approvalsReviewer: 'user',
+	};
+}
+
+export interface ICodexCustomPermissions {
+	readonly approvalPolicy: AskForApproval;
+	readonly approvalsReviewer: ApprovalsReviewer;
+	readonly sandbox?: SandboxMode;
+	readonly permissions?: string;
+	readonly sandboxPolicy?: SandboxPolicy;
+}
+
+export interface ICodexPermissionConfig {
+	readonly approval_policy?: AskForApproval | null;
+	readonly approvals_reviewer?: ApprovalsReviewer | null;
+	readonly sandbox_mode?: SandboxMode | null;
+	readonly sandbox_workspace_write?: SandboxWorkspaceWrite | null;
+	readonly default_permissions?: unknown;
+}
+
+/**
+ * Project Codex's layered config into explicit thread/turn overrides.
+ *
+ * A new thread can omit all permission fields and let Codex resolve config
+ * natively. Existing threads cannot: omitted permission fields preserve their
+ * sticky thread settings. This projection lets `custom` refresh those settings
+ * from `config/read` without copying unrelated (and potentially sensitive)
+ * configuration into a request.
+ */
+export function resolveCodexCustomPermissions(config: ICodexPermissionConfig, workspaceRoots: readonly string[]): ICodexCustomPermissions {
+	const approvalPolicy = config.approval_policy ?? 'on-request';
+	const approvalsReviewer = config.approvals_reviewer ?? 'user';
+	const configuredProfile = config.default_permissions;
+	if (!config.sandbox_mode && typeof configuredProfile === 'string' && configuredProfile.length > 0) {
+		return { approvalPolicy, approvalsReviewer, permissions: configuredProfile };
+	}
+
+	// Without either explicit syntax, Codex selects the built-in workspace
+	// profile. A standalone [sandbox_workspace_write] block customizes that
+	// implicit profile, so preserve it through the legacy projection.
+	if (!config.sandbox_mode && !config.sandbox_workspace_write) {
+		return { approvalPolicy, approvalsReviewer, permissions: ':workspace' };
+	}
+
+	const sandbox = config.sandbox_mode ?? 'workspace-write';
+	if (sandbox === 'danger-full-access') {
+		return { approvalPolicy, approvalsReviewer, sandbox, sandboxPolicy: { type: 'dangerFullAccess' } };
+	}
+	if (sandbox === 'read-only') {
+		return { approvalPolicy, approvalsReviewer, sandbox, sandboxPolicy: { type: 'readOnly', networkAccess: false } };
+	}
+	const workspaceWrite = config.sandbox_workspace_write;
+	return {
+		approvalPolicy,
+		approvalsReviewer,
+		sandbox,
+		sandboxPolicy: {
+			type: 'workspaceWrite',
+			writableRoots: [...new Set([...workspaceRoots, ...(workspaceWrite?.writable_roots ?? [])])],
+			networkAccess: workspaceWrite?.network_access ?? false,
+			excludeTmpdirEnvVar: workspaceWrite?.exclude_tmpdir_env_var ?? false,
+			excludeSlashTmp: workspaceWrite?.exclude_slash_tmp ?? false,
+		},
 	};
 }
 
@@ -104,6 +170,9 @@ export function migrateCodexPermissionValues(
 		return { [CodexSessionConfigKey.PermissionsPreset]: explicitPreset };
 	}
 	const resolved = resolveCodexPermissions(config, defaults);
+	if (!resolved) {
+		return { [CodexSessionConfigKey.PermissionsPreset]: 'custom' };
+	}
 	const equivalentPreset = presetForResolvedPermissions(resolved);
 	if (equivalentPreset) {
 		return { [CodexSessionConfigKey.PermissionsPreset]: equivalentPreset };
