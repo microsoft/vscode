@@ -958,7 +958,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		}));
 		this._register(this._list.onMouseMove(e => {
-			if (this._ignoreInitialHover) {
+			if (this._ignoreInitialHover && (e.browserEvent.movementX !== 0 || e.browserEvent.movementY !== 0)) {
 				this._ignoreInitialHover = false;
 				this.onListHover(e);
 			}

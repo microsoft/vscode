@@ -176,10 +176,12 @@ suite('ActionListWidget', () => {
 		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
 		widget.focus();
 		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[2].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'first');
 
 		widget.focusNext();
 		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[2].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		widget.acceptSelected();
 		assert.deepStrictEqual(selected, ['second']);
 	});
@@ -192,7 +194,7 @@ suite('ActionListWidget', () => {
 		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
 		widget.focus();
 		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'second');
 
 		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -225,7 +227,7 @@ suite('ActionListWidget', () => {
 		widget.focus();
 		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 		row.click();
@@ -241,10 +243,11 @@ suite('ActionListWidget', () => {
 		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		await timeout(500);
 		assert.strictEqual(panel.style.display, 'none');
 
-		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
 		await timeout(500);
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
@@ -281,7 +284,7 @@ suite('ActionListWidget', () => {
 			const bounds = row.getBoundingClientRect();
 			const point = { x: clientX ?? bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: point.x, clientY: point.y }));
-			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: point.x, clientY: point.y }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: point.x, clientY: point.y, movementX: 1 }));
 			return point;
 		};
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
@@ -817,7 +820,7 @@ suite('ActionListWidget', () => {
 		});
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		await timeout(1000);
 
 		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
@@ -995,7 +998,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// The banner is a sibling of the list, so reaching it drags the pointer across a row.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
 		await timeout(1000);
 
@@ -1010,7 +1013,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// Dwelling on the row long enough for the panel to open, then continuing to the banner.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		await timeout(600);
 		const openedWhileOnRow = panel.textContent;
 
