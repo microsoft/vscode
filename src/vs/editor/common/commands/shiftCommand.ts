@@ -21,6 +21,12 @@ export interface IShiftCommandOpts {
 	insertSpaces: boolean;
 	useTabStops: boolean;
 	autoIndent: EditorAutoIndentStrategy;
+	/**
+	 * When the file is indented with tabs, preserve spaces that follow the last tab in
+	 * the leading whitespace of a line (alignment spaces) when the indentation level is
+	 * adjusted. See microsoft/vscode#277764.
+	 */
+	preserveAlignmentSpaces?: boolean;
 }
 
 const repeatCache: { [str: string]: string[] } = Object.create(null);
@@ -100,6 +106,35 @@ export class ShiftCommand implements ICommand {
 		}
 	}
 
+	/**
+	 * When the file is indented with tabs, spaces that appear after the last tab in
+	 * the leading whitespace are treated as alignment spaces (e.g. in the line
+	 * `		  foo`, `		` is the indentation and the two trailing spaces align `foo`
+	 * with a token on the previous line). When alignment-space preservation is
+	 * enabled, such spaces are preserved across shift/unshift operations so that
+	 * visual alignment is not destroyed (microsoft/vscode#277764).
+	 *
+	 * Returns the new indentation-end index (the index after the last tab, or the
+	 * original index if no alignment spaces are present) together with the alignment
+	 * spaces substring to re-append after the re-computed indent.
+	 */
+	private static _stripAlignmentSpaces(lineText: string, indentationEndIndex: number): { indentationEndIndex: number; alignmentSpaces: string } {
+		let lastTabIdx = -1;
+		for (let k = indentationEndIndex - 1; k >= 0; k--) {
+			if (lineText.charCodeAt(k) === CharCode.Tab) {
+				lastTabIdx = k;
+				break;
+			}
+		}
+		if (lastTabIdx < 0 || lastTabIdx + 1 >= indentationEndIndex) {
+			return { indentationEndIndex, alignmentSpaces: '' };
+		}
+		return {
+			indentationEndIndex: lastTabIdx + 1,
+			alignmentSpaces: lineText.substring(lastTabIdx + 1, indentationEndIndex)
+		};
+	}
+
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLine = this._selection.startLineNumber;
 
@@ -110,6 +145,11 @@ export class ShiftCommand implements ICommand {
 
 		const { tabSize, indentSize, insertSpaces } = this._opts;
 		const shouldIndentEmptyLines = (startLine === endLine);
+		// When the file is indented with tabs and the preserveAlignmentSpaces option
+		// is enabled, preserve trailing spaces in the leading whitespace (alignment
+		// spaces) so that column alignment within the code is not destroyed when the
+		// indentation level is adjusted (microsoft/vscode#277764).
+		const preserveAlignment = !!this._opts.preserveAlignmentSpaces && !insertSpaces;
 
 		if (this._opts.useTabStops) {
 			// if indenting or outdenting on a whitespace only line
@@ -139,6 +179,17 @@ export class ShiftCommand implements ICommand {
 				if (indentationEndIndex === -1) {
 					// the entire line is whitespace
 					indentationEndIndex = lineText.length;
+				}
+
+				// Preserve alignment spaces that follow the last tab in the leading
+				// whitespace when the file is indented with tabs. Without this, shifting
+				// or unshifting a line rewrites the leading whitespace as pure tabs and
+				// destroys column alignment within the code (microsoft/vscode#277764).
+				let alignmentSpaces = '';
+				if (preserveAlignment) {
+					const alignment = ShiftCommand._stripAlignmentSpaces(lineText, indentationEndIndex);
+					indentationEndIndex = alignment.indentationEndIndex;
+					alignmentSpaces = alignment.alignmentSpaces;
 				}
 
 				if (lineNumber > 1) {
@@ -188,7 +239,7 @@ export class ShiftCommand implements ICommand {
 					desiredIndent = ShiftCommand.shiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
 				}
 
-				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
+				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent + alignmentSpaces);
 				if (lineNumber === startLine && !this._selection.isEmpty()) {
 					// Force the startColumn to stay put because we're inserting after it
 					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
@@ -228,6 +279,15 @@ export class ShiftCommand implements ICommand {
 				}
 
 				if (this._opts.isUnshift) {
+
+					// When alignment-space preservation is enabled and the file is indented
+					// with tabs, restrict removal to the tab-based indentation portion so that
+					// alignment spaces following the last tab are preserved
+					// (microsoft/vscode#277764).
+					if (preserveAlignment) {
+						const alignment = ShiftCommand._stripAlignmentSpaces(lineText, indentationEndIndex);
+						indentationEndIndex = alignment.indentationEndIndex;
+					}
 
 					indentationEndIndex = Math.min(indentationEndIndex, indentSize);
 					for (let i = 0; i < indentationEndIndex; i++) {
