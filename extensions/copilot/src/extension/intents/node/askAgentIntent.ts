@@ -42,7 +42,6 @@ import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/n
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {
 		const toolsService = accessor.get<IToolsService>(IToolsService);
-		const lookForTags = new Set<string>(['vscode_codesearch']);
 		const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 		const model = await endpointProvider.getChatEndpoint(request);
 
@@ -59,7 +58,7 @@ const getTools = (instaService: IInstantiationService, request: vscode.ChatReque
 			const referencedTool = toolsService.getTool(ref.name);
 			const source = referencedTool?.source;
 			if (source instanceof LanguageModelToolMCPSource) {
-				referencedMcpServerKeys.add(mcpServerKey(source.label, source.name));
+				referencedMcpServerKeys.add(mcpServerKey(source.collectionId, source.definitionId));
 			}
 		}
 
@@ -71,8 +70,8 @@ const getTools = (instaService: IInstantiationService, request: vscode.ChatReque
 	});
 
 /** Stable identity of an MCP server, for matching tools to the server that published them. */
-function mcpServerKey(label: string, name: string): string {
-	return `${label}\u0000${name}`;
+function mcpServerKey(collectionId: string, definitionId: string): string {
+	return `${collectionId}\u0000${definitionId}`;
 }
 
 /**
@@ -94,7 +93,7 @@ export function askAgentToolFilter(tool: vscode.LanguageModelToolInformation, re
 		// live registration state rather than the possibly-stale snapshot, while
 		// keeping other MCP servers out of scope. See #334569.
 		const source = tool.source;
-		return source instanceof LanguageModelToolMCPSource && referencedMcpServerKeys.has(mcpServerKey(source.label, source.name));
+		return source instanceof LanguageModelToolMCPSource && referencedMcpServerKeys.has(mcpServerKey(source.collectionId, source.definitionId));
 	}
 	return false;
 }

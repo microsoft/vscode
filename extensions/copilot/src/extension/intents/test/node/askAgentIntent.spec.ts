@@ -18,8 +18,8 @@ function makeTool(name: string, tags: string[] = [], source?: LanguageModelToolM
 	};
 }
 
-function makeMcpTool(name: string, serverLabel: string, serverName = serverLabel): LanguageModelToolInformation {
-	return makeTool(name, ['mcp'], new LanguageModelToolMCPSource(serverLabel, serverName));
+function makeMcpTool(name: string, collectionId: string, definitionId: string, label = collectionId, serverName = label): LanguageModelToolInformation {
+	return makeTool(name, ['mcp'], new LanguageModelToolMCPSource(label, serverName, undefined, collectionId, definitionId));
 }
 
 function makeRequest(toolReferences: { name: string }[]): ChatRequest {
@@ -34,6 +34,10 @@ function makeRequest(toolReferences: { name: string }[]): ChatRequest {
 		tools: [],
 		history: [],
 	};
+}
+
+function serverKey(collectionId: string, definitionId: string): string {
+	return `${collectionId}\u0000${definitionId}`;
 }
 
 describe('askAgentToolFilter', () => {
@@ -58,28 +62,37 @@ describe('askAgentToolFilter', () => {
 		// the snapshot); navigate_page belongs to the same server and was
 		// registered after the snapshot was taken.
 		const request = makeRequest([{ name: 'mcp_fire_take_snapshot' }]);
-		const tool = makeMcpTool('mcp_fire_navigate_page', 'firefox-devtools');
-		// The referenced set is computed in getTools from the referenced tool's source
-		const referencedMcpServerKeys = new Set(['firefox-devtools\u0000firefox-devtools']);
+		const tool = makeMcpTool('mcp_fire_navigate_page', 'mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools');
+		const referencedMcpServerKeys = new Set([serverKey('mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools')]);
 		expect(askAgentToolFilter(tool, request, referencedMcpServerKeys)).toBe(true);
 	});
 
 	it('excludes MCP tools of a server that was NOT referenced', () => {
 		// The user referenced firefox, but this tool belongs to ida-pro.
 		const request = makeRequest([{ name: 'mcp_fire_take_snapshot' }]);
-		const tool = makeMcpTool('mcp_ida_read_memory_bytes', 'ida-pro-mcp');
-		const referencedMcpServerKeys = new Set(['firefox-devtools\u0000firefox-devtools']);
+		const tool = makeMcpTool('mcp_ida_read_memory_bytes', 'mcp.config.usrlocal', 'mcp.config.usrlocal.ida-pro-mcp');
+		const referencedMcpServerKeys = new Set([serverKey('mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools')]);
+		expect(askAgentToolFilter(tool, request, referencedMcpServerKeys)).toBe(false);
+	});
+
+	it('excludes MCP tools of a distinct instance sharing the same label and name', () => {
+		// Two separately configured servers can share the same editor label and
+		// server name; only their collectionId + definitionId differ. Referencing
+		// one instance must not expose the other instance's tools.
+		const request = makeRequest([{ name: 'mcp_fire_take_snapshot' }]);
+		const tool = makeMcpTool('mcp_fire_navigate_page', 'mcp.config.ws0', 'mcp.config.ws0.firefox-devtools', 'firefox-devtools', 'firefox-devtools');
+		const referencedMcpServerKeys = new Set([serverKey('mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools')]);
 		expect(askAgentToolFilter(tool, request, referencedMcpServerKeys)).toBe(false);
 	});
 
 	it('excludes MCP tools when no MCP server was referenced at all', () => {
-		const tool = makeMcpTool('mcp_fire_navigate_page', 'firefox-devtools');
+		const tool = makeMcpTool('mcp_fire_navigate_page', 'mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools');
 		const request = makeRequest([{ name: 'vscode_read_file' }]);
 		expect(askAgentToolFilter(tool, request, new Set())).toBe(false);
 	});
 
 	it('excludes MCP tools when the request has no tool references at all', () => {
-		const tool = makeMcpTool('mcp_fire_navigate_page', 'firefox-devtools');
+		const tool = makeMcpTool('mcp_fire_navigate_page', 'mcp.config.usrlocal', 'mcp.config.usrlocal.firefox-devtools');
 		expect(askAgentToolFilter(tool, makeRequest([]), new Set())).toBe(false);
 	});
 
