@@ -116,6 +116,8 @@ interface ISessionSpec {
 	readonly id: string;
 	readonly title: string;
 	readonly workspace?: string;
+	readonly pinned?: boolean;
+	readonly sticky?: boolean;
 	readonly status?: SessionStatus;
 	readonly mainChatStatus?: SessionStatus;
 	readonly description?: string;
@@ -235,6 +237,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	const showHeader = options.showAutomations || expectedNewSessionButtonStyle !== undefined;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
+	const pinnedSessionIds = new Set(options.sessions.filter(spec => spec.pinned).map(spec => spec.id));
+	const visibleSessions = options.sessions.flatMap(spec => spec.sticky ? [
+		new class extends mock<IActiveSession>() {
+			override readonly sessionId = spec.id;
+			override readonly sticky: IObservable<boolean> = constObservable(true);
+		}()
+	] : []);
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
 	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
@@ -306,12 +315,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override markRead(): Promise<void> { return Promise.resolve(); }
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable([]);
+				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable(visibleSessions);
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined);
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
-				override isSessionPinned(): boolean { return false; }
+				override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
 				override getStatusIcon(status: SessionStatus): ThemeIcon {
@@ -487,11 +496,19 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	if (options.revealHierarchyGuides) {
-		const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
-		if (!sessionItem) {
-			throw new Error('Expected a session row to reveal its hierarchy guides.');
+		const pinnedSection = listHost.querySelector<HTMLElement>('.session-section-icon.codicon-pinned')?.parentElement;
+		if (!pinnedSection) {
+			throw new Error('Expected the pinned section to reveal its session.');
 		}
-		sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		pinnedSection.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+		return Promise.resolve().then(() => {
+			const sessionItem = listHost.querySelector<HTMLElement>('.session-item');
+			if (!sessionItem) {
+				throw new Error('Expected a session row to reveal its hierarchy guides.');
+			}
+			sessionItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		});
 	}
 }
 
@@ -659,7 +676,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_NestedChatHierarchyGuides: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has two nested chat rows. A single vertical hierarchy guide runs continuously from below the parent session icon through the first child and ends in an L-shaped connector at the final child, with no gaps between rows.'],
+		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 		render: ctx => renderSessionsList(ctx, {
 			sessions: [
 				{
@@ -667,6 +684,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 					title: 'HTTP Client Retry Plan',
 					workspace: 'vscode-tools',
 					minutesAgo: 2,
+					pinned: true,
+					sticky: true,
 					chats: [
 						{ id: 'task-a', title: 'Task A' },
 						{ id: 'task-b', title: 'Task B' },
