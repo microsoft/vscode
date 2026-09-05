@@ -32,6 +32,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		readonly workingDirectory?: string,
 		private readonly _isBundledMcpServer: (pluginUri: string, serverName: string) => boolean = () => false,
 		readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper,
+		readonly workingDirectories: readonly string[] = workingDirectory ? [workingDirectory] : [],
 	) { }
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
@@ -112,6 +113,44 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
+
+	for (const authority of ['local', 'remote-test']) {
+		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
+			const sut = createSut();
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const roots = [URI.file('/workspace'), URI.file('/second workspace')];
+			const hostRoots = roots.map(root => root.toString());
+			const resourceUris = createAgentHostResourceUriMapper(authority);
+			const target = new FakeTarget([mcpServer('server-1', 'Server One')], hostRoots[0], undefined, resourceUris, hostRoots);
+			sut.setTarget(session, target);
+
+			const clientRoots = sut.getWorkingDirectoryUris(session);
+			sut.setCustomizationEnablement(session, 'server-1', undefined, CustomizationEnablementKind.Workspace, false);
+
+			assert.deepStrictEqual({
+				primaryRoot: sut.getWorkingDirectory(session),
+				hostRoots: sut.getWorkingDirectories(session),
+				clientRoots: clientRoots.map(root => root.toString()),
+				roundTrip: clientRoots.map(root => resourceUris.toAgentHost(root).toString()),
+				enablementChanges: target.enablementChanges,
+			}, {
+				primaryRoot: hostRoots[0],
+				hostRoots,
+				clientRoots: roots.map(root => resourceUris.fromAgentHost(root).toString()),
+				roundTrip: hostRoots,
+				enablementChanges: [{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: hostRoots[0], enabled: false }] }],
+			});
+		});
+	}
+
+	test('returns no client roots when the session or working directories are missing', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const missingSessionRoots = sut.getWorkingDirectoryUris(session);
+		sut.setTarget(session, new FakeTarget([]));
+
+		assert.deepStrictEqual({ missingSessionRoots, emptyRoots: sut.getWorkingDirectoryUris(session) }, { missingSessionRoots: [], emptyRoots: [] });
+	});
 
 	test('dispatches complete enablement decisions', () => {
 		const sut = createSut();
