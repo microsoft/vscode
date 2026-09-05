@@ -8,9 +8,19 @@ if (Test-Path variable:global:__VSCodeOriginalPrompt) {
 	return;
 }
 
-# Disable shell integration when the language mode is restricted
+# Disable shell integration when the language mode is restricted, unless it's just an audit policy (PowerShell 7.4+)
 if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
-	return;
+	$isAudit = $false
+	try {
+		$policy = [System.Management.Automation.Security.SystemPolicy]::GetSystemLockdownPolicy()
+		if ($policy -eq 'Audit') {
+			$isAudit = $true
+		}
+	} catch { }
+
+	if (-not $isAudit) {
+		return;
+	}
 }
 
 $Global:__VSCodeOriginalPrompt = $function:Prompt
