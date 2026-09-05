@@ -232,6 +232,7 @@ export class Workbench extends Layout {
 
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => this.updateWorkbenchTextDirection(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -294,6 +295,22 @@ export class Workbench extends Layout {
 		}
 	}
 
+	private workbenchTextDirection: 'ltr' | 'rtl' | undefined;
+	private updateWorkbenchTextDirection(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
+		if (e && !e.affectsConfiguration('workbench.textDirection')) {
+			return;
+		}
+
+		const raw = configurationService.getValue<string>('workbench.textDirection');
+		const direction: 'ltr' | 'rtl' = raw === 'rtl' ? 'rtl' : 'ltr';
+		if (this.workbenchTextDirection === direction) {
+			return;
+		}
+
+		this.workbenchTextDirection = direction;
+		this.mainContainer.setAttribute('dir', direction);
+	}
+
 	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
 		const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.APPLICATION);
 		if (storedFontInfoRaw) {
@@ -338,6 +355,9 @@ export class Workbench extends Layout {
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
+
+		// Apply text direction
+		this.updateWorkbenchTextDirection(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
