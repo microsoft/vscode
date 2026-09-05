@@ -6,6 +6,7 @@
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isLocation } from '../../../../editor/common/languages.js';
@@ -18,6 +19,7 @@ import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry
 export interface IChatExtractedImage {
 	readonly id: string;
 	readonly uri: URI;
+	readonly sourceUri?: URI;
 	readonly name: string;
 	readonly mimeType: string;
 	readonly data: VSBuffer;
@@ -29,6 +31,10 @@ export interface IChatExtractedImageCollection {
 	readonly id: string;
 	readonly title: string;
 	readonly images: IChatExtractedImage[];
+}
+
+export function getChatImageSourceUri(uri: URI): URI | undefined {
+	return uri.scheme !== Schemas.data && uri.scheme !== ChatResponseResource.scheme ? uri : undefined;
 }
 
 /**
@@ -136,6 +142,7 @@ export async function extractImagesFromToolInvocationMessages(
 			images.push({
 				id: uri.toString(),
 				uri,
+				sourceUri: getChatImageSourceUri(uri),
 				name,
 				mimeType,
 				data,
@@ -180,6 +187,7 @@ async function extractImageFromInlineReference(
 	return {
 		id: refUri.toString(),
 		uri: refUri,
+		sourceUri: getChatImageSourceUri(refUri),
 		name,
 		mimeType: mime,
 		data,
@@ -243,6 +251,7 @@ export function extractImagesFromChatVariables(
 		images.push({
 			id: imageUri.toString(),
 			uri: imageUri,
+			sourceUri: getChatImageSourceUri(imageUri),
 			name: variable.name,
 			mimeType,
 			data: VSBuffer.wrap(buffer),
