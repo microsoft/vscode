@@ -456,6 +456,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _promptOptionsState: NewSessionPromptOptionsState | undefined;
 	private _promptOptionsController: INewSessionPromptOptionsController | undefined;
 	private _promptOptionsDismissed = false;
+	private _promptOptionsSelected = false;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -677,6 +678,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
 			selectOption: async (option, expectedInput, animate) => {
+				// Mark the selection as it begins: the widget only reports it once the prompt
+				// animation completes, and a streamed update in between would clear it.
+				this._promptOptionsSelected = true;
 				this.focus();
 				const inserted = animate
 					? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)
@@ -1762,6 +1766,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._cancelPromptOptionsRefresh(false);
 		this._promptOptionsController = controller;
 		this._promptOptionsDismissed = false;
+		this._promptOptionsSelected = false;
 	}
 
 	preparePromptOptionsRefresh(): boolean {
@@ -1769,6 +1774,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 		this._cancelPromptOptionsRefresh();
+		this._promptOptionsSelected = false;
 		this.showPromptOptions({ kind: 'loading' });
 		return true;
 	}
@@ -1809,9 +1815,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const cts = new CancellationTokenSource(token);
 		this._promptOptionsRefresh.value = cts;
+		// Options resolved after a first paint must not replace ones the user is already working with:
+		// re-rendering clears the selection and moves focus out of the options.
+		const canRerender = () => !this._promptOptionsSelected && !this._promptOptionsWidget.value?.hasFocusedOption();
 		let state: NewSessionPromptOptionsState;
 		try {
-			state = await controller.resolve(cts.token);
+			state = await controller.resolve(cts.token, progressState => {
+				if (this._promptOptionsRefresh.value !== cts || cts.token.isCancellationRequested || !canRerender()) {
+					return false;
+				}
+				return this.showPromptOptions(progressState);
+			});
 		} catch (error) {
 			if (this._promptOptionsRefresh.value === cts) {
 				this._promptOptionsRefresh.clear();
@@ -1831,6 +1845,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 		this._promptOptionsRefresh.clear();
+		if (!canRerender()) {
+			return true;
+		}
 		return this.showPromptOptions(state);
 	}
 

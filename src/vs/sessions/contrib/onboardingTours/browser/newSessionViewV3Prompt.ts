@@ -10,6 +10,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { format } from '../../../../base/common/strings.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -22,7 +23,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
 import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
@@ -31,11 +32,18 @@ import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullR
 import { resolveGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
 
+/**
+ * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:
+ * the issue and pull request chains run concurrently, so the worst case is
+ * max(issue 4_000 + 1_500 = 5_500, pull request 4_000 + 3_000 = 7_000) = 7_000ms, leaving ~3_000ms
+ * for repository resolution and rendering. Repository resolution has no budget of its own, and a
+ * workspace change restarts the whole chain, so both are bounded only by the `totalMs` race.
+ */
 const DEFAULT_GITHUB_LOOKUP_TIMEOUTS = {
 	totalMs: 10_000,
-	summaryMs: 5_000,
-	linkageMs: 2_500,
-	reviewMs: 4_000,
+	summaryMs: 4_000,
+	linkageMs: 1_500,
+	reviewMs: 3_000,
 };
 const LOG_PREFIX = '[NewSessionViewV3Prompt]';
 const PROMPT_TEMPLATE_TREATMENT = 'onb.newSessionViewV3.promptTemplate';
@@ -46,7 +54,25 @@ const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
 export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
-export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate';
+export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate' | 'noComposer';
+
+/** The dependent GitHub lookup stages that share the total lookup budget. */
+type NewSessionViewV3LookupStage = 'repository' | 'issueSummary' | 'issueLinkage' | 'prSummary' | 'prReview';
+
+/** The privacy-safe outcome of a single GitHub lookup stage. */
+type NewSessionViewV3StageOutcome = 'notRun' | 'skipped' | 'success' | 'cancelled' | 'requestFailed' | 'timeout' | 'noAuthentication';
+
+/** The stage reported as having consumed the budget when the total lookup times out. */
+type NewSessionViewV3TimedOutStage = NewSessionViewV3LookupStage | 'none' | 'unknown';
+
+/**
+ * Stages ordered by how late they run in the lookup. When several stages are still in flight as the
+ * total budget expires, the last pending stage in this order is reported as the one that consumed it.
+ */
+const LOOKUP_STAGE_ORDER: readonly NewSessionViewV3LookupStage[] = ['repository', 'issueSummary', 'prSummary', 'issueLinkage', 'prReview'];
+
+/** Outcome severity, lowest first. Stages that run more than once report their most severe outcome. */
+const LOOKUP_STAGE_OUTCOME_SEVERITY: readonly NewSessionViewV3StageOutcome[] = ['notRun', 'skipped', 'success', 'cancelled', 'requestFailed', 'timeout', 'noAuthentication'];
 
 interface INewSessionViewV3PromptPlan {
 	readonly prompt: string;
@@ -62,9 +88,48 @@ interface INewSessionViewV3GitHubCandidate {
 	readonly strategy: Exclude<NewSessionViewV3EffectiveStrategy, 'prompt' | 'options'>;
 }
 
+/**
+ * Privacy-safe counts, durations and per-stage outcomes describing a single GitHub prompt-option
+ * lookup. Only bounded categories and measurements are captured; never issue, pull request or
+ * repository content.
+ */
+interface INewSessionViewV3LookupTelemetry {
+	readonly gitHubOptionCount: number;
+	readonly candidatesFound: number;
+	readonly lookupDurationMs: number;
+	readonly repositoryMs: number;
+	readonly issueSummaryMs: number;
+	readonly issueLinkageMs: number;
+	readonly prSummaryMs: number;
+	readonly prReviewMs: number;
+	readonly issueSummaryOutcome: NewSessionViewV3StageOutcome;
+	readonly issueLinkageOutcome: NewSessionViewV3StageOutcome;
+	readonly prSummaryOutcome: NewSessionViewV3StageOutcome;
+	readonly prReviewOutcome: NewSessionViewV3StageOutcome;
+	readonly timedOutStage: NewSessionViewV3TimedOutStage;
+}
+
+/** Reported for variations that never run a GitHub prompt-option lookup. */
+const NO_LOOKUP_TELEMETRY: INewSessionViewV3LookupTelemetry = {
+	gitHubOptionCount: 0,
+	candidatesFound: 0,
+	lookupDurationMs: 0,
+	repositoryMs: 0,
+	issueSummaryMs: 0,
+	issueLinkageMs: 0,
+	prSummaryMs: 0,
+	prReviewMs: 0,
+	issueSummaryOutcome: 'notRun',
+	issueLinkageOutcome: 'notRun',
+	prSummaryOutcome: 'notRun',
+	prReviewOutcome: 'notRun',
+	timedOutStage: 'none',
+};
+
 interface INewSessionViewV3PromptOptionsPlan {
 	readonly options: readonly INewSessionPromptOption[];
 	readonly fallbackReason: NewSessionViewV3FallbackReason;
+	readonly lookup: INewSessionViewV3LookupTelemetry;
 }
 
 interface INewSessionViewV3RepositoryContext {
@@ -123,8 +188,71 @@ interface IGitHubLookupTimeouts {
 	readonly reviewMs: number;
 }
 
+/**
+ * Collects per-stage timings and outcomes for one GitHub prompt-option lookup so the strategy
+ * telemetry can report where the shared budget went instead of a single collapsed fallback reason.
+ */
+class GitHubLookupDiagnostics {
+	private readonly _startTime = Date.now();
+	private readonly _durations = new Map<NewSessionViewV3LookupStage, number>();
+	private readonly _outcomes = new Map<NewSessionViewV3LookupStage, NewSessionViewV3StageOutcome>();
+	private readonly _pending = new Map<NewSessionViewV3LookupStage, number>();
+	private _timedOutStage: NewSessionViewV3TimedOutStage = 'none';
+
+	/** Marks a stage as in flight so it can be blamed if the total budget expires. */
+	begin(stage: NewSessionViewV3LookupStage): void {
+		this._pending.set(stage, (this._pending.get(stage) ?? 0) + 1);
+	}
+
+	/** Records the outcome of a stage, keeping the longest duration and most severe outcome. */
+	record(stage: NewSessionViewV3LookupStage, outcome: NewSessionViewV3StageOutcome, durationMs: number): void {
+		const pending = (this._pending.get(stage) ?? 1) - 1;
+		if (pending > 0) {
+			this._pending.set(stage, pending);
+		} else {
+			this._pending.delete(stage);
+		}
+		this._durations.set(stage, Math.max(this._durations.get(stage) ?? 0, durationMs));
+		const previous = this._outcomes.get(stage) ?? 'notRun';
+		if (LOOKUP_STAGE_OUTCOME_SEVERITY.indexOf(outcome) > LOOKUP_STAGE_OUTCOME_SEVERITY.indexOf(previous)) {
+			this._outcomes.set(stage, outcome);
+		} else if (!this._outcomes.has(stage)) {
+			this._outcomes.set(stage, previous);
+		}
+	}
+
+	/** Blames the stage that was still running when the total budget expired. */
+	markTimedOut(): void {
+		this._timedOutStage = [...LOOKUP_STAGE_ORDER].reverse().find(stage => this._pending.has(stage)) ?? 'unknown';
+	}
+
+	summarize(candidatesFound: number, gitHubOptionCount: number): INewSessionViewV3LookupTelemetry {
+		return {
+			gitHubOptionCount,
+			candidatesFound,
+			lookupDurationMs: Date.now() - this._startTime,
+			repositoryMs: this._durations.get('repository') ?? 0,
+			issueSummaryMs: this._durations.get('issueSummary') ?? 0,
+			issueLinkageMs: this._durations.get('issueLinkage') ?? 0,
+			prSummaryMs: this._durations.get('prSummary') ?? 0,
+			prReviewMs: this._durations.get('prReview') ?? 0,
+			issueSummaryOutcome: this._outcomes.get('issueSummary') ?? 'notRun',
+			issueLinkageOutcome: this._outcomes.get('issueLinkage') ?? 'notRun',
+			prSummaryOutcome: this._outcomes.get('prSummary') ?? 'notRun',
+			prReviewOutcome: this._outcomes.get('prReview') ?? 'notRun',
+			timedOutStage: this._timedOutStage,
+		};
+	}
+}
+
 export class NewSessionViewV3PromptRunner {
 	private readonly _gitHubLookupTimeouts: IGitHubLookupTimeouts;
+
+	/** Joins the strategy and interaction events belonging to the same prompt impression. */
+	private _impressionId = generateUuid();
+
+	/** The prompt options most recently handed to the composer, used for interaction telemetry. */
+	private _renderedPromptOptions: readonly INewSessionPromptOption[] = [];
 
 	constructor(
 		private readonly _assignmentService: IWorkbenchAssignmentService,
@@ -143,6 +271,8 @@ export class NewSessionViewV3PromptRunner {
 
 	async run(token: CancellationToken): Promise<boolean> {
 		this._logService.info(`${LOG_PREFIX} Starting V3 prompt resolution.`);
+		this._impressionId = generateUuid();
+		this._renderedPromptOptions = [];
 		const configuredVariation = await this._resolveConfiguredVariation();
 		if (token.isCancellationRequested) {
 			this._logService.trace(`${LOG_PREFIX} Prompt resolution was cancelled after resolving the configured variation.`);
@@ -207,13 +337,31 @@ export class NewSessionViewV3PromptRunner {
 		const composer = this._getActiveComposer();
 		if (!composer) {
 			this._logService.warn(`${LOG_PREFIX} Skipping prompt options because no active new-session composer is available.`);
-			this._reportStrategy(configuredVariation, 'options', 'noCandidate', false);
+			this._reportStrategy(configuredVariation, 'options', 'noComposer', false);
 			return false;
 		}
 
 		let latestPlan: INewSessionViewV3PromptOptionsPlan | undefined;
-		const resolveOptions = async (refreshToken: CancellationToken): Promise<NewSessionPromptOptionsState> => {
-			latestPlan = await this._resolveGitHubPromptOptionsWithFallback(refreshToken);
+		const resolveOptions = async (refreshToken: CancellationToken, progress?: NewSessionPromptOptionsProgress): Promise<NewSessionPromptOptionsState> => {
+			// The composer resolves again on every refresh, for example when the selected workspace
+			// changes, so the rendered set must be reset per resolve rather than per run.
+			this._renderedPromptOptions = [];
+			const publishOptions = (options: readonly INewSessionPromptOption[]) => {
+				if (!this._hasRenderedPromptOptionsChanged(options)) {
+					return;
+				}
+				// Only record what the composer rendered: it refuses late updates while the user is
+				// already acting on the options on screen, and interaction telemetry must describe
+				// the options they actually saw.
+				if (progress?.({ kind: 'resolved', options }) !== false) {
+					this._renderedPromptOptions = options;
+				}
+			};
+			// Paint the standard options before the GitHub lookup starts so the widget never waits on
+			// it, then stream personalized options into their slots as each lookup stage completes.
+			publishOptions(this._createPromptOptions([]));
+			latestPlan = await this._resolveGitHubPromptOptionsWithFallback(refreshToken, publishOptions);
+			publishOptions(latestPlan.options);
 			return { kind: 'resolved', options: latestPlan.options };
 		};
 		if (composer.setPromptOptionsController && composer.refreshPromptOptions) {
@@ -227,13 +375,13 @@ export class NewSessionViewV3PromptRunner {
 			const shown = await composer.refreshPromptOptions(token);
 			const fallbackReason = configuredFallbackReason ?? latestPlan?.fallbackReason ?? (token.isCancellationRequested ? 'requestFailed' : 'noCandidate');
 			this._logService.info(`${LOG_PREFIX} Prompt options completed with shown=${shown} and fallback reason '${fallbackReason}'.`);
-			this._reportStrategy(configuredVariation, 'options', fallbackReason, shown);
+			this._reportStrategy(configuredVariation, 'options', fallbackReason, shown, latestPlan?.lookup);
 			return shown;
 		}
 
 		if (!composer.showPromptOptions({ kind: 'loading' })) {
 			this._logService.warn(`${LOG_PREFIX} Skipping prompt options because the active new-session composer cannot show them.`);
-			this._reportStrategy(configuredVariation, 'options', 'noCandidate', false);
+			this._reportStrategy(configuredVariation, 'options', 'noComposer', false);
 			return false;
 		}
 		this._logService.info(`${LOG_PREFIX} Showing prompt option loading skeletons.`);
@@ -241,15 +389,24 @@ export class NewSessionViewV3PromptRunner {
 		if (token.isCancellationRequested || this._newSessionComposerService.activeComposer.get() !== composer || this._sessionsService.activeSession.get()?.isCreated.get()) {
 			composer.showPromptOptions(undefined);
 			this._logService.trace(`${LOG_PREFIX} Prompt option resolution was cancelled or its composer is no longer active.`);
-			this._reportStrategy(configuredVariation, 'options', configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'requestFailed', false);
+			this._reportStrategy(configuredVariation, 'options', configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'requestFailed', false, latestPlan?.lookup);
 			return false;
 		}
 
 		const shown = composer.showPromptOptions(state);
 		const fallbackReason = configuredFallbackReason ?? latestPlan?.fallbackReason ?? 'noCandidate';
 		this._logService.info(`${LOG_PREFIX} Prompt options completed with shown=${shown} and fallback reason '${fallbackReason}'.`);
-		this._reportStrategy(configuredVariation, 'options', fallbackReason, shown);
+		this._reportStrategy(configuredVariation, 'options', fallbackReason, shown, latestPlan?.lookup);
 		return shown;
+	}
+
+	/**
+	 * Whether the given prompt options differ from the ones last rendered, so unchanged refinements
+	 * never re-render the widget.
+	 */
+	private _hasRenderedPromptOptionsChanged(options: readonly INewSessionPromptOption[]): boolean {
+		return this._renderedPromptOptions.length !== options.length
+			|| options.some((option, index) => this._renderedPromptOptions[index]?.id !== option.id);
 	}
 
 	private _getActiveComposer(): INewSessionComposer | undefined {
@@ -260,23 +417,28 @@ export class NewSessionViewV3PromptRunner {
 		return this._newSessionComposerService.activeComposer.get();
 	}
 
-	private async _resolveGitHubPromptOptionsWithFallback(token: CancellationToken): Promise<INewSessionViewV3PromptOptionsPlan> {
+	private async _resolveGitHubPromptOptionsWithFallback(token: CancellationToken, reportOptions?: (options: readonly INewSessionPromptOption[]) => void): Promise<INewSessionViewV3PromptOptionsPlan> {
 		this._logService.info(`${LOG_PREFIX} Starting GitHub prompt option lookup with a ${this._gitHubLookupTimeouts.totalMs}ms total timeout.`);
 		const operationCts = new CancellationTokenSource(token);
+		const diagnostics = new GitHubLookupDiagnostics();
 		let latestProgress: IGitHubPromptOptionsProgress | undefined;
 		let timedOut = false;
 		const createTimeoutPlan = () => {
 			const candidates = latestProgress && this._isCurrentRepositoryContext(latestProgress.context)
 				? [...latestProgress.issueCandidates, ...latestProgress.pullRequestCandidates]
 				: [];
-			return this._createPromptOptionsPlan(candidates.slice(0, PROMPT_OPTION_COUNT), candidates.length === PROMPT_OPTION_COUNT ? 'none' : 'timeout');
+			return this._createPromptOptionsPlan(candidates, candidates.length === PROMPT_OPTION_COUNT ? 'none' : 'timeout', diagnostics);
 		};
 		try {
 			const result = await raceTimeout(
-				this._resolveGitHubPromptOptions(operationCts.token, progress => latestProgress = progress),
+				this._resolveGitHubPromptOptions(operationCts.token, diagnostics, progress => {
+					latestProgress = progress;
+					reportOptions?.(this._createPromptOptions([...progress.issueCandidates, ...progress.pullRequestCandidates]));
+				}),
 				this._gitHubLookupTimeouts.totalMs,
 				() => {
 					timedOut = true;
+					diagnostics.markTimedOut();
 					this._logService.warn(`${LOG_PREFIX} GitHub prompt option lookup timed out after ${this._gitHubLookupTimeouts.totalMs}ms; filling with standard options.`);
 					operationCts.cancel();
 				},
@@ -285,34 +447,37 @@ export class NewSessionViewV3PromptRunner {
 				return createTimeoutPlan();
 			}
 			if (result.kind === 'fallback') {
-				return this._createPromptOptionsPlan([], result.reason);
+				return this._createPromptOptionsPlan([], result.reason, diagnostics);
 			}
 
-			const candidates = [...result.issueCandidates, ...result.pullRequestCandidates].slice(0, PROMPT_OPTION_COUNT);
-			const fallbackReason = candidates.length === PROMPT_OPTION_COUNT ? 'none' : getLookupFallbackReason(result.failures);
-			return this._createPromptOptionsPlan(candidates, fallbackReason);
+			const candidates = [...result.issueCandidates, ...result.pullRequestCandidates];
+			const fallbackReason = candidates.slice(0, PROMPT_OPTION_COUNT).length === PROMPT_OPTION_COUNT ? 'none' : getLookupFallbackReason(result.failures);
+			return this._createPromptOptionsPlan(candidates, fallbackReason, diagnostics);
 		} catch (error) {
 			if (isCancellationError(error) && timedOut) {
 				return createTimeoutPlan();
 			}
 			if (isCancellationError(error) && token.isCancellationRequested) {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt option lookup was cancelled by the onboarding flow.`);
-				return this._createPromptOptionsPlan([], 'requestFailed');
+				return this._createPromptOptionsPlan([], 'requestFailed', diagnostics);
 			}
 			if (error instanceof GitHubAuthenticationError) {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; filling with standard options without requesting sign-in.`);
-				return this._createPromptOptionsPlan([], 'noAuthentication');
+				return this._createPromptOptionsPlan([], 'noAuthentication', diagnostics);
 			}
 			this._logService.error(`${LOG_PREFIX} GitHub prompt option lookup failed; filling with standard options.`, error);
-			return this._createPromptOptionsPlan([], 'requestFailed');
+			return this._createPromptOptionsPlan([], 'requestFailed', diagnostics);
 		} finally {
 			operationCts.dispose();
 		}
 	}
 
-	private async _resolveGitHubPromptOptions(token: CancellationToken, reportProgress: (progress: IGitHubPromptOptionsProgress) => void): Promise<GitHubPromptOptionsResult> {
+	private async _resolveGitHubPromptOptions(token: CancellationToken, diagnostics: GitHubLookupDiagnostics, reportProgress: (progress: IGitHubPromptOptionsProgress) => void): Promise<GitHubPromptOptionsResult> {
 		while (!token.isCancellationRequested) {
+			diagnostics.begin('repository');
+			const repositoryStartTime = Date.now();
 			const context = await this._resolveGitHubRepository(token);
+			diagnostics.record('repository', context ? 'success' : 'skipped', Date.now() - repositoryStartTime);
 			if (!context) {
 				this._logService.warn(`${LOG_PREFIX} Could not resolve a GitHub repository for prompt options.`);
 				return { kind: 'fallback', reason: 'noRepository' };
@@ -336,12 +501,15 @@ export class NewSessionViewV3PromptRunner {
 				};
 				publishProgress();
 				const resolveIssues = async () => {
-					issueResult = await this._resolveIssuePromptOptionCandidates(owner, repo, lookupCts.token);
+					issueResult = await this._resolveIssuePromptOptionCandidates(owner, repo, lookupCts.token, diagnostics, candidates => {
+						issueResult = { candidates, failures: [] };
+						publishProgress();
+					});
 					publishProgress();
 					return issueResult;
 				};
 				const resolvePullRequests = async () => {
-					pullRequestResult = await this._resolvePullRequestPromptOptionCandidates(owner, repo, lookupCts.token, candidates => {
+					pullRequestResult = await this._resolvePullRequestPromptOptionCandidates(owner, repo, lookupCts.token, diagnostics, candidates => {
 						pullRequestResult = { candidates, failures: [] };
 						publishProgress();
 					});
@@ -369,22 +537,25 @@ export class NewSessionViewV3PromptRunner {
 		return { kind: 'fallback', reason: 'noRepository' };
 	}
 
-	private async _resolveIssuePromptOptionCandidates(owner: string, repo: string, token: CancellationToken): Promise<IGitHubCandidateLookupResult> {
-		const outcome = await this._resolveIssueCandidates(owner, repo, token);
+	private async _resolveIssuePromptOptionCandidates(
+		owner: string,
+		repo: string,
+		token: CancellationToken,
+		diagnostics?: GitHubLookupDiagnostics,
+		reportCandidates: (candidates: readonly INewSessionViewV3GitHubCandidate[]) => void = () => undefined,
+	): Promise<IGitHubCandidateLookupResult> {
+		const outcome = await this._resolveIssueCandidates(owner, repo, token, diagnostics, issues => reportCandidates(toIssuePromptOptionCandidates(issues)));
 		if (outcome.kind === 'failure') {
 			return { candidates: [], failures: [outcome.reason] };
 		}
-		const candidates = [...outcome.value]
-			.sort(compareUpdatedAtDescending)
-			.slice(0, 2)
-			.map(issue => ({ number: issue.number, title: issue.title, url: issue.url, strategy: 'githubIssue' as const }));
-		return { candidates, failures: [] };
+		return { candidates: toIssuePromptOptionCandidates(outcome.value), failures: [] };
 	}
 
 	private async _resolvePullRequestPromptOptionCandidates(
 		owner: string,
 		repo: string,
 		token: CancellationToken,
+		diagnostics?: GitHubLookupDiagnostics,
 		reportCandidates: (candidates: readonly INewSessionViewV3GitHubCandidate[]) => void = () => undefined,
 	): Promise<IGitHubCandidateLookupResult> {
 		const summary = await this._runGitHubLookup(
@@ -392,6 +563,8 @@ export class NewSessionViewV3PromptRunner {
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
 			lookupToken => this._gitHubService.getRecentAuthoredPullRequests(owner, repo, lookupToken),
+			'prSummary',
+			diagnostics,
 		);
 		if (summary.kind === 'failure') {
 			return { candidates: [], failures: [summary.reason] };
@@ -413,7 +586,10 @@ export class NewSessionViewV3PromptRunner {
 			reportCandidates(stableCandidates);
 		}
 
-		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token);
+		// Review-thread enrichment is a post-render refinement: candidates whose position can no longer
+		// change were already published above, so this stage can only ever delay the `githubReviewComments`
+		// option, never the merge-conflict, CI or issue options that are already known.
+		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token, diagnostics);
 		const candidates = getCandidatesInPullRequestOrder(
 			pullRequests,
 			[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
@@ -551,22 +727,37 @@ export class NewSessionViewV3PromptRunner {
 		return { kind: 'fallback', reason: 'noRepository' };
 	}
 
-	private async _resolveIssueCandidates(owner: string, repo: string, token: CancellationToken): Promise<GitHubLookupOutcome<readonly IGitHubRecentIssue[]>> {
+	private async _resolveIssueCandidates(
+		owner: string,
+		repo: string,
+		token: CancellationToken,
+		diagnostics?: GitHubLookupDiagnostics,
+		reportIssues?: (issues: readonly IGitHubRecentIssue[]) => void,
+	): Promise<GitHubLookupOutcome<readonly IGitHubRecentIssue[]>> {
 		const issues = await this._runGitHubLookup(
 			'assigned issue summaries',
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
 			lookupToken => this._gitHubService.getRecentAssignedIssues(owner, repo, lookupToken),
+			'issueSummary',
+			diagnostics,
 		);
 		if (issues.kind === 'failure' || issues.value.length === 0) {
+			diagnostics?.record('issueLinkage', 'skipped', 0);
 			return issues;
 		}
+
+		// Publish the issues that are already in hand before refining them: linkage only removes issues
+		// that already have a linked pull request, so a slow linkage call must never hide them.
+		reportIssues?.(issues.value);
 
 		const linkedIssues = await this._runGitHubLookup(
 			'issue pull request linkage',
 			this._gitHubLookupTimeouts.linkageMs,
 			token,
 			lookupToken => this._gitHubService.getIssuesWithLinkedPullRequests(owner, repo, issues.value.map(issue => issue.number), lookupToken),
+			'issueLinkage',
+			diagnostics,
 		);
 		if (linkedIssues.kind === 'success') {
 			const unlinkedIssues = issues.value.filter(issue => !linkedIssues.value.has(issue.number));
@@ -586,10 +777,12 @@ export class NewSessionViewV3PromptRunner {
 		repo: string,
 		pullRequests: readonly IGitHubRecentPullRequest[],
 		token: CancellationToken,
+		diagnostics?: GitHubLookupDiagnostics,
 	): Promise<IGitHubReviewLookupResult> {
 		const eligiblePullRequests = pullRequests.filter(pullRequest => !!pullRequest.latestCommitAt);
 		if (eligiblePullRequests.length === 0) {
 			this._logService.info(`${LOG_PREFIX} No pull requests have a latest commit timestamp, so review-thread lookup is unnecessary.`);
+			diagnostics?.record('prReview', 'skipped', 0);
 			return { candidates: [], failures: [] };
 		}
 
@@ -600,6 +793,8 @@ export class NewSessionViewV3PromptRunner {
 				this._gitHubLookupTimeouts.reviewMs,
 				token,
 				lookupToken => this._gitHubService.getPullRequestReviewThreads(owner, repo, pullRequest.number, lookupToken),
+				'prReview',
+				diagnostics,
 			);
 			if (outcome.kind === 'success') {
 				const completedPullRequest = { ...pullRequest, reviewThreads: outcome.value };
@@ -630,11 +825,23 @@ export class NewSessionViewV3PromptRunner {
 		timeoutMs: number,
 		token: CancellationToken,
 		lookup: (token: CancellationToken) => Promise<T>,
+		stage?: NewSessionViewV3LookupStage,
+		diagnostics?: GitHubLookupDiagnostics,
 	): Promise<GitHubLookupOutcome<T>> {
 		const lookupCts = new CancellationTokenSource(token);
 		const startTime = Date.now();
 		let timedOut = false;
 		this._logService.trace(`${LOG_PREFIX} Starting ${label} lookup with a ${timeoutMs}ms timeout.`);
+		const record = (outcome: NewSessionViewV3StageOutcome): number => {
+			const durationMs = Date.now() - startTime;
+			if (stage) {
+				diagnostics?.record(stage, outcome, durationMs);
+			}
+			return durationMs;
+		};
+		if (stage) {
+			diagnostics?.begin(stage);
+		}
 		try {
 			const value = await raceTimeout(
 				lookup(lookupCts.token),
@@ -646,23 +853,27 @@ export class NewSessionViewV3PromptRunner {
 				},
 			);
 			if (timedOut || value === undefined) {
+				record('timeout');
 				return { kind: 'failure', reason: 'timeout' };
 			}
-			this._logService.info(`${LOG_PREFIX} ${capitalize(label)} lookup completed in ${Date.now() - startTime}ms.`);
+			this._logService.info(`${LOG_PREFIX} ${capitalize(label)} lookup completed in ${record('success')}ms.`);
 			return { kind: 'success', value };
 		} catch (error) {
 			if (timedOut) {
+				record('timeout');
 				return { kind: 'failure', reason: 'timeout' };
 			}
 			if (error instanceof GitHubAuthenticationError) {
 				this._logService.warn(`${LOG_PREFIX} ${capitalize(label)} lookup could not run because no existing GitHub authentication session is available.`);
+				record('noAuthentication');
 				return { kind: 'failure', reason: 'noAuthentication' };
 			}
 			if (isCancellationError(error) && token.isCancellationRequested) {
 				this._logService.trace(`${LOG_PREFIX} ${capitalize(label)} lookup was cancelled.`);
+				record('cancelled');
 				return { kind: 'failure', reason: 'cancelled' };
 			}
-			this._logService.error(`${LOG_PREFIX} ${capitalize(label)} lookup failed after ${Date.now() - startTime}ms.`, error);
+			this._logService.error(`${LOG_PREFIX} ${capitalize(label)} lookup failed after ${record('requestFailed')}ms.`, error);
 			return { kind: 'failure', reason: 'requestFailed' };
 		} finally {
 			lookupCts.dispose();
@@ -834,13 +1045,20 @@ export class NewSessionViewV3PromptRunner {
 		};
 	}
 
-	private _createPromptOptionsPlan(candidates: readonly INewSessionViewV3GitHubCandidate[], fallbackReason: NewSessionViewV3FallbackReason): INewSessionViewV3PromptOptionsPlan {
+	private _createPromptOptionsPlan(candidates: readonly INewSessionViewV3GitHubCandidate[], fallbackReason: NewSessionViewV3FallbackReason, diagnostics: GitHubLookupDiagnostics): INewSessionViewV3PromptOptionsPlan {
+		const options = this._createPromptOptions(candidates);
+		return {
+			options,
+			fallbackReason,
+			lookup: diagnostics.summarize(candidates.length, Math.min(candidates.length, PROMPT_OPTION_COUNT)),
+		};
+	}
+
+	/** Fills the fixed number of prompt slots with the given GitHub candidates, padded with standard options. */
+	private _createPromptOptions(candidates: readonly INewSessionViewV3GitHubCandidate[]): readonly INewSessionPromptOption[] {
 		const gitHubOptions = candidates.slice(0, PROMPT_OPTION_COUNT).map(candidate => this._createGitHubPromptOption(candidate));
 		const standardOptions = this._createStandardPromptOptions();
-		return {
-			options: [...gitHubOptions, ...standardOptions.slice(0, PROMPT_OPTION_COUNT - gitHubOptions.length)],
-			fallbackReason,
-		};
+		return [...gitHubOptions, ...standardOptions.slice(0, PROMPT_OPTION_COUNT - gitHubOptions.length)];
 	}
 
 	private _createGitHubPromptOption(candidate: INewSessionViewV3GitHubCandidate): INewSessionPromptOption {
@@ -933,49 +1151,88 @@ export class NewSessionViewV3PromptRunner {
 		return composer.animatePrompt(prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, taskPlaceholder, token);
 	}
 
-	private _reportStrategy(configuredVariation: NewSessionViewV3ConfiguredVariation, effectiveStrategy: NewSessionViewV3EffectiveStrategy, fallbackReason: NewSessionViewV3FallbackReason, shown: boolean): void {
+	private _reportStrategy(configuredVariation: NewSessionViewV3ConfiguredVariation, effectiveStrategy: NewSessionViewV3EffectiveStrategy, fallbackReason: NewSessionViewV3FallbackReason, shown: boolean, lookup: INewSessionViewV3LookupTelemetry = NO_LOOKUP_TELEMETRY): void {
 		type OnboardingPromptStrategyEvent = {
 			scenarioId: string;
+			impressionId: string;
 			configuredVariation: string;
 			effectiveStrategy: string;
 			fallbackReason: string;
 			shown: boolean;
+			gitHubOptionCount: number;
+			candidatesFound: number;
+			lookupDurationMs: number;
+			repositoryMs: number;
+			issueSummaryMs: number;
+			issueLinkageMs: number;
+			prSummaryMs: number;
+			prReviewMs: number;
+			issueSummaryOutcome: string;
+			issueLinkageOutcome: string;
+			prSummaryOutcome: string;
+			prReviewOutcome: string;
+			timedOutStage: string;
 		};
 		type OnboardingPromptStrategyClassification = {
 			owner: 'benibenj';
-			comment: 'Reports which prompt experience an onboarding tour selected without collecting prompt or repository content.';
+			comment: 'Reports which prompt experience an onboarding tour selected, and where the GitHub personalization budget went, without collecting prompt or repository content.';
 			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that ran.' };
+			impressionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier generated for this prompt impression, used only to join this event with the interaction events of the same impression.' };
 			configuredVariation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured prompt experience, reduced to a known category.' };
 			effectiveStrategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective prompt or prompt-option strategy selected for the tour.' };
 			fallbackReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical reason GitHub personalization fell back to a default prompt or standard options.' };
 			shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the selected prompt or prompt-option widget was shown.' };
+			gitHubOptionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many of the rendered prompt-option slots were personalized GitHub items, from zero to the number of slots.' };
+			candidatesFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many GitHub candidates the lookup found before they were truncated to the number of prompt-option slots.' };
+			lookupDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds spent in the GitHub prompt-option lookup, including repository resolution.' };
+			repositoryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent resolving the GitHub repository of the selected workspace, or zero when that stage did not run.' };
+			issueSummaryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent fetching assigned issue summaries, or zero when that stage did not run.' };
+			issueLinkageMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent checking which assigned issues already have linked pull requests, or zero when that stage did not run.' };
+			prSummaryMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds spent fetching authored pull request summaries, or zero when that stage did not run.' };
+			prReviewMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Longest time in milliseconds spent fetching pull request review threads, or zero when that stage did not run.' };
+			issueSummaryOutcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical outcome of the assigned issue summary stage.' };
+			issueLinkageOutcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical outcome of the issue pull request linkage stage.' };
+			prSummaryOutcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical outcome of the authored pull request summary stage.' };
+			prReviewOutcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The most severe categorical outcome of the pull request review-thread stage.' };
+			timedOutStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The categorical lookup stage that was still running when the total lookup budget expired, or none.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptStrategyEvent, OnboardingPromptStrategyClassification>('onboarding.promptStrategy', {
 			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			impressionId: this._impressionId,
 			configuredVariation,
 			effectiveStrategy,
 			fallbackReason,
 			shown,
+			...lookup,
 		});
 	}
 
 	private _reportPromptOptionInteraction(interaction: 'selected' | 'closed', option?: INewSessionPromptOption): void {
 		type OnboardingPromptOptionInteractionEvent = {
 			scenarioId: string;
+			impressionId: string;
 			interaction: string;
 			option: string;
+			optionIndex: number;
+			optionKindsShown: string;
 		};
 		type OnboardingPromptOptionInteractionClassification = {
 			owner: 'benibenj';
 			comment: 'Reports privacy-safe interactions with V3 onboarding prompt options without collecting prompt or repository content.';
 			scenarioId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the onboarding scenario that showed the prompt options.' };
+			impressionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier generated for this prompt impression, used only to join this event with the strategy event of the same impression.' };
 			interaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether an option was selected or the prompt-option widget was closed.' };
 			option: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The categorical prompt option selected, or none when the widget was closed.' };
+			optionIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based slot position of the selected option, or -1 when the widget was closed or the option is no longer rendered.' };
+			optionKindsShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma separated categorical kinds of the prompt options that were rendered, in slot order.' };
 		};
 		this._telemetryService.publicLog2<OnboardingPromptOptionInteractionEvent, OnboardingPromptOptionInteractionClassification>('onboarding.promptOptionInteraction', {
 			scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+			impressionId: this._impressionId,
 			interaction,
 			option: option ? getPromptOptionTelemetryKind(option) : 'none',
+			optionIndex: option ? this._renderedPromptOptions.findIndex(candidate => candidate.id === option.id) : -1,
+			optionKindsShown: this._renderedPromptOptions.map(getPromptOptionTelemetryKind).join(','),
 		});
 	}
 }
@@ -1048,6 +1305,13 @@ function getCandidatesInPullRequestOrder(
 
 function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
 	return { number: pullRequest.number, title: pullRequest.title, url: pullRequest.url, strategy };
+}
+
+function toIssuePromptOptionCandidates(issues: readonly IGitHubRecentIssue[]): INewSessionViewV3GitHubCandidate[] {
+	return [...issues]
+		.sort(compareUpdatedAtDescending)
+		.slice(0, 2)
+		.map(issue => ({ number: issue.number, title: issue.title, url: issue.url, strategy: 'githubIssue' as const }));
 }
 
 function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'implementFeature' | 'fixBug' | 'fixCI' | 'githubIssue' | 'githubPRConflicts' | 'githubPRCI' | 'githubPRComments' | 'unknown' {
