@@ -7323,7 +7323,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('restores side effects for newly imported external and host-created sessions without surfacing adoptable sessions', async () => {
+			test('restores import side effects without titling or surfacing adoptable sessions', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
 				const external = AgentSession.uri('copilot', 'untitled-external-import');
@@ -7336,7 +7336,7 @@ suite('AgentService (node dispatcher)', () => {
 				agent.catalog = [
 					{ ...metadata(external), summary: undefined },
 					metadata(hostCreated),
-					metadata(adoptable, withSessionEhcliAdoptable(undefined)),
+					{ ...metadata(adoptable, withSessionEhcliAdoptable(undefined)), summary: undefined },
 				];
 				const scheduledTitles: string[] = [];
 				let reconciliationCalls = 0;

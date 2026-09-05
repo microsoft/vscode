@@ -945,6 +945,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Titles one external session from the first user prompt of its default chat. */
 	private async _generateExternalSessionTitle(metadata: IAgentSessionMetadata): Promise<void> {
+		if (readSessionEhcliAdoptable(metadata._meta)) {
+			return;
+		}
 		const session = metadata.session;
 		const agent = this._providerService.getProviderForSession(session);
 		if (!agent) {
@@ -2366,7 +2369,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const metadata = { ...imported.value, _meta: withSessionExternal(imported.value._meta, imported.external) };
 			if (imported.external) {
 				importedExternal = true;
-				if (!metadata.summary) {
+				if (!metadata.summary && !readSessionEhcliAdoptable(metadata._meta)) {
 					untitledExternal.push(metadata);
 				}
 			}
