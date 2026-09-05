@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { IClipboardService } from '../../common/clipboardService.js';
+import { ClipboardTarget, IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
 	readImage(): Promise<Uint8Array> {
@@ -13,18 +13,18 @@ export class TestClipboardService implements IClipboardService {
 
 	_serviceBrand: undefined;
 
-	private text: string | undefined = undefined;
+	private readonly textByTarget = new Map<ClipboardTarget, string>();
 
 	triggerPaste(): Promise<void> | undefined {
 		return Promise.resolve();
 	}
 
-	async writeText(text: string, type?: string): Promise<void> {
-		this.text = text;
+	async writeText(text: string, target: ClipboardTarget = 'system'): Promise<void> {
+		this.textByTarget.set(target, text);
 	}
 
-	async readText(type?: string): Promise<string> {
-		return this.text ?? '';
+	async readText(target: ClipboardTarget = 'system'): Promise<string> {
+		return this.textByTarget.get(target) ?? '';
 	}
 
 	private findText: string | undefined = undefined;

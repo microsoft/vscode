@@ -34,7 +34,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ClipboardTarget, IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { debounce } from '../../../../../base/common/decorators.js';
 import { MouseWheelClassifier } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -338,11 +338,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				return;
 			}
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
-				async readText(type: string): Promise<string> {
-					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
+				async readText(selection: string): Promise<string> {
+					return _clipboardService.readText(toClipboardTarget(selection));
 				},
-				async writeText(type: string, text: string): Promise<void> {
-					return _clipboardService.writeText(text, type === 'p' ? 'selection' : 'clipboard');
+				async writeText(selection: string, text: string): Promise<void> {
+					return _clipboardService.writeText(text, toClipboardTarget(selection));
 				}
 			});
 			this.raw.loadAddon(this._clipboardAddon);
@@ -1213,4 +1213,15 @@ function vscodeToXtermCursorStyle<T extends 'cursorStyle' | 'cursorStyleInactive
 		return 'bar';
 	}
 	return style as ICursorStyleVscodeToXtermMap[T];
+}
+
+/**
+ * Maps an OSC 52 selection parameter onto a clipboard target.
+ *
+ * OSC 52 also defines `q` (SECONDARY) and `0` to `7` (cut buffers), and allows several
+ * at once such as `pc`. VS Code has no equivalent for any of those, so everything other
+ * than PRIMARY collapses onto the system clipboard, as xterm.js's own provider does.
+ */
+function toClipboardTarget(osc52Selection: string): ClipboardTarget {
+	return osc52Selection === 'p' ? 'primary' : 'system';
 }
