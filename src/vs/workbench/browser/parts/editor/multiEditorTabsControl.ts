@@ -18,6 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -33,6 +34,7 @@ import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $ } from '../../../../base/browser/dom.js';
+import { swallowMiddleClickPaste } from './swallowMiddleClickPaste.js';
 import { localize } from '../../../../nls.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
@@ -137,6 +139,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	};
 
 	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
+	private readonly middleClickPasteGuard = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -159,6 +162,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@INotificationService notificationService: INotificationService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
@@ -413,6 +417,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}, this.groupView.id);
 			}));
 		}
+
+		// New terminal when middle-clicking on tabs container (but not tabs)
+		this._register(addDisposableListener(tabsContainer, EventType.AUXCLICK, e => {
+			if (e.button === 1 /* Middle Button */ && e.target === tabsContainer) {
+				EventHelper.stop(e, true);
+
+				// Activate this group so the terminal opens here, not in whatever
+				// group was active before the middle-click.
+				this.groupView.activate();
+
+				// Swallow the Linux middle-click paste that the browser would
+				// otherwise deliver into the newly focused terminal input.
+				this.middleClickPasteGuard.value = swallowMiddleClickPaste(getWindow(tabsContainer));
+				this.commandService.executeCommand('workbench.action.createTerminalEditor');
+			}
+		}));
 
 		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, e => {

@@ -25,7 +25,7 @@ import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider } from './explorerViewer.js';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider, requestMiddleClickPasteGuard } from './explorerViewer.js';
 import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
@@ -647,6 +647,15 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (e.element === null && !scrollingByPage) {
 				// click in empty area -> create a new file #116676
 				this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
+			}
+		}));
+
+		this._register(this.tree.onMouseMiddleClick(e => {
+			// If empty space is middle-clicked -> create a new folder
+			if (e.element === null) {
+				e.browserEvent.preventDefault();
+				requestMiddleClickPasteGuard();
+				this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
 			}
 		}));
 
