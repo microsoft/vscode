@@ -39,12 +39,15 @@ class TestAssignmentService extends NullWorkbenchAssignmentService {
 	}
 }
 
+type TestTelemetryData = { readonly [key: string]: string | number | boolean | undefined };
+type TestTelemetryEvent = { readonly name: string; readonly data: TestTelemetryData | undefined };
+
 class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: object | undefined }[] = [];
+	readonly events: TestTelemetryEvent[] = [];
 
 	override publicLog2(name?: string, data?: object): void {
 		if (name) {
-			this.events.push({ name, data });
+			this.events.push({ name, data: data as TestTelemetryData | undefined });
 		}
 	}
 }
@@ -60,6 +63,34 @@ type TestGitHubRequest =
 	| { readonly kind: 'pullRequests'; readonly owner: string; readonly repo: string }
 	| { readonly kind: 'reviews'; readonly owner: string; readonly repo: string; readonly pullRequestNumber: number }
 	| { readonly kind: 'issueLinkage'; readonly owner: string; readonly repo: string; readonly issueNumbers: readonly number[] };
+
+/** The stage duration fields, which {@link summarizeTelemetry} normalizes because they vary per run. */
+const LOOKUP_DURATIONS = {
+	lookupDurationMs: '<duration>',
+	repositoryMs: '<duration>',
+	issueSummaryMs: '<duration>',
+	issueLinkageMs: '<duration>',
+	prSummaryMs: '<duration>',
+	prReviewMs: '<duration>',
+};
+
+/** Reported by the variations that never run a GitHub prompt-option lookup. */
+const NO_LOOKUP_TELEMETRY = {
+	...LOOKUP_DURATIONS,
+	gitHubOptionCount: 0,
+	candidatesFound: 0,
+	issueSummaryOutcome: 'notRun',
+	issueLinkageOutcome: 'notRun',
+	prSummaryOutcome: 'notRun',
+	prReviewOutcome: 'notRun',
+	timedOutStage: 'none',
+};
+
+const STANDARD_OPTIONS = [
+	{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
+	{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+	{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
+];
 
 suite('NewSessionViewV3Prompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,23 +153,26 @@ suite('NewSessionViewV3Prompt', () => {
 			animation: undefined,
 			states: [
 				{ kind: 'loading' },
-				{
-					kind: 'resolved',
-					options: [
-						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
-						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
-						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
-					],
-				},
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
 			],
 			telemetry: [{
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'options',
 					effectiveStrategy: 'options',
 					fallbackReason: 'noCandidate',
 					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 0,
+					candidatesFound: 0,
+					issueSummaryOutcome: 'success',
+					issueLinkageOutcome: 'skipped',
+					prSummaryOutcome: 'success',
+					prReviewOutcome: 'skipped',
+					timedOutStage: 'none',
 				},
 			}],
 		});
@@ -191,10 +225,12 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'githubCiFailure',
 					fallbackReason: 'none',
 					shown: true,
+					...NO_LOOKUP_TELEMETRY,
 				},
 			}],
 		});
@@ -224,10 +260,12 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'githubMergeConflict',
 					fallbackReason: 'none',
 					shown: true,
+					...NO_LOOKUP_TELEMETRY,
 				},
 			}],
 		});
@@ -251,10 +289,12 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'prompt',
 					fallbackReason: 'noAuthentication',
 					shown: true,
+					...NO_LOOKUP_TELEMETRY,
 				},
 			}],
 		});
@@ -286,6 +326,23 @@ suite('NewSessionViewV3Prompt', () => {
 			animation: undefined,
 			states: [
 				{ kind: 'loading' },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						STANDARD_OPTIONS[0],
+					],
+				},
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
+					],
+				},
 				{
 					kind: 'resolved',
 					options: [
@@ -299,10 +356,19 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'options',
 					effectiveStrategy: 'options',
 					fallbackReason: 'none',
 					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 3,
+					candidatesFound: 4,
+					issueSummaryOutcome: 'success',
+					issueLinkageOutcome: 'success',
+					prSummaryOutcome: 'success',
+					prReviewOutcome: 'skipped',
+					timedOutStage: 'none',
 				},
 			}],
 		});
@@ -327,35 +393,67 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptOptionInteraction',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					interaction: 'selected',
 					option: 'githubIssue',
+					optionIndex: 0,
+					optionKindsShown: 'githubIssue,githubPRCI,githubPRComments',
 				},
 			},
 			{
 				name: 'onboarding.promptOptionInteraction',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					interaction: 'selected',
 					option: 'githubPRCI',
+					optionIndex: 1,
+					optionKindsShown: 'githubIssue,githubPRCI,githubPRComments',
 				},
 			},
 			{
 				name: 'onboarding.promptOptionInteraction',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					interaction: 'selected',
 					option: 'githubPRComments',
+					optionIndex: 2,
+					optionKindsShown: 'githubIssue,githubPRCI,githubPRComments',
 				},
 			},
 			{
 				name: 'onboarding.promptOptionInteraction',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					interaction: 'closed',
 					option: 'none',
+					optionIndex: -1,
+					optionKindsShown: 'githubIssue,githubPRCI,githubPRComments',
 				},
 			},
 		]);
+	});
+
+	test('joins the strategy and interaction events of one impression', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Ready issue', '2026-08-07T13:00:00Z', 7)] },
+			{ promptOptionInteractions: [0, 'close'] },
+		);
+		const impressionIds = getImpressionIds(result.rawTelemetry);
+
+		assert.deepStrictEqual({
+			eventNames: result.rawTelemetry.map(event => event.name),
+			sharedImpressionIds: new Set(impressionIds).size,
+			isGuid: /^[0-9a-f-]{36}$/.test(impressionIds[0]),
+		}, {
+			eventNames: ['onboarding.promptStrategy', 'onboarding.promptOptionInteraction', 'onboarding.promptOptionInteraction'],
+			sharedImpressionIds: 1,
+			isGuid: true,
+		});
 	});
 
 	test('fills missing prompt options from the fixed standard order after a partial timeout', async () => {
@@ -372,12 +470,21 @@ suite('NewSessionViewV3Prompt', () => {
 		}, {
 			states: [
 				{ kind: 'loading' },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
 				{
 					kind: 'resolved',
 					options: [
 						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
-						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
+						STANDARD_OPTIONS[0],
+						STANDARD_OPTIONS[1],
+					],
+				},
+				{
+					kind: 'resolved',
+					options: [
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						STANDARD_OPTIONS[0],
+						STANDARD_OPTIONS[1],
 					],
 				},
 			],
@@ -385,13 +492,191 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'options',
 					effectiveStrategy: 'options',
 					fallbackReason: 'timeout',
 					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 1,
+					candidatesFound: 1,
+					issueSummaryOutcome: 'success',
+					issueLinkageOutcome: 'success',
+					prSummaryOutcome: 'timeout',
+					prReviewOutcome: 'notRun',
+					timedOutStage: 'none',
 				},
 			}],
 		});
+	});
+
+	test('renders standard prompt options before the GitHub lookup and streams partial results into their slots', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{
+				issues: [issue('Assigned issue', '2026-08-07T14:00:00Z', 14)],
+				pullRequests: [
+					pullRequest('CI is failing', '2026-08-07T13:00:00Z', 'FAILURE', undefined, undefined, 21),
+					pullRequest('Awaiting review threads', '2026-08-07T12:00:00Z', undefined, '2026-08-07T09:00:00Z', '2026-08-07T10:00:00Z', 22),
+				],
+			},
+			{ reviewLookupNeverResolves: true },
+		);
+		const issueOption = { title: 'Tackle issue #14', description: 'Assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } };
+		const ciOption = { title: 'Fix CI #21', description: 'CI is failing', icon: { id: 'git-pull-request-error', color: 'charts.orange' } };
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+				{ kind: 'resolved', options: [issueOption, STANDARD_OPTIONS[0], STANDARD_OPTIONS[1]] },
+				{ kind: 'resolved', options: [issueOption, ciOption, STANDARD_OPTIONS[0]] },
+				{ kind: 'resolved', options: [issueOption, ciOption, STANDARD_OPTIONS[0]] },
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'timeout',
+					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 2,
+					candidatesFound: 2,
+					issueSummaryOutcome: 'success',
+					issueLinkageOutcome: 'success',
+					prSummaryOutcome: 'success',
+					prReviewOutcome: 'timeout',
+					timedOutStage: 'none',
+				},
+			}],
+		});
+	});
+
+	test('repaints standard prompt options when the composer resolves again after a workspace change', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [] },
+			{ refreshPromptOptionsAgain: true },
+		);
+
+		assert.deepStrictEqual(summarizePromptOptionStates(result.promptOptionStates), [
+			{ kind: 'loading' },
+			{ kind: 'resolved', options: STANDARD_OPTIONS },
+			{ kind: 'resolved', options: STANDARD_OPTIONS },
+			{ kind: 'loading' },
+			{ kind: 'resolved', options: STANDARD_OPTIONS },
+			{ kind: 'resolved', options: STANDARD_OPTIONS },
+		]);
+	});
+
+	test('reports the options the composer rendered when it refuses later updates', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Assigned issue', '2026-08-07T14:00:00Z', 14)] },
+			{ suppressPromptOptionUpdatesAfter: 1, promptOptionInteractions: [0] },
+		);
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			interaction: result.telemetry.filter(event => event.name === 'onboarding.promptOptionInteraction'),
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+			],
+			interaction: [{
+				name: 'onboarding.promptOptionInteraction',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
+					interaction: 'selected',
+					option: 'implementFeature',
+					optionIndex: 0,
+					optionKindsShown: 'implementFeature,fixBug,fixCI',
+				},
+			}],
+		});
+	});
+
+	test('publishes assigned issues before the linkage lookup can hide them', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Unknown linkage', '2026-08-07T13:00:00Z', 9)] },
+			{ issueLinkageLookupNeverResolves: true },
+		);
+		const issueOption = { title: 'Tackle issue #9', description: 'Unknown linkage', icon: { id: 'issue-opened', color: 'charts.green' } };
+
+		assert.deepStrictEqual({
+			states: summarizePromptOptionStates(result.promptOptionStates),
+			telemetry: result.telemetry,
+		}, {
+			states: [
+				{ kind: 'loading' },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+				{ kind: 'resolved', options: [issueOption, STANDARD_OPTIONS[0], STANDARD_OPTIONS[1]] },
+				{ kind: 'resolved', options: [issueOption, STANDARD_OPTIONS[0], STANDARD_OPTIONS[1]] },
+			],
+			telemetry: [{
+				name: 'onboarding.promptStrategy',
+				data: {
+					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
+					configuredVariation: 'options',
+					effectiveStrategy: 'options',
+					fallbackReason: 'noCandidate',
+					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 1,
+					candidatesFound: 1,
+					issueSummaryOutcome: 'success',
+					issueLinkageOutcome: 'timeout',
+					prSummaryOutcome: 'success',
+					prReviewOutcome: 'skipped',
+					timedOutStage: 'none',
+				},
+			}],
+		});
+	});
+
+	test('reports the stage that consumed the total lookup budget', async () => {
+		const result = await runPrompt(
+			{ 'onb.newSessionViewV3.variation': 'options' },
+			{},
+			{ pullRequests: [], issues: [issue('Ready issue', '2026-08-07T13:00:00Z', 7)] },
+			{ pullRequestLookupNeverResolves: true, totalMs: 10, summaryMs: 30 },
+		);
+		// Let the pull request lookup that outlived the total budget unwind and dispose its sources.
+		await timeout(80);
+
+		assert.deepStrictEqual(result.telemetry, [{
+			name: 'onboarding.promptStrategy',
+			data: {
+				scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+				impressionId: '<impressionId>',
+				configuredVariation: 'options',
+				effectiveStrategy: 'options',
+				fallbackReason: 'timeout',
+				shown: true,
+				...LOOKUP_DURATIONS,
+				gitHubOptionCount: 1,
+				candidatesFound: 1,
+				issueSummaryOutcome: 'success',
+				issueLinkageOutcome: 'success',
+				prSummaryOutcome: 'notRun',
+				prReviewOutcome: 'notRun',
+				timedOutStage: 'prSummary',
+			},
+		}]);
 	});
 
 	test('uses all standard prompt options when GitHub authentication is unavailable', async () => {
@@ -407,23 +692,26 @@ suite('NewSessionViewV3Prompt', () => {
 		}, {
 			states: [
 				{ kind: 'loading' },
-				{
-					kind: 'resolved',
-					options: [
-						{ title: 'Implement a feature', description: 'Describe what you want to build', icon: { id: 'lightbulb-sparkle-autofix', color: undefined } },
-						{ title: 'Fix a bug', description: 'Describe the unexpected behavior', icon: { id: 'bug', color: undefined } },
-						{ title: 'Fix CI', description: 'Describe a failing check or paste a link', icon: { id: 'run-errors', color: undefined } },
-					],
-				},
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
+				{ kind: 'resolved', options: STANDARD_OPTIONS },
 			],
 			telemetry: [{
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'options',
 					effectiveStrategy: 'options',
 					fallbackReason: 'noAuthentication',
 					shown: true,
+					...LOOKUP_DURATIONS,
+					gitHubOptionCount: 0,
+					candidatesFound: 0,
+					issueSummaryOutcome: 'noAuthentication',
+					issueLinkageOutcome: 'skipped',
+					prSummaryOutcome: 'noAuthentication',
+					prReviewOutcome: 'notRun',
+					timedOutStage: 'none',
 				},
 			}],
 		});
@@ -450,10 +738,12 @@ suite('NewSessionViewV3Prompt', () => {
 				name: 'onboarding.promptStrategy',
 				data: {
 					scenarioId: NEW_SESSION_VIEW_V3_TOUR_ID,
+					impressionId: '<impressionId>',
 					configuredVariation: 'githubPrompt',
 					effectiveStrategy: 'githubIssue',
 					fallbackReason: 'none',
 					shown: true,
+					...NO_LOOKUP_TELEMETRY,
 				},
 			}],
 		});
@@ -682,17 +972,27 @@ async function runPrompt(
 		readonly enterpriseHost?: string;
 		readonly pullRequestLookupNeverResolves?: boolean;
 		readonly issueLinkageLookupNeverResolves?: boolean;
+		readonly reviewLookupNeverResolves?: boolean;
+		readonly totalMs?: number;
+		readonly summaryMs?: number;
+		readonly suppressPromptOptionUpdatesAfter?: number;
+		readonly refreshPromptOptionsAgain?: boolean;
 		readonly promptOptionInteractions?: readonly (number | 'close')[];
 	} = {},
 ): Promise<{
 	readonly animation: { readonly prompt: string; readonly durationMs: number; readonly placeholder: string } | undefined;
 	readonly promptOptionStates: readonly NewSessionPromptOptionsState[];
-	readonly telemetry: readonly { readonly name: string; readonly data: object | undefined }[];
+	readonly telemetry: readonly TestTelemetryEvent[];
+	readonly rawTelemetry: readonly TestTelemetryEvent[];
 	readonly gitHubRequests: readonly TestGitHubRequest[];
 }> {
 	let animation: { prompt: string; durationMs: number; placeholder: string } | undefined;
 	const promptOptionStates: NewSessionPromptOptionsState[] = [];
 	let promptOptionsController: INewSessionPromptOptionsController | undefined;
+	let acceptedUpdates = 0;
+	// Mimics the composer refusing late updates once the user acts on the options on screen.
+	const suppressUpdate = () => options.suppressPromptOptionUpdatesAfter !== undefined
+		&& acceptedUpdates >= options.suppressPromptOptionUpdatesAfter;
 	const workspaceUri = options.workspaceUri ?? URI.file('C:\\repo');
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
@@ -718,8 +1018,17 @@ async function runPrompt(
 					return false;
 				}
 				promptOptionStates.push({ kind: 'loading' });
-				const state = await controller.resolve(token);
-				promptOptionStates.push(state);
+				const state = await controller.resolve(token, progressState => {
+					if (suppressUpdate()) {
+						return false;
+					}
+					acceptedUpdates++;
+					promptOptionStates.push(progressState);
+					return true;
+				});
+				if (!suppressUpdate()) {
+					promptOptionStates.push(state);
+				}
 				return true;
 			},
 		});
@@ -746,6 +1055,9 @@ async function runPrompt(
 		}
 		override async getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number) {
 			this.requests.push({ kind: 'reviews', owner, repo, pullRequestNumber });
+			if (options.reviewLookupNeverResolves) {
+				return new Promise<never>(() => { });
+			}
 			if (gitHubResult instanceof Error) {
 				throw gitHubResult;
 			}
@@ -787,10 +1099,14 @@ async function runPrompt(
 		gitHubService,
 		telemetryService,
 		new NullLogService(),
-		{ totalMs: 100, summaryMs: 20, linkageMs: 20, reviewMs: 20 },
+		{ totalMs: options.totalMs ?? 100, summaryMs: options.summaryMs ?? 20, linkageMs: 20, reviewMs: 20 },
 	);
 
 	await runner.run(CancellationToken.None);
+	if (options.refreshPromptOptionsAgain) {
+		// The composer resolves again on refresh, for example when the selected workspace changes.
+		await composerService.activeComposer.get().refreshPromptOptions(CancellationToken.None);
+	}
 	if (options.promptOptionInteractions?.length) {
 		const controller = promptOptionsController;
 		const resolvedState = [...promptOptionStates].reverse().find(state => state.kind === 'resolved');
@@ -809,7 +1125,7 @@ async function runPrompt(
 			controller.onDidSelectOption(option);
 		}
 	}
-	return { animation, promptOptionStates, telemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
+	return { animation, promptOptionStates, telemetry: summarizeTelemetry(telemetryService.events), rawTelemetry: telemetryService.events, gitHubRequests: gitHubService.requests };
 }
 
 function pullRequest(title: string, updatedAt: string, statusCheckRollupState?: string, latestCommitAt?: string, latestCommentAt?: string, number = 1, hasMergeConflicts = false) {
@@ -876,4 +1192,24 @@ function summarizePromptOptionStates(states: readonly NewSessionPromptOptionsSta
 				icon: option.icon ? { id: option.icon.id, color: option.icon.color?.id } : undefined,
 			})),
 		});
+}
+
+/** Replaces the values that legitimately vary between runs so telemetry can be asserted as a snapshot. */
+function summarizeTelemetry(events: readonly TestTelemetryEvent[]): TestTelemetryEvent[] {
+	return events.map(event => ({
+		name: event.name,
+		data: event.data && Object.fromEntries(Object.entries(event.data).map(([key, value]) => {
+			if (key === 'impressionId') {
+				return [key, typeof value === 'string' && value.length > 0 ? '<impressionId>' : value];
+			}
+			if (key.endsWith('Ms') && typeof value === 'number') {
+				return [key, '<duration>'];
+			}
+			return [key, value];
+		})),
+	}));
+}
+
+function getImpressionIds(events: readonly TestTelemetryEvent[]): string[] {
+	return events.map(event => String(event.data?.impressionId ?? ''));
 }

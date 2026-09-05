@@ -13,12 +13,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
-import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
+import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
 
 interface IPromptOptionsRefreshHarness {
 	readonly _promptOptionsRefresh: MutableDisposable<CancellationTokenSource>;
 	readonly _promptOptionsController: INewSessionPromptOptionsController;
+	_promptOptionsSelected: boolean;
+	readonly _promptOptionsWidget: { readonly value: { hasFocusedOption(): boolean } | undefined };
 	preparePromptOptionsRefresh(): boolean;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;
 }
@@ -234,6 +236,8 @@ suite('NewSessionPromptOptionsWidget', () => {
 		const refresh = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const harness: IPromptOptionsRefreshHarness = {
 			_promptOptionsRefresh: refresh,
+			_promptOptionsSelected: false,
+			_promptOptionsWidget: { value: undefined },
 			_promptOptionsController: {
 				resolve: token => {
 					tokens.push(token);
@@ -269,6 +273,79 @@ suite('NewSessionPromptOptionsWidget', () => {
 			results: [false, true],
 			firstCancelled: true,
 			states: ['loading', 'loading', 'bug'],
+		});
+	});
+
+	test('starts selectOption before reporting the selection so consumers can guard the in-flight window', async () => {
+		const container = document.createElement('div');
+		const events: string[] = [];
+		const inserting = new DeferredPromise<boolean>();
+		const widget = disposables.add(new NewSessionPromptOptionsWidget(container, {
+			selectOption: async () => {
+				events.push('selectOption');
+				return inserting.p;
+			},
+			onDidSelectOption: () => events.push('onDidSelectOption'),
+			onDidClose: () => undefined,
+		}, new TestHoverService()));
+
+		widget.setState({ kind: 'resolved', options: [option('feature', 'Implement a feature')] });
+		widget.element.querySelector<HTMLElement>('.monaco-button.new-session-prompt-option')?.click();
+		await timeout(0);
+		const duringInsertion = [...events];
+		inserting.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({ duringInsertion, afterInsertion: events }, {
+			duringInsertion: ['selectOption'],
+			afterInsertion: ['selectOption', 'onDidSelectOption'],
+		});
+	});
+
+	test('applies streamed prompt options until the user acts on them', async () => {
+		const result = new DeferredPromise<NewSessionPromptOptionsState>();
+		const states: NewSessionPromptOptionsState[] = [];
+		const refresh = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		let reportProgress: NewSessionPromptOptionsProgress | undefined;
+		const harness: IPromptOptionsRefreshHarness = {
+			_promptOptionsRefresh: refresh,
+			_promptOptionsSelected: false,
+			_promptOptionsWidget: { value: undefined },
+			_promptOptionsController: {
+				resolve: (_token, progress) => {
+					reportProgress = progress;
+					return result.p;
+				},
+				onDidSelectOption: () => undefined,
+				onDidClose: () => undefined,
+			},
+			preparePromptOptionsRefresh: () => {
+				states.push({ kind: 'loading' });
+				return true;
+			},
+			showPromptOptions: state => {
+				if (state) {
+					states.push(state);
+				}
+				return true;
+			},
+		};
+
+		const refreshing = refreshPromptOptions.call(harness);
+		const applied = [
+			reportProgress?.({ kind: 'resolved', options: [option('feature', 'Implement a feature')] }),
+			(harness._promptOptionsSelected = true, reportProgress?.({ kind: 'resolved', options: [option('bug', 'Fix a bug')] })),
+		];
+		result.complete({ kind: 'resolved', options: [option('ci', 'Fix CI')] });
+
+		assert.deepStrictEqual({
+			shown: await refreshing,
+			applied,
+			states: states.map(state => state.kind === 'loading' ? 'loading' : state.options[0].id),
+		}, {
+			shown: true,
+			applied: [true, false],
+			states: ['loading', 'feature'],
 		});
 	});
 
@@ -312,6 +389,8 @@ suite('NewSessionPromptOptionsWidget', () => {
 		const refresh = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const harness: IPromptOptionsRefreshHarness = {
 			_promptOptionsRefresh: refresh,
+			_promptOptionsSelected: false,
+			_promptOptionsWidget: { value: undefined },
 			_promptOptionsController: {
 				resolve: () => result.p,
 				onDidSelectOption: () => undefined,
@@ -346,6 +425,8 @@ suite('NewSessionPromptOptionsWidget', () => {
 		let resolveCount = 0;
 		const harness: IPromptOptionsRefreshHarness = {
 			_promptOptionsRefresh: disposables.add(new MutableDisposable<CancellationTokenSource>()),
+			_promptOptionsSelected: false,
+			_promptOptionsWidget: { value: undefined },
 			_promptOptionsController: {
 				resolve: async () => {
 					resolveCount++;
