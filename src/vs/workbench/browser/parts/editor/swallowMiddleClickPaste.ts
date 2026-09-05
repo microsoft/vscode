@@ -23,9 +23,12 @@ export function swallowMiddleClickPaste(targetWindow: Window, timeout = 250): ID
 
 	const guard = new DisposableStore();
 
+	const stopGuard = () => guard.dispose();
+
 	guard.add(addDisposableListener(targetWindow, 'paste', e => {
 		e.preventDefault();
 		e.stopImmediatePropagation();
+		stopGuard();
 	}, true));
 
 	// Fallback for paste paths that only dispatch `beforeinput` (Chromium 60+).
@@ -33,6 +36,7 @@ export function swallowMiddleClickPaste(targetWindow: Window, timeout = 250): ID
 		if (e.inputType === 'insertFromPaste') {
 			e.preventDefault();
 			e.stopImmediatePropagation();
+			stopGuard();
 		}
 	}, true));
 

@@ -139,6 +139,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	};
 
 	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
+	private readonly middleClickPasteGuard = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -422,9 +423,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (e.button === 1 /* Middle Button */ && e.target === tabsContainer) {
 				EventHelper.stop(e, true);
 
+				// Activate this group so the terminal opens here, not in whatever
+				// group was active before the middle-click.
+				this.groupView.activate();
+
 				// Swallow the Linux middle-click paste that the browser would
 				// otherwise deliver into the newly focused terminal input.
-				this._register(swallowMiddleClickPaste(getWindow(tabsContainer)));
+				this.middleClickPasteGuard.value = swallowMiddleClickPaste(getWindow(tabsContainer));
 				this.commandService.executeCommand('workbench.action.createTerminalEditor');
 			}
 		}));

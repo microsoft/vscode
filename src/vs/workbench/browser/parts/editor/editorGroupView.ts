@@ -149,6 +149,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
 
 	private readonly containerToolBarMenuDisposable = this._register(new MutableDisposable());
+	private readonly middleClickPasteGuard = this._register(new MutableDisposable());
 
 	private readonly whenRestoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.whenRestoredPromise.p;
@@ -415,20 +416,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}));
 
-		// Close empty editor group via middle mouse click, or open a new
-		// terminal in it when a modifier key is held
+		// Open a new terminal when middle-clicking empty editor group space
 		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
-				if (e.ctrlKey || e.metaKey) {
-					// Swallow the Linux middle-click paste that the browser would
-					// otherwise deliver into the newly focused terminal input.
-					this._register(swallowMiddleClickPaste(getWindow(this.element)));
-					this.commandService.executeCommand('workbench.action.createTerminalEditor');
-				} else {
-					this.groupsView.removeGroup(this);
-				}
+				// Activate this group so the terminal opens here, not in whatever
+				// group was active before the middle-click.
+				this.groupsView.activateGroup(this.id);
+
+				// Swallow the Linux middle-click paste that the browser would
+				// otherwise deliver into the newly focused terminal input.
+				this.middleClickPasteGuard.value = swallowMiddleClickPaste(getWindow(this.element));
+				this.commandService.executeCommand('workbench.action.createTerminalEditor');
 			}
 		}));
 	}
