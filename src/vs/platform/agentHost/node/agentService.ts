@@ -1810,15 +1810,16 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
-				// Matching registry entries still advance their durable recency from
-				// the provider catalog, but need no per-session metadata I/O. Only a
-				// genuine forward move is queued for the batched write below, so a
-				// steady-state startup issues no recency writes at all.
+				// Registered sessions need metadata I/O only when their discovery announcement previously failed.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
 					const stored = registeredRecency.get(session.toString());
 					if (Number.isFinite(sessionMetadata.modifiedTime) && (stored === undefined || sessionMetadata.modifiedTime > stored)) {
 						modifiedTimeAdvances.push({ session, modifiedTime: sessionMetadata.modifiedTime });
+					}
+					const pendingExternal = this._pendingDiscoveredSessionAnnouncements.get(session.toString());
+					if (pendingExternal !== undefined) {
+						await this._announceDiscoveredSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, pendingExternal) }, provider.id);
 					}
 					return false;
 				}
@@ -1855,7 +1856,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
 						registeredExternal = true;
 					} else {
-						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+						await this._announceDiscoveredSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
 					}
 				} else {
 					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
@@ -2587,6 +2588,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Session keys already announced this AH lifetime, so provider signals do not re-announce them. */
 	private readonly _announcedSurfacedKeys = new Set<string>();
+	/** External provenance for discovered sessions whose registration succeeded but announcement failed. */
+	private readonly _pendingDiscoveredSessionAnnouncements = new Map<string, boolean>();
 	private readonly _broadcastExternalSessions = new Set<string>();
 	private _sessionListReconciliation = Promise.resolve();
 	/** Coalescing state for storm-driven (mode-agnostic) reconciliations. */
@@ -2734,6 +2737,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// The pass ran as `Last30Days`, so report the mode actually in effect instead.
 		this._logHiddenSessions(superset.length - visible.length, superset.length, mode);
 		return visible;
+	}
+
+	private async _announceDiscoveredSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
+		const key = meta.session.toString();
+		// Claim the retry before awaiting so overlapping discovery cannot discard a failed attempt.
+		this._pendingDiscoveredSessionAnnouncements.delete(key);
+		try {
+			await this._announceSurfacedSession(meta, provider);
+		} catch (err) {
+			this._pendingDiscoveredSessionAnnouncements.set(key, readSessionExternal(meta._meta));
+			throw err;
+		}
 	}
 
 	private async _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
@@ -4089,6 +4104,7 @@ export class AgentService extends Disposable implements IAgentService {
 				`unregistration for ${session.toString()}`,
 			);
 		}
+		this._pendingDiscoveredSessionAnnouncements.delete(sessionKey);
 		if (!isIdleProvisional) {
 			this._invalidateSessionList();
 		}

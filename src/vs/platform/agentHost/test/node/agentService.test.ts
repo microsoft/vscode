@@ -3242,6 +3242,21 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		class UnavailableMetadataDatabase extends TestSessionDatabase {
+			failOverlay = true;
+			overlayReads = 0;
+
+			override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+				if (obj[AH_META_IS_ARCHIVED_DB_KEY]) {
+					this.overlayReads++;
+					if (this.failOverlay) {
+						throw new Error('session flags unavailable');
+					}
+				}
+				return super.getMetadataObject(obj);
+			}
+		}
+
 		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService, storageResource?: URI): AgentService {
 			return disposables.add(createTestAgentService(
 				new NullLogService(),
@@ -4704,17 +4719,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('migration announcements fail closed when stored flags cannot be read and allow retry', async () => {
-			class UnavailableMetadataDatabase extends TestSessionDatabase {
-				failOverlay = true;
-
-				override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
-					if (this.failOverlay && obj[AH_META_IS_ARCHIVED_DB_KEY]) {
-						throw new Error('session flags unavailable');
-					}
-					return super.getMetadataObject(obj);
-				}
-			}
-
 			const db = new UnavailableMetadataDatabase();
 			await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
 			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
@@ -4740,6 +4744,65 @@ suite('AgentService (node dispatcher)', () => {
 				afterRetry: [SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived],
 			});
 		});
+
+		for (const reportedExternal of [false, true]) {
+			test(`discovery retries failed announcements for host-created sessions reported as ${reportedExternal ? 'external' : 'native'}`, async () => {
+				const db = new UnavailableMetadataDatabase();
+				await db.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false');
+				await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+				await db.setMetadata('customTitle', 'Saved title');
+				const registry = new TransientRegistryWriteDatabase();
+				const svc = createExternalSessionService(createSessionDataService(db), registry);
+				const agent = disposables.add(new MockAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await svc.listSessions();
+				const session = AgentSession.uri(agent.id, 'discovery-metadata-unavailable');
+				const chat = discoveredChat(session, reportedExternal);
+				const discover = () => (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [chat]);
+				const notifications: SessionSummary[] = [];
+				disposables.add(svc.onDidNotification(notification => {
+					if (notification.type === NotificationType.SessionAdded) {
+						notifications.push(notification.summary);
+					}
+				}));
+
+				await discover();
+				const beforeRetry = {
+					registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+					notifications: notifications.length,
+					overlayReads: db.overlayReads,
+				};
+				const writesBeforeRetry = registry.registryWriteAttempts;
+				await db.setMetadata(AH_META_IS_READ_DB_KEY, 'false');
+				await Promise.all([discover(), discover()]);
+				const failedRetryNotifications = notifications.length;
+				db.failOverlay = false;
+				await discover();
+				await discover();
+
+				assert.deepStrictEqual({
+					beforeRetry,
+					failedRetryNotifications,
+					announced: notifications.map(summary => ({
+						title: summary.title,
+						status: summary.status,
+						external: readSessionExternal(summary._meta),
+					})),
+					overlayReads: db.overlayReads,
+					retryRegistryWrites: registry.registryWriteAttempts - writesBeforeRetry,
+					persistedRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					restored: !!getStateManager(svc).getSessionState(session.toString()),
+				}, {
+					beforeRetry: { registered: [session.toString()], notifications: 0, overlayReads: 1 },
+					failedRetryNotifications: 0,
+					announced: [{ title: 'Saved title', status: SessionStatus.Idle | SessionStatus.IsArchived, external: false }],
+					overlayReads: 3,
+					retryRegistryWrites: 0,
+					persistedRead: 'false',
+					restored: false,
+				});
+			});
+		}
 
 		test('migration candidates derive provenance from the workspaceless marker', async () => {
 			class MixedMigrationAgent extends MockAgent {
