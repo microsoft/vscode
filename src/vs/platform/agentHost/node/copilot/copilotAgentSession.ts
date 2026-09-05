@@ -1244,11 +1244,16 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- AgentSignal helpers ------------------------------------------------
 
-	private _shouldDropLateRootTurnEvent(eventType: string): boolean {
+	private _shouldDropLateRootTurnEvent(eventType: string, expectedAfterCancellation = false): boolean {
 		if (!this._dropLateRootTurnEvents) {
 			return false;
 		}
-		this._logService.error(`[Copilot:${this.sessionId}] ${eventType} emitted after cancellation; dropping`);
+		const message = `[Copilot:${this.sessionId}] ${eventType} emitted after cancellation; dropping`;
+		if (expectedAfterCancellation) {
+			this._logService.trace(message);
+		} else {
+			this._logService.error(message);
+		}
 		return true;
 	}
 
@@ -5219,7 +5224,7 @@ export class CopilotAgentSession extends Disposable {
 			this._autoApprovals.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
 			this._pendingAutoApprovals.respond(e.data.toolCallId, undefined);
-			if (!parentToolCallId && !e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_complete')) {
+			if (!parentToolCallId && !e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_complete', true)) {
 				return;
 			}
 			const displayName = tracked.displayName;
