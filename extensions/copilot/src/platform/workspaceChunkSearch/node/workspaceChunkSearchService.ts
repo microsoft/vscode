@@ -477,6 +477,12 @@ class WorkspaceChunkSearchServiceImpl extends Disposable implements IWorkspaceCh
 			return first;
 		});
 
+		// This promise is started eagerly but not every search strategy awaits `resolveQueryEmbeddings`
+		// (e.g. failing strategies short-circuit, or reranking sorts by existing distances). Attach a
+		// no-op rejection handler so a rejection on those paths does not surface as an unhandled error.
+		// Strategies that actually consume the embeddings still receive the rejection when they await it.
+		queryEmbeddings.catch(() => { });
+
 		return {
 			...query,
 			resolveQueryEmbeddings: (_token) => queryEmbeddings
