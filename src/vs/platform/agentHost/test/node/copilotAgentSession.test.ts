@@ -6901,6 +6901,7 @@ Use the attached image as context.
 			}), {
 				messageText: 'Background agent agent-a completed',
 				startsTurn: true,
+				completedAgentId: 'agent-a',
 			});
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
@@ -6912,6 +6913,7 @@ Use the attached image as context.
 			}), {
 				messageText: 'Background agent agent-b failed',
 				startsTurn: true,
+				completedAgentId: 'agent-b',
 			});
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
@@ -6923,6 +6925,7 @@ Use the attached image as context.
 			}), {
 				messageText: 'Background agent agent-a is complete',
 				startsTurn: true,
+				completedAgentId: 'agent-a',
 			});
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
@@ -7005,6 +7008,28 @@ Use the attached image as context.
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
 			});
+		});
+
+		test('background agent notification completes the shared subagent lifecycle', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-background-agent',
+				agentName: 'research',
+				agentDisplayName: 'Research',
+				agentDescription: 'Research the issue',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-background' });
+			mockSession.fire('system.notification', {
+				content: 'Background agent completed',
+				kind: { type: 'agent_completed', agentId: 'agent-background', agentType: 'task', status: 'completed' },
+			} as SessionEventPayload<'system.notification'>['data']);
+
+			assert.deepStrictEqual(signals
+				.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed')
+				.map(signal => ({ kind: signal.kind, toolCallId: signal.toolCallId })), [
+				{ kind: 'subagent_started', toolCallId: 'tc-background-agent' },
+				{ kind: 'subagent_completed', toolCallId: 'tc-background-agent' },
+			]);
 		});
 
 		test('agent idle notification during an active turn appends a SystemNotification response part', async () => {

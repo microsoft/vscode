@@ -12,6 +12,8 @@ export interface ICopilotSystemNotification {
 	readonly messageText: string;
 	/** Whether the runtime notification wakes the agent loop when it arrives while idle. */
 	readonly startsTurn: boolean;
+	/** Background agent whose subagent UX should transition to complete. */
+	readonly completedAgentId?: string;
 }
 
 export function buildCopilotSystemNotification(event: SessionEventPayload<'system.notification'>): ICopilotSystemNotification | undefined {
@@ -39,11 +41,13 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 					? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", kind.agentId)
 					: localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", kind.agentId),
 				startsTurn: true,
+				completedAgentId: kind.agentId,
 			};
 		case 'agent_idle':
 			return {
 				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
 				startsTurn: true,
+				completedAgentId: kind.agentId,
 			};
 		case 'factory_completed':
 			return {
