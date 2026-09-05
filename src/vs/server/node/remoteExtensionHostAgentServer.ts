@@ -29,7 +29,7 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, OKMessage, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionRejectionReason, ConnectionType, ConnectionTypeRequest, describeConnectionRejection, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, OKMessage, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { ExtensionHostConnection } from './extensionHostConnection.js';
@@ -264,12 +264,15 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		return _socket.remoteAddress || `<unknown>`;
 	}
 
-	private async _rejectWebSocketConnection(logPrefix: string, protocol: PersistentProtocol, reason: string): Promise<void> {
+	private async _rejectWebSocketConnection(logPrefix: string, protocol: PersistentProtocol, reasonCode: ConnectionRejectionReason, detail?: string): Promise<void> {
 		const socket = protocol.getSocket();
+		const description = describeConnectionRejection(reasonCode);
+		const reason = detail ? `${description}: ${detail}` : description;
 		this._logService.error(`${logPrefix} ${reason}.`);
 		const errMessage: ErrorMessage = {
 			type: 'error',
-			reason: reason
+			reason: reason,
+			reasonCode: reasonCode
 		};
 		protocol.sendControl(VSBuffer.fromString(JSON.stringify(errMessage)));
 		protocol.dispose();
@@ -298,10 +301,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		}
 		let state = State.WaitingForAuth;
 
-		const rejectWebSocketConnection = (msg: string) => {
+		const rejectWebSocketConnection = (code: ConnectionRejectionReason, detail?: string) => {
 			state = State.Error;
 			listener.dispose();
-			this._rejectWebSocketConnection(logPrefix, protocol, msg);
+			this._rejectWebSocketConnection(logPrefix, protocol, code, detail);
 		};
 
 		const listener = protocol.onControlMessage((raw) => {
@@ -310,14 +313,14 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				try {
 					msg1 = <HandshakeMessage>JSON.parse(raw.toString());
 				} catch (err) {
-					return rejectWebSocketConnection(`Malformed first message`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.HandshakeMalformed, 'auth');
 				}
 				if (msg1.type !== 'auth') {
-					return rejectWebSocketConnection(`Invalid first message`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.HandshakeInvalid, 'auth');
 				}
 
 				if (this._connectionToken.type === ServerConnectionTokenType.Mandatory && !this._connectionToken.validate(msg1.auth)) {
-					return rejectWebSocketConnection(`Unauthorized client refused: auth mismatch`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.AuthRefused, 'auth mismatch');
 				}
 
 				// Send `sign` request
@@ -350,13 +353,13 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				try {
 					msg2 = <HandshakeMessage>JSON.parse(raw.toString());
 				} catch (err) {
-					return rejectWebSocketConnection(`Malformed second message`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.HandshakeMalformed, 'connectionType');
 				}
 				if (msg2.type !== 'connectionType') {
-					return rejectWebSocketConnection(`Invalid second message`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.HandshakeInvalid, 'connectionType');
 				}
 				if (typeof msg2.signedData !== 'string') {
-					return rejectWebSocketConnection(`Invalid second message field type`);
+					return rejectWebSocketConnection(ConnectionRejectionReason.HandshakeInvalid, 'connectionType field type');
 				}
 
 				const rendererCommit = msg2.commit;
@@ -364,7 +367,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				if (rendererCommit && myCommit) {
 					// Running in the built version where commits are defined
 					if (rendererCommit !== myCommit) {
-						return rejectWebSocketConnection(`Client refused: version mismatch`);
+						return rejectWebSocketConnection(ConnectionRejectionReason.VersionMismatch);
 					}
 				}
 
@@ -383,7 +386,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 				if (!valid) {
 					if (this._environmentService.isBuilt) {
-						return rejectWebSocketConnection(`Unauthorized client refused`);
+						return rejectWebSocketConnection(ConnectionRejectionReason.AuthRefused);
 					} else {
 						this._logService.error(`${logPrefix} Unauthorized client handshake failed but we proceed because of dev mode.`);
 					}
@@ -428,10 +431,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				if (!this._managementConnections[reconnectionToken]) {
 					if (!this._allReconnectionTokens.has(reconnectionToken)) {
 						// This is an unknown reconnection token
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (never seen)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.UnknownReconnectionTokenNeverSeen);
 					} else {
 						// This is a connection that was seen in the past, but is no longer valid
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (seen before)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.UnknownReconnectionTokenSeenBefore);
 					}
 				}
 
@@ -444,7 +447,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				// This is a fresh connection
 				if (this._managementConnections[reconnectionToken]) {
 					// Cannot have two concurrent connections using the same reconnection token
-					return this._rejectWebSocketConnection(logPrefix, protocol, `Duplicate reconnection token`);
+					return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.DuplicateReconnectionToken);
 				}
 
 				protocol.sendControl(VSBuffer.fromString(JSON.stringify({ type: 'ok' })));
@@ -475,10 +478,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				if (!this._extHostConnections[reconnectionToken]) {
 					if (!this._allReconnectionTokens.has(reconnectionToken)) {
 						// This is an unknown reconnection token
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (never seen)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.UnknownReconnectionTokenNeverSeen);
 					} else {
 						// This is a connection that was seen in the past, but is no longer valid
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (seen before)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.UnknownReconnectionTokenSeenBefore);
 					}
 				}
 
@@ -492,7 +495,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				// This is a fresh connection
 				if (this._extHostConnections[reconnectionToken]) {
 					// Cannot have two concurrent connections using the same reconnection token
-					return this._rejectWebSocketConnection(logPrefix, protocol, `Duplicate reconnection token`);
+					return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.DuplicateReconnectionToken);
 				}
 
 				protocol.sendPause();
@@ -523,7 +526,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		} else {
 
-			return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown initial data received`);
+			return this._rejectWebSocketConnection(logPrefix, protocol, ConnectionRejectionReason.UnknownInitialData);
 
 		}
 	}
