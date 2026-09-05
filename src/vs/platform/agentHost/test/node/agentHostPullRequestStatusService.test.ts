@@ -284,7 +284,7 @@ suite('AgentHostPullRequestStatusService', () => {
 	test('resolves a background lifecycle check without a client subscription', async () => {
 		const { service, resources, session } = createHarness();
 
-		const status = await service.resolveForLifecycle(session);
+		const status = await service.resolveForLifecycle(session, pullRequestUrl);
 		await pump();
 
 		assert.deepStrictEqual({
@@ -309,7 +309,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const { service, stateManager, resources, session } = createHarness();
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
 
-		const status = await service.resolveForLifecycle(session);
+		const status = await service.resolveForLifecycle(session, pullRequestUrl);
 		await pump();
 
 		assert.deepStrictEqual({
@@ -320,6 +320,30 @@ suite('AgentHostPullRequestStatusService', () => {
 		}, {
 			status: 'open',
 			subscribed: 1,
+			refreshedFragments: ['core'],
+			live: 0,
+		});
+	});
+
+	test('resolves a supplied lifecycle pull request without restoring session state', async () => {
+		const { service, stateManager, resources, session } = createHarness();
+		stateManager.deleteSession(session);
+
+		const status = await service.resolveForLifecycle(session, pullRequestUrl);
+
+		assert.deepStrictEqual({
+			status: status?.state,
+			subscribed: resources.subscribed.length,
+			options: resources.subscriptionOptions[0],
+			refreshedFragments: resources.refreshedFragments,
+			live: resources.liveSubscriptions,
+		}, {
+			status: 'open',
+			subscribed: 1,
+			options: {
+				priority: 'background',
+				core: true,
+			},
 			refreshedFragments: ['core'],
 			live: 0,
 		});

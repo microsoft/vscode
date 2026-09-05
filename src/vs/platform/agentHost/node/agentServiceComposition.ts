@@ -16,7 +16,6 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostExternalSessionsMode } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -191,7 +190,7 @@ export function createAgentServiceComposition(
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		owned.add(new AgentHostSessionLifecycle(
 			{
-				listSessions: () => agentService!.listSessions(AgentHostExternalSessionsMode.None),
+				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
 				restoreSession: session => agentService!.restoreSession(session),
 				getAutoArchivedAt: async session => {
 					const ref = await sessionDataService.tryOpenDatabase(session);

@@ -3050,6 +3050,93 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('session lifecycle candidates', () => {
+		test('filters the registry before reading only lifecycle metadata', async () => {
+			const perSession = createPerSessionDataService();
+			const opened: string[] = [];
+			const sessionDataService = perSession.service as { tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> };
+			const originalTryOpen = sessionDataService.tryOpenDatabase;
+			sessionDataService.tryOpenDatabase = async session => {
+				opened.push(session.toString());
+				return originalTryOpen.call(perSession.service, session);
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const oldInternal = AgentSession.uri('copilot', 'old-internal');
+			const recentInternal = AgentSession.uri('copilot', 'recent-internal');
+			const oldExternal = AgentSession.uri('copilot', 'old-external');
+			const register = (session: URI, modifiedTime: number, source: 'explicit' | 'discovery') => registry.register(session, {
+				provider: 'copilot',
+				startTime: modifiedTime,
+				modifiedTime,
+				source,
+			}, { checkTombstone: false });
+			await Promise.all([
+				register(oldInternal, now - 8 * 24 * 60 * 60 * 1000, 'explicit'),
+				register(recentInternal, now, 'explicit'),
+				register(oldExternal, now - 8 * 24 * 60 * 60 * 1000, 'discovery'),
+			]);
+			for (const session of [oldInternal, recentInternal, oldExternal]) {
+				await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({
+					pullRequestUrls: [`https://github.com/microsoft/vscode/pull/${session === oldInternal ? 1 : 2}`],
+				}));
+			}
+
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
+
+			assert.deepStrictEqual({
+				candidates: candidates.map(candidate => ({
+					session: candidate.session.toString(),
+					pullRequestUrl: candidate.pullRequestUrl,
+					action: candidate.action,
+				})),
+				opened,
+			}, {
+				candidates: [{
+					session: oldInternal.toString(),
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+					action: 'archive',
+				}],
+				opened: [oldInternal.toString()],
+			});
+		});
+
+		test('enumerates only automatically archived sessions past the delete cutoff', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const session = AgentSession.uri('copilot', 'auto-archived');
+			await registry.register(session, {
+				provider: 'copilot',
+				startTime: now - 10 * 24 * 60 * 60 * 1000,
+				modifiedTime: now,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			const database = perSession.database(session);
+			await Promise.all([
+				database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'),
+				database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(now - 2 * 24 * 60 * 60 * 1000)),
+				database.setMetadata(META_GITHUB_STATE, JSON.stringify({
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'],
+				})),
+			]);
+
+			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000);
+
+			assert.deepStrictEqual(candidates.map(candidate => ({
+				session: candidate.session.toString(),
+				pullRequestUrl: candidate.pullRequestUrl,
+				action: candidate.action,
+			})), [{
+				session: session.toString(),
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/3',
+				action: 'delete',
+			}]);
+		});
+	});
+
 	// ---- disposeSession -------------------------------------------------
 
 	suite('disposeSession', () => {

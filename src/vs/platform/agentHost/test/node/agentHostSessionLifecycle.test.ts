@@ -5,17 +5,17 @@
 
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
+import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import type { IAgentSessionMetadata } from '../../common/agent.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { isSessionStatusArchived, SessionStatus, withSessionExternal, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { AgentHostSessionLifecycle } from '../../node/agentHostSessionLifecycle.js';
+import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleCandidate } from '../../node/agentHostSessionLifecycle.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullLogService } from '../../../log/common/log.js';
 
@@ -70,26 +70,20 @@ suite('AgentHostSessionLifecycle', () => {
 			_meta: meta,
 		};
 		stateManager.createSession(summary);
-		const metadata: IAgentSessionMetadata = {
-			session,
-			startTime: Date.parse(summary.createdAt),
-			modifiedTime,
-			status,
-			_meta: meta,
-		};
-
 		const restored: string[] = [];
 		const resolved: string[] = [];
 		const deleted: string[] = [];
 		const autoArchiveTimestamps: number[] = [];
+		const listed: { readonly archiveCutoff: number | undefined; readonly deleteCutoff: number | undefined }[] = [];
 		let autoArchivedAt = options?.autoArchivedAt;
 		const pullRequestStatusService = new class extends mock<IAgentHostPullRequestStatusService>() {
 			override readonly onDidChangePullRequestStatus = Event.None;
 			override getPullRequestStatus() { return options?.status; }
 			override markPullRequestMerged() { }
 			override async refresh() { }
-			override async resolveForLifecycle(sessionKey: string) {
+			override async resolveForLifecycle(sessionKey: string, pullRequestUrl: string) {
 				resolved.push(sessionKey);
+				assert.strictEqual(pullRequestUrl, options?.pullRequestUrls?.[0] ?? PULL_REQUEST_URL);
 				options?.onResolve?.(configurationService, stateManager, session);
 				return options?.status;
 			}
@@ -100,7 +94,22 @@ suite('AgentHostSessionLifecycle', () => {
 		}();
 		const lifecycle = disposables.add(new AgentHostSessionLifecycle(
 			{
-				listSessions: async () => [metadata],
+				listCandidates: async (archiveCutoff, deleteCutoff) => {
+					listed.push({ archiveCutoff, deleteCutoff });
+					if (options?.external
+						|| status === SessionStatus.InProgress
+						|| (isSessionStatusArchived(status)
+							? deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff
+							: archiveCutoff === undefined || modifiedTime > archiveCutoff)) {
+						return [];
+					}
+					const pullRequestUrl = options?.pullRequestUrls?.[0] ?? PULL_REQUEST_URL;
+					return pullRequestUrl ? [{
+						session,
+						pullRequestUrl,
+						action: isSessionStatusArchived(status) ? 'delete' : 'archive',
+					} satisfies IAgentHostSessionLifecycleCandidate] : [];
+				},
 				restoreSession: async resource => { restored.push(resource.toString()); },
 				getAutoArchivedAt: async () => {
 					options?.onGetAutoArchivedAt?.(configurationService);
@@ -131,7 +140,7 @@ suite('AgentHostSessionLifecycle', () => {
 			logService,
 			{ now: () => NOW, start: false },
 		));
-		return { lifecycle, stateManager, session, restored, resolved, deleted, autoArchiveTimestamps };
+		return { lifecycle, configurationService, stateManager, session, restored, resolved, deleted, autoArchiveTimestamps, listed };
 	}
 
 	test('archives an inactive internal session after an authoritative merged result', async () => {
@@ -172,7 +181,7 @@ suite('AgentHostSessionLifecycle', () => {
 			resolved,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
-			restored: [session.toString()],
+			restored: [],
 			resolved: [session.toString()],
 			archived: false,
 		});
@@ -389,7 +398,7 @@ suite('AgentHostSessionLifecycle', () => {
 			status: mergedPullRequestStatus(),
 			autoArchivedAt: NOW - 2 * DAY_MS,
 			onGetAutoArchivedAt: configurationService => {
-				if (++metadataReads === 3) {
+				if (++metadataReads === 2) {
 					configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 				}
 			},
@@ -470,6 +479,27 @@ suite('AgentHostSessionLifecycle', () => {
 			{ restored: [], resolved: [], archived: false },
 			{ restored: [], resolved: [], archived: false },
 		]);
+	});
+
+	test('ignores unrelated root configuration changes', async () => {
+		const { configurationService, listed } = createHarness({ status: mergedPullRequestStatus() });
+
+		configurationService.updateRootConfig({ unrelated: true });
+		await timeout(10);
+
+		assert.deepStrictEqual(listed, []);
+	});
+
+	test('runs immediately when a lifecycle threshold changes', async () => {
+		const { configurationService, listed } = createHarness({ enabled: false, status: mergedPullRequestStatus() });
+
+		configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 7 });
+		await timeout(10);
+
+		assert.deepStrictEqual(listed, [{
+			archiveCutoff: NOW - 7 * DAY_MS,
+			deleteCutoff: undefined,
+		}]);
 	});
 });
 
