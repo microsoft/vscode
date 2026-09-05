@@ -784,7 +784,21 @@ declare module 'vscode' {
 		 */
 		readonly instructions?: string;
 
-		private constructor(label: string, name: string, instructions?: string);
+		/**
+		 * Stable identity of the MCP collection that published the tool
+		 * (e.g. `mcp.config.usrlocal`). Two separately configured servers can
+		 * share the same label and name, so this plus {@link definitionId} is
+		 * the only unambiguous identity of the publishing server.
+		 */
+		readonly collectionId: string;
+
+		/**
+		 * Stable identity of the MCP server definition within its collection
+		 * (e.g. `mcp.config.usrlocal.firefox-devtools`).
+		 */
+		readonly definitionId: string;
+
+		private constructor(label: string, name: string, instructions: string | undefined, collectionId: string, definitionId: string);
 	}
 
 	export interface LanguageModelToolInformation {

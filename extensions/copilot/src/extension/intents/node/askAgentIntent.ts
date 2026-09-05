@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import { LanguageModelToolMCPSource } from '../../../vscodeTypes';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -41,16 +42,61 @@ import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/n
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {
 		const toolsService = accessor.get<IToolsService>(IToolsService);
-		const lookForTags = new Set<string>(['vscode_codesearch']);
 		const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 		const model = await endpointProvider.getChatEndpoint(request);
+
+		// MCP tools are registered dynamically as the MCP server connects and
+		// discovers its tools. The `toolReferences` in the request are a snapshot
+		// taken when the request was parsed, which can happen before the MCP
+		// server finished discovering all of its tools. When the user referenced
+		// a server's toolset, include all tools *of that same server* that are
+		// currently registered, so availability reflects the live registration
+		// state rather than the possibly-stale snapshot — without widening the
+		// referenced scope to other MCP servers the user never opted into.
+		const referencedMcpServerKeys = new Set<string>();
+		for (const ref of request.toolReferences) {
+			const referencedTool = toolsService.getTool(ref.name);
+			const source = referencedTool?.source;
+			if (source instanceof LanguageModelToolMCPSource) {
+				referencedMcpServerKeys.add(mcpServerKey(source.collectionId, source.definitionId));
+			}
+		}
 
 		// Special case...
 		// Since AskAgent currently has no tool picker, have to duplicate the toolReference logic here.
 		// When it's no longer experimental, it should be a custom mode, have a tool picker, etc.
 		// And must return boolean to avoid falling back on other logic that we don't want, like the `extension_installed_by_tool` check.
-		return toolsService.getEnabledTools(request, model, tool => tool.tags.some(tag => lookForTags.has(tag)) || request.toolReferences.some(ref => ref.name === tool.name));
+		return toolsService.getEnabledTools(request, model, tool => askAgentToolFilter(tool, request, referencedMcpServerKeys));
 	});
+
+/** Stable identity of an MCP server, for matching tools to the server that published them. */
+function mcpServerKey(collectionId: string, definitionId: string): string {
+	return `${collectionId}\u0000${definitionId}`;
+}
+
+/**
+ * Filters tools for the ask agent. Since AskAgent currently has no tool picker,
+ * we duplicate the toolReference logic here. When it's no longer experimental,
+ * it should be a custom mode, have a tool picker, etc.
+ *
+ * Must return boolean to avoid falling back on other logic that we don't want,
+ * like the `extension_installed_by_tool` check.
+ */
+export function askAgentToolFilter(tool: vscode.LanguageModelToolInformation, request: vscode.ChatRequest, referencedMcpServerKeys: ReadonlySet<string> = new Set()): boolean {
+	const lookForTags = new Set<string>(['vscode_codesearch']);
+	if (tool.tags.some(tag => lookForTags.has(tag)) || request.toolReferences.some(ref => ref.name === tool.name)) {
+		return true;
+	}
+	if (tool.tags.includes('mcp')) {
+		// The user referenced an MCP server toolset; include all currently
+		// registered tools *of that same server* so availability reflects the
+		// live registration state rather than the possibly-stale snapshot, while
+		// keeping other MCP servers out of scope. See #334569.
+		const source = tool.source;
+		return source instanceof LanguageModelToolMCPSource && referencedMcpServerKeys.has(mcpServerKey(source.collectionId, source.definitionId));
+	}
+	return false;
+}
 
 export class AskAgentIntent implements IIntent {
 
