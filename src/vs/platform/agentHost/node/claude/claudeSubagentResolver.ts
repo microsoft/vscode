@@ -423,7 +423,7 @@ export async function getSubagentTranscript(
 	}, {
 		strategies: buildDefaultStrategies(sdk, logService),
 		cacheGet: id => parentRegistry.getSpawn(id)?.agentId,
-		cacheSet: (id, resolved) => { parentRegistry.recordSpawn(id, { agentId: resolved }); },
+		cacheSet: (id, resolved) => { parentRegistry.cacheAgentId(id, resolved); },
 	});
 	if (!agentId) {
 		return [];
