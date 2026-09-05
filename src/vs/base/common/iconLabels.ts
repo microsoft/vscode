@@ -47,6 +47,17 @@ export function getCodiconAriaLabel(text: string | undefined) {
 	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
 }
 
+/**
+ * Codicon glyphs live in the Unicode Private Use Area of the codicon font. When such a glyph is
+ * rendered into the DOM (e.g. via an empty `<span class="codicon ...">`) and later read back with
+ * `innerText`/`textContent`, the bare glyph character leaks into the text and is announced as
+ * "space" by screen readers. Use this to strip those glyphs from text destined for assistive
+ * technologies.
+ */
+const codiconGlyphsRegex = /[\uE000-\uF8FF]/g;
+export function stripCodiconGlyphs(text: string): string {
+	return text.replace(codiconGlyphsRegex, '');
+}
 
 export interface IParsedLabelWithIcons {
 	readonly text: string;
