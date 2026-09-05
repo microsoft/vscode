@@ -14,8 +14,21 @@
 
 /* Header host. */
 .chat-composite-bar.session-header-bar {
-	padding: 0 var(--vscode-spacing-size100);
+	padding: 0;
 	box-sizing: border-box;
+}
+
+.session-header-bar > .chat-composite-bar-header {
+	width: 100%;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	box-sizing: border-box;
+}
+
+.session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
+	max-width: none;
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
@@ -38,12 +51,7 @@
 	height: var(--vscode-spacing-size320, 32px);
 	margin: 0 calc(-1 * var(--vscode-spacing-size80));
 	padding: 0 var(--vscode-spacing-size20);
-	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
 	box-sizing: border-box;
-}
-
-:is(.hc-black, .hc-light) .chat-composite-bar.session-header-bar .chat-composite-bar-header {
-	border-bottom-color: var(--vscode-contrastBorder);
 }
 
 .agent-sessions-workbench.editor-tabs-compact-height .chat-composite-bar.session-header-bar .chat-composite-bar-header {

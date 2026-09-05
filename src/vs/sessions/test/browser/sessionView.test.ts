@@ -75,6 +75,33 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('lays out the header host and chat content at the full session width', () => {
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const groupsLayout: number[] = [];
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_centeredContentContainer: centeredContentContainer,
+			_header: { visible: true, height: 35 },
+			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
+			_standaloneView: { value: undefined },
+		});
+
+		view.layout(1200, 800, 10, 20);
+
+		assert.deepStrictEqual({
+			sessionSize: [element.style.width, element.style.height],
+			headerHostSize: [centeredContentContainer.style.width, centeredContentContainer.style.height],
+			groupsLayout,
+		}, {
+			sessionSize: ['1200px', '800px'],
+			headerHostSize: ['1200px', '35px'],
+			groupsLayout: [1200, 765, 45, 20],
+		});
+	});
+
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
 		const shownSessions: Array<IActiveSession | undefined> = [];

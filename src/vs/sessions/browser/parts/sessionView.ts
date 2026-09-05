@@ -38,8 +38,9 @@ export interface ISessionViewOptions extends IChatViewOptions { }
  * delegates `openSession(...)` to this host so it no longer needs to remove/add
  * grid views as the bound session changes.
  *
- * Hosts the {@link SessionHeader} (centered, width-capped) above a
- * {@link ChatGroupsView} that renders the session's chats as a grid of groups.
+ * Hosts the full-width {@link SessionHeader} above a {@link ChatGroupsView} that
+ * renders the session's chats as a grid of groups. The header content shares the
+ * chat's centered, width-capped content band.
  */
 export class SessionView extends Disposable implements ISerializableView {
 
@@ -108,16 +109,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		)));
 
 
-		// Expose the centered-content cap as a CSS variable so styles that need
-		// to align with the centered band (e.g. the chat-view progress bar) can
-		// reference it without duplicating the constant.
+		// Expose the content cap so aligned chat surfaces do not duplicate it.
 		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
 
-		// The header is hosted in a centered, width-capped container so it aligns
-		// with the centered chat content. The chat groups grid lives in a
-		// full-width container below it so its transcript list spans the whole
-		// session view and its scrollbar stays pinned to the right edge; the chat
-		// rows and input self-center at the same max-width via CSS.
+		// The full-width host backs the session while CSS caps its inner content.
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
@@ -239,20 +234,14 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 
-		// Apply the centered band's width first so the header wraps to its final
-		// layout before we measure its height. Measuring before the width is
-		// applied could read a stale (pre-cap) height and cause a transient
-		// overlap until a later layout pass corrects it.
-		// In a grid layout the header spans the full width (matching the
-		// full-width chat groups); with a lone group it is centered and capped.
-		const centeredWidth = this._isGridLayout ? width : Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
-		this._centeredContentContainer.style.width = `${centeredWidth}px`;
+		// Set the host to the full session width; its centered inner content is
+		// capped and aligned via CSS (see chatCompositeBar.css).
+		this._centeredContentContainer.style.width = `${width}px`;
 
 		const barHeight = this._header.visible ? this._header.height : 0;
 
-		// Cap the band's height to the header (it is horizontally centered via CSS
-		// `margin: 0 auto`) so the full-width chat groups grid sits below it.
-		size(this._centeredContentContainer, centeredWidth, barHeight);
+		// Cap the host's height to the header so the chat groups grid sits below it.
+		size(this._centeredContentContainer, width, barHeight);
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
