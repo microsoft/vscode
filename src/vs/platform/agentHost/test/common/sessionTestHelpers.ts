@@ -11,7 +11,7 @@ import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from 
 import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import type { ISessionGitHubState, Message } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
@@ -21,10 +21,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
 	private readonly _turnUsages = new Map<string, string>();
 	private readonly _turnDelegations = new Map<string, string>();
+	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
+	getTurnWorkspaceTransitionsCalls = 0;
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
 	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
@@ -38,12 +40,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async deleteTurn(turnId: string): Promise<void> {
 		this._turnDelegations.delete(turnId);
+		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
 			}
 		}
+		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
 	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
@@ -171,6 +175,36 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void> {
+		this._turnWorkspaceTransitions.set(turnId, transition);
+		this._metadata.set(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, 'true');
+	}
+
+	async setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void> {
+		for (const [key, value] of Object.entries(metadata)) {
+			this._metadata.set(key, value);
+		}
+		this._turnWorkspaceTransitions.set(turnId, transition);
+		this._metadata.set(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, 'true');
+	}
+
+	async deleteTurnWorkspaceTransition(turnId: string): Promise<void> {
+		this._turnWorkspaceTransitions.delete(turnId);
+		this._deleteWorkspaceTransitionMarkerIfEmpty();
+	}
+
+	async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
+		this.getTurnWorkspaceTransitionsCalls++;
+		const result = new Map(this._turnWorkspaceTransitions);
+		for (const [turnId, eventId] of this._turnEventIds) {
+			const transition = this._turnWorkspaceTransitions.get(turnId);
+			if (transition) {
+				result.set(eventId, transition);
+			}
+		}
+		return result;
+	}
+
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
 	async deleteTurnsAfter(turnId: string): Promise<void> {
@@ -181,6 +215,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this.deleteAllTurnsCalls++;
 		this._edits.length = 0;
 		this._turnDelegations.clear();
+		this._turnWorkspaceTransitions.clear();
+		this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
 		this._turnEventIds.clear();
 	}
 
@@ -203,17 +239,34 @@ export class TestSessionDatabase implements ISessionDatabase {
 				this._turnDelegations.delete(turnId);
 			}
 		}
+		for (const turnId of [...this._turnWorkspaceTransitions.keys()]) {
+			if (!mapping.has(turnId)) {
+				this._turnWorkspaceTransitions.delete(turnId);
+			}
+		}
 		for (const [oldId, newId] of mapping) {
 			const delegation = this._turnDelegations.get(oldId);
 			if (delegation) {
 				this._turnDelegations.delete(oldId);
 				this._turnDelegations.set(newId, delegation);
 			}
+			const transition = this._turnWorkspaceTransitions.get(oldId);
+			if (transition) {
+				this._turnWorkspaceTransitions.delete(oldId);
+				this._turnWorkspaceTransitions.set(newId, transition);
+			}
 			const eventId = eventIds?.get(newId) ?? this._turnEventIds.get(oldId);
 			this._turnEventIds.delete(oldId);
 			if (eventId) {
 				this._turnEventIds.set(newId, eventId);
 			}
+		}
+		this._deleteWorkspaceTransitionMarkerIfEmpty();
+	}
+
+	private _deleteWorkspaceTransitionMarkerIfEmpty(): void {
+		if (this._turnWorkspaceTransitions.size === 0) {
+			this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
 		}
 	}
 

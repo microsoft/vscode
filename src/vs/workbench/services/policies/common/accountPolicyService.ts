@@ -255,10 +255,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
 		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
 
-		// Per-key precedence: native MDM wins over the server-delivered channel, which in turn wins
-		// over the file-based channel — but resolved key-by-key, so a key left unset by a higher
-		// channel is still filled in by a lower one. A key locked by a higher channel cannot be
-		// overwritten. See `.github/skills/policy-and-managed-settings/github-managed-settings.md` for the rationale.
+		// Share channel resolution, including the force-on sandbox floor, with Policy Diagnostics.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
 		const activeSources = new Set(pick.activeSources);
 		if (accountPolicyData?.managedSettingsActive === true) {

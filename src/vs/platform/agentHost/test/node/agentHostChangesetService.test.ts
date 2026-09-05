@@ -15,6 +15,7 @@ import { AgentSession } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -1826,11 +1827,11 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 	});
 
 	/**
-	 * A host notice turn captures no checkpoint, so picking it as the session's
-	 * latest turn drops the session changeset onto the edit tracker, which
-	 * cannot see terminal-tool edits.
+	 * A workspace continuation is a real provider turn even though its request
+	 * row is hidden; a later pure host notice must not replace it as the latest
+	 * attributable turn.
 	 */
-	test('session changeset keeps its git fast path when the chat ends on a host notice turn', async () => {
+	test('session changeset attributes a hidden workspace continuation before a host notice', async () => {
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
 		const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
@@ -1841,15 +1842,22 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
 			getBaselineCheckpoint: async () => 'baseline',
-			// Mirrors production: only the agent's turn has a checkpoint.
 			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
-				turnId === 'agent-turn' ? { parent: 'agent~p', current: 'agent~c' } : undefined,
+				turnId === 'continuation-turn' ? { parent: 'continuation~p', current: 'continuation~c' } : undefined,
 		};
 		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
 
 		const chat = buildDefaultChatUri(sessionStr);
 		for (const turn of [
 			{ id: 'agent-turn', message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } } },
+			{
+				id: 'continuation-turn',
+				message: withMessageRequestHiddenFromTranscript({
+					text: 'Continue in the requested workspace.',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentWorkspaceContinuationMessageMeta(),
+				}, true),
+			},
 			{
 				id: 'notice-turn',
 				message: withMessageRequestHiddenFromTranscript(
@@ -1869,7 +1877,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			diffCalls,
 			files: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id),
 		}, {
-			diffCalls: [{ fromRef: 'baseline', toRef: 'agent~c' }],
+			diffCalls: [{ fromRef: 'baseline', toRef: 'continuation~c' }],
 			files: [URI.file('/wd/edited.ts').toString()],
 		});
 	});

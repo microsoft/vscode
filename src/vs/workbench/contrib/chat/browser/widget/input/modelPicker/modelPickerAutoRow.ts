@@ -6,6 +6,8 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Switch } from '../../../../../../../base/browser/ui/toggle/switch.js';
+import { Sequencer } from '../../../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
@@ -18,13 +20,7 @@ export interface IAutoRowOptions {
 	readonly onToggle: (enabled: boolean) => void;
 }
 
-/**
- * The Auto row pinned below the model list: a switch that turns automatic model
- * selection on, and the tiers it routes by.
- *
- * The switch keeps one position whether or not the tiers are showing, so turning Auto
- * on does not move the control the user just aimed at.
- */
+/** Auto's routing tiers remain available while off; activating a tier also enables Auto. */
 export class ModelPickerAutoRow extends DisposableStore {
 
 	readonly element = dom.$('.chat-model-picker-auto-row');
@@ -33,7 +29,9 @@ export class ModelPickerAutoRow extends DisposableStore {
 	private readonly _toggle: Switch;
 	private readonly _tierContainer: HTMLElement;
 	private readonly _description: HTMLElement;
+	private readonly _tierChanges = new Sequencer();
 	private _tierControl: Radio | undefined;
+	private _toggleVersion = 0;
 
 	constructor(private readonly _options: IAutoRowOptions) {
 		super();
@@ -46,7 +44,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 			checked: _options.isEnabled(),
 		}));
 		main.appendChild(this._toggle.domNode);
-		this.add(this._toggle.onChange(checked => _options.onToggle(checked)));
+		this.add(this._toggle.onChange(checked => this._toggleAuto(checked)));
 
 		// The label and the gap beside it flip the switch too, the way a row carrying a
 		// standalone toggle does. The switch stops its own clicks from reaching here.
@@ -55,7 +53,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 				return;
 			}
 			this._toggle.checked = !this._toggle.checked;
-			_options.onToggle(this._toggle.checked);
+			this._toggleAuto(this._toggle.checked);
 		}));
 		// Pressing the strip must not move focus out of the list, which would blur the
 		// popup and dismiss it before the click lands.
@@ -71,17 +69,25 @@ export class ModelPickerAutoRow extends DisposableStore {
 
 	/** Re-reads the selection and tier so the row matches the current state. */
 	render(): void {
+		if (this.isDisposed) {
+			return;
+		}
+		const focusedTier = this._getFocusedTier();
 		const enabled = this._options.isEnabled();
+		if (this._toggle.checked !== enabled) {
+			this._toggleVersion++;
+		}
 		this.element.classList.toggle('enabled', enabled);
 		this._toggle.checked = enabled;
 
 		const tier = getModelConfigProperty(this._options.autoModel, this._options.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 		const values = tier?.schema.enum ?? [];
+		const selectedIndex = Math.max(0, values.indexOf(tier?.value));
 		dom.clearNode(this._tierContainer);
 		this._renderDisposables.clear();
 		this._tierControl = undefined;
 
-		if (enabled && tier && values.length > 1) {
+		if (tier && values.length > 1) {
 			const control = this._renderDisposables.add(new Radio({
 				ariaLabel: tier.schema.title ?? localize('chat.modelPicker.autoTier', "Optimize for"),
 				className: 'segmented',
@@ -89,25 +95,56 @@ export class ModelPickerAutoRow extends DisposableStore {
 				items: values.map((value, index) => ({
 					text: getModelConfigValueLabel(tier.schema, value),
 					tooltip: tier.schema.enumDescriptions?.[index],
-					isActive: value === tier.value,
+					isActive: index === selectedIndex,
 				})),
 			}));
-			this._renderDisposables.add(control.onDidSelect(async index => {
-				await this._options.configurationAccess.setModelConfiguration(this._options.autoModel.identifier, { [tier.key]: values[index] });
-				this.render();
-				// Rebuilt, so focus has to land on the control that replaced this one.
-				this._tierControl?.focusActiveItem();
+			this._renderDisposables.add(control.onDidActivate(index => {
+				const toggleVersion = this._toggleVersion;
+				this._tierChanges.queue(() => this._activateTier(tier.key, values[index], toggleVersion)).catch(onUnexpectedError);
 			}));
 			this._tierContainer.appendChild(control.domNode);
 			this._tierControl = control;
+			if (focusedTier >= 0) {
+				control.focusItem(focusedTier);
+			}
 		}
 
-		const selectedIndex = values.indexOf(tier?.value);
-		const tierDescription = enabled && selectedIndex >= 0 ? tier?.schema.enumDescriptions?.[selectedIndex] : undefined;
+		const tierDescription = tier?.schema.enumDescriptions?.[selectedIndex];
 		// Auto's own detail stays put; the tier description joins it rather than replacing it.
 		const detail = this._options.autoModel.metadata.detail;
 		const parts = [detail, tierDescription].filter(part => !!part);
 		this._description.textContent = parts.join(' · ');
 		this._description.classList.toggle('hidden', parts.length === 0);
+	}
+
+	private _getFocusedTier(): number {
+		return this._tierControl?.optionElements.findIndex(element => dom.isActiveElement(element)) ?? -1;
+	}
+
+	private _toggleAuto(enabled: boolean): void {
+		this._toggleVersion++;
+		this._options.onToggle(enabled);
+	}
+
+	private async _activateTier(key: string, value: unknown, toggleVersion: number): Promise<void> {
+		if (this.isDisposed) {
+			return;
+		}
+		let focusedTier = -1;
+		try {
+			await this._options.configurationAccess.setModelConfiguration(this._options.autoModel.identifier, { [key]: value });
+			if (this.isDisposed) {
+				return;
+			}
+			focusedTier = this._getFocusedTier();
+			if (toggleVersion === this._toggleVersion && !this._options.isEnabled()) {
+				this._toggleAuto(true);
+			}
+		} finally {
+			this.render();
+			if (!this.isDisposed && focusedTier >= 0) {
+				this._tierControl?.focusItem(focusedTier);
+			}
+		}
 	}
 }

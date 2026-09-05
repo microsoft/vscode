@@ -482,11 +482,11 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
-		[ChatConfiguration.ConsolidatedRemoteWorkspaces]: {
+		[ChatConfiguration.CustomizationEntryPoints]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.consolidatedRemoteWorkspaces', "Controls whether GitHub and remote workspaces are combined under Remote in the Agents Window workspace picker, with search always available and, when supported, a No workspace option."),
+			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -967,11 +967,6 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			default: 10000,
 		},
-		[ChatConfiguration.PasteGitHubLinksAsReferences]: {
-			markdownDescription: nls.localize('chat.pasteGitHubLinksAsReferences', "Controls whether pasted GitHub issue and pull request URLs are shown as compact clickable references in the chat input."),
-			type: 'boolean',
-			default: true,
-		},
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
@@ -1066,37 +1061,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
-		},
-		[ChatConfiguration.TurnStatusPills]: {
-			anyOf: [
-				{
-					type: 'boolean',
-				},
-				{
-					type: 'object',
-					properties: {
-						changes: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
-						},
-						preview: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
-						},
-						browser: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.browser', "Show a pill for browser activity in the turn."),
-						},
-					},
-					additionalProperties: false,
-					deprecationMessage: nls.localize('chat.turnStatusPills.objectDeprecated', "The per-pill object form is deprecated. Use a boolean value instead."),
-				},
-			],
-			markdownDescription: nls.localize('chat.turnStatusPills', "Controls whether agent status pills are shown above the chat input and inside completed responses. Only applies to agent sessions."),
-			default: true,
 		},
 		[mcpAccessConfig]: {
 			type: 'string',

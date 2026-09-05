@@ -548,6 +548,11 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:focus:not(:focus-visible),
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:focus:not(:focus-visible) {
+	outline: none;
+}
+
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button .codicon,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action .codicon {
 	font-size: var(--vscode-codiconFontSize);
@@ -806,13 +811,26 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-/* Pinned right on its own line, so revealing the tiers below cannot move it. */
+/* The switch stays pinned right on its own line above the tiers. */
 .chat-model-picker-auto-row .monaco-switch {
 	margin-left: auto;
 }
 
 .chat-model-picker-auto-tiers:not(:empty) {
 	margin-bottom: var(--vscode-spacing-size20);
+}
+
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-menu-background);
+	border-color: var(--vscode-contrastBorder, var(--vscode-radio-inactiveBorder, transparent));
+	box-shadow: none;
+}
+
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:hover,
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:focus-visible {
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 }
 
 .chat-model-picker-auto-description {
@@ -941,6 +959,10 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.chat-model-card-pin:focus:not(:focus-visible) {
+	outline: none;
+}
+
 .chat-model-card-pin .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
@@ -1053,6 +1075,10 @@
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-model-card-pricing-toggle:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .chat-model-card-pricing-body {

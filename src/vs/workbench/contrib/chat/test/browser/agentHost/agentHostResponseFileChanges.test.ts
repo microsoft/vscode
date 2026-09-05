@@ -15,6 +15,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildDefaultChatUri,
@@ -185,16 +186,25 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		const visibleRepairFiles = latest().map(diff => fromAgentHostUri(diff.modifiedURI).path);
 
 		conn.setState(defaultChatUri.toString(), chatState(withMessageRequestHiddenFromTranscript({
+			text: 'Continue in the requested workspace.',
+			origin: { kind: MessageKind.SystemNotification },
+			_meta: toAgentWorkspaceContinuationMessageMeta(),
+		}, true)));
+		const workspaceContinuationFiles = latest().map(diff => fromAgentHostUri(diff.modifiedURI).path);
+
+		conn.setState(defaultChatUri.toString(), chatState(withMessageRequestHiddenFromTranscript({
 			text: 'Agent Merge is enabled.',
 			origin: { kind: MessageKind.SystemNotification },
 		}, true)));
 
 		assert.deepStrictEqual({
 			visibleRepairFiles,
+			workspaceContinuationFiles,
 			noticeFiles: latest(),
 			noticeIsAuthoritativeEmpty: latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
 		}, {
 			visibleRepairFiles: ['/repo/changed.ts'],
+			workspaceContinuationFiles: ['/repo/changed.ts'],
 			noticeFiles: [],
 			noticeIsAuthoritativeEmpty: true,
 		});
