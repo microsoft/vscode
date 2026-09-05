@@ -461,15 +461,7 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			if (session) {
-				void reportCustomizationMigrationTelemetry(
-					this.customizationMigrationService,
-					session.resource,
-					CustomizationMigrationTrigger.AgentsNewSession,
-				).catch(error => {
-					if (!isCancellationError(error)) {
-						this.logService.warn(`[NewChatWidget] Failed to report customization migration telemetry for ${session.resource.toString()}`, error);
-					}
-				});
+				void this._reportCustomizationMigrationTelemetry(session.resource);
 			}
 		}));
 
@@ -558,6 +550,20 @@ export class NewChatWidget extends Disposable {
 
 	private _clearChatTip(): void {
 		this._chatTipPresenter.value?.clear();
+	}
+
+	private async _reportCustomizationMigrationTelemetry(sessionResource: URI): Promise<void> {
+		try {
+			await reportCustomizationMigrationTelemetry(
+				this.customizationMigrationService,
+				sessionResource,
+				CustomizationMigrationTrigger.AgentsNewSession,
+			);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.warn(`[NewChatWidget] Failed to report customization migration telemetry for ${sessionResource.toString()}`, error);
+			}
+		}
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {

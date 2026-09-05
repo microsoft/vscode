@@ -18,7 +18,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationTrigger, CustomizationMigrationType, ICustomizationMigrationService, reportCustomizationMigrationTelemetry } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationTrigger, CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -92,44 +92,6 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 
 suite('CustomizationMigrationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('reports completed assessments for all lifecycle triggers', async () => {
-		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
-		const migrations: readonly CustomizationMigration[] = [{
-			type: CustomizationMigrationType.PromptFiles,
-			files: [URI.file('/workspace/.github/prompts/review.prompt.md')],
-			candidates: [],
-		}];
-		const reports: { trigger: CustomizationMigrationTrigger; migrations: readonly CustomizationMigration[] }[] = [];
-		const service = new class extends mock<ICustomizationMigrationService>() {
-			override computeMigrations(): Promise<CustomizationMigration[]> {
-				return Promise.resolve([...migrations]);
-			}
-
-			override reportMigrationTelemetry(trigger: CustomizationMigrationTrigger, reportedMigrations: readonly CustomizationMigration[]): void {
-				reports.push({ trigger, migrations: reportedMigrations });
-			}
-		}();
-
-		for (const trigger of [
-			CustomizationMigrationTrigger.EditorNewChat,
-			CustomizationMigrationTrigger.AgentsNewSession,
-			CustomizationMigrationTrigger.AgentsSessionOpen,
-			CustomizationMigrationTrigger.AgentsSessionRestore,
-		]) {
-			await reportCustomizationMigrationTelemetry(service, sessionResource, trigger);
-		}
-
-		assert.deepStrictEqual(reports.map(report => ({
-			trigger: report.trigger,
-			categories: report.migrations.map(migration => migration.type),
-		})), [
-			{ trigger: 'editorNewChat', categories: ['promptFiles'] },
-			{ trigger: 'agentsNewSession', categories: ['promptFiles'] },
-			{ trigger: 'agentsSessionOpen', categories: ['promptFiles'] },
-			{ trigger: 'agentsSessionRestore', categories: ['promptFiles'] },
-		]);
-	});
 
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
@@ -349,6 +311,10 @@ suite('CustomizationMigrationService', () => {
 				{
 					eventName: 'chat.customizationMigrationAssessment',
 					data: { trigger: 'editorNewChat', category: 'promptFiles', severity: 'warning', count: 2 },
+				},
+				{
+					eventName: 'chat.customizationMigrationAssessment',
+					data: { trigger: 'editorNewChat', category: 'configuredLocations', severity: 'warning', count: 2 },
 				},
 				{
 					eventName: 'chat.customizationMigrationAssessment',

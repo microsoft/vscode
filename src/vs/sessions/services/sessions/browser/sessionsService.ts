@@ -786,7 +786,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
 		}
-		this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
+		void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
 
 		// Find the chat and update active chat
 		let chat: IChat | undefined;
@@ -893,7 +893,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._showSession(sessionData, options);
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 			if (!token.isCancellationRequested) {
-				this._reportCustomizationMigrationTelemetry(sessionData, CustomizationMigrationTrigger.AgentsSessionOpen, token);
+				void this._reportCustomizationMigrationTelemetry(sessionData, CustomizationMigrationTrigger.AgentsSessionOpen, token);
 			}
 		});
 	}
@@ -904,19 +904,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const token = this._startOpenSession();
 		const session = this._getSession(sessionResource);
 		this._showSession(session, options);
-		this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
+		void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionOpen, token);
 	}
 
-	private _reportCustomizationMigrationTelemetry(session: ISession, trigger: CustomizationMigrationTrigger, token: CancellationToken): void {
+	private async _reportCustomizationMigrationTelemetry(session: ISession, trigger: CustomizationMigrationTrigger, token: CancellationToken): Promise<void> {
 		if (session.status.get() === SessionStatus.Untitled) {
 			return;
 		}
 
-		void reportCustomizationMigrationTelemetry(this.customizationMigrationService, session.resource, trigger, token).catch(error => {
+		try {
+			await reportCustomizationMigrationTelemetry(this.customizationMigrationService, session.resource, trigger, token);
+		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.logService.warn(`[SessionsView] Failed to report customization migration telemetry for ${session.resource.toString()}`, error);
 			}
-		});
+		}
 	}
 
 	async canOpenSession(session: ISession): Promise<boolean> {
@@ -1561,7 +1563,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (targets[idx].isSticky) {
 				this._visibility.toggleStickiness(session);
 			}
-			this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
+			void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
 		};
 
 		// Resolve the active session first so it can act as the anchor for the
@@ -1609,7 +1611,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._visibility.restoreGrid(slots, activeSlotIndex);
 		for (const session of resolved) {
 			if (session) {
-				this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
+				void this._reportCustomizationMigrationTelemetry(session, CustomizationMigrationTrigger.AgentsSessionRestore, token);
 			}
 		}
 

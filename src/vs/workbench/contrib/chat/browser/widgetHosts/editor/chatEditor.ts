@@ -291,16 +291,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
 			if (!editorModel.model.hasRequests && input.sessionResource) {
-				void reportCustomizationMigrationTelemetry(
-					this.customizationMigrationService,
-					input.sessionResource,
-					CustomizationMigrationTrigger.EditorNewChat,
-					token,
-				).catch(error => {
-					if (!isCancellationError(error)) {
-						this.logService.warn(`[ChatEditor] Failed to report customization migration telemetry for ${input.sessionResource?.toString()}`, error);
-					}
-				});
+				void this._reportCustomizationMigrationTelemetry(input.sessionResource, token);
 			}
 
 			const viewState = this.loadEditorViewState(input, context);
@@ -314,6 +305,21 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		} catch (error) {
 			this.hideLoadingInChatWidget();
 			throw error;
+		}
+	}
+
+	private async _reportCustomizationMigrationTelemetry(sessionResource: URI, token: CancellationToken): Promise<void> {
+		try {
+			await reportCustomizationMigrationTelemetry(
+				this.customizationMigrationService,
+				sessionResource,
+				CustomizationMigrationTrigger.EditorNewChat,
+				token,
+			);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.warn(`[ChatEditor] Failed to report customization migration telemetry for ${sessionResource.toString()}`, error);
+			}
 		}
 	}
 
