@@ -250,7 +250,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 				extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 				break;
 			case 'openDirectory':
-				await commandService.executeCommand('revealFileInOS', repoUri);
+				await commandService.executeCommand('revealUriInOS', repoUri);
 				break;
 			case 'removeMarketplace': {
 				if (selected.managedByPolicy) {

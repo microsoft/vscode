@@ -23,6 +23,7 @@ import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
@@ -114,3 +115,17 @@ MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
 	command: revealInOsCommand,
 	when: REVEAL_IN_OS_WHEN_CONTEXT
 });
+
+// Explicit revealUriInOS command that operates strictly on the provided URI argument
+
+const REVEAL_URI_IN_OS_COMMAND_ID = 'revealUriInOS';
+
+CommandsRegistry.registerCommand(REVEAL_URI_IN_OS_COMMAND_ID,
+	(accessor: ServicesAccessor, resource: unknown) => {
+		if (!URI.isUri(resource)) {
+			return;
+		}
+
+		revealResourcesInOS([resource], accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
+	}
+);

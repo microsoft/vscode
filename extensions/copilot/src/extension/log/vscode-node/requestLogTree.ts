@@ -363,7 +363,7 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 					);
 
 					if (result === revealAction) {
-						await vscode.commands.executeCommand('revealFileInOS', saveUri);
+						await vscode.commands.executeCommand('revealUriInOS', saveUri);
 					}
 				} else {
 					vscode.window.showWarningMessage('No valid entries could be exported.');
@@ -415,7 +415,7 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 				);
 
 				if (result === revealAction) {
-					await vscode.commands.executeCommand('revealFileInOS', saveUri);
+					await vscode.commands.executeCommand('revealUriInOS', saveUri);
 				} else if (result === openAction) {
 					await vscode.commands.executeCommand('vscode.open', saveUri);
 				}
@@ -502,7 +502,7 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 					);
 
 					if (result === revealAction) {
-						await vscode.commands.executeCommand('revealFileInOS', saveUri);
+						await vscode.commands.executeCommand('revealUriInOS', saveUri);
 					} else if (result === openAction) {
 						await vscode.commands.executeCommand('vscode.open', saveUri);
 					}
