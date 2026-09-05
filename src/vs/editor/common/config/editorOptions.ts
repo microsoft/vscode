@@ -906,8 +906,6 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * If set, the original editor's line numbers are hidden in the inline view.
 	 * Defaults to `false`.
-	 * @internal
-	*/
 	hideOriginalLineNumbers?: boolean;
 
 	/**
