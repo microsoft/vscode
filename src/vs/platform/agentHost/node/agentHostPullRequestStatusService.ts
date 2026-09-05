@@ -89,9 +89,10 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 
 	/**
 	 * Resolves an authoritative pull request status for a background lifecycle
-	 * check without requiring a client changeset subscription.
+	 * check without requiring a client changeset subscription. A supplied pull
+	 * request URL lets cleanup check a cold session without restoring it first.
 	 */
-	resolveForLifecycle(sessionKey: string): Promise<IAgentHostPullRequestStatus | undefined>;
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -113,7 +114,6 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	private readonly _watches = new Map<string, IWatch>();
 	private readonly _pendingSyncs = new Map<string, Promise<void>>();
 	private readonly _staleSyncs = new Set<string>();
-	private readonly _lifecycleWatchCounts = new Map<string, number>();
 	private readonly _abortController = new AbortController();
 
 	private readonly _onDidChangePullRequestStatus = this._register(new Emitter<string>());
@@ -208,42 +208,29 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 	}
 
-	async resolveForLifecycle(sessionKey: string): Promise<IAgentHostPullRequestStatus | undefined> {
-		this._lifecycleWatchCounts.set(sessionKey, (this._lifecycleWatchCounts.get(sessionKey) ?? 0) + 1);
-		this._sync(sessionKey);
-		try {
-			await this._waitForSync(sessionKey);
-			const watch = this._watches.get(sessionKey);
-			if (!watch) {
-				return undefined;
-			}
-			try {
-				await watch.subscription.refresh('core', undefined, { authoritative: true });
-			} catch (error) {
-				this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
-				return undefined;
-			}
-			if (this._watches.get(sessionKey) !== watch) {
-				return undefined;
-			}
-			watch.awaitingAuthoritativeRefresh = false;
-			this._updateStatus(sessionKey, watch, watch.subscription.resource.snapshot.get());
-			return watch.status;
-		} finally {
-			const remaining = (this._lifecycleWatchCounts.get(sessionKey) ?? 1) - 1;
-			if (remaining > 0) {
-				this._lifecycleWatchCounts.set(sessionKey, remaining);
-			} else {
-				this._lifecycleWatchCounts.delete(sessionKey);
-			}
-			this._sync(sessionKey);
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+		const parsed = parsePullRequestUrl(pullRequestUrl);
+		if (!parsed) {
+			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
+			return undefined;
 		}
-	}
-
-	private async _waitForSync(sessionKey: string): Promise<void> {
-		let pending: Promise<void> | undefined;
-		while ((pending = this._pendingSyncs.get(sessionKey)) !== undefined) {
-			await pending;
+		const credential = await this._gitHubService.credentials.getCredential(this._abortController.signal);
+		if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
+			return undefined;
+		}
+		const ref: PullRequestRef = { ...credential.account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
+		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
+			priority: 'background',
+			core: true,
+		});
+		try {
+			await subscription.refresh('core', undefined, { authoritative: true });
+			return toPullRequestStatus(subscription.resource.snapshot.get());
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Lifecycle refresh failed: session=${sessionKey}, pr=${describeRef(ref)}, error=${error}`);
+			return undefined;
+		} finally {
+			subscription.dispose();
 		}
 	}
 
@@ -354,7 +341,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			}
 			this._updateStatus(sessionKey, watch, snapshot);
 		}));
-		if (watch.awaitingAuthoritativeRefresh && !this._lifecycleWatchCounts.has(sessionKey)) {
+		if (watch.awaitingAuthoritativeRefresh) {
 			void this._refreshRecreatedMergedWatch(sessionKey, watch);
 		}
 		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
@@ -411,10 +398,10 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		if (!state) {
 			return { kind: 'skip', reason: 'session is unknown' };
 		}
-		if (isSessionStatusArchived(state.status) && !this._lifecycleWatchCounts.has(sessionKey)) {
+		if (isSessionStatusArchived(state.status)) {
 			return { kind: 'skip', reason: 'session is archived' };
 		}
-		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0 && !this._lifecycleWatchCounts.has(sessionKey)) {
+		if (this._changesetSubscriptions.getSessionSubscriptions(sessionKey).size === 0) {
 			return { kind: 'skip', reason: 'no client is subscribed to the session changes' };
 		}
 		const gitHubState = readSessionGitHubState(state._meta);
