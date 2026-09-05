@@ -227,7 +227,8 @@ class CodeMain {
 			policyServices.push(disposables.add(new NativePolicyService(logService, policyProductName)));
 		} else if (isLinux) {
 			policyServices.push(disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService)));
-		} else if (environmentMainService.policyFile) {
+		}
+		if (environmentMainService.args['enable-smoke-test-driver'] && environmentMainService.policyFile) {
 			policyServices.push(disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService)));
 		}
 
