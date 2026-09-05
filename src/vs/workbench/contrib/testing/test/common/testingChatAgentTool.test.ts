@@ -6,16 +6,16 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { ExtUri, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IExtUri } from '../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { FileCoverage, ICoverageAccessor, TestCoverage } from '../../common/testCoverage.js';
 import { LiveTestResult } from '../../common/testResult.js';
 import { ITestResultService } from '../../common/testResultService.js';
@@ -209,13 +209,144 @@ suite('Workbench - RunTestTool', () => {
 	});
 
 	suite('invoke', () => {
+		const createMockTestService = (lookedUpUris: URI[]): ITestService => upcastPartial<ITestService>({
+			collection: upcastPartial<IMainThreadTestCollection>({
+				rootItems: [],
+				rootIds: [],
+				expand: () => Promise.resolve(),
+				getNodeById: () => undefined,
+				getNodeByUrl: uri => {
+					lookedUpUris.push(uri);
+					return [];
+				},
+			}),
+			runTests: () => Promise.resolve(upcastPartial({})),
+			cancelTestRun: () => { },
+		});
+
+		const createMockUriIdentity = (): IUriIdentityService => upcastPartial<IUriIdentityService>({
+			asCanonicalUri: (uri: URI) => uri,
+			extUri: new ExtUri(() => false),
+		});
+
+		const createInvokeTool = (workspaceUri: URI, lookedUpUris: URI[]): RunTestTool => new RunTestTool(
+			createMockTestService(lookedUpUris),
+			createMockUriIdentity(),
+			upcastPartial<IWorkspaceContextService>({
+				getWorkspace: () => upcastPartial<IWorkspace>({ id: 'test', folders: [upcastPartial<IWorkspaceFolder>({ uri: workspaceUri })] }),
+			}),
+			upcastPartial<ITestResultService>({
+				onResultsChanged: Event.None,
+			}),
+			upcastPartial<ITestProfileService>({
+				capabilitiesForTest: () => TestRunProfileBitset.Run | TestRunProfileBitset.Coverage,
+			}),
+		);
+
+		const assertNoTestsFoundResult = (result: IToolResult) => {
+			assert.ok(result.toolResultError);
+			assert.ok(result.content[0].kind === 'text' && result.content[0].value.includes('No tests found'));
+		};
+
 		test('returns error when no tests found', async () => {
 			const result = await tool.invoke(
 				upcastPartial<IToolInvocation>({ parameters: { files: ['/nonexistent/test.ts'] } }),
 				noopCountTokens, noopProgress, CancellationToken.None,
 			);
-			assert.ok(result.toolResultError);
-			assert.ok(result.content[0].kind === 'text' && result.content[0].value.includes('No tests found'));
+			assertNoTestsFoundResult(result);
+		});
+
+		test('uses remote workspace URI for absolute file paths', async () => {
+			const lookedUpUris: URI[] = [];
+			const remoteWorkspaceUri = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/workspace' });
+			const remoteTool = createInvokeTool(remoteWorkspaceUri, lookedUpUris);
+
+			const result = await remoteTool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { files: ['/workspace/src/foo.test.ts'] } }),
+				noopCountTokens,
+				noopProgress,
+				CancellationToken.None,
+			);
+
+			assertNoTestsFoundResult(result);
+			assert.strictEqual(lookedUpUris.length, 1);
+			assert.strictEqual(lookedUpUris[0].scheme, 'vscode-remote');
+			assert.strictEqual(lookedUpUris[0].authority, 'ssh-remote+host');
+			assert.strictEqual(lookedUpUris[0].path, '/workspace/src/foo.test.ts');
+		});
+
+		test('uses ssh remote workspace URI for Windows absolute file paths', async () => {
+			const lookedUpUris: URI[] = [];
+			const remoteWorkspaceUri = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows-host', path: '/C:/workspace' });
+			const remoteTool = createInvokeTool(remoteWorkspaceUri, lookedUpUris);
+
+			const result = await remoteTool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { files: ['C:\\workspace\\src\\foo.test.ts'] } }),
+				noopCountTokens,
+				noopProgress,
+				CancellationToken.None,
+			);
+
+			assertNoTestsFoundResult(result);
+			assert.strictEqual(lookedUpUris.length, 1);
+			assert.strictEqual(lookedUpUris[0].scheme, 'vscode-remote');
+			assert.strictEqual(lookedUpUris[0].authority, 'ssh-remote+windows-host');
+			assert.strictEqual(lookedUpUris[0].path, '/C:/workspace/src/foo.test.ts');
+		});
+
+		test('resolves relative file paths against the remote workspace folder', async () => {
+			const lookedUpUris: URI[] = [];
+			const remoteWorkspaceUri = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/workspace' });
+			const remoteTool = createInvokeTool(remoteWorkspaceUri, lookedUpUris);
+
+			const result = await remoteTool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { files: ['src/foo.test.ts'] } }),
+				noopCountTokens,
+				noopProgress,
+				CancellationToken.None,
+			);
+
+			assertNoTestsFoundResult(result);
+			assert.strictEqual(lookedUpUris.length, 1);
+			assert.strictEqual(lookedUpUris[0].scheme, 'vscode-remote');
+			assert.strictEqual(lookedUpUris[0].authority, 'ssh-remote+host');
+			assert.strictEqual(lookedUpUris[0].path, '/workspace/src/foo.test.ts');
+		});
+
+		test('normalizes Windows-style relative file paths for remote workspaces', async () => {
+			const lookedUpUris: URI[] = [];
+			const remoteWorkspaceUri = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+windows-host', path: '/workspace' });
+			const remoteTool = createInvokeTool(remoteWorkspaceUri, lookedUpUris);
+
+			const result = await remoteTool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { files: ['src\\foo.test.ts'] } }),
+				noopCountTokens,
+				noopProgress,
+				CancellationToken.None,
+			);
+
+			assertNoTestsFoundResult(result);
+			assert.strictEqual(lookedUpUris.length, 1);
+			assert.strictEqual(lookedUpUris[0].scheme, 'vscode-remote');
+			assert.strictEqual(lookedUpUris[0].authority, 'ssh-remote+windows-host');
+			assert.strictEqual(lookedUpUris[0].path, '/workspace/src/foo.test.ts');
+		});
+
+		test('uses file URI for absolute file paths in local workspace', async () => {
+			const lookedUpUris: URI[] = [];
+			const localTool = createInvokeTool(URI.file('/workspace'), lookedUpUris);
+
+			const result = await localTool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { files: ['/workspace/src/foo.test.ts'] } }),
+				noopCountTokens,
+				noopProgress,
+				CancellationToken.None,
+			);
+
+			assertNoTestsFoundResult(result);
+			assert.strictEqual(lookedUpUris.length, 1);
+			assert.strictEqual(lookedUpUris[0].scheme, 'file');
+			assert.strictEqual(lookedUpUris[0].fsPath, URI.file('/workspace/src/foo.test.ts').fsPath);
 		});
 	});
 
