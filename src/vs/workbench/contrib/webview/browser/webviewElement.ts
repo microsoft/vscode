@@ -666,6 +666,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				const attempt = ++this._serviceWorkerReloadAttempt;
 				const delay = WebviewElement._serviceWorkerReloadDelays[attempt - 1];
 				this._logService.warn(`Webview(${this.id}): service worker registration failed (${message}). Reloading webview in ${delay}ms (retry ${attempt} of ${WebviewElement._serviceWorkerReloadDelays.length})`);
+
+				// Stop delivering messages to the failed document's port right
+				// away. Otherwise messages sent while the reload is pending
+				// would be written to the dead port and silently dropped when
+				// the webview is reinitialized. Queued messages are preserved
+				// across the reload and replayed once the new document
+				// becomes ready.
+				const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
+				this._state = new WebviewState.Initializing(pendingMessages);
+				this._messagePort?.close();
+				this._messagePort = undefined;
+
 				this._serviceWorkerReloadTimeout.value = disposableTimeout(() => {
 					this._serviceWorkerReloadTimeout.clear();
 					this.reinitializeAfterDismount();
@@ -702,7 +714,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	public reinitializeAfterDismount(): void {
-		this._state = new WebviewState.Initializing([]);
+		// Preserve messages that were queued while the previous document was
+		// failing to load, so that they are replayed once the new document
+		// becomes ready instead of being dropped
+		const pendingMessages = this._state.type === WebviewState.Type.Initializing ? this._state.pendingMessages : [];
+		this._state = new WebviewState.Initializing(pendingMessages);
+		this._messagePort?.close();
 		this._messagePort = undefined;
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));

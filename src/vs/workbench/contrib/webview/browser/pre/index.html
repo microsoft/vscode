@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-NNdJ1w/1OhDB+Yqygljb50rTjilG9d2HbsG3IwgpzK4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-Qewsm1WNbj0je7yaRxyN0ev2k2yRGl4lCU0y8Ub0RHA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -250,14 +250,22 @@
 		/**
 		 * Best effort cleanup of potentially corrupted service worker state
 		 * before retrying the registration.
+		 *
+		 * This is only a last resort: cache storage and service worker
+		 * registrations are scoped to the webview's origin, and a single
+		 * origin can be shared by many webview instances at once (e.g. all
+		 * notebook webviews of one view type, or all chat output webviews
+		 * of one renderer). Clearing them evicts resources for those other
+		 * webviews too, so it must only happen once the registration is
+		 * about to give up entirely, never for a transient first failure.
+		 * In the browser, service workers and cache storage are shared
+		 * across all webviews on the main origin, so they are never
+		 * cleared here.
+		 *
+		 * @param {boolean} isFinalAttempt
 		 */
-		const cleanupServiceWorkerState = async () => {
-			// On desktop, each webview is served from its own origin, so it is
-			// safe to clear caches and unregister the broken worker. In the
-			// browser, webviews share an origin, service worker, and cache
-			// storage, so none of them must be touched or we would evict
-			// resources for every other open webview.
-			if (!onElectron) {
+		const cleanupServiceWorkerState = async (isFinalAttempt) => {
+			if (!onElectron || !isFinalAttempt) {
 				return;
 			}
 			try {
@@ -307,7 +315,7 @@
 					const delay = registerRetryDelays[attempt];
 					console.warn(`Failed to register service worker (attempt ${attempt + 1} of ${registerRetryDelays.length + 1}): ${error}. Retrying in ${delay}ms`);
 					await new Promise(resolve => setTimeout(resolve, delay));
-					await cleanupServiceWorkerState();
+					await cleanupServiceWorkerState(attempt >= registerRetryDelays.length - 1);
 				}
 			}
 		};
