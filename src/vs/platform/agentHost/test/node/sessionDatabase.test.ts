@@ -1215,9 +1215,9 @@ suite('SessionDatabase', () => {
 			});
 		});
 
-		test('migration v13 converges a pre-release catalog-only v11 database', async () => {
-			const catalogV11 = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 10));
-			await catalogV11.runRaw(`CREATE TABLE catalog_sync_snapshot (
+		test('migration v13 converges a pre-release catalog-only v10 database', async () => {
+			const catalogV10 = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await catalogV10.runRaw(`CREATE TABLE catalog_sync_snapshot (
 				singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
 				session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
 				source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
@@ -1226,9 +1226,9 @@ suite('SessionDatabase', () => {
 				pending_hash       TEXT,
 				pending_payload    TEXT
 			)`);
-			await catalogV11.runRaw('PRAGMA user_version = 11');
-			await catalogV11.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
-			const rawDatabase = await catalogV11.ejectDb();
+			await catalogV10.runRaw('PRAGMA user_version = 10');
+			await catalogV10.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			const rawDatabase = await catalogV10.ejectDb();
 
 			const upgraded = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
 

@@ -166,7 +166,14 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	},
 	{
 		version: 13,
-		sql: `CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
+		// Pre-release builds used v10 for catalog synchronization, while the
+		// released v10 owns turn delegation. Recreate both tables so either
+		// schema converges after the workspace-transition migrations.
+		sql: [`CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+			`CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
 			singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
 			session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
 			source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
@@ -180,7 +187,7 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 				OR (length(pending_hash) > 0 AND pending_payload IS NOT NULL)
 			),
 			CHECK (acknowledged_hash IS NOT NULL OR pending_hash IS NOT NULL)
-		)`,
+		)`].join(';\n'),
 	},
 ];
 
