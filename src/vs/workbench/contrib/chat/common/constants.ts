@@ -433,16 +433,21 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	}
 
 	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
+	const copilotHarnessDefault = agentHostEnabled && isCopilotHarnessDefault(configurationService, managedSandboxEnforced);
+	const localAgentEnabled = isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
-	if (remembered && (remembered !== localChatSessionType || !preferCopilotHarness)) {
+
+	const shouldBypassRemembered =
+		(remembered === localChatSessionType && preferCopilotHarness) ||
+		(remembered === SessionType.AgentHostCopilot && !preferCopilotHarness && !copilotHarnessDefault && localAgentEnabled);
+
+	if (remembered && !shouldBypassRemembered) {
 		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	}
 
 	let resolved: IResolvedNewChatSessionType;
 	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced)) {
 		resolved = { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
-	} else if (remembered) {
-		resolved = { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	} else {
 		resolved = {
 			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
