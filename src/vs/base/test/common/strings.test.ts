@@ -410,6 +410,12 @@ suite('Strings', () => {
 		assert.ok(strings.fuzzyContains('hello world', 'd'));
 		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
 		assert.ok(!strings.fuzzyContains('d', 'dd'));
+		assert.ok(strings.fuzzyContains('hello world', 'H'));
+		assert.ok(strings.fuzzyContains('Explorer', 'E'));
+		assert.ok(strings.fuzzyContains('hello world', 'HW'));
+		// toLowerCase() can lengthen the query (İ -> i̇); every lowered code unit must still be matched
+		assert.ok(strings.fuzzyContains('\u0130ab', '\u0130b'));
+		assert.ok(!strings.fuzzyContains('\u0130ab', '\u0130x'));
 	});
 
 	test('startsWithUTF8BOM', () => {
@@ -498,6 +504,8 @@ suite('Strings', () => {
 	test('truncateMiddle', () => {
 		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
 		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+		assert.strictEqual('a…de', strings.truncateMiddle('a😀bcde', 5));
+		assert.strictEqual('ab…f', strings.truncateMiddle('abcde😀f', 5));
 	});
 
 	test('replaceAsync', async () => {

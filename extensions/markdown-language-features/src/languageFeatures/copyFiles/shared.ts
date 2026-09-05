@@ -279,7 +279,7 @@ function getDesiredLinkKind(uri: vscode.Uri, uriFileKind: MediaKind | undefined,
 }
 
 function getRelativeMdPath(dir: vscode.Uri | undefined, file: vscode.Uri): string | undefined {
-	if (dir && dir.scheme === file.scheme && dir.authority === file.authority) {
+	if (dir?.scheme === file.scheme && dir.authority === file.authority) {
 		if (file.scheme === Schemes.file) {
 			// On windows, we must use the native `path.relative` to generate the relative path
 			// so that drive-letters are resolved cast insensitively. However we then want to

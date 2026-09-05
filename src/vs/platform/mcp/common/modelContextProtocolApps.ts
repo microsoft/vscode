@@ -15,6 +15,7 @@ export namespace McpApps {
 	export type AppRequest =
 		| MCP.CallToolRequest
 		| MCP.ReadResourceRequest
+		| MCP.CreateMessageRequest
 		| MCP.PingRequest
 		| (McpUiOpenLinkRequest & MCP.JSONRPCRequest)
 		| (McpUiDownloadFileRequest & MCP.JSONRPCRequest)
@@ -34,6 +35,7 @@ export namespace McpApps {
 	export type HostResult =
 		| MCP.CallToolResult
 		| MCP.ReadResourceResult
+		| MCP.CreateMessageResult
 		| MCP.EmptyResult
 		| McpApps.McpUiInitializeResult
 		| McpUiMessageResult

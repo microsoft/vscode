@@ -430,7 +430,8 @@ async function getCommonTerminalOptions(name: string, authenticationService: IAu
 			// regardless of process.env state (which may have stale values from the
 			// in-process background agent). TerminalOptions.env overlays the inherited
 			// process.env, so explicit entries here take precedence.
-			...(otelService.config.enabled ? deriveCopilotCliOTelEnv(otelService.config, {}) : {}),
+			// `deriveCopilotCliOTelEnv` returns `{}` when not `enabledExplicitly`.
+			...deriveCopilotCliOTelEnv(otelService.config, {}),
 		};
 	}
 	return options;

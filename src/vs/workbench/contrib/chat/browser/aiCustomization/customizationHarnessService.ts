@@ -11,7 +11,6 @@ import {
 
 } from '../../common/customizationHarnessService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -25,9 +24,8 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
 		@IPromptsService promptsService: IPromptsService,
 	) {
-		const localExtras = [AICustomizationSources.extension, AICustomizationSources.builtin];
 		super(
-			[createVSCodeHarnessDescriptor(localExtras)],
+			[createVSCodeHarnessDescriptor()],
 			SessionType.Local,
 			promptsService,
 		);

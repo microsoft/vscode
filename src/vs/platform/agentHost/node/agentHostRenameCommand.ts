@@ -8,8 +8,9 @@ import { localize } from '../../../nls.js';
 import type { URI } from '../common/state/protocol/common/state.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
+import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 /** The generic, agent-agnostic `/rename` slash command name. */
 export const RENAME_SLASH_COMMAND = 'rename';
@@ -61,7 +62,7 @@ export class AgentHostRenameCompletionProvider implements IAgentHostCompletionIt
 		}
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		if (typed.length > 0 && !RENAME_SLASH_COMMAND.startsWith(typed)) {
+		if (!matchesSlashCompletion(typed, RENAME_SLASH_COMMAND)) {
 			return [];
 		}
 		return [{
@@ -71,10 +72,10 @@ export class AgentHostRenameCompletionProvider implements IAgentHostCompletionIt
 			attachment: {
 				type: MessageAttachmentKind.Simple,
 				label: '/' + RENAME_SLASH_COMMAND,
-				_meta: {
+				_meta: toCommandCompletionAttachmentMeta({
 					command: RENAME_SLASH_COMMAND,
 					description: localize('agentHostSlashCommand.rename.description', "Rename this chat"),
-				},
+				}),
 			},
 		}];
 	}

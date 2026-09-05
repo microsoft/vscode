@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
-import { isVSCModelA, isVSCModelB, isVSCModelC, isVSCModelD } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { isVSCModelA, isVSCModelB, isVSCModelC, isVSCModelD, isVSCModelE } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
@@ -664,9 +664,25 @@ class VSCModelPromptD extends PromptElement<DefaultAgentPromptProps> {
 				- This first `commentary` must be 1-2 friendly sentences acknowledging the request and stating the immediate next action you will take.<br />
 				- The first commentary should not begin updates with conversational interjections or meta commentary. Avoid openers such as acknowledgements ("Done —", "Got it", "Great question,") or framing phrases. Do not use starters like "Got it -" or "Understood -".<br />
 			</Tag>
+			{this instanceof VSCModelPromptE && <Tag name='keep_compact'>
+				Operate in surgical compact mode. Correctness comes first, but every read, search, command, and note must directly reduce the chance of a wrong patch.<br />
+				<br />
+				Default workflow:<br />
+				- Start with one targeted search or symbol lookup. Read only the exact file and narrow line range needed for the likely edit site.<br />
+				- Before each additional read/search, state the one missing fact it will answer. If it is only background, neighboring style, or "more context", skip it.<br />
+				- Normal budget before the first patch: at most one search and two narrow reads. Exceed this only when the result falsified the edit site or exposed a required API contract.<br />
+				- Keep reads tight: prefer the specific function/class/test range; avoid whole files, broad parallel reads, neighboring tests, and repeated grep variants.<br />
+				- Patch once you know the root cause and edit site. Do not inspect unrelated neighbors, add opportunistic cleanup, or broaden scope after a plausible fix is available.<br />
+				- Validate with the smallest existing command that checks the changed behavior, and keep command output concise. Do not run broad suites after a focused pass.<br />
+				- Keep reasoning and final answer brief. Do not narrate routine tool use, quote long snippets, or restate tool output; record only decisions that affect the patch.<br />
+				<br />
+				If the fix is uncertain, run one focused probe or ask for the single missing fact, then return to patch/validate. Do not continue exploration by default.<br />
+			</Tag>}
 		</InstructionMessage>;
 	}
 }
+
+class VSCModelPromptE extends VSCModelPromptD { }
 
 class VSCModelPromptResolverA implements IAgentPrompt {
 	static readonly familyPrefixes = ['vscModelA'];
@@ -723,6 +739,22 @@ class VSCModelPromptResolverD implements IAgentPrompt {
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
 		return VSCModelPromptD;
+	}
+
+	resolveReminderInstructions(endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
+		return VSCModelReminderInstructionsA;
+	}
+}
+
+class VSCModelPromptResolverE implements IAgentPrompt {
+	static readonly familyPrefixes = ['vscModelE'];
+
+	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
+		return isVSCModelE(endpoint);
+	}
+
+	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
+		return VSCModelPromptE;
 	}
 
 	resolveReminderInstructions(endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
@@ -798,3 +830,4 @@ PromptRegistry.registerPrompt(VSCModelPromptResolverA);
 PromptRegistry.registerPrompt(VSCModelPromptResolverB);
 PromptRegistry.registerPrompt(VSCModelPromptResolverC);
 PromptRegistry.registerPrompt(VSCModelPromptResolverD);
+PromptRegistry.registerPrompt(VSCModelPromptResolverE);

@@ -14,7 +14,7 @@ export const IChatDebugFileLoggerService = createServiceIdentifier<IChatDebugFil
  * Extract the chat session ID string from a session resource URI.
  *
  * - `vscode-chat-session://local/<base64EncodedSessionId>` — decodes base64
- * - `copilotcli:///<sessionId>` and `claude-code:///<sessionId>` — uses raw path segment
+ * - `copilotcli:///<sessionId>` — uses raw path segment
  */
 export function sessionResourceToId(sessionResource: URI): string {
 	const pathSegment = sessionResource.path.replace(/^\//, '').split('/').pop() || '';
@@ -74,8 +74,10 @@ export interface IChatDebugFileLoggerService {
 
 	/**
 	 * Get the URI of the debug logs directory, or undefined if it cannot be
-	 * determined (e.g. no workspace, or an error occurs). The directory may
-	 * not actually exist on disk yet if no sessions have been started.
+	 * determined (e.g. no storage is available at all, or an error occurs).
+	 * Resolves to workspace-scoped storage when a workspace/folder is open and
+	 * only falls back to global storage when no workspace is open. The directory
+	 * may not actually exist on disk yet if no sessions have been started.
 	 */
 	readonly debugLogsDir: URI | undefined;
 
@@ -99,7 +101,7 @@ export interface IChatDebugFileLoggerService {
 
 	/**
 	 * Check whether a URI is under the debug-logs storage directory.
-	 * Used by {@link assertFileOkForTool} to allowlist tool reads.
+	 * Used by file access checks to allowlist tool reads.
 	 */
 	isDebugLogUri(uri: URI): boolean;
 

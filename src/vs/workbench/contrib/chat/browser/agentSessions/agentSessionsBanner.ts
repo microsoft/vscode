@@ -11,6 +11,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 
 
 type AgentsBannerClickedEvent = {
@@ -76,7 +77,7 @@ export function createAgentsBanner(
 	disposables.add(addDisposableListener(button, 'click', () => {
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { forceNewWindow: true });
+		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.Banner });
 	}));
 
 	const element = $(`.${options.cssClass}`, {}, button);

@@ -20,7 +20,6 @@
 	"config.npm.scriptRunner.vp": "Use Vite+ (vp) as the script runner.",
 	"config.npm.scriptRunner.auto": "Auto-detect which script runner to use based on lock files and installed package managers.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
-	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts when there is no top-level `package.json` file.",
 	"config.npm.scriptExplorerAction": "The default click action used in the NPM Scripts Explorer: `open` or `run`, the default is `open`.",
 	"config.npm.scriptExplorerExclude": "An array of regular expressions that indicate which scripts should be excluded from the NPM Scripts view.",
 	"config.npm.enableRunFromFolder": "Enable running npm scripts contained in a folder from the Explorer context menu.",

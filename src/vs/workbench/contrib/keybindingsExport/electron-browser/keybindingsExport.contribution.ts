@@ -66,6 +66,8 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 
 	private async exportDefaultKeybindingsAndQuit(outputPath: string): Promise<void> {
 		try {
+			await this.fileService.createFolder(URI.file(outputPath));
+
 			const platforms: { os: OperatingSystem; filename: string }[] = [
 				{ os: OperatingSystem.Windows, filename: 'doc.keybindings.win.json' },
 				{ os: OperatingSystem.Macintosh, filename: 'doc.keybindings.osx.json' },

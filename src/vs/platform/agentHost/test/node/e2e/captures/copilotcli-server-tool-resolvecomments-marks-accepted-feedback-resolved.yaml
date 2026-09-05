@@ -1,0 +1,61 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: resolveComments
+          input:
+            commentIds:
+              - resolve-me
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: resolveComments
+              input:
+                commentIds:
+                  - resolve-me
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                {
+                  "resolved": true,
+                  "updatedCommentIds": [
+                    "resolve-me"
+                  ],
+                  "notFoundCommentIds": [],
+                  "comments": [
+                    {
+                      "id": "resolve-me",
+                      "resourceUri": "untitled://server-tools/reviewed.ts",
+                      "range": {
+                        "startLineNumber": 2,
+                        "startColumn": 3,
+                        "endLineNumber": 2,
+                        "endColumn": 9
+                      },
+                      "text": "resolve",
+                      "kind": "codeReview",
+                      "resolved": true
+                    }
+                  ]
+                }
+    response:
+      content: resolved
+      stopReason: end_turn

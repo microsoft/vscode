@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
@@ -333,9 +333,24 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,
 	) {
 		super(logService);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
+	}
+
+	/**
+	 * Enforces the enterprise allow/deny policy at the point of persistence. Called by every
+	 * install path (installable and each gallery override) against the fully resolved server
+	 * configuration, so a caller that goes straight to the management API cannot bypass the
+	 * `canInstall` UI check, and a gallery entry cannot slip through if its resolved command/URL
+	 * differs from the pre-resolution metadata.
+	 */
+	protected ensureServerAllowed(server: IGalleryMcpServer | IInstallableMcpServer): void {
+		const result = this.allowedMcpServersService.isAllowed(server);
+		if (result !== true) {
+			throw new Error(result.value);
+		}
 	}
 
 	private initialize(): Promise<void> {
@@ -378,7 +393,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		}));
 	}
 
-	protected async updateLocal(): Promise<void> {
+	protected async updateLocal(source?: IGalleryMcpServer): Promise<void> {
 		try {
 			const current = await this.populateLocalServers();
 
@@ -409,11 +424,11 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			}
 
 			if (updated.length) {
-				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, source: source?.name === server.name ? source : undefined, mcpResource: this.mcpResource })));
 			}
 
 			if (added.length) {
-				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, source: source?.name === server.name ? source : undefined, mcpResource: this.mcpResource })));
 			}
 
 		} catch (error) {
@@ -456,6 +471,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 
 	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
+		this.ensureServerAllowed(server);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 		try {
@@ -507,9 +523,10 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 
@@ -519,7 +536,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		await this.updateMetadataFromGallery(gallery);
-		await this.updateLocal();
+		await this.updateLocal(gallery);
 		const updatedLocal = (await this.getInstalled()).find(s => s.name === local.name);
 		if (!updatedLocal) {
 			throw new Error(`Failed to find MCP server: ${local.name}`);
@@ -580,7 +597,11 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 				}
 				storedMcpServerInfo.readmeUrl = readmeUrl;
 			} catch (e) {
-				this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND) {
+					this.logService.trace('MCP Management Service: manifest not found', manifestLocation.toString());
+				} else {
+					this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+				}
 			}
 		}
 		return storedMcpServerInfo;

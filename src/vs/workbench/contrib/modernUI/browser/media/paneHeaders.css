@@ -1,0 +1,123 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Modern UI module: "Pane Headers".
+ *
+ * Restyles view pane (sidebar / panel section) headers:
+ *   - replaces the full-width separator lines with shorter, inset ones,
+ *   - rounds the header corners, and
+ *   - adds a background tint on hover.
+ *
+ * The pane header border (`border-top`) is applied as an inline style by the
+ * PaneView (src/vs/base/browser/ui/splitview/paneview.ts), so the reset below
+ * must use `!important` to win over that inline value.
+ *
+ * All rules are gated behind the `.modern-ui` class, which the
+ * ModernUIContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+/*
+ * Remove the full-width header separator line (set inline by the PaneView) so
+ * we can redraw it inset below. The pane's inline left border is retained
+ * because it separates horizontally stacked panel sections.
+ */
+.modern-ui .monaco-pane-view .pane > .pane-header {
+	border: none !important;
+}
+
+/*
+ * Redraw the section separator as a shorter, inset line at the top of each
+ * header (the header is already `position: relative`).
+ */
+.modern-ui .monaco-pane-view .pane > .pane-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	height: var(--vscode-strokeThickness);
+	pointer-events: none;
+}
+
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header::before {
+	background-color: var(--vscode-sideBarSectionHeader-border);
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane > .pane-header::before {
+	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border));
+}
+
+/*
+ * The first section in a vertical stack has no separator above it. Horizontally
+ * arranged panes are the only section in their column, so their left pane border
+ * separates columns without an additional horizontal line above the header.
+ */
+.modern-ui .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before,
+.modern-ui .monaco-pane-view .pane.horizontal > .pane-header::before {
+	display: none;
+}
+
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane,
+.modern-ui.floating-panels :is(.part.sidebar, .part.auxiliarybar) {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane {
+	background-color: var(--vscode-panel-background) !important;
+}
+
+/* Round the header corners and let the header match its surface at rest so it
+ * reads as part of the panel / side bar body rather than a tinted strip. The
+ * inline header background from the PaneView is overridden here; the hover tint
+ * below still wins via its higher specificity. */
+.modern-ui .monaco-pane-view .pane > .pane-header {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.modern-ui :is(.part.sidebar, .part.auxiliarybar) .monaco-pane-view .pane > .pane-header {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+.modern-ui .part.panel .monaco-pane-view .pane > .pane-header {
+	background-color: var(--vscode-panel-background) !important;
+}
+
+/*
+ * Add vertical breathing room to the headers. Keep this value in sync with
+ * MODERN_UI_PANE_HEADER_SIZE so CSS presentation and split-view layout agree.
+ */
+.modern-ui .monaco-pane-view {
+	--pane-header-size: var(--vscode-spacing-size280, 28px);
+}
+
+/* Tint the header background on hover (overrides the inline header background). */
+.modern-ui .monaco-pane-view .pane > .pane-header:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+/*
+ * Remove the focus outline when the header is focused by pointer (click). The
+ * outline comes from the global `.monaco-workbench [tabindex="0"]:focus` rule.
+ * `:not(:focus-visible)` keeps the visible focus ring for keyboard users.
+ */
+.modern-ui .monaco-pane-view .pane > .pane-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/*
+ * The global focus rule uses `outline-offset: -1px`, which puts the ring's top
+ * stroke right on the 1px section separator so it looks clipped. Negate the
+ * smallest spacing token so the keyboard focus ring clears the separator.
+ */
+.modern-ui .monaco-pane-view .pane > .pane-header:focus {
+	outline-offset: calc(var(--vscode-spacing-size20) * -1);
+}
+
+.modern-ui.monaco-workbench .part > .title > .title-actions .start-debug-action-item {
+	min-width: 36px;
+}

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { AbstractMessageLogger, LogLevel } from '../../../log/common/log.js';
+import { AbstractMessageLogger, format, LogLevel } from '../../../log/common/log.js';
 
 /**
  * Channel URI template advertised by an agent host that has an
@@ -104,6 +104,33 @@ export function severityNumberToLogLevel(severityNumber: number): LogLevel {
 }
 
 /**
+ * Scalar value types accepted for a structured log attribute. Mirrors the
+ * subset of OTLP `AnyValue` we serialise on the wire
+ * (`stringValue`/`intValue`/`doubleValue`/`boolValue`).
+ */
+export type OtelAttributeValue = string | number | boolean;
+
+/**
+ * Structured metadata a log call can carry alongside its human-readable
+ * message. Pass an instance as the final argument to any `ILogger` method
+ * (e.g. `logService.info('MCP server started', new OtelData({ server: 'github' }))`).
+ *
+ * - For the regular file logger the value is rendered via {@link toJSON}
+ *   using the usual log formatting (`JSON.stringify`), so it appears as a
+ *   compact object after the message.
+ * - For the {@link OtlpEmitterLogger} the attributes are lifted out of the
+ *   message and emitted as spec-conformant OTLP `LogRecord.attributes`,
+ *   keeping the body free of serialised JSON.
+ */
+export class OtelData {
+	constructor(readonly attributes: Readonly<Record<string, OtelAttributeValue>>) { }
+
+	toJSON(): Readonly<Record<string, OtelAttributeValue>> {
+		return this.attributes;
+	}
+}
+
+/**
  * A single log record produced by an {@link OtlpEmitterLogger}. The shape
  * mirrors the relevant fields from the OTLP/JSON `LogRecord` spec but is
  * kept intentionally small — only what we need to populate a
@@ -126,6 +153,12 @@ export interface IOtlpLogRecord {
 	 * `body: { stringValue }`.
 	 */
 	readonly body: string;
+	/**
+	 * Optional structured metadata carried by an {@link OtelData} argument
+	 * on the originating log call. Serialised to OTLP `LogRecord.attributes`
+	 * and absent when the call had no {@link OtelData}.
+	 */
+	readonly attributes?: Readonly<Record<string, OtelAttributeValue>>;
 }
 
 /**
@@ -165,16 +198,65 @@ export class OtlpEmitterLogger extends AbstractMessageLogger {
 		this.setLevel(initialLevel);
 	}
 
+	override trace(message: string, ...args: unknown[]): void {
+		if (this.canLog(LogLevel.Trace)) {
+			this._emit(LogLevel.Trace, message, args, true);
+		}
+	}
+
+	override debug(message: string, ...args: unknown[]): void {
+		if (this.canLog(LogLevel.Debug)) {
+			this._emit(LogLevel.Debug, message, args);
+		}
+	}
+
+	override info(message: string, ...args: unknown[]): void {
+		if (this.canLog(LogLevel.Info)) {
+			this._emit(LogLevel.Info, message, args);
+		}
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		if (this.canLog(LogLevel.Warning)) {
+			this._emit(LogLevel.Warning, message, args);
+		}
+	}
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		if (this.canLog(LogLevel.Error)) {
+			const head = message instanceof Error ? message.stack ?? message.message : message;
+			this._emit(LogLevel.Error, head, args);
+		}
+	}
+
 	protected override log(level: LogLevel, message: string): void {
 		if (level === LogLevel.Off) {
 			return;
+		}
+		this._emit(level, message, []);
+	}
+
+	/**
+	 * Formats `message` + `args` into the OTLP record body, lifting any
+	 * {@link OtelData} argument out into structured `attributes` so the
+	 * metadata is emitted over the channel rather than serialised into the
+	 * body. Mirrors the formatting the base `AbstractMessageLogger` would
+	 * apply (including the verbose flag for `trace`).
+	 */
+	private _emit(level: LogLevel, message: string, args: unknown[], verbose = false): void {
+		let attributes: Readonly<Record<string, OtelAttributeValue>> | undefined;
+		const index = args.findIndex(arg => arg instanceof OtelData);
+		if (index !== -1) {
+			attributes = (args[index] as OtelData).attributes;
+			args = args.slice(0, index).concat(args.slice(index + 1));
 		}
 		const { severityNumber, severityText } = logLevelToOtlpSeverity(level);
 		this._emitter.emit({
 			timeUnixNano: msToUnixNano(Date.now()),
 			severityNumber,
 			severityText,
-			body: message,
+			body: format([message, ...args], verbose),
+			...(attributes ? { attributes } : undefined),
 		});
 	}
 }
@@ -211,6 +293,7 @@ export function toResourceLogsPayloadBatch(records: readonly IOtlpLogRecord[]): 
 							severityNumber: r.severityNumber,
 							severityText: r.severityText,
 							body: { stringValue: r.body },
+							...(r.attributes ? { attributes: attributesToOtlp(r.attributes) } : undefined),
 						})),
 					},
 				],
@@ -275,7 +358,68 @@ function coerceLogRecord(raw: unknown): IOtlpLogRecord | undefined {
 		? r.timeUnixNano
 		: typeof r.observedTimeUnixNano === 'string' ? r.observedTimeUnixNano : '0';
 	const body = extractBody(r.body);
-	return { timeUnixNano, severityNumber, severityText, body };
+	const attributes = otlpToAttributes(r.attributes);
+	return attributes
+		? { timeUnixNano, severityNumber, severityText, body, attributes }
+		: { timeUnixNano, severityNumber, severityText, body };
+}
+
+/**
+ * Serialise a flat attribute map into the OTLP `KeyValue[]` shape, mapping
+ * each JS scalar onto the matching `AnyValue` variant.
+ */
+function attributesToOtlp(attributes: Readonly<Record<string, OtelAttributeValue>>): Array<{ key: string; value: Record<string, unknown> }> {
+	return Object.entries(attributes).map(([key, value]) => ({ key, value: toAnyValue(value) }));
+}
+
+function toAnyValue(value: OtelAttributeValue): Record<string, unknown> {
+	switch (typeof value) {
+		case 'boolean': return { boolValue: value };
+		case 'number': return Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value };
+		default: return { stringValue: value };
+	}
+}
+
+/**
+ * Reverse of {@link attributesToOtlp}: decode an OTLP `KeyValue[]` back into
+ * a flat attribute map. Returns `undefined` when there are no usable
+ * attributes so callers can omit the field entirely.
+ */
+function otlpToAttributes(raw: unknown): Record<string, OtelAttributeValue> | undefined {
+	if (!Array.isArray(raw)) {
+		return undefined;
+	}
+	const result: Record<string, OtelAttributeValue> = {};
+	for (const entry of raw) {
+		if (!entry || typeof entry !== 'object') {
+			continue;
+		}
+		const key = (entry as { key?: unknown }).key;
+		if (typeof key !== 'string') {
+			continue;
+		}
+		const value = fromAnyValue((entry as { value?: unknown }).value);
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function fromAnyValue(value: unknown): OtelAttributeValue | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const v = value as Record<string, unknown>;
+	if (typeof v.stringValue === 'string') { return v.stringValue; }
+	if (typeof v.boolValue === 'boolean') { return v.boolValue; }
+	if (typeof v.intValue === 'number') { return Number.isSafeInteger(v.intValue) ? v.intValue : undefined; }
+	if (typeof v.intValue === 'string') {
+		const parsed = Number(v.intValue);
+		return Number.isSafeInteger(parsed) ? parsed : undefined;
+	}
+	if (typeof v.doubleValue === 'number') { return Number.isFinite(v.doubleValue) ? v.doubleValue : undefined; }
+	return undefined;
 }
 
 function severityNameFromNumber(n: number): OtlpLogLevelName {

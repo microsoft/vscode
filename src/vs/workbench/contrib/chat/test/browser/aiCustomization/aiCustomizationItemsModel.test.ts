@@ -13,10 +13,11 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -49,7 +50,6 @@ suite('AICustomizationItemsModel', () => {
 				id,
 				label: id,
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 				syncProvider,
 			};
@@ -104,7 +104,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => listPromptFilesResult.filter(f => f.type === PromptsType.agent).map(customAgentFromPromptPath),
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -116,11 +118,11 @@ suite('AICustomizationItemsModel', () => {
 
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -137,7 +139,6 @@ suite('AICustomizationItemsModel', () => {
 				setActiveSession: (sessionResource: URI) => {
 					activeSessionResource.set(sessionResource, undefined);
 				},
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -147,6 +148,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins,
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
 				},
@@ -156,9 +158,10 @@ suite('AICustomizationItemsModel', () => {
 		function createLocalPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('pluginHooks', []),
 				commands: observableValue('pluginCommands', []),
 				skills: observableValue('pluginSkills', []),
@@ -213,6 +216,18 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, before + 1);
 		});
 
+		test('unrelated harness changes do not refetch observed sections', async () => {
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await timeout(0);
+			const before = providerA_callCount;
+
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+
+			assert.strictEqual(providerA_callCount, before);
+		});
+
 		test('switching harness re-binds and refetches observed sections', async () => {
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			model.getItems(AICustomizationManagementSection.Agents);
@@ -222,6 +237,29 @@ suite('AICustomizationItemsModel', () => {
 			await timeout(0);
 			const sourceB = model.getActiveItemSource();
 			assert.notStrictEqual(sourceA, sourceB);
+		});
+
+		test('reuses an empty source until its harness is registered', async () => {
+			activeSessionResource.set(URI.parse('C:///session'), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			model.getItems(AICustomizationManagementSection.Agents);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			const missingSource = model.getActiveItemSource();
+			const repeatedMissingSource = model.getActiveItemSource();
+			availableHarnesses.set([...availableHarnesses.get(), createDescriptor('C', descriptorA.itemProvider)], undefined);
+			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Agents);
+
+			assert.deepStrictEqual({
+				reusedMissingSource: repeatedMissingSource === missingSource,
+				replacedAfterRegistration: model.getActiveItemSource() !== missingSource,
+				providerCallCount: providerA_callCount,
+			}, {
+				reusedMissingSource: true,
+				replacedAfterRegistration: true,
+				providerCallCount: 1,
+			});
 		});
 
 		test('preserves provider-supplied plugin storage when pluginUri is omitted', async () => {
@@ -540,7 +578,6 @@ suite('AICustomizationItemsModel', () => {
 				id: 'A',
 				label: 'A',
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 			};
 			const sessionResource = URI.parse('A:///active-session');
@@ -553,7 +590,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -562,11 +601,11 @@ suite('AICustomizationItemsModel', () => {
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -584,7 +623,6 @@ suite('AICustomizationItemsModel', () => {
 				setActiveSession: (sessionResource: URI) => {
 					activeSessionResource.set(sessionResource, undefined);
 				},
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -593,6 +631,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins,
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
 				},
@@ -604,9 +643,10 @@ suite('AICustomizationItemsModel', () => {
 		function localPlugin(name: string): IAgentPlugin {
 			return {
 				uri: URI.parse(`plugin-test://${name}`),
+				format: PluginFormat.Copilot,
 				label: name,
 				enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('pluginHooks', []),
 				commands: observableValue('pluginCommands', []),
 				skills: observableValue('pluginSkills', []),
@@ -782,7 +822,6 @@ suite('AICustomizationItemsModel', () => {
 				id: sessionType,
 				label: 'Agent Host Test',
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [] }),
 				itemProvider: provider,
 			};
 			const sessionResource = URI.parse(`${sessionType}:///active-session`);
@@ -795,7 +834,9 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
+				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
@@ -804,11 +845,11 @@ suite('AICustomizationItemsModel', () => {
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
@@ -824,7 +865,6 @@ suite('AICustomizationItemsModel', () => {
 				activeHarness,
 				availableHarnesses,
 				setActiveSession: (next: URI) => activeSessionResource.set(next, undefined),
-				getStorageSourceFilter: () => ({ sources: [] }),
 				getActiveDescriptor: () => availableHarnesses.get().find(d => d.id === activeHarness.get())!,
 				findHarnessById: (id: string) => availableHarnesses.get().find(d => d.id === id),
 				registerExternalHarness: () => ({ dispose() { } }),
@@ -833,6 +873,7 @@ suite('AICustomizationItemsModel', () => {
 				plugins: observableValue<readonly IAgentPlugin[]>('plugins', []),
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
 				},

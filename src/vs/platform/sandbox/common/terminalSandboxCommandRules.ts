@@ -21,25 +21,6 @@ export interface ITerminalSandboxCommandRule<T> {
 	readonly when?: (command: ITerminalSandboxCommand) => boolean;
 }
 
-/**
- * Git global options that consume the following argument. These need to be
- * skipped when finding the subcommand so `git -C repo commit` matches `commit`
- * instead of treating `repo` as the subcommand.
- */
-export const gitGlobalOptionsWithValue = new Set([
-	'-C',
-	'-c',
-	'--config-env',
-	'--exec-path',
-	'--git-dir',
-	'--html-path',
-	'--info-path',
-	'--man-path',
-	'--namespace',
-	'--super-prefix',
-	'--work-tree',
-]);
-
 export function matchesTerminalSandboxCommandRule<T>(command: ITerminalSandboxCommand, rule: ITerminalSandboxCommandRule<T>, context?: ITerminalSandboxCommandRuleContext): boolean {
 	if (!rule.keywords.includes(command.keyword.toLowerCase())) {
 		return false;

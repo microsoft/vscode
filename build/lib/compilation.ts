@@ -21,7 +21,7 @@ import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.ts';
 import * as tsb from './tsb/index.ts';
-import { createTsgoStream } from './tsgo.ts';
+import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -120,15 +120,17 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.Task {
 
-	const task = () => {
+	const task = async () => {
 
 		if (os.totalmem() < 4_000_000_000) {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
+		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -158,11 +160,15 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			});
 		}
 
-		return srcPipe
+		const emit = util.streamToPromise(srcPipe
 			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out)));
+
+		const typecheck = spawnTsgo(compile.projectPath, { taskName: `compile-${path.basename(src)}`, noEmit: true });
+
+		await Promise.all([emit, typecheck]);
 	};
 
 	task.taskName = `compile-${path.basename(src)}`;
@@ -292,8 +298,7 @@ function generateApiProposalNames() {
 	}
 
 	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-	const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
-	const proposals = new Map<string, { proposal: string; version?: number }>();
+	const proposals = new Map<string, { proposal: string }>();
 
 	const input = es.through();
 	const output = input
@@ -308,13 +313,8 @@ function generateApiProposalNames() {
 
 			const proposalName = match[1];
 
-			const contents = f.contents!.toString('utf8');
-			const versionMatch = versionPattern.exec(contents);
-			const version = versionMatch ? versionMatch[1] : undefined;
-
 			proposals.set(proposalName, {
 				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
-				version: version ? parseInt(version) : undefined
 			});
 		}, function () {
 			const names = [...proposals.keys()].sort();
@@ -329,10 +329,10 @@ function generateApiProposalNames() {
 				'const _allApiProposals = {',
 				`${names.map(proposalName => {
 					const proposal = proposals.get(proposalName)!;
-					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}\t}`;
 				}).join(`,${eol}`)}`,
 				'};',
-				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string }> }>(_allApiProposals);',
 				'export type ApiProposalName = keyof typeof _allApiProposals;',
 				'',
 			].join(eol);

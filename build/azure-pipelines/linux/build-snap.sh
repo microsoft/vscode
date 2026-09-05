@@ -8,6 +8,19 @@ snapcraft --version
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
 
+# Point apt at the Azure Ubuntu mirror. The build agents cannot reach
+# archive.ubuntu.com/ports.ubuntu.com (DNS resolves them to a non-routable
+# TEST-NET address, so connections time out), whereas the Azure mirror is
+# reachable. This must run before any apt operation and before snapcraft, since
+# snapcraft copies the host's /etc/apt configuration to download stage-packages.
+for src in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+  [ -f "$src" ] || continue
+  sudo sed -i \
+    -e 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' \
+    -e 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' \
+    "$src"
+done
+
 # Make sure we get latest packages
 sudo apt-get update
 sudo apt-get upgrade -y

@@ -47,6 +47,9 @@ const commonTelemetryProperties = new Set([
 	'common.useragent',
 	'common.istouchdevice',
 	'common.copilottrackingid',
+	'common.copilotsdkversion',
+	'common.copilotruntimeversion',
+	'copilotsku',
 	'common.isagentswindow',
 ]);
 

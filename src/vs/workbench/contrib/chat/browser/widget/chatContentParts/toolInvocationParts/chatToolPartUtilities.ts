@@ -12,7 +12,11 @@ export function isMcpToolInvocation(toolInvocation: IChatToolInvocation | IChatT
 }
 
 export function isAskQuestionsToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
-	return toolInvocation.toolId === 'copilot_askQuestions' || toolInvocation.toolId === 'vscode_askQuestions';
+	return toolInvocation.toolId === 'copilot_askQuestions'
+		|| toolInvocation.toolId === 'vscode_askQuestions'
+		|| toolInvocation.toolId === 'ask_user'
+		|| toolInvocation.toolId === 'AskUserQuestion'
+		|| toolInvocation.toolId === 'request_user_input';
 }
 
 /**

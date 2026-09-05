@@ -56,7 +56,7 @@ const getCodeLineElements = (() => {
 					continue;
 				}
 
-				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
+				if (element.tagName === 'CODE' && element.parentElement?.tagName === 'PRE') {
 					// Fenced code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
 					// Calculate the end line by counting newlines in the code block

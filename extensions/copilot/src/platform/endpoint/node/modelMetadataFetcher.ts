@@ -175,7 +175,10 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._copilotUtilityModel;
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
+			// If the model fetch itself failed (e.g. an expired token returning HTTP 401), surface that
+			// underlying error rather than the misleading "no fallback model" message, which only makes
+			// sense when the fetch succeeded but the server genuinely marked no chat fallback.
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage('Unable to resolve Copilot utility chat model (server did not mark a chat fallback model)'));
 		}
 		return resolvedModel;
 	}
@@ -184,7 +187,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage(`Unable to resolve chat model with CAPI family selection: ${family}`));
 		}
 		return resolvedModel;
 	}
@@ -220,7 +223,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isEmbeddingModelInformation(resolvedModel)) {
-			throw new Error(await this._getErrorMessage(`Unable to resolve embeddings model with family selection: ${family}`));
+			throw this._lastFetchError ?? new Error(await this._getErrorMessage(`Unable to resolve embeddings model with family selection: ${family}`));
 		}
 		return resolvedModel;
 	}

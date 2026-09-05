@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: '[[PLAN]] Reply exactly "GOAL_MODE". Do not use tools.'
+    response:
+      content: GOAL_MODE
+      stopReason: end_turn

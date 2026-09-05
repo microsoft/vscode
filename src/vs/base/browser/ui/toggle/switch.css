@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-switch {
+	position: relative;
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size160);
+	padding: 0;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, transparent);
+	cursor: pointer;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.monaco-switch.checked {
+	background: var(--vscode-button-background);
+	border-color: var(--vscode-button-background);
+}
+
+.monaco-switch:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.monaco-switch:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.monaco-switch-thumb {
+	position: absolute;
+	top: var(--vscode-strokeThickness);
+	left: var(--vscode-strokeThickness);
+	width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-button-foreground);
+	transition: transform 120ms ease;
+}
+
+.monaco-switch.checked .monaco-switch-thumb {
+	transform: translateX(var(--vscode-spacing-size120));
+}
+
+/* The workbench marks high contrast with `.hc-black` / `.hc-light`; `.vscode-high-contrast`
+ * is the webview equivalent, and the switch is rendered in both. */
+.hc-black .monaco-switch,
+.hc-light .monaco-switch,
+.vscode-high-contrast .monaco-switch {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-reduce-motion .monaco-switch,
+.monaco-reduce-motion .monaco-switch-thumb {
+	transition: none;
+}

@@ -1,0 +1,40 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "process.exit(9)"
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Run exactly `node -e "process.exit(9)"` with bash, then reply exactly "failed as expected".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "process.exit(9)"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Shell ID: ${uuid_0}
+                Exit code: 9
+                %
+    response:
+      content: failed as expected
+      stopReason: end_turn

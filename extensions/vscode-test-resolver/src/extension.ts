@@ -23,6 +23,7 @@ const enum CharCode {
 let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
+const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
 
 function isExpectedSocketCloseError(error: NodeJS.ErrnoException): boolean {
 	return error.code === 'ECONNRESET' || error.code === 'EPIPE' || error.code === 'ECONNABORTED';
@@ -190,7 +191,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			const agentHostBridgeToken = getConfiguration('agentHostBridgeConnectionToken');
 			if (typeof agentHostBridgeToken === 'string' && agentHostBridgeToken) {
-				commandArgs.push('--agent-host-bridge-connection-token', agentHostBridgeToken);
+				env[agentHostBridgeConnectionTokenEnvironmentVariable] = agentHostBridgeToken;
 			}
 
 			if (!commit) { // dev mode
@@ -228,8 +229,14 @@ export function activate(context: vscode.ExtensionContext) {
 				processError(`server failed with error:\n${error.message}`);
 				extHostProcess = undefined;
 			});
-			extHostProcess.on('close', (code: number) => {
-				processError(`server closed unexpectedly.\nError code: ${code}`);
+			extHostProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+				// Logged separately from 'close' so we capture the signal (if any)
+				// that terminated the server. A non-null signal indicates the
+				// server was killed externally rather than exiting on its own.
+				outputChannel.appendLine(`[${new Date().toISOString()}] server process exited (code: ${code}, signal: ${signal}).`);
+			});
+			extHostProcess.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+				processError(`server closed unexpectedly.\nError code: ${code}, signal: ${signal}`);
 				extHostProcess = undefined;
 			});
 			context.subscriptions.push({

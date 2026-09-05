@@ -519,13 +519,13 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 			}, { isNotebook, didHeal: didHeal === undefined ? -1 : (didHeal ? 1 : 0), isMulti }
 		);
 
-		this.telemetryService.sendEnhancedGHTelemetryEvent('replaceStringTool', multiplexProperties({
+		void multiplexProperties({
 			headerRequestId: options.chatRequestId,
 			baseModel: model,
 			messageText: file,
 			completionTextJson: JSON.stringify(input),
 			postProcessingOutcome: outcome,
-		}), { isNotebook });
+		}).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('replaceStringTool', properties, { isNotebook })).catch(() => { /* best-effort telemetry */ });
 	}
 
 	private async sendHealingTelemetry(options: vscode.LanguageModelToolInvocationOptions<T> | vscode.LanguageModelToolInvocationPrepareOptions<T>, healError: string | undefined, applicationError: string | undefined) {

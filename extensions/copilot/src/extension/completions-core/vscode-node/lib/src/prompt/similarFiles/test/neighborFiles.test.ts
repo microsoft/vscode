@@ -224,6 +224,8 @@ suite('NeighborSource.getRelativePath tests', function () {
 
 suite('Neighbor files exclusion tests', function () {
 	class MockedRelatedFilesProvider extends RelatedFilesProvider {
+		public getRelatedFilesResponseCallCount = 0;
+
 		constructor(
 			private readonly relatedFiles: RelatedFilesResponseEntry[],
 			private readonly traits: RelatedFileTrait[] = [{ name: 'testTraitName', value: 'testTraitValue' }],
@@ -239,6 +241,7 @@ suite('Neighbor files exclusion tests', function () {
 			docInfo: RelatedFilesDocumentInfo,
 			telemetryData: TelemetryWithExp
 		): Promise<RelatedFilesResponse | undefined> {
+			this.getRelatedFilesResponseCallCount++;
 			return Promise.resolve({
 				entries: this.relatedFiles,
 				traits: this.traits,
@@ -296,5 +299,54 @@ suite('Neighbor files exclusion tests', function () {
 		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.shift(), FILE_R);
 		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.shift(), FILE_T);
 		assert.strictEqual(traits.length, 0);
+	});
+
+	test('Test with related files disabled via includeRelatedFiles=false', async function () {
+		const provider = accessor.get(ICompletionsRelatedFilesProviderService) as MockedRelatedFilesProvider;
+		const telemetryWithExp = TelemetryWithExp.createEmptyConfigForTesting();
+
+		// Positive control: with related files enabled the provider is invoked.
+		NeighborSource.reset();
+		const callCountWhenEnabled = provider.getRelatedFilesResponseCallCount;
+		await NeighborSource.getNeighborFilesAndTraits(
+			accessor,
+			FILE_J,
+			'javascript',
+			telemetryWithExp,
+			undefined,
+			undefined,
+			undefined,
+			/* includeRelatedFiles */ true
+		);
+		assert.ok(provider.getRelatedFilesResponseCallCount > callCountWhenEnabled, 'related-files provider should be invoked when includeRelatedFiles is true');
+
+		// With related files disabled the provider must not be invoked at all.
+		NeighborSource.reset();
+		const callCountWhenDisabled = provider.getRelatedFilesResponseCallCount;
+		const { docs, neighborSource, traits } = await NeighborSource.getNeighborFilesAndTraits(
+			accessor,
+			FILE_J,
+			'javascript',
+			telemetryWithExp,
+			undefined,
+			undefined,
+			undefined,
+			/* includeRelatedFiles */ false
+		);
+
+		// open-tab neighbors are still returned
+		assert.strictEqual(docs.size, 2);
+		assert.strictEqual(docs.has(FILE_T), true);
+		assert.strictEqual(docs.has(FILE_R), true);
+		assert.strictEqual(neighborSource.size, 1);
+		assert.strictEqual(neighborSource.has(NeighboringFileType.OpenTabs), true);
+		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.length, 2);
+		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.shift(), FILE_R);
+		assert.strictEqual(neighborSource.get(NeighboringFileType.OpenTabs)?.shift(), FILE_T);
+		// no related-file traits are produced
+		assert.strictEqual(traits.length, 0);
+		// the related-files provider must not be invoked at all: this guards the
+		// promised avoidance of related-files (LSP) work, not just the returned docs
+		assert.strictEqual(provider.getRelatedFilesResponseCallCount, callCountWhenDisabled);
 	});
 });

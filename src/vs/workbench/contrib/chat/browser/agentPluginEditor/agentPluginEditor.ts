@@ -43,7 +43,7 @@ import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
-import { InstallPluginAction, UninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
+import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyBlockedEnableAction, isPluginPolicyBlocked, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -224,7 +224,7 @@ export class AgentPluginEditor extends EditorPane {
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: item.name,
 					description: item.description,
-					version: '',
+					version: item.version ?? '',
 					source: item.source,
 					sourceDescriptor: item.sourceDescriptor,
 					marketplace: item.marketplace,
@@ -246,6 +246,7 @@ export class AgentPluginEditor extends EditorPane {
 							kind: AgentPluginItemKind.Marketplace,
 							name: item.name,
 							description: mp.description,
+							version: mp.version,
 							source: mp.source,
 							sourceDescriptor: mp.sourceDescriptor,
 							marketplace: mp.marketplace,
@@ -339,7 +340,10 @@ export class AgentPluginEditor extends EditorPane {
 			actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 			actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 		}
-		actions.push(new UninstallPluginAction(item.plugin));
+		const uninstallAction = createUninstallPluginAction(item.plugin);
+		if (uninstallAction) {
+			actions.push(uninstallAction);
+		}
 		return actions;
 	}
 

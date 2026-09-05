@@ -235,7 +235,7 @@ task.task('monacodts', task.define('monacodts', () => {
 function createTscCompileTask(watch: boolean) {
 	return () => {
 		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			const args = ['./node_modules/.bin/tsc6', '-p', './src/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
 				args.push('-w');
 			}

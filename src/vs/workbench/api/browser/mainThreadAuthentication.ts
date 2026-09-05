@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
 import { ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -22,6 +22,7 @@ import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
+import { Dto, Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { fetchAuthorizationServerMetadata, IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
@@ -49,12 +50,20 @@ export interface AuthenticationGetSessionOptions {
 	authorizationServer?: UriComponents;
 }
 
+/**
+ * The account icon is a {@link URI} that does not survive being sent over the RPC boundary,
+ * so it needs to be revived when sessions are received from the extension host.
+ */
+export function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
+	return { ...session, account: { ...session.account, icon: URI.revive(session.account.icon) } };
+}
+
 class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 
 	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 
 	constructor(
-		protected readonly _proxy: ExtHostAuthenticationShape,
+		protected readonly _proxy: Proxied<ExtHostAuthenticationShape>,
 		public readonly id: string,
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
@@ -67,11 +76,12 @@ class MainThreadAuthenticationProvider extends Disposable implements IAuthentica
 	}
 
 	async getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions) {
-		return this._proxy.$getSessions(this.id, scopes, options);
+		const sessions = await this._proxy.$getSessions(this.id, scopes, options);
+		return sessions.map(reviveSessionAccountIcon);
 	}
 
-	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		return this._proxy.$createSession(this.id, scopes, options);
+	async createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+		return reviveSessionAccountIcon(await this._proxy.$createSession(this.id, scopes, options));
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
@@ -82,7 +92,7 @@ class MainThreadAuthenticationProvider extends Disposable implements IAuthentica
 class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthenticationProvider implements IAuthenticationProvider {
 
 	constructor(
-		proxy: ExtHostAuthenticationShape,
+		proxy: Proxied<ExtHostAuthenticationShape>,
 		id: string,
 		label: string,
 		supportsMultipleAccounts: boolean,
@@ -101,18 +111,19 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 		);
 	}
 
-	getSessionsFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
-		return this._proxy.$getSessionsFromChallenges(this.id, constraint, options);
+	async getSessionsFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
+		const sessions = await this._proxy.$getSessionsFromChallenges(this.id, constraint, options);
+		return sessions.map(reviveSessionAccountIcon);
 	}
 
-	createSessionFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		return this._proxy.$createSessionFromChallenges(this.id, constraint, options);
+	async createSessionFromChallenges(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+		return reviveSessionAccountIcon(await this._proxy.$createSessionFromChallenges(this.id, constraint, options));
 	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadAuthentication)
 export class MainThreadAuthentication extends Disposable implements MainThreadAuthenticationShape {
-	private readonly _proxy: ExtHostAuthenticationShape;
+	private readonly _proxy: Proxied<ExtHostAuthenticationShape>;
 
 	private readonly _registrations = this._register(new DisposableMap<string>());
 	private _sentProviderUsageEvents = new Set<string>();
@@ -161,8 +172,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
 			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
-				// Auth Provider Id is a combination of the authorization server and the resource, if provided.
-				const authProviderId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+				const authProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				let clientId = overrideClientId ?? clientDetails?.clientId;
 				const clientSecret = overrideClientId
@@ -273,10 +283,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 	}
 
-	async $sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
+	async $sendDidChangeSessions(providerId: string, event: Dto<AuthenticationSessionsChangeEvent>): Promise<void> {
 		const obj = this._registrations.get(providerId);
 		if (obj instanceof Emitter) {
-			obj.fire(event);
+			obj.fire({
+				added: event.added?.map(reviveSessionAccountIcon),
+				removed: event.removed?.map(reviveSessionAccountIcon),
+				changed: event.changed?.map(reviveSessionAccountIcon)
+			});
 		}
 	}
 
@@ -531,7 +545,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return undefined;
 	}
 
-	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<Dto<AuthenticationSession> | undefined> {
 		const scopes = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.fallbackScopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
@@ -546,7 +560,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return session;
 	}
 
-	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
+	async $getAccounts(providerId: string): Promise<ReadonlyArray<Dto<AuthenticationSessionAccount>>> {
 		const accounts = await this.authenticationService.getAccounts(providerId);
 		return accounts;
 	}

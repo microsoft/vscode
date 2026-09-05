@@ -11,8 +11,8 @@ import { Location } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel } from '../model/chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from '../chatService/chatService.js';
-import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
-import { IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
+import { IDiagnosticVariableEntryFilterData, StringChatContextValue, type IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -47,7 +47,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionResource: URI): ReadonlyArray<IDynamicVariable>;
-	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap;
+	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap;
 }
 
 export interface IDynamicVariable {
@@ -58,6 +58,7 @@ export interface IDynamicVariable {
 	modelDescription?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;
+	isAttachmentReference?: boolean;
 	data: IChatRequestVariableValue;
 	/**
 	 * Implementation-defined metadata that flows through to the resulting
@@ -66,4 +67,18 @@ export interface IDynamicVariable {
 	 * to chat input completions.
 	 */
 	_meta?: Record<string, unknown>;
+}
+
+export function toAttachedContextDynamicVariable(entry: IChatRequestVariableEntry, range: IRange): IDynamicVariable {
+	return {
+		id: entry.id,
+		fullName: entry.name,
+		icon: entry.icon,
+		modelDescription: entry.modelDescription,
+		isFile: entry.kind === 'file',
+		isDirectory: entry.kind === 'directory',
+		isAttachmentReference: true,
+		range,
+		data: undefined,
+	};
 }

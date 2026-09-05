@@ -6,13 +6,14 @@
 
 import { Raw, RenderPromptResult } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
-import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatPromptReference, ChatRequest, ExtendedChatResponsePart, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -24,10 +25,12 @@ import { isObject, isUndefinedOrNull } from '../../../../util/vs/base/common/typ
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, LanguageModelTextPart, LanguageModelToolResult, Uri } from '../../../../vscodeTypes';
+import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, ChatResponseVoiceProgressPart, LanguageModelTextPart, LanguageModelToolResult, Uri } from '../../../../vscodeTypes';
+import { Intent } from '../../../common/constants';
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
 import { ToolResultMetadata } from '../../../prompts/node/panel/toolCalling';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ToolName } from '../../../tools/common/toolNames';
 import { Conversation, Turn } from '../../common/conversation';
 import { IBuildPromptContext } from '../../common/intents';
 import { ToolCallRound } from '../../common/toolCallRound';
@@ -45,6 +48,7 @@ suite('defaultIntentRequestHandler', () => {
 	let endpoint: IChatEndpoint;
 	let turnIdCounter = 0;
 	let builtPrompts: IBuildPromptContext[] = [];
+	let availableTools: LanguageModelToolInformation[] = [];
 	const sessionId = 'some-session-id';
 
 	const getTurnId = () => `turn-id-${turnIdCounter}`;
@@ -61,6 +65,7 @@ suite('defaultIntentRequestHandler', () => {
 		accessor = services.createTestingAccessor();
 		endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
 		builtPrompts = [];
+		availableTools = [];
 		response = [];
 		promptResult = nullRenderPromptResult();
 		turnIdCounter = 0;
@@ -88,7 +93,7 @@ suite('defaultIntentRequestHandler', () => {
 	}
 
 	class TestIntent implements IIntent {
-		id = 'test';
+		constructor(readonly id: string = 'test') { }
 		description = 'test intent';
 		locations = [ChatLocation.Panel];
 		invoke(): Promise<IIntentInvocation> {
@@ -117,6 +122,10 @@ suite('defaultIntentRequestHandler', () => {
 
 			return promptResult;
 		}
+
+		async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+			return availableTools;
+		}
 	}
 
 	class TestChatRequest implements ChatRequest {
@@ -126,6 +135,7 @@ suite('defaultIntentRequestHandler', () => {
 		attempt = 1;
 		enableCommandDetection = false;
 		isParticipantDetected = false;
+		isVoiceModeInput?: boolean;
 		location = ChatLocation.Panel;
 		location2 = undefined;
 		prompt = 'hello world!';
@@ -145,8 +155,9 @@ suite('defaultIntentRequestHandler', () => {
 
 	const makeHandler = ({
 		request = new TestChatRequest(),
-		turns = []
-	}: { request?: ChatRequest; turns?: Turn[] } = {}) => {
+		turns = [],
+		intent = new TestIntent(),
+	}: { request?: ChatRequest; turns?: Turn[]; intent?: IIntent } = {}) => {
 		turns.push(new Turn(
 			getTurnId(),
 			{ type: 'user', message: request.prompt },
@@ -156,7 +167,7 @@ suite('defaultIntentRequestHandler', () => {
 		const instaService = accessor.get(IInstantiationService);
 		return instaService.createInstance(
 			DefaultIntentRequestHandler,
-			new TestIntent(),
+			intent,
 			new Conversation(sessionId, turns),
 			request,
 			responseStream,
@@ -189,6 +200,24 @@ suite('defaultIntentRequestHandler', () => {
 		// Wait for event loop to finish as we often fire off telemetry without properly awaiting it as it doesn't matter when it is sent
 		await new Promise(setImmediate);
 		expect(getDerandomizedTelemetry()).toMatchSnapshot();
+	});
+
+	test('isolates and closes a subagent WebSocket connection', async () => {
+		const request = new TestChatRequest();
+		Object.assign(request, { subAgentInvocationId: 'subagent-1', subAgentName: 'Reviewer' });
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const closeConnectionSpy = vi.spyOn(accessor.get(IChatWebSocketManager), 'closeConnection');
+		const handler = makeHandler({ request });
+		chatResponse[0] = 'some response here :)';
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy.mock.calls[0][0].webSocketConnectionId).toBe('subagent-1');
+		expect(closeConnectionSpy).toHaveBeenCalledWith(sessionId, 'subagent-1');
 	});
 
 	test('propagates resolvedModel into result metadata from a successful response', async () => {
@@ -284,6 +313,47 @@ suite('defaultIntentRequestHandler', () => {
 				response: 'response to tool call',
 			},
 		]);
+	});
+
+	test('voice editAgent emits investigating fallback through the actual handler', async () => {
+		const request = new TestChatRequest();
+		request.isVoiceModeInput = true;
+		availableTools = [{
+			name: ToolName.ReadFile,
+			description: 'Read a file.',
+			inputSchema: { type: 'object' },
+			tags: [],
+			source: undefined,
+		}];
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const handler = makeHandler({ request, intent: new TestIntent(Intent.Agent) });
+		chatResponse[0] = [{
+			text: '',
+			copilotToolCalls: [{
+				arguments: '{}',
+				name: ToolName.ReadFile,
+				id: 'read_call',
+			}],
+		}];
+		chatResponse[1] = 'done';
+		const toolResult = new LanguageModelToolResult([new LanguageModelTextPart('read result')]);
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+			metadata: promptResultMetadata([new ToolResultMetadata('read_call__vscode-0', toolResult)]),
+		};
+
+		await handler.getResult();
+
+		expect({
+			availableTools: requestSpy.mock.calls.at(0)?.[0]?.requestOptions?.tools?.map(tool => tool.function.name),
+			voiceProgress: response
+				.filter(part => part instanceof ChatResponseVoiceProgressPart)
+				.map(part => ({ id: part.id, value: part.value })),
+		}).toEqual({
+			availableTools: [ToolName.ReadFile, 'report_voice_progress'],
+			voiceProgress: [expect.objectContaining({ id: 'investigating' })],
+		});
 	});
 
 	function fillWithToolCalls(insertN = 20) {

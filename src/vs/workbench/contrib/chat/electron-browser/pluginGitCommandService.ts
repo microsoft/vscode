@@ -37,11 +37,15 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	}
 
 	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
-		return this._withCancel(token, id => this._localGitService.pull(id, repoDir.fsPath));
+		return this._withCancel(token, id => this._localGitService.pull(id, repoDir.fsPath, { allowHardResetOnDivergence: true }));
 	}
 
 	async checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void> {
 		await this._withCancel(token, id => this._localGitService.checkout(id, repoDir.fsPath, treeish, detached));
+	}
+
+	async checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._localGitService.checkoutCommit(id, repoDir.fsPath, commit));
 	}
 
 	async revParse(repoDir: URI, ref: string): Promise<string> {

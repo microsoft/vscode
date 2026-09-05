@@ -20,6 +20,14 @@ import { KeyboardVisibleContext } from '../../../common/contextkeys.js';
  */
 export const KEYBOARD_VISIBLE_THRESHOLD_PX = 50;
 
+export function getMobileViewportDimension(layoutViewport: DOM.Dimension, visualViewport: Pick<VisualViewport, 'height'> | null | undefined): DOM.Dimension {
+	if (!visualViewport) {
+		return layoutViewport;
+	}
+
+	return new DOM.Dimension(layoutViewport.width, Math.min(layoutViewport.height, visualViewport.height));
+}
+
 /**
  * CSS custom property exposed on the workbench main container that
  * reflects the current virtual keyboard height in pixels (e.g.

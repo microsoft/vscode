@@ -156,7 +156,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)
 		);
 
-		// send_to_terminal normally requires confirmation in default approvals mode
+		// send_to_terminal normally requires confirmation in default permissions mode
 		// because the text may be arbitrary input (passwords, confirmations, etc.)
 		// that the command-line auto-approve analyzer cannot assess. However, when
 		// the text being sent was just collected via askQuestions for the same

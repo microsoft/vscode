@@ -6,6 +6,7 @@
 import { BugIndicatingError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event, Relay } from '../../../../util/vs/base/common/event';
 import { safeStringify } from '../../../../util/vs/base/common/objects';
+import { getEditorVersionHeaders } from '../../../env/common/envService';
 import { NullEnvService } from '../../../env/common/nullEnvService';
 import { CopilotToken, createTestExtendedTokenInfo, ExtendedTokenInfo, TokenEnvelope } from '../../common/copilotToken';
 import { ICopilotTokenManager, nowSeconds } from '../../common/copilotTokenManager';
@@ -73,7 +74,7 @@ class SimulationTestCopilotTokenManagerFromGitHubToken {
 				{
 					headers: {
 						Authorization: `token ${this._githubToken}`,
-						...NullEnvService.Instance.getEditorVersionHeaders(),
+						...getEditorVersionHeaders(NullEnvService.Instance),
 					}
 				}
 			);

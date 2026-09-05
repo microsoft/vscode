@@ -448,6 +448,21 @@ suite('AuthenticationMcpAccessService', () => {
 			assert.strictEqual(allServers.length, 2);
 		});
 
+		test('persists agentHost metadata and preserves it when a later toggle omits it', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'agent-host-mcp:remote/GitHub/https://api.example/mcp', name: 'GitHub', allowed: true, url: 'https://api.example/mcp', agentHost: { authority: 'remote', label: 'SSH: my-host' } }
+			]);
+
+			// A management toggle (no agentHost/url) must not clear the stored metadata.
+			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
+				{ id: 'agent-host-mcp:remote/GitHub/https://api.example/mcp', name: 'GitHub', allowed: true }
+			]);
+
+			const stored = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com')
+				.find(s => s.id === 'agent-host-mcp:remote/GitHub/https://api.example/mcp');
+			assert.deepStrictEqual(stored?.agentHost, { authority: 'remote', label: 'SSH: my-host' });
+		});
+
 		test('fires onDidChangeMcpSessionAccess event', () => {
 			let eventFired = false;
 			let eventData: { providerId: string; accountName: string } | undefined;

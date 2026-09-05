@@ -9,7 +9,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation, type IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
+import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, remoteResolverTerminal, TerminalExitReason, TerminalLocation, type IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from '../../contrib/terminal/browser/terminal.js';
 import { TerminalProcessExtHostProxy } from '../../contrib/terminal/browser/terminalProcessExtHostProxy.js';
@@ -156,6 +156,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			extHostTerminalId,
 			forceShellIntegration: launchConfig.forceShellIntegration,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
+			[remoteResolverTerminal]: launchConfig.isRemoteResolverTerminal || undefined,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 			isTransient: launchConfig.isTransient,
@@ -165,6 +166,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
+				cwd: launchConfig.isRemoteResolverTerminal ? shellLaunchConfig.cwd : undefined,
 				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
@@ -475,6 +477,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
  */
 class TerminalDataEventTracker extends Disposable {
 	private readonly _bufferer: TerminalDataBufferer;
+	private readonly _instanceListeners = this._register(new DisposableMap<number>());
 
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
@@ -488,12 +491,15 @@ class TerminalDataEventTracker extends Disposable {
 			this._registerInstance(instance);
 		}
 		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
-		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			this._bufferer.stopBuffering(instance.instanceId);
+			this._instanceListeners.deleteAndDispose(instance.instanceId);
+		}));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
-		this._register(this._bufferer.startBuffering(instance.instanceId, instance.onData));
+		this._instanceListeners.set(instance.instanceId, this._bufferer.startBuffering(instance.instanceId, instance.onData));
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -14,6 +15,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
@@ -290,8 +292,9 @@ function renderHunkGroup(
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
 
-	if (input instanceof MultiDiffEditorInput) {
-		const items = input.resources.get();
+	const multiDiffInput = input instanceof SessionChangesEditorInput ? input.multiDiffInput : input;
+	if (multiDiffInput instanceof MultiDiffEditorInput) {
+		const items = multiDiffInput.resources.get();
 		if (items) {
 			for (const item of items) {
 				if (item.originalUri) { result.push(item.originalUri); }
@@ -319,4 +322,31 @@ export function getActiveResourceCandidates(input: Parameters<typeof EditorResou
 	}
 
 	return result;
+}
+
+/** A resource candidate paired with the feedback session it is scoped to. */
+export interface IFeedbackSessionCandidate {
+	/** The first candidate resource that resolved to {@link sessionResource}. */
+	readonly resource: URI;
+	readonly sessionResource: URI;
+}
+
+/**
+ * Maps resource candidates to their feedback session, yielding every distinct
+ * session at most once. A Changes multi-diff contributes an original and a
+ * modified URI per file and can hold thousands of files, so session-scoped work
+ * (resolving the backend, reading feedback, building comments) must run once per
+ * session rather than once per file. Iteration stays lazy so callers keep their
+ * early exit once a session with comments is found.
+ */
+export function* getFeedbackSessionCandidates(candidates: Iterable<URI>, resolveSessionResource: (resource: URI) => URI | undefined): Iterable<IFeedbackSessionCandidate> {
+	const seenSessions = new ResourceSet();
+	for (const resource of candidates) {
+		const sessionResource = resolveSessionResource(resource);
+		if (!sessionResource || seenSessions.has(sessionResource)) {
+			continue;
+		}
+		seenSessions.add(sessionResource);
+		yield { resource, sessionResource };
+	}
 }

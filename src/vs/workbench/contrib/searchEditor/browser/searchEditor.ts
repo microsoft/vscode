@@ -68,6 +68,7 @@ import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCo
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
+const DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET = 28;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
@@ -677,10 +678,12 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private reLayout() {
 		if (this.dimension) {
-			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);
+			const configuredOffset = Number.parseFloat(DOM.getWindow(this.queryEditorContainer).getComputedStyle(this.queryEditorContainer).getPropertyValue('--search-editor-query-layout-offset'));
+			const queryEditorWidth = this.dimension.width - (Number.isFinite(configuredOffset) ? configuredOffset : DEFAULT_QUERY_EDITOR_LAYOUT_OFFSET);
+			this.queryEditorWidget.setWidth(queryEditorWidth);
 			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
-			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
-			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
+			this.inputPatternExcludes.setWidth(queryEditorWidth);
+			this.inputPatternIncludes.setWidth(queryEditorWidth);
 		}
 	}
 

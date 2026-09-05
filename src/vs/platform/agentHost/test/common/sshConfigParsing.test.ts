@@ -139,6 +139,9 @@ suite('SSH Config Parsing', () => {
 				identityFile: ['~/.ssh/id_rsa', '~/.ssh/id_ed25519'],
 				identityAgent: undefined,
 				forwardAgent: false,
+				userKnownHostsFiles: [],
+				globalKnownHostsFiles: [],
+				strictHostKeyChecking: undefined,
 			});
 		});
 
@@ -226,7 +229,73 @@ suite('SSH Config Parsing', () => {
 				identityFile: [],
 				identityAgent: undefined,
 				forwardAgent: false,
+				userKnownHostsFiles: [],
+				globalKnownHostsFiles: [],
+				strictHostKeyChecking: undefined,
 			});
+		});
+
+		test('splits the known_hosts path lists', () => {
+			// `ssh -G` emits these as one space-separated line, so treating the
+			// value as a single path would silently look in a bogus location.
+			const output = [
+				'userknownhostsfile /home/u/.ssh/known_hosts /home/u/.ssh/known_hosts2',
+				'globalknownhostsfile /etc/ssh/ssh_known_hosts /etc/ssh/ssh_known_hosts2',
+			].join('\n');
+
+			const result = parseSSHGOutput(output);
+			assert.deepStrictEqual(
+				{ user: result.userKnownHostsFiles, global: result.globalKnownHostsFiles },
+				{
+					user: ['/home/u/.ssh/known_hosts', '/home/u/.ssh/known_hosts2'],
+					global: ['/etc/ssh/ssh_known_hosts', '/etc/ssh/ssh_known_hosts2'],
+				});
+		});
+
+		test('honors quoting in known_hosts path lists', () => {
+			const output = 'userknownhostsfile "/home/my user/.ssh/known_hosts" /home/u/other';
+			assert.deepStrictEqual(
+				parseSSHGOutput(output).userKnownHostsFiles,
+				['/home/my user/.ssh/known_hosts', '/home/u/other']);
+		});
+
+		test('normalizes effective StrictHostKeyChecking values and ignores others', () => {
+			const parse = (value: string) => parseSSHGOutput(`stricthostkeychecking ${value}`).strictHostKeyChecking;
+			assert.deepStrictEqual(
+				{
+					effective: {
+						ask: parse('ask'),
+						acceptNew: parse('accept-new'),
+						yes: parse('true'),
+						noOrOff: parse('false'),
+					},
+					acceptedAliases: {
+						yes: parse('yes'),
+						no: parse('no'),
+						off: parse('off'),
+						uppercase: parse('TRUE'),
+					},
+					// An unrecognized value must not be passed through as if it
+					// were a policy we understand.
+					bogus: parse('maybe'),
+					absent: parseSSHGOutput('').strictHostKeyChecking,
+				},
+				{
+					effective: {
+						ask: 'ask',
+						acceptNew: 'accept-new',
+						yes: 'yes',
+						noOrOff: 'no',
+					},
+					acceptedAliases: {
+						yes: 'yes',
+						no: 'no',
+						off: 'off',
+						uppercase: 'yes',
+					},
+					bogus: undefined,
+					absent: undefined,
+				});
 		});
 
 		test('handles values with spaces', () => {

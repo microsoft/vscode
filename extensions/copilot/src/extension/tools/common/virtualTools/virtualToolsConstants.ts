@@ -34,6 +34,9 @@ export const NUM_EMBED_MATCHED_TOOLS = 10;
 /** Maximum number of tools and groups that will be presented to the LLM when all collapsed. */
 export const TOOLS_AND_GROUPS_LIMIT = HARD_TOOL_LIMIT - NUM_EMBED_MATCHED_TOOLS - 30;
 
+/** Maximum visible fallback-tree frontier after replacing one collapsed group. */
+export const FALLBACK_TREE_FRONTIER_LIMIT = HARD_TOOL_LIMIT - TOOLS_AND_GROUPS_LIMIT + 1;
+
 /** Max number of times to retrying categorization in the event of failures. */
 export const MAX_CATEGORIZATION_RETRIES = 3;
 

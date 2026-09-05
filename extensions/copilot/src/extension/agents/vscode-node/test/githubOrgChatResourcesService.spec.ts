@@ -544,6 +544,66 @@ suite('GitHubOrgChatResourcesService', () => {
 			assert.equal(new TextDecoder().decode(content), 'Content');
 		});
 
+		test('logs and rethrows directory creation failures', async () => {
+			const error = new Error('Create directory failed');
+			const loggedErrors: { error: string | Error; message?: string }[] = [];
+			mockFileSystem.createDirectory = async () => {
+				throw error;
+			};
+			logService.error = (loggedError, message) => {
+				loggedErrors.push({ error: loggedError, message });
+			};
+			const service = createService();
+
+			let rethrewOriginalError = false;
+			try {
+				await service.writeCacheFile(PromptsType.instructions, 'testorg', `default${INSTRUCTION_FILE_EXTENSION}`, 'Content');
+			} catch (caughtError) {
+				rethrewOriginalError = caughtError === error;
+			}
+
+			assert.deepEqual({
+				rethrewOriginalError,
+				loggedErrors,
+			}, {
+				rethrewOriginalError: true,
+				loggedErrors: [{
+					error,
+					message: '[GitHubOrgChatResourcesService] Failed to create cache directory',
+				}],
+			});
+		});
+
+		test('logs and rethrows cache file write failures', async () => {
+			const error = new Error('Write file failed');
+			const loggedErrors: { error: string | Error; message?: string }[] = [];
+			mockFileSystem.writeFile = async () => {
+				throw error;
+			};
+			logService.error = (loggedError, message) => {
+				loggedErrors.push({ error: loggedError, message });
+			};
+			const service = createService();
+
+			let rethrewOriginalError = false;
+			try {
+				await service.writeCacheFile(PromptsType.instructions, 'testorg', `default${INSTRUCTION_FILE_EXTENSION}`, 'Content');
+			} catch (caughtError) {
+				rethrewOriginalError = caughtError === error;
+			}
+
+			assert.deepEqual({
+				rethrewOriginalError,
+				loggedErrors,
+			}, {
+				rethrewOriginalError: true,
+				loggedErrors: [{
+					error,
+					message: '[GitHubOrgChatResourcesService] Failed to write cache file',
+				}],
+			});
+		});
+
 		test('sanitizes org name before writing', async () => {
 			const service = createService();
 

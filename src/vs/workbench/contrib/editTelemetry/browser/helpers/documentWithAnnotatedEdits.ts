@@ -121,7 +121,9 @@ export abstract class EditSourceBase {
 				return this._cache.get(new UnknownEditSource());
 
 			case 'Chat.applyEdits':
-				return this._cache.get(new ChatEditSource('sidebar'));
+				return '$origin' in data && data.$origin === 'agentHost'
+					? this._cache.get(new AgentHostEditSource())
+					: this._cache.get(new ChatEditSource('sidebar'));
 			case 'inlineChat.applyEdits':
 				return this._cache.get(new ChatEditSource('inline'));
 			case 'cursor':
@@ -134,7 +136,7 @@ export abstract class EditSourceBase {
 	public abstract getColor(): string;
 }
 
-export type EditSource = InlineSuggestEditSource | ChatEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
+export type EditSource = InlineSuggestEditSource | ChatEditSource | AgentHostEditSource | IdeEditSource | UserEditSource | UnknownEditSource | ExternalEditSource;
 
 export class InlineSuggestEditSource extends EditSourceBase {
 	public readonly category = 'ai';
@@ -146,7 +148,7 @@ export class InlineSuggestEditSource extends EditSourceBase {
 		public readonly type: 'word' | 'line' | undefined,
 	) { super(); }
 
-	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.type}`; }
+	override toString() { return `${this.category}/${this.feature}/${this.kind}/${this.extensionId}/${this.providerId}/${this.type}`; }
 
 	public getColor(): string { return '#00ff0033'; }
 }
@@ -159,6 +161,15 @@ class ChatEditSource extends EditSourceBase {
 	) { super(); }
 
 	override toString() { return `${this.category}/${this.feature}/${this.kind}`; }
+
+	public getColor(): string { return '#00ff0066'; }
+}
+
+class AgentHostEditSource extends EditSourceBase {
+	public readonly category = 'agentHost';
+	public readonly feature = 'chat';
+
+	override toString() { return `${this.category}/${this.feature}`; }
 
 	public getColor(): string { return '#00ff0066'; }
 }
@@ -330,4 +341,3 @@ export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnno
 	};
 	return docWithJustReason;
 }
-

@@ -60,6 +60,7 @@ describe('ChatWebSocketManager', () => {
 	let disposables: DisposableStore;
 	let ws: FakeWebSocket;
 	let manager: ChatWebSocketManager;
+	const connectionKey = { conversationId: 'conv-1', modelId: 'test-model' };
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -78,7 +79,7 @@ describe('ChatWebSocketManager', () => {
 			{ getConfig: () => undefined } as unknown as IConfigurationService,
 		);
 		disposables.add(manager);
-		const connection = manager.getOrCreateConnection('conv-1', headers, 'req-conn');
+		const connection = manager.getOrCreateConnection(connectionKey, headers, 'req-conn');
 		const connectPromise = connection.connect();
 		// Defer open event to allow connect() to attach listeners first
 		await Promise.resolve();
@@ -94,9 +95,9 @@ describe('ChatWebSocketManager', () => {
 			const connection = await getConnection();
 
 			// Request a connection for a new turn — should return the same object
-			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
+			const connection2 = manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2');
 			expect(connection2).toBe(connection);
-			expect(manager.hasActiveConnection('conv-1')).toBe(true);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(true);
 		});
 
 		it('creates a new connection when the previous one is closed', async () => {
@@ -104,19 +105,59 @@ describe('ChatWebSocketManager', () => {
 			connection.dispose();
 
 			// Same manager, new getOrCreateConnection call should replace the disposed one
-			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
+			const connection2 = manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2');
 			expect(connection2).not.toBe(connection);
+		});
+
+		it('creates a new connection when the model changes', async () => {
+			const connection = await getConnection();
+			expect(manager.hasActiveConnection({ ...connectionKey, modelId: 'other-model' })).toBe(false);
+			const connection2 = manager.getOrCreateConnection({ ...connectionKey, modelId: 'other-model' }, {}, 'req-conn-2');
+
+			expect(connection2).not.toBe(connection);
+			expect(connection.isOpen).toBe(false);
+		});
+
+		it('uses independent connections for parallel scopes', async () => {
+			const connection = await getConnection();
+			const connection2 = manager.getOrCreateConnection({ ...connectionKey, connectionId: 'subagent-1' }, {}, 'req-conn-2');
+
+			expect(connection2).not.toBe(connection);
+			expect(connection.isOpen).toBe(true);
 		});
 
 		it('hasActiveConnection returns true regardless of current turnId', async () => {
 			await getConnection(); // connected on turn-1
-			expect(manager.hasActiveConnection('conv-1')).toBe(true);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(true);
 		});
 
 		it('hasActiveConnection returns false after connection is disposed', async () => {
 			const connection = await getConnection();
 			connection.dispose();
-			expect(manager.hasActiveConnection('conv-1')).toBe(false);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+		});
+	});
+
+	describe('cancellation', () => {
+		it('closes the connection when the active request is cancelled', async () => {
+			const connection = await getConnection();
+			const cts = disposables.add(new CancellationTokenSource());
+			const handle = connection.sendRequest(
+				{ model: 'test-model', messages: [], stream: true },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+				cts.token,
+			);
+			handle.firstEvent.catch(() => { });
+			handle.done.catch(() => { });
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+
+			cts.cancel();
+
+			await expect(handle.done).rejects.toThrow();
+			expect(connection.isOpen).toBe(false);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+			expect(ws.readyState).toBe(ws.CLOSED);
+			expect(manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2')).not.toBe(connection);
 		});
 	});
 

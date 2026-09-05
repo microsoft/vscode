@@ -1,0 +1,436 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
+import { join } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
+import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
+import {
+	ResponsePartKind,
+	ROOT_STATE_URI,
+	ToolCallConfirmationReason,
+	ToolResultContentType,
+	buildDefaultChatUri,
+	buildSubagentSessionUri,
+	parseChatUri,
+	type ChatState,
+	type ISessionWithDefaultChat,
+	type ToolResultContent,
+	type ToolResultSubagentContent,
+} from '../../../../common/state/sessionState.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+
+export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
+	const { config, createdSessions, tempDirs, isWindows } = context;
+
+	function createCustomAgentWorkspace(prefix: string): string {
+		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const agentsDirectory = join(workspace, '.github', 'agents');
+		mkdirSync(agentsDirectory, { recursive: true });
+		writeFileSync(join(agentsDirectory, 'display-name-child.agent.md'), [
+			'---',
+			'name: e2e-display-name-child',
+			'description: Returns the custom child sentinel',
+			'tools:',
+			'  - view',
+			'---',
+			'Reply exactly "CUSTOM_AGENT_CHILD_OK". Do not call tools.',
+		].join('\n'));
+		tempDirs.push(workspace);
+		return workspace;
+	}
+
+	async function createCustomAgentSession(prefix: string): Promise<string> {
+		const workspace = createCustomAgentWorkspace(prefix);
+		const sessionUri = await createRealSession(context.client, config, prefix, createdSessions, URI.file(workspace));
+		context.client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq: 1,
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostConfigKey.SessionCustomizationDiscoveryMode]: 'scan' },
+			},
+		});
+		return sessionUri;
+	}
+
+	function subagentChatFromReceived(parentChat: string): string | undefined {
+		for (const notification of context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallContentChanged'))) {
+			const envelope = getActionEnvelope(notification);
+			if (envelope.channel !== parentChat) {
+				continue;
+			}
+			const content = (envelope.action as { content: readonly ToolResultContent[] }).content;
+			const subagent = content.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
+			if (subagent) {
+				return subagent.resource;
+			}
+		}
+		return undefined;
+	}
+
+	function markdownText(state: ChatState | undefined): string {
+		return state?.turns.flatMap(turn => turn.responseParts)
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('') ?? '';
+	}
+
+	function responsePartIds(turns: ISessionWithDefaultChat['turns']): string[] {
+		return turns.flatMap(turn => turn.responseParts.flatMap(part => {
+			const id = Reflect.get(part, 'id');
+			return typeof id === 'string' ? [id] : [];
+		}));
+	}
+
+	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
+
+	// The bundled runtime currently rejects the SDK's optional displayName field; keep this executable in known-issue recording until that runtime fix ships.
+	(context.runKnownIssueTests && copilotCustomAgentTest ? test : test.skip)('custom agent without a display name completes as a subagent', async function () {
+		this.timeout(180_000);
+
+		const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-');
+		const parentChat = buildDefaultChatUri(sessionUri);
+		await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-custom-agent-display-name',
+			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".',
+			2,
+		);
+
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the parent tool call should expose the custom subagent chat');
+		const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		assert.match(markdownText(snapshot.snapshot?.state as ChatState | undefined), /CUSTOM_AGENT_CHILD_OK/);
+	});
+
+	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent has no transcript', async function () {
+		this.timeout(240_000);
+
+		const sessionUri = await createCustomAgentSession('ahp-missing-custom-agent-transcript-');
+		const parentChat = buildDefaultChatUri(sessionUri);
+		const setup = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-create-missing-subagent-transcript',
+			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".',
+			2,
+		);
+		assert.match(setup.responseText, /SETUP_DONE/);
+		assert.ok(subagentChatFromReceived(parentChat), 'the failed custom subagent should remain in the parent chat catalog');
+
+		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		const liveResponsePartIds = responsePartIds(liveParent.turns);
+		assert.ok(liveResponsePartIds.length > 0);
+
+		const unsubscribeParent = () => {
+			context.client.notify('unsubscribe', { channel: parentChat });
+			context.client.notify('unsubscribe', { channel: sessionUri });
+		};
+		unsubscribeParent();
+
+		await retry(async () => {
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredResponsePartIds = responsePartIds(restored.turns);
+			if (restoredResponsePartIds.length === liveResponsePartIds.length
+				&& restoredResponsePartIds.every((id, index) => id === liveResponsePartIds[index])) {
+				unsubscribeParent();
+				throw new Error('parent session has not been reconstructed from persisted provider state');
+			}
+		}, 50, 100);
+
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, 'turn-after-missing-subagent-transcript', 'Reply exactly "PARENT_RECOVERED".', 3);
+		const started = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnStarted')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnStarted
+				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+		}, 30_000);
+		assert.strictEqual(getActionEnvelope(started).rejectionReason, undefined);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnComplete
+				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+		}, 90_000);
+		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
+	});
+
+	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
+		this.timeout(180_000);
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-test-`);
+		tempDirs.push(tempDir);
+		writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
+		writeFileSync(`${tempDir}/file-b.txt`, 'beta');
+
+		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir));
+		const sessionChatUri = buildDefaultChatUri(sessionUri);
+
+		let approvalsActive = true;
+		let approvalSeq = 1000;
+		const processedSeqs = new Set<number>();
+		const approvalLoop = (async () => {
+			while (approvalsActive) {
+				try {
+					const ready = await context.client.waitForNotification(n => {
+						if (!isActionNotification(n, 'chat/toolCallReady')) {
+							return false;
+						}
+						const envelope = getActionEnvelope(n);
+						const a = envelope.action as { confirmed?: string };
+						return !a.confirmed && !processedSeqs.has(envelope.serverSeq);
+					}, 2_000);
+					const envelope = getActionEnvelope(ready);
+					if (!processedSeqs.has(envelope.serverSeq)) {
+						processedSeqs.add(envelope.serverSeq);
+						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+						if (!action.confirmed) {
+							context.client.dispatch({
+								channel: envelope.channel,
+								clientSeq: ++approvalSeq,
+								action: {
+									type: ActionType.ChatToolCallConfirmed,
+									turnId: action.turnId,
+									toolCallId: action.toolCallId, approved: true,
+									confirmed: ToolCallConfirmationReason.UserAction,
+								},
+							});
+						}
+					}
+				} catch { /* timeout — re-poll */ }
+			}
+		})();
+
+		dispatchTurn(context.client, sessionUri, 'turn-sa',
+			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			'The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. ' +
+			'Do not enumerate the directory yourself — delegate to the subagent.',
+			1);
+
+		const subagentContentNotif = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as { content: readonly ToolResultContent[] };
+			return envelope.channel === sessionChatUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+		}, 120_000);
+
+		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
+		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
+		const subagentChatUri = subagentRef.resource as unknown as string;
+		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		assert.ok(
+			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+		);
+
+		// The subagent's conversation contents (its inner tool calls) are
+		// emitted on the chat channel carried by the tool result.
+		const subagentSnap = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+		const subagentState = subagentSnap.snapshot?.state as ChatState | undefined;
+		const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
+		assert.match(
+			subagentFirstTurn?.message.text ?? '',
+			/\blist (?:the |its )?files\b/i,
+			`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
+		);
+
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			return getActionEnvelope(n).channel === sessionChatUri;
+		}, 150_000);
+
+		approvalsActive = false;
+		await approvalLoop;
+
+		const toolStarts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => ({ channel: getActionEnvelope(n).channel, action: getActionEnvelope(n).action as ChatToolCallStartAction }));
+
+		const parentStarts = toolStarts.filter(t => t.channel === sessionChatUri).map(t => t.action);
+		const subagentStarts = toolStarts.filter(t => t.channel === subagentChatUri).map(t => t.action);
+
+		const subagentToolNames = new Set<string>(config.subagentToolNames);
+		const parentNonTaskStarts = parentStarts.filter(a => !subagentToolNames.has(a.toolName));
+		assert.deepStrictEqual(parentNonTaskStarts.map(a => a.toolName), [],
+			`parent session should not contain inner tool calls; found: ${JSON.stringify(parentNonTaskStarts.map(a => a.toolName))}`);
+
+		assert.ok(subagentStarts.length >= 1,
+			`subagent session should contain at least one inner tool call, got ${subagentStarts.length}. ` +
+			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
+	});
+
+	// Windows-skipped for providers with on-disk subagent replay (see `subagentReplayUnstableOnWindows`).
+	((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+		this.timeout(180_000);
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
+		tempDirs.push(tempDir);
+		writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
+		writeFileSync(`${tempDir}/file-b.txt`, 'beta');
+
+		const sessionUri = await createRealSession(context.client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir));
+		const sessionChatUri = buildDefaultChatUri(sessionUri);
+
+		// A unique phrase that only the subagent is asked to emit in an
+		// intermediate assistant message, so replay can detect whether
+		// subagent assistant text leaks upward without depending on the
+		// parent agent's final summary behavior. It is a fixed string (not a
+		// per-run uuid) so the recorded subagent reply still contains the
+		// phrase the freshly-issued prompt asks for on replay.
+		const sentinel = 'subagent replay note sentinel-7f3a';
+		const parentResponse = 'SUBAGENT_DONE';
+
+		let approvalsActive = true;
+		let approvalSeq = 2000;
+		const processedSeqs = new Set<number>();
+		const approvalLoop = (async () => {
+			while (approvalsActive) {
+				try {
+					const ready = await context.client.waitForNotification(n => {
+						if (!isActionNotification(n, 'chat/toolCallReady')) {
+							return false;
+						}
+						const envelope = getActionEnvelope(n);
+						const a = envelope.action as { confirmed?: string };
+						return !a.confirmed && !processedSeqs.has(envelope.serverSeq);
+					}, 2_000);
+					const envelope = getActionEnvelope(ready);
+					if (!processedSeqs.has(envelope.serverSeq)) {
+						processedSeqs.add(envelope.serverSeq);
+						const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
+						if (!action.confirmed) {
+							context.client.dispatch({
+								channel: envelope.channel,
+								clientSeq: ++approvalSeq,
+								action: {
+									type: ActionType.ChatToolCallConfirmed,
+									turnId: action.turnId,
+									toolCallId: action.toolCallId, approved: true,
+									confirmed: ToolCallConfirmationReason.UserAction,
+								},
+							});
+						}
+					}
+				} catch { /* timeout — re-poll */ }
+			}
+		})();
+
+		dispatchTurn(context.client, sessionUri, 'turn-sa-replay',
+			`Use the \`${config.subagentToolNames[0]}\` tool to spawn a subagent to list the files in the current working directory. ` +
+			`Instruct the subagent to begin its response with this sentence on its own line: ${sentinel}. ` +
+			'Then the subagent should list the files. ' +
+			`After the subagent completes, you, the main agent, must reply exactly "${parentResponse}" and must not repeat that sentence.`,
+			1);
+
+		const subagentContentNotif = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallContentChanged')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as { content: readonly ToolResultContent[] };
+			return envelope.channel === sessionChatUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
+		}, 120_000);
+
+		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
+		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
+		const subagentChatUri = subagentRef.resource as unknown as string;
+		const parsedSubagentChat = parseChatUri(subagentChatUri);
+		assert.ok(
+			parsedSubagentChat?.session === sessionUri && parsedSubagentChat.chatId.startsWith('subagent/'),
+			`subagent resource should be a subagent chat of the parent session, got: ${JSON.stringify(subagentChatUri)}`,
+		);
+		const subagentToolCallId = parsedSubagentChat.chatId.slice('subagent/'.length);
+		const replaySubagentSessionUri = buildSubagentSessionUri(sessionUri, subagentToolCallId);
+
+		await context.client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === sessionChatUri, 150_000);
+
+		approvalsActive = false;
+		await approvalLoop;
+
+		const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
+			turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
+
+		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		const liveParentResponsePartIds = responsePartIds(liveParent.turns);
+		assert.ok(liveParentResponsePartIds.length > 0);
+
+		const unsubscribeSessionTree = () => {
+			// The parent-session unsubscribe is sent last so it triggers eviction.
+			for (const channel of [
+				subagentChatUri,
+				buildDefaultChatUri(replaySubagentSessionUri),
+				replaySubagentSessionUri,
+				buildDefaultChatUri(sessionUri),
+				sessionUri,
+			]) {
+				context.client.notify('unsubscribe', { channel });
+			}
+		};
+
+		// Force a reopen: drop the subagent chat and parent-session
+		// subscriptions so the agent host evicts the cached, live-built state,
+		// then re-fetch — which rebuilds the turns from persisted SDK events.
+		unsubscribeSessionTree();
+
+		const { parentText } = await retry(async () => {
+			try {
+				const reopenedParent = await fetchSessionWithChat(context.client, sessionUri);
+				// Persisted SDK replay restores subagents through their derived
+				// session resource, while the live path exposes the chat resource.
+				const reopenedSubagent = await fetchSessionWithChat(context.client, replaySubagentSessionUri);
+				const reopenedParentResponsePartIds = responsePartIds(reopenedParent.turns);
+				const subagentText = assistantText(reopenedSubagent.turns);
+				const parentText = assistantText(reopenedParent.turns);
+
+				if (reopenedParentResponsePartIds.length === 0
+					|| (reopenedParentResponsePartIds.length === liveParentResponsePartIds.length
+						&& reopenedParentResponsePartIds.every((id, index) => id === liveParentResponsePartIds[index]))) {
+					throw new Error('parent session has not been reconstructed from persisted provider state');
+				}
+				if (!parentText.includes(parentResponse)) {
+					throw new Error(`parent transcript should contain the final response after reopen; got: ${JSON.stringify(parentText).slice(0, 500)}`);
+				}
+				if (!subagentText.includes(sentinel)) {
+					throw new Error(`sub-agent transcript should contain the phrase after reopen; got: ${JSON.stringify(subagentText).slice(0, 500)}`);
+				}
+
+				return { parentText };
+			} catch (error) {
+				// The retry delay must follow unsubscribe so deferred eviction can run.
+				unsubscribeSessionTree();
+				throw error;
+			}
+		}, 50, 100);
+
+		// The regression: the sub-agent's assistant.message must NOT leak into
+		// the parent transcript when the session is reopened.
+		assert.ok(!parentText.includes(sentinel),
+			`parent transcript must NOT contain the sub-agent's phrase after reopen ` +
+			`(replay path leaked sub-agent assistant.message into parent turns); ` +
+			`parent text: ${JSON.stringify(parentText).slice(0, 800)}`);
+	});
+}

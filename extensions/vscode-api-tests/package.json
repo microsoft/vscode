@@ -18,6 +18,7 @@
     "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentSyntaxHighlighting",
     "editorInsets",
     "embeddings",
     "envIsConnectionMetered",
@@ -58,7 +59,8 @@
     "inlineCompletionsAdditions",
     "devDeviceId",
     "languageModelProxy",
-    "agentSessionsWorkspace"
+    "agentSessionsWorkspace",
+    "linkPresentation"
   ],
   "private": true,
   "activationEvents": [],

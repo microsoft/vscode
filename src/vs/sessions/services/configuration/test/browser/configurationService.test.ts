@@ -27,6 +27,7 @@ import { SessionsWorkspaceContextService } from '../../../workspace/browser/work
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -105,7 +106,8 @@ suite('Sessions ConfigurationService', () => {
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify({ folders: [] })));
 
 		workspaceService = disposables.add(new SessionsWorkspaceContextService(getWorkspaceIdentifier(configResource), uriIdentityService));
-		testObject = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService));
+		const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
+		testObject = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService, nullConfigurationCache, TestEnvironmentService));
 		await testObject.initialize();
 	});
 

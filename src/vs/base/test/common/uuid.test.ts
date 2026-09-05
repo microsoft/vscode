@@ -23,4 +23,17 @@ suite('UUID', () => {
 			assert.ok(uuid.isUUID(value));
 		}
 	});
+
+	test('prefixedUuid', () => {
+		const namespace = 'abc';
+		const result = uuid.prefixedUuid(namespace);
+
+		assert.ok(result.startsWith(`${namespace}-`), `Expected "${result}" to start with "${namespace}-"`);
+
+		const expectedLength = namespace.length + 1 + 36;
+		assert.strictEqual(result.length, expectedLength);
+
+		const uuidPart = result.slice(namespace.length + 1);
+		assert.ok(uuid.isUUID(uuidPart), `Expected "${uuidPart}" to be a valid UUID`);
+	});
 });

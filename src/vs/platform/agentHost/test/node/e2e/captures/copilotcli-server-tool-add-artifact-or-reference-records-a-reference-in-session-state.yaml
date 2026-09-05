@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host". Then reply with exactly "recorded".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: add_artifact_or_reference
+          input:
+            type: website
+            label: Agent Host guide
+            isArtifact: false
+            link: https://example.com/agent-host
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host". Then reply with exactly "recorded".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: website
+                label: Agent Host guide
+                isArtifact: false
+                link: https://example.com/agent-host
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Added reference: ${uuid_0} (website, reference) Agent Host guide — https://example.com/agent-host'
+    response:
+      content: recorded
+      stopReason: end_turn

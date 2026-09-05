@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseClaudeModelId, tryParseClaudeModelId } from '../../node/claude/claudeModelId.js';
+import { parseClaudeModelId, toSdkModelId, tryParseClaudeModelId } from '../../node/claude/claudeModelId.js';
 
 suite('parseClaudeModelId', () => {
 
@@ -256,6 +256,15 @@ suite('parseClaudeModelId', () => {
 
 		test('is identity for endpoint-format IDs', () => {
 			assert.strictEqual(parseClaudeModelId('claude-haiku-4.5').toEndpointModelId(), 'claude-haiku-4.5');
+		});
+	});
+
+	suite('toSdkModelId (standalone)', () => {
+		test('normalizes endpoint-format Claude IDs to SDK format; passes through SDK-format and non-Claude IDs unchanged', () => {
+			assert.deepStrictEqual(
+				['claude-haiku-4.5', 'claude-opus-4.5', 'claude-haiku-4-5', 'claude-sonnet-4', 'gpt-4o'].map(toSdkModelId),
+				['claude-haiku-4-5', 'claude-opus-4-5', 'claude-haiku-4-5', 'claude-sonnet-4', 'gpt-4o'],
+			);
 		});
 	});
 });

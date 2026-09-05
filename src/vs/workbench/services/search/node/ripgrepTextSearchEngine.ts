@@ -13,7 +13,7 @@ import { splitGlobAware } from '../../../../base/common/glob.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
@@ -476,10 +476,6 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 	if (query.isMultiline && !query.isRegExp) {
 		query.pattern = escapeRegExpCharacters(query.pattern);
 		query.isRegExp = true;
-	}
-
-	if ((<IExtendedExtensionSearchOptions>options).usePCRE2) {
-		args.push('--pcre2');
 	}
 
 	// Allow $ to match /r/n

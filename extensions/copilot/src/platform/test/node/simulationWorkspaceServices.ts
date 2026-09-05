@@ -801,7 +801,7 @@ export class TestingGitService implements IGitService {
 		return undefined;
 	}
 
-	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(uri: URI, path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		return;
 	}
 

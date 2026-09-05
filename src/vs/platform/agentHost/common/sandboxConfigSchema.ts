@@ -28,8 +28,8 @@ export const enum AgentHostSandboxConfigKey {
 export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
 	WindowsEnabled = 'enabled.windows',
+	AllowNetwork = 'allowNetwork',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
-	AutoApproveUnsandboxedCommands = 'autoApproveUnsandboxedCommands',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
 	WindowsFileSystem = 'fileSystem.windows',
@@ -42,8 +42,8 @@ export const enum AgentHostSandboxKey {
 export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
+	[AgentHostSandboxKey.AllowNetwork]: boolean;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
-	[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: boolean;
 	[AgentHostSandboxKey.LinuxFileSystem]: Record<string, unknown>;
 	[AgentHostSandboxKey.MacFileSystem]: Record<string, unknown>;
 	[AgentHostSandboxKey.WindowsFileSystem]: Record<string, unknown>;
@@ -61,8 +61,8 @@ export type ISandboxConfigValue = Partial<{
  * normalized form of each setting is declared here — the workbench is
  * expected to:
  *
- *  - map the legacy boolean form of `chat.agent.sandbox.enabled` to the
- *    `'on' | 'off' | 'allowNetwork'` enum, and
+ *  - map legacy boolean sandbox enabled values to the `'on' | 'off'`
+ *    agent-host enum, and
  *  - migrate values from any deprecated setting IDs to their modern key
  *
  * before pushing a `RootConfigChanged` action. That keeps the agent-host
@@ -76,20 +76,20 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.Enabled]: {
 				type: 'string',
 				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			},
 			[AgentHostSandboxKey.WindowsEnabled]: {
 				type: 'string',
 				title: localize('agentHost.config.sandbox.windowsEnabled.title', "Sandbox Enabled (Windows)"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+			},
+			[AgentHostSandboxKey.AllowNetwork]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.allowNetwork.title', "Allow Network"),
 			},
 			[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
-			},
-			[AgentHostSandboxKey.AutoApproveUnsandboxedCommands]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.autoApproveUnsandboxedCommands.title', "Auto-Approve Unsandboxed Commands"),
 			},
 			[AgentHostSandboxKey.LinuxFileSystem]: {
 				type: 'object',
@@ -132,8 +132,8 @@ export const sandboxConfigSchema = createSchema({
 export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxKey>> = {
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxKey.Enabled,
 	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxKey.WindowsEnabled,
+	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: AgentHostSandboxKey.AllowNetwork,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
-	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: AgentHostSandboxKey.AutoApproveUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
 	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,
@@ -141,4 +141,3 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxKey.AllowedNetworkDomains,
 	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxKey.DeniedNetworkDomains,
 };
-

@@ -8,27 +8,41 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export const INewChatModelPickerService = createDecorator<INewChatModelPickerService>('newChatModelPickerService');
 
+export interface INewChatModelPicker {
+	readonly open: () => void;
+	readonly switchToModel: (modelIdentifier: string) => boolean;
+}
+
 export interface INewChatModelPickerService {
 	readonly _serviceBrand: undefined;
-	registerModelPicker(opener: () => void): IDisposable;
+	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable;
 	openModelPicker(): void;
+	switchToModel(modelIdentifier: string): boolean;
 }
 
 export class NewChatModelPickerService implements INewChatModelPickerService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _openers = new Set<() => void>();
+	private readonly _modelPickers = new Set<INewChatModelPicker>();
 
-	registerModelPicker(opener: () => void): IDisposable {
-		this._openers.add(opener);
-		return toDisposable(() => this._openers.delete(opener));
+	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable {
+		this._modelPickers.add(modelPicker);
+		return toDisposable(() => this._modelPickers.delete(modelPicker));
 	}
 
 	openModelPicker(): void {
-		let latestOpener: (() => void) | undefined;
-		for (const opener of this._openers) {
-			latestOpener = opener;
+		this._getActiveModelPicker()?.open();
+	}
+
+	switchToModel(modelIdentifier: string): boolean {
+		return this._getActiveModelPicker()?.switchToModel(modelIdentifier) ?? false;
+	}
+
+	private _getActiveModelPicker(): INewChatModelPicker | undefined {
+		let activeModelPicker: INewChatModelPicker | undefined;
+		for (const modelPicker of this._modelPickers) {
+			activeModelPicker = modelPicker;
 		}
-		latestOpener?.();
+		return activeModelPicker;
 	}
 }

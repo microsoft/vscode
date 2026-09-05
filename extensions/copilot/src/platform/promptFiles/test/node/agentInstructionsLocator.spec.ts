@@ -18,8 +18,9 @@ import { createPlatformServices, ITestingServicesAccessor } from '../../../test/
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { INativeEnvService } from '../../../env/common/envService';
-import { AgentInstructionsLocator, PromptConfig } from '../../vscode-node/agentInstructionsLocator';
+import { AgentInstructionsLocator } from '../../vscode-node/agentInstructionsLocator';
 import { mockFiles } from './mockFiles';
+import { PromptConfig } from '../../common/promptsService';
 
 /**
  * `IWorkspaceService` test double whose trust map can be configured per URI.
@@ -121,6 +122,26 @@ suite('AgentInstructionsLocator', () => {
 
 		expect(paths).toContain(`${parentFolder}/.github/copilot-instructions.md`);
 		expect(paths).toContain(`${parentFolder}/AGENTS.md`);
+	});
+
+	test('should collect parent instructions through a submodule .git file', async () => {
+		await mockFiles(fileSystem, [
+			{ path: `${parentFolder}/.git/HEAD`, contents: ['ref: refs/heads/main'] },
+			{ path: `${rootFolder}/.git`, contents: ['gitdir: ../.git/modules/submodule'] },
+			{ path: `${parentFolder}/AGENTS.md`, contents: ['Parent agent guidelines'] },
+			{ path: `${parentFolder}/.github/copilot-instructions.md`, contents: ['Parent copilot instructions'] },
+			{ path: `${rootFolder}/src/file.ts`, contents: ['console.log("test");'] },
+		]);
+
+		workspaceService.setTrusted(parentFolderUri, true);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await configService.setConfig(ConfigKey.UseInstructionFiles, true);
+
+		const result = await locator.listAgentInstructions(CancellationToken.None);
+		expect(result.map(file => file.uri.path)).toEqual([
+			`${parentFolder}/.github/copilot-instructions.md`,
+			`${parentFolder}/AGENTS.md`,
+		]);
 	});
 
 	test('copilot-instructions and AGENTS.md', async () => {

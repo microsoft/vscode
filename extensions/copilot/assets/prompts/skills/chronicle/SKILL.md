@@ -252,20 +252,20 @@ Escape single quotes in the user's query by doubling them (`it's` → `it''s`). 
 
 `ILIKE '%X%'` on `turns` is a full table scan. Cloud queries that run too long return `context deadline exceeded`. To stay under the budget:
 
-- Collect matching session IDs into a single CTE (`WITH hits AS (...)`) and then **`JOIN`** back to `sessions` once. Don't use correlated subqueries in the SELECT list — they re-scan the CTE per row.
-- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries.
-- On cloud, default to a **90-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '90 days'` on `turns`, same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; widen it if the user asks for "all time" or no results come back.
+- **Use the two-step pattern** (recommended): First, collect matching `session_id`s from `turns` with a narrow time window and `GROUP BY session_id` in a CTE. Then enrich from `sessions` using `WHERE id IN (...)`. This avoids the expensive JOIN on a large scan result that causes timeouts.
+- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries or correlated subqueries.
+- On cloud, default to a **7-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '7 days'` on `turns`, same on `checkpoints` via `created_at`). If no results come back, **progressively widen**: 7 days → 30 days → 90 days. Mention the window in your summary line so the user knows it's bounded.
 - Keep `LIMIT 50` on the final SELECT.
-- If a query times out, retry with a tighter window (30 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
+- If a query times out, narrow the window (not widen it) or drop the heaviest table (usually `turns`) and tell the user what you trimmed. Do NOT retry with the same window — always reduce scope first.
 
 **Output format**
 
 For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
 
-If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+If you applied a time window (e.g. the cloud 7-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
 
 ```
-**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 7 days" / "all time">)
 
 _owner/repo_
 - `session-id` — **<summary or snippet>**
