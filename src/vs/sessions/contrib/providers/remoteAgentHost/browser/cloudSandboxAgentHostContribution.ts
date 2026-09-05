@@ -44,10 +44,11 @@ import { IWorkbenchContribution } from '../../../../../workbench/common/contribu
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
+import { IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
@@ -59,7 +60,7 @@ const LOG_PREFIX = '[CloudSandboxAgentHost]';
  * Mission Control creates every sandbox session as `ahp-session:/<id>` while the host advertises the
  * `copilot` agent, so the two schemes name the same session.
  */
-const SANDBOX_SESSION_SCHEME_ALIAS: ISessionSchemeAlias = {
+const SANDBOX_SESSION_SCHEME_ALIAS: IAgentHostSessionSchemeAlias = {
 	ui: CLOUD_SANDBOX_AGENT_PROVIDER,
 	backend: CLOUD_SANDBOX_SESSION_SCHEME,
 };
@@ -75,6 +76,18 @@ const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	label: localize('githubSandbox.hostGroup', "GitHub Sandboxes"),
 	order: 1,
 	connectable: false,
+};
+
+/** Names the environment rather than the task used as the provider's display name. */
+const CLOUD_SANDBOX_CONNECTION_LABELS: IAgentHostConnectionLabels = {
+	unavailableTitle: localize('cloudSandbox.offlineTitle', "Environment Offline"),
+	unavailable: localize('cloudSandbox.offline', "Environment offline."),
+	connectingTitle: localize('cloudSandbox.connectingTitle', "Connecting to the Environment"),
+	connecting: localize('cloudSandbox.connecting', "Connecting..."),
+	reconnecting: localize('cloudSandbox.reconnecting', "Reconnecting..."),
+	reconnectingIn: seconds => localize('cloudSandbox.reconnectingIn', "Reconnecting in {0}s", seconds),
+	incompatibleTitle: localize('cloudSandbox.incompatibleTitle', "Cannot Connect to the Environment"),
+	incompatible: localize('cloudSandbox.incompatible', "This environment is incompatible with this version of Visual Studio Code."),
 };
 
 /** A discovered sandbox environment we can create a provider for. */
@@ -133,8 +146,6 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	 * Disposed when the environment becomes reachable again.
 	 */
 	private readonly _readOnlyHandlers = this._register(new DisposableMap<string>());
-	/** Live handler instances, so an already-open session can be settled read-only in place. */
-	private readonly _readOnlyInstances = new Map<string, CloudSandboxReadOnlySessionHandler>();
 	/**
 	 * Cancelled when the feature is disabled (or the contribution is disposed), so in-flight
 	 * discovery and connects abort instead of committing state after teardown has run.
@@ -452,59 +463,45 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		return authority ? byAuthority.get(authority) : undefined;
 	}
 
-	/**
-	 * Async-activation hook for a sandbox session type: establish the relay connection on demand,
-	 * then resolve once the host advertises the agent backing this session type (its content
-	 * provider is registered), so the chat can load. Returns false if the environment is unknown,
-	 * the connection fails, or the agent never appears.
-	 */
-	private async _waitForActivation(sessionType: string): Promise<boolean> {
+	/** Opens an online environment through its host, or an offline session from persisted history. */
+	protected async _waitForActivation(sessionType: string): Promise<boolean> {
 		const address = this._findAddressForSessionType(sessionType);
 		const env = address ? this._environments.get(address) : undefined;
-		if (!address || !env) {
+		const provider = address ? this._providerInstances.get(address) : undefined;
+		if (!address || !env || !provider) {
 			return false;
 		}
-		// Both start before any `await` so they overlap: `/connect` blocks on the compute resume and
-		// can occupy its whole budget while the transcript already sits ready.
-		const connecting = this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name });
-		// Settled into a value so the race below can inspect it without an unhandled rejection.
-		const connectOutcome = connecting.then(() => undefined, (error: unknown) => error ?? new Error('connect failed'));
-		const prefetchedHistory = this._prefetchHistoryIfDormant(env);
-
-		if (prefetchedHistory) {
-			// Whichever lands first decides what the user sees. The connect keeps running either
-			// way: if it lands later, `onDidChangeConnections` drops the stand-in.
-			const historyFirst = await Promise.race([
-				connectOutcome.then(() => undefined),
-				prefetchedHistory,
-			]);
-			if (historyFirst && this._isEnabled() && !this._enabledCts.token.isCancellationRequested) {
-				this._logService.info(`${LOG_PREFIX} History for ${address} arrived before the connect settled; opening it now.`);
-				const opened = this._activateReadOnly(sessionType, address, env, prefetchedHistory);
-				// On screen but undecided: a failed connect disables the composer in place.
-				void connectOutcome.then(connectError => {
-					if (connectError !== undefined && this._isEnabled() && !this._enabledCts.token.isCancellationRequested) {
-						this._logService.info(`${LOG_PREFIX} Connect for ${address} failed after the session opened; settling it read-only.`);
-						this._settleReadOnly(sessionType, address);
-					}
-				});
-				return opened;
+		const token = this._enabledCts.token;
+		const isCurrentActivation = () => {
+			const current = !token.isCancellationRequested
+				&& this._isEnabled()
+				&& this._environments.has(address)
+				&& this._providerInstances.get(address) === provider;
+			if (!current) {
+				this._logService.trace(`${LOG_PREFIX} Abandoning activation for ${address} after teardown.`);
 			}
+			return current;
+		};
+
+		// Without a task there is no history fallback, so connecting is the only way to open it.
+		const shouldConnect = !env.taskId || await this._isEnvironmentOnline(env, token);
+		if (!isCurrentActivation()) {
+			return false;
+		}
+		if (!shouldConnect) {
+			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
+			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 
-		const connectError = await connectOutcome;
+		const connectError = await this
+			.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name })
+			.then(() => undefined, (error: unknown) => error ?? new Error('connect failed'));
+		if (!isCurrentActivation()) {
+			return false;
+		}
 		if (connectError !== undefined) {
 			this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
-			// Serve history whatever the reason: `/connect` fails in several ways for a deleted
-			// sandbox, so gating on any one of them would leave the rest with no history.
-			if (this._isEnabled() && !this._enabledCts.token.isCancellationRequested) {
-				const opened = this._activateReadOnly(sessionType, address, env, prefetchedHistory);
-				if (opened) {
-					this._settleReadOnly(sessionType, address);
-				}
-				return opened;
-			}
-			return false;
+			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 		const authority = agentHostAuthority(address);
 		while (true) {
@@ -523,41 +520,38 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		}
 	}
 
-	/**
-	 * Persisted history for an environment that is not currently online, or `undefined` when it is
-	 * online, has no task, or the read failed.
-	 *
-	 * `status` cannot predict whether a dormant environment will wake — suspended and deleted both
-	 * read `offline` — but it does say cheaply that this open is on the slow path. Never rejects.
-	 */
-	private _prefetchHistoryIfDormant(env: ICloudSandboxEnvironment): Promise<IReplayedTaskHistory | undefined> | undefined {
+	/** An unreadable record must not trigger an automatic resume. */
+	private async _isEnvironmentOnline(env: ICloudSandboxEnvironment, token: CancellationToken): Promise<boolean> {
+		try {
+			const record = await this._apiService.getEnvironment(env.environmentId, token);
+			return record.status === 'online';
+		} catch (error) {
+			this._logService.trace(`${LOG_PREFIX} Could not read the state of ${env.environmentId}; treating it as not online: ${error instanceof Error ? error.message : String(error)}`);
+			return false;
+		}
+	}
+
+	/** Reads history from Mission Control without connecting to the sandbox. */
+	private _fetchTaskHistory(env: ICloudSandboxEnvironment, token: CancellationToken): Promise<IReplayedTaskHistory | undefined> | undefined {
 		const taskId = env.taskId;
 		if (!taskId) {
 			return undefined;
 		}
-		const token = this._enabledCts.token;
-		return (async () => {
-			try {
-				const record = await this._apiService.getEnvironment(env.environmentId, token);
-				if (record.status === 'online') {
-					return undefined;
-				}
-				this._logService.trace(`${LOG_PREFIX} Environment ${env.environmentId} is '${record.status}'; prefetching history in case the connect does not land.`);
-				return await this._apiService.getSessionHistory(taskId, token);
-			} catch (error) {
-				this._logService.trace(`${LOG_PREFIX} History prefetch for ${env.environmentId} did not complete: ${error instanceof Error ? error.message : String(error)}`);
-				return undefined;
-			}
-		})();
+		return this._apiService.getSessionHistory(taskId, token).catch((error: unknown) => {
+			this._logService.trace(`${LOG_PREFIX} History read for ${env.environmentId} did not complete: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		});
 	}
 
 	/**
-	 * Register a content provider that serves this session from replayed history.
+	 * Register a content provider that serves this session from replayed history, read-only.
 	 *
-	 * Deliberately does *not* mark the session read-only: this also runs while a connect is in
-	 * flight and the environment may yet wake — callers settle it via {@link _settleReadOnly}.
-	 * Returns `true` once registered, which is what lets `canResolveChatSession` proceed, or `false`
-	 * when there is no task to read history from.
+	 * Only ever registered when the environment is not connected — dormant, or a connect that just
+	 * failed — so the transcript is real but there is nothing to send to. A connect that later
+	 * lands drops this stand-in and hands the session to the live handler.
+	 *
+	 * Returns `true` once registered, which is what lets `canResolveChatSession` proceed, or
+	 * `false` when there is no task to read history from.
 	 */
 	private _activateReadOnly(sessionType: string, address: string, env: ICloudSandboxEnvironment, prefetchedHistory?: Promise<IReplayedTaskHistory | undefined>): boolean {
 		if (this._readOnlyHandlers.has(sessionType)) {
@@ -582,28 +576,11 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			connectionAuthority: agentHostAuthority(address),
 			prefetchedHistory,
 		}));
+		handler.markReadOnly();
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, handler));
 		this._readOnlyHandlers.set(sessionType, store);
-		this._readOnlyInstances.set(sessionType, handler);
-		store.add(toDisposable(() => this._readOnlyInstances.delete(sessionType)));
 		this._logService.info(`${LOG_PREFIX} Serving ${sessionType} from Mission Control history.`);
 		return true;
-	}
-
-	/**
-	 * Settle a history-backed session as read-only once the connect has failed. Sessions already on
-	 * screen observe this and disable their composer in place, without needing a reopen.
-	 */
-	private _settleReadOnly(sessionType: string, address: string): void {
-		const handler = this._readOnlyInstances.get(sessionType);
-		if (!handler) {
-			// The live handler owns this session type, so there is nothing being served from
-			// history to settle — and forcing the host read-only here would be wrong.
-			return;
-		}
-		handler.markReadOnly();
-		// The transcript is real, but there is no host left to send to.
-		this._providerInstances.get(address)?.setReadOnly(true);
 	}
 
 	/**
@@ -612,7 +589,6 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	 * connection is established rather than after.
 	 */
 	private _clearReadOnly(address: string): void {
-		this._providerInstances.get(address)?.setReadOnly(false);
 		const authority = agentHostAuthority(address);
 		for (const sessionType of [...this._readOnlyHandlers.keys()]) {
 			if (findRemoteAgentHostSessionTypeAuthority(sessionType, [authority]) === authority) {
@@ -652,12 +628,37 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 					throw new CancellationError();
 				}
 				return result;
+			} catch (error) {
+				// Settle the status here rather than waiting for a connections-changed event: a
+				// wake that exhausts its retry budget fails before any transport entry exists, so
+				// no such event is coming and the provider would sit at `connecting` forever —
+				// a permanent spinner with no way back to the connect action.
+				this._settleFailedConnect(address);
+				throw error;
 			} finally {
 				this._pendingConnects.delete(address);
 			}
 		})();
 		this._pendingConnects.set(address, attempt);
 		return attempt;
+	}
+
+	/**
+	 * Return a provider to a state the user can act on after its connect failed. Defers to the
+	 * service when it has something live to report, so a failure that raced a successful dial does
+	 * not overwrite a good status, and leaves `incompatible` alone since redialing cannot fix it.
+	 */
+	private _settleFailedConnect(address: string): void {
+		const provider = this._providerInstances.get(address);
+		if (!provider) {
+			return;
+		}
+		const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
+		if (connectionInfo) {
+			provider.setConnectionStatus(connectionInfo.status);
+		} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		}
 	}
 
 	private _isEnabled(): boolean {
@@ -700,6 +701,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			omitHostFromWorkspaceLabel: true,
 			// A sandbox is a disposable remote environment, not a checkout on disk.
 			workspaceTypeIcon: Codicon.package,
+			// The sandbox has to be resumed before it can be sent to, and a resume is not
+			// guaranteed to succeed, so an offline session is read-only until it reconnects
+			// rather than accepting input that would queue against an environment that may
+			// never come back.
+			readOnlyWhenDisconnected: true,
+			connectionLabels: CLOUD_SANDBOX_CONNECTION_LABELS,
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		});
 		store.add(provider);
@@ -739,6 +746,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (connectionInfo) {
 				provider.setConnectionStatus(connectionInfo.status);
+			} else if (this._pendingConnects.has(address)) {
+				// A connect is in flight but has not reached `reconnect()` yet, so the service has
+				// no entry to report: waking an environment can spend minutes minting credentials
+				// beforehand. Any unrelated connection change would otherwise land here and reset
+				// the wake to `disconnected`, flipping the chat to a failure it has not had.
+				continue;
 			} else if (!RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 			}

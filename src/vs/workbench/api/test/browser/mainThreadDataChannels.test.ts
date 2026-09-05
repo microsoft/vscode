@@ -44,6 +44,7 @@ suite('MainThreadDataChannels', () => {
 				new TestConfigurationService(),
 				store.add(new TestStorageService()),
 			)),
+			new NullLogService(),
 		));
 
 		mainThread.$createLinkPresentationWatcher(1, 'missing', 'pullRequest', URI.parse('https://example.com/pull/1'));
@@ -103,6 +104,7 @@ suite('MainThreadDataChannels', () => {
 			SingleProxyRPCProtocol(extHostProxy),
 			store.add(new DataChannelService()),
 			linkPresentationService,
+			new NullLogService(),
 		));
 		const extHost = new ExtHostDataChannels(SingleProxyRPCProtocol(mainThread));
 		extHostHolder.value = extHost;
@@ -180,6 +182,7 @@ suite('MainThreadDataChannels', () => {
 			SingleProxyRPCProtocol(extHostProxy),
 			store.add(new DataChannelService()),
 			linkPresentationService,
+			new NullLogService(),
 		));
 		const extHost = new ExtHostDataChannels(SingleProxyRPCProtocol(mainThread));
 		const extension = {

@@ -251,6 +251,7 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
 	padding: 0;
 }
@@ -258,9 +259,10 @@
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label {
 	box-sizing: border-box;
 	width: 22px;
+	height: 22px;
 	min-width: 22px;
-	padding: 2px 2px 2px 8px;
-	justify-content: flex-start;
+	padding: 0;
+	justify-content: center;
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item.compact-picker .action-label.model-picker-split {

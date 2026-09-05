@@ -28,7 +28,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -351,6 +351,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
  */
 export class ClaudeAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider = CLAUDE_AGENT_PROVIDER_ID;
+	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -715,6 +716,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
 	}
 
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error('Claude does not support changing the working directory of an existing session.');
+	}
+
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		// Always listed, always optional. Listing it is what lets the host forward a
 		// token to an already-signed-in user (matching ignores `required`); the
@@ -948,10 +953,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.info(`[Claude] Models refreshed (merged). Count: ${merged.length}, ${merged.map(m => m.name).join(', ')}`);
 			this._models.set(merged, undefined);
 		}
-		// Last, never first: this is a free republish of "is the SDK on disk" (some
-		// other path may have fetched it), but announcing `ready` before the catalog
-		// lands is exactly how the window renders "no account found".
-		this._sdkSetupChannel.publishWith(canAttemptNative);
+		// Last, never first: announcing `ready` before the catalog lands is exactly
+		// how the window renders "no account found".
+		this._sdkSetupChannel.refresh();
 	}
 
 	/**
@@ -1915,14 +1919,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	private async _readChatMessages(context: IResolvedClaudeChatContext): Promise<readonly Turn[]> {
-		// Don't trigger a cold SDK download just to reconstruct a transcript
-		// during restore (the renderer subscribes to the last-active session
-		// on startup). Mirrors `listSessions` / `getConversationMetadata`: when the
-		// SDK isn't local yet, defer with an empty transcript. The download
-		// fires (with host-level progress) once the user sends the first
-		// message, after which the transcript re-hydrates on the next restore.
+		// Normal restore activates the SDK while reading metadata before reaching
+		// this path. Direct reads remain passive.
 		if (!(await this._sdkService.canLoadWithoutDownload())) {
-			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
+			this._logService.info('[Claude] SDK not downloaded yet; deferring passive session messages');
 			return [];
 		}
 		if (context.spawnedFrom) {
@@ -2134,13 +2134,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the SDK lookup propagate (the caller is doing a single targeted fetch and
 	 * should learn that the SDK module is broken).
 	 */
-	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
-		// Don't trigger a cold SDK download just to hydrate metadata during
-		// restore (the renderer subscribes to the last-active session on
-		// startup). When the SDK isn't local yet, defer; the download fires
-		// once the user sends the first message.
-		if (!(await this._sdkService.canLoadWithoutDownload())) {
-			this._logService.info('[Claude] SDK not downloaded yet; deferring chat metadata until a session triggers the download');
+	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+		if (options?.activation === 'restore') {
+			await this._sdkService.ensureAvailable();
+		} else if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring passive chat metadata');
 			return undefined;
 		}
 		const { configurationResource } = resolveAgentChatContext(context, chat);

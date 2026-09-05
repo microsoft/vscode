@@ -15,8 +15,9 @@ import { AgentSession } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -1430,6 +1431,17 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		};
 	}
 
+	/** Polls until `changesetUri` reaches `Ready`. */
+	async function waitForChangesetReady(stateManager: AgentHostStateManager, changesetUri: string): Promise<void> {
+		for (let i = 0; i < 500; i++) {
+			if (stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Ready) {
+				return;
+			}
+			await timeout(1);
+		}
+		assert.fail(`changeset ${changesetUri} never reached Ready`);
+	}
+
 	function build(options: {
 		workingDirectories: string[];
 		git: IAgentHostGitService;
@@ -1812,6 +1824,62 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		assert.strictEqual(state?.status, ChangesetStatus.Ready);
 		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/wd/tracked.ts').toString()], 'fallback returns all of the turn edits, exactly as today');
 		assert.strictEqual(repoRootCalls, 0, 'single-folder fallback must not resolve repositories');
+	});
+
+	/**
+	 * A workspace continuation is a real provider turn even though its request
+	 * row is hidden; a later pure host notice must not replace it as the latest
+	 * attributable turn.
+	 */
+	test('session changeset attributes a hidden workspace continuation before a host notice', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
+		git.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+			diffCalls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+			return [gitDiff('/wd/edited.ts', 3, 1)];
+		};
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getBaselineCheckpoint: async () => 'baseline',
+			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
+				turnId === 'continuation-turn' ? { parent: 'continuation~p', current: 'continuation~c' } : undefined,
+		};
+		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+
+		const chat = buildDefaultChatUri(sessionStr);
+		for (const turn of [
+			{ id: 'agent-turn', message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } } },
+			{
+				id: 'continuation-turn',
+				message: withMessageRequestHiddenFromTranscript({
+					text: 'Continue in the requested workspace.',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentWorkspaceContinuationMessageMeta(),
+				}, true),
+			},
+			{
+				id: 'notice-turn',
+				message: withMessageRequestHiddenFromTranscript(
+					{ text: 'Agent Merge is enabled for `feature`.', origin: { kind: MessageKind.SystemNotification } },
+					true,
+				),
+			},
+		]) {
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: turn.id, startedAt: new Date(0).toISOString(), message: turn.message });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 });
+		}
+
+		svc.refreshSessionChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, buildSessionChangesetUri(sessionStr));
+
+		assert.deepStrictEqual({
+			diffCalls,
+			files: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id),
+		}, {
+			diffCalls: [{ fromRef: 'baseline', toRef: 'continuation~c' }],
+			files: [URI.file('/wd/edited.ts').toString()],
+		});
 	});
 
 	/**

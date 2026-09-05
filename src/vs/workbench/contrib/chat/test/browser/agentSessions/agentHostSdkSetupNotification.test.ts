@@ -4,13 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSdkSetupInfo } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
-import type { AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, type IChatInputNotification, type IChatInputNotificationAction, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AgentHostSdkSetupNotificationContribution, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService, type IChatInputNotification, type IChatInputNotificationAction } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
 /** Signed out, flag on, entitlement settled, SDK missing — the case this feature exists for. */
 const BLOCKED_USER: IAgentSdkSetupStateInputs = {
@@ -27,11 +35,12 @@ function commandIds(actions: readonly IChatInputNotificationAction[]): string[] 
 }
 
 suite('Agent SDK setup banner', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('state', () => {
 		const cases: readonly { readonly name: string; readonly inputs: IAgentSdkSetupStateInputs; readonly expected: AgentSdkSetupState | undefined }[] = [
 			{ name: 'signed-out user with no SDK is offered the download', inputs: BLOCKED_USER, expected: 'downloadOffered' },
+			{ name: 'standing consent waits quietly for the SDK to be used', inputs: { ...BLOCKED_USER, download: 'downloadOnUse' }, expected: undefined },
 			{ name: 'a fetch in flight has nothing to ask for, since the host shows its own progress', inputs: { ...BLOCKED_USER, download: 'downloading' }, expected: undefined },
 			// The host answers a download request over IPC, so it keeps saying
 			// `notDownloaded` for a moment after we ask. Offering the button again in
@@ -39,10 +48,17 @@ suite('Agent SDK setup banner', () => {
 			{ name: 'a request the host has not answered yet is not a fresh offer', inputs: { ...BLOCKED_USER, downloadRequested: true }, expected: undefined },
 			{ name: 'SDK on disk reporting no models means no account', inputs: { ...BLOCKED_USER, download: 'ready' }, expected: 'noAccount' },
 			{ name: 'models are the honest end state, whatever the status says', inputs: { ...BLOCKED_USER, download: 'ready', hasModels: true }, expected: 'resolved' },
-			{ name: 'a signed-in user already has Copilot models', inputs: { ...BLOCKED_USER, signedIn: true }, expected: undefined },
-			{ name: 'nothing shows until entitlement settles, since "signed out" is not yet a fact', inputs: { ...BLOCKED_USER, entitlementResolved: false }, expected: undefined },
-			{ name: 'the whole feature stays behind its flag', inputs: { ...BLOCKED_USER, allowSignedOutWhenUsable: false }, expected: undefined },
+			{ name: 'nothing shows until entitlement settles, since "signed out" is not yet a fact', inputs: { ...BLOCKED_USER, download: 'ready', entitlementResolved: false }, expected: undefined },
+			{ name: 'the missing-account explanation stays behind its flag', inputs: { ...BLOCKED_USER, download: 'ready', allowSignedOutWhenUsable: false }, expected: undefined },
+			{ name: 'a signed-in user is never told they have no account', inputs: { ...BLOCKED_USER, download: 'ready', signedIn: true }, expected: undefined },
 			{ name: 'a signed-in user mid-download is still shown nothing', inputs: { ...BLOCKED_USER, signedIn: true, download: 'downloading' }, expected: undefined },
+
+			// The download is offered to everyone: each of these users can work
+			// today, and still has an SDK we are about to fetch onto their machine.
+			{ name: 'a signed-in user is offered the download too', inputs: { ...BLOCKED_USER, signedIn: true }, expected: 'downloadOffered' },
+			{ name: 'having models does not hide the download', inputs: { ...BLOCKED_USER, signedIn: true, hasModels: true }, expected: 'downloadOffered' },
+			{ name: 'the download offer does not wait for entitlement', inputs: { ...BLOCKED_USER, entitlementResolved: false }, expected: 'downloadOffered' },
+			{ name: 'the download offer is not behind the signed-out flag', inputs: { ...BLOCKED_USER, allowSignedOutWhenUsable: false }, expected: 'downloadOffered' },
 		];
 
 		for (const { name, inputs, expected } of cases) {
@@ -68,6 +84,13 @@ suite('Agent SDK setup banner', () => {
 			assert.strictEqual(notification.description, 'To use the Claude Agent, we need to download the Claude Agent SDK.');
 			assert.deepStrictEqual(commandIds(notification.actions), [AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID]);
 			assert.deepStrictEqual(notification.actions[0].kind === ChatInputNotificationActionKind.Command ? notification.actions[0].commandArgs : undefined, ['claude']);
+		});
+
+		test('models add the send-a-message option without changing the Download action', () => {
+			assert.deepStrictEqual(createAgentSdkSetupNotification(claude, 'Claude', 'downloadOffered', true), {
+				...createAgentSdkSetupNotification(claude, 'Claude', 'downloadOffered'),
+				description: 'Click Download or send a message to download the Claude Agent SDK.',
+			});
 		});
 
 		test('every noun comes from the agent, so a second agent needs no entry here', () => {
@@ -184,6 +207,99 @@ suite('Agent SDK setup banner', () => {
 			// "Download the  Agent" is worse than no banner; the next root-state
 			// change carries the name.
 			assert.strictEqual(createAgentSdkSetupNotification({ agent: 'some-future-agent', download: 'notDownloaded' }, '', 'downloadOffered'), undefined);
+		});
+	});
+
+	suite('model availability', () => {
+		function createFixture(initialSessionTypes: readonly (string | undefined)[] = []) {
+			const instantiationService = store.add(new TestInstantiationService());
+			const onDidChangeLanguageModels = store.add(new Emitter<string>());
+			const models = new Map<string, ILanguageModelChatMetadata>();
+			const notifications: IChatInputNotification[] = [];
+			const deletedNotifications: string[] = [];
+			const reportedStates: AgentSdkSetupState[] = [];
+			const setModels = (sessionTypes: readonly (string | undefined)[]) => {
+				models.clear();
+				for (const [index, targetChatSessionType] of sessionTypes.entries()) {
+					models.set(`model-${index}`, new class extends mock<ILanguageModelChatMetadata>() {
+						override readonly targetChatSessionType = targetChatSessionType;
+					}());
+				}
+				onDidChangeLanguageModels.fire('test');
+			};
+
+			instantiationService.stub(IChatInputNotificationService, {
+				setNotification: notification => notifications.push(notification),
+				deleteNotification: id => deletedNotifications.push(id),
+			});
+			instantiationService.stub(IAgentSdkSetupService, {
+				setups: [{ agent: 'claude', download: 'notDownloaded' }],
+				onDidChangeSetups: Event.None,
+				isDownloadPending: () => false,
+				reportSetupState: (_agent, state) => reportedStates.push(state),
+			});
+			instantiationService.stub(IDefaultAccountService, {
+				currentDefaultAccount: null,
+				onDidChangeDefaultAccount: Event.None,
+			});
+			instantiationService.stub(ILanguageModelsService, {
+				onDidChangeLanguageModels: onDidChangeLanguageModels.event,
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: id => models.get(id),
+			});
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatEntitlementService, {
+				entitlement: ChatEntitlement.Pro,
+				onDidChangeEntitlement: Event.None,
+			});
+			instantiationService.stub(IAgentHostService, {
+				onAgentHostStart: Event.None,
+				rootState: new class extends mock<IAgentHostService['rootState']>() {
+					override readonly value = { agents: [{ provider: 'claude', displayName: 'Claude', description: '', models: [] }] };
+					override readonly onDidChange = Event.None;
+				}(),
+			});
+
+			setModels(initialSessionTypes);
+			store.add(instantiationService.createInstance(AgentHostSdkSetupNotificationContribution));
+
+			return { notifications, deletedNotifications, reportedStates, setModels };
+		}
+
+		test('explains download-on-use when models are already available', () => {
+			const fixture = createFixture([SessionType.AgentHostClaude]);
+
+			assert.deepStrictEqual(fixture.notifications.map(notification => notification.description), [
+				'Click Download or send a message to download the Claude Agent SDK.',
+			]);
+		});
+
+		test('updates the visible offer when models for its agent appear and disappear', () => {
+			const fixture = createFixture();
+			fixture.setModels([SessionType.AgentHostCodex, undefined]);
+			fixture.setModels([SessionType.AgentHostCodex, undefined, SessionType.AgentHostClaude]);
+			fixture.setModels([SessionType.AgentHostClaude]);
+			fixture.setModels([]);
+
+			assert.deepStrictEqual({
+				descriptions: fixture.notifications.map(notification => notification.description),
+				actions: fixture.notifications.map(notification => commandIds(notification.actions)),
+				deletedNotifications: fixture.deletedNotifications,
+				reportedStates: fixture.reportedStates,
+			}, {
+				descriptions: [
+					'To use the Claude Agent, we need to download the Claude Agent SDK.',
+					'Click Download or send a message to download the Claude Agent SDK.',
+					'To use the Claude Agent, we need to download the Claude Agent SDK.',
+				],
+				actions: [
+					[AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID],
+					[AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID],
+					[AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID],
+				],
+				deletedNotifications: [],
+				reportedStates: ['downloadOffered'],
+			});
 		});
 	});
 
