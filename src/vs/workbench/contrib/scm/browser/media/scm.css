@@ -295,6 +295,28 @@
 	margin-right: 3px;
 }
 
+.scm-view .monaco-list-row .diff-statistics {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: 6px;
+	font-size: 0.9em;
+	font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+}
+
+.scm-view .monaco-list-row .diff-statistics.empty {
+	display: none;
+}
+
+.scm-view .monaco-list-row .diff-statistics .insertions {
+	color: var(--vscode-scm-diffStatisticsInsertionsForeground);
+}
+
+.scm-view .monaco-list-row .diff-statistics .deletions {
+	color: var(--vscode-scm-diffStatisticsDeletionsForeground);
+}
+
 .scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
