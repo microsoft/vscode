@@ -691,6 +691,71 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(serialized).not.toContain('image_url');
 	});
 
+	test('renders a text part with an undefined value without crashing', async () => {
+		const toolName = 'malformedTextTool';
+		const toolCallId = 'call-undef-text';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'tool returning a malformed text part',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		// MCP servers can return a text part without a value; the LanguageModelTextPart
+		// constructor does not validate the value, so it can be undefined at runtime (#324371).
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[toolCallId]: new LanguageModelToolResult([
+				new LanguageModelTextPart(undefined as unknown as string),
+			]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'calling tool',
+			toolInputRetry: 0,
+			toolCalls: [{ name: toolName, arguments: '{}', id: toolCallId }],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-undef-text' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		// Rendering must succeed and fall back to the empty text instead of throwing
+		// Cannot read properties of undefined (reading 'length') (the pre-fix behavior).
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+
+		const serialized = JSON.stringify(messages);
+		// The undefined text contributes nothing; the tool result renders as empty
+		expect(serialized).not.toContain('undefined');
+		expect(serialized).toContain('(empty)');
+	});
+
+
 	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {
 		// Regression test for issue #312813: ensure sendInvokedToolTelemetry uses DI to instantiate
 		// PrimitiveToolResult so that @IPromptEndpoint is properly injected when rendering images.
