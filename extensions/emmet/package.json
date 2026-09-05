@@ -8,6 +8,9 @@
   "engines": {
     "vscode": "^1.13.0"
   },
+  "enabledApiProposals": [
+    "inlineCompletionsAdditions"
+  ],
   "icon": "images/icon.png",
   "categories": [
     "Other"

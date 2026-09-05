@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { setUnexpectedErrorHandler, errorHandler } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as types from '../../common/extHostTypes.js';
 import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
@@ -44,7 +46,7 @@ import { nullExtensionDescription as defaultExtension } from '../../../services/
 import { provideSelectionRanges } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
@@ -57,6 +59,22 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
+import { IAiEditTelemetryService } from '../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	isConnectionMetered = false;
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -69,6 +87,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
+	let meteredConnectionService: TestMeteredConnectionService;
 
 	setup(() => {
 
@@ -96,6 +115,14 @@ suite('ExtHostLanguageFeatures', function () {
 				override asCanonicalUri(uri: URI): URI {
 					return uri;
 				}
+			});
+			meteredConnectionService = disposables.add(new TestMeteredConnectionService());
+			instantiationService.set(IMeteredConnectionService, meteredConnectionService);
+			instantiationService.stub(IAiEditTelemetryService, {
+				_serviceBrand: undefined,
+				createSuggestionId: () => { throw new Error('Not expected'); },
+				handleCodeAccepted: () => { },
+				handleCodeRejected: () => { },
 			});
 			inst = instantiationService;
 		}
@@ -151,6 +178,89 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Inline completions check metered connections when automatic requests start', async () => {
+		const calls: string[] = [];
+		const delayedResult = new DeferredPromise<vscode.InlineCompletionItem[]>();
+		const createProvider = (id: string): vscode.InlineCompletionItemProvider => ({
+			provideInlineCompletionItems: (_document, _position, context) => {
+				const trigger = context.triggerKind === types.InlineCompletionTriggerKind.Automatic ? 'automatic' : 'explicit';
+				calls.push(`${id}:${trigger}`);
+				if (id === 'delayed') {
+					return delayedResult.p;
+				}
+				return [{ insertText: id }];
+			}
+		});
+
+		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('network'), { groupId: 'network' }));
+		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('local'), { groupId: 'local', meteredNetworkAware: true }));
+		disposables.add(extHost.registerInlineCompletionsProvider(defaultExtension, defaultSelector, createProvider('delayed'), { groupId: 'delayed' }));
+		await rpcProtocol.sync();
+
+		const providers = languageFeaturesService.inlineCompletionsProvider.all(model);
+		const networkProvider = providers.find(provider => provider.groupId === 'network');
+		const localProvider = providers.find(provider => provider.groupId === 'local');
+		const delayedProvider = providers.find(provider => provider.groupId === 'delayed');
+		assert.ok(networkProvider);
+		assert.ok(localProvider);
+		assert.ok(delayedProvider);
+		assert.ok(networkProvider.onDidChangeAvailability);
+		let networkAvailabilityChanges = 0;
+		disposables.add(networkProvider.onDidChangeAvailability(() => networkAvailabilityChanges++));
+
+		const context = (triggerKind: languages.InlineCompletionTriggerKind): languages.InlineCompletionContext => ({
+			triggerKind,
+			selectedSuggestionInfo: undefined,
+			requestUuid: `request-${triggerKind}`,
+			includeInlineEdits: true,
+			includeInlineCompletions: true,
+			requestIssuedDateTime: 0,
+			earliestShownDateTime: 0,
+		});
+
+		meteredConnectionService.setIsConnectionMetered(true);
+		const networkAutomaticAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
+		const localAutomaticAvailable = localProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
+		const networkExplicitAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Explicit));
+		const networkAutomatic = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
+		const localAutomatic = await localProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
+		const networkExplicit = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Explicit), CancellationToken.None);
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		const networkUnmeteredAvailable = networkProvider.isAvailable?.(context(languages.InlineCompletionTriggerKind.Automatic));
+		const networkUnmetered = await networkProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
+		const delayedPromise = delayedProvider.provideInlineCompletions(model, new EditorPosition(1, 1), context(languages.InlineCompletionTriggerKind.Automatic), CancellationToken.None);
+		meteredConnectionService.setIsConnectionMetered(true);
+		delayedResult.complete([{ insertText: 'delayed' }]);
+		const inFlightAfterMetered = await delayedPromise;
+
+		assert.deepStrictEqual({
+			calls,
+			networkAvailabilityChanges,
+			networkAutomaticAvailable,
+			localAutomaticAvailable,
+			networkExplicitAvailable,
+			networkUnmeteredAvailable,
+			networkAutomatic: networkAutomatic?.items.length,
+			localAutomatic: localAutomatic?.items.length,
+			networkExplicit: networkExplicit?.items.length,
+			networkUnmetered: networkUnmetered?.items.length,
+			inFlightAfterMetered: inFlightAfterMetered?.items.length,
+		}, {
+			calls: ['local:automatic', 'network:explicit', 'network:automatic', 'delayed:automatic'],
+			networkAvailabilityChanges: 3,
+			networkAutomaticAvailable: false,
+			localAutomaticAvailable: true,
+			networkExplicitAvailable: true,
+			networkUnmeteredAvailable: true,
+			networkAutomatic: undefined,
+			localAutomatic: 1,
+			networkExplicit: 1,
+			networkUnmetered: 1,
+			inFlightAfterMetered: 1,
+		});
+	});
 
 	// --- outline
 

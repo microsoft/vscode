@@ -91,6 +91,14 @@ declare module 'vscode' {
 
 	export interface InlineCompletionItemProviderMetadata {
 		/**
+		 * Whether this provider can safely provide automatic inline completions on a metered connection,
+		 * either because it does not use the network or because it handles metered connections itself.
+		 * This does not affect explicit inline completion requests.
+		 * Defaults to `false`.
+		 */
+		meteredNetworkAware?: boolean;
+
+		/**
 		 * Specifies a list of extension ids that this provider yields to if they return a result.
 		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
 		 */

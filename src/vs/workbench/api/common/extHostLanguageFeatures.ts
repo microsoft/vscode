@@ -2671,6 +2671,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
 			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
+			metadata?.meteredNetworkAware ?? false,
 			supportsOnDidChange,
 			adapter.supportsSetModelId,
 			adapter.modelInfo,

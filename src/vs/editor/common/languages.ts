@@ -948,6 +948,18 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
+	 * Returns whether this provider is available for the given request.
+	 * @internal
+	 */
+	isAvailable?(context: Pick<InlineCompletionContext, 'triggerKind'>): boolean;
+
+	/**
+	 * Fired when this provider's availability changes.
+	 * @internal
+	 */
+	onDidChangeAvailability?: Event<void>;
+
+	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
