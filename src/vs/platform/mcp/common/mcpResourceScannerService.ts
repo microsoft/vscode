@@ -11,6 +11,7 @@ import { parse, ParseError } from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { dirname } from '../../../base/common/resources.js';
 import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../configuration/common/configuration.js';
@@ -18,6 +19,7 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { isMcpServersConfigurationResource } from './mcpConfigPaths.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
 import { ICommonMcpServerConfiguration, IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
@@ -39,6 +41,12 @@ interface IScannedWorkspaceMcpServers {
 	settings?: {
 		mcp?: IScannedMcpServers;
 	};
+}
+
+interface IScannedMcpServersConfiguration {
+	mcpServers?: IStringDictionary<Mutable<IMcpServerConfiguration>>;
+	inputs?: IMcpServerVariable[];
+	sandbox?: IMcpSandboxConfiguration;
 }
 
 export type McpResourceTarget = ConfigurationTarget.USER | ConfigurationTarget.WORKSPACE | ConfigurationTarget.WORKSPACE_FOLDER;
@@ -103,6 +111,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		return this.getResourceAccessQueue(mcpResource)
 			.queue(async (): Promise<IScannedMcpServers> => {
 				target = target ?? ConfigurationTarget.USER;
+				const usesMcpServersProperty = isMcpServersConfigurationResource(mcpResource);
 				let scannedMcpServers: IScannedMcpServers = {};
 				try {
 					const content = await this.fileService.readFile(mcpResource);
@@ -112,7 +121,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 						throw new Error('Failed to parse scanned MCP servers: ' + errors.map(e => `[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`).join(', '));
 					}
 
-					if (target === ConfigurationTarget.USER) {
+					if (usesMcpServersProperty) {
+						scannedMcpServers = this.fromMcpServersConfiguration(result);
+					} else if (target === ConfigurationTarget.USER) {
 						scannedMcpServers = this.fromUserMcpServers(result);
 					} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 						scannedMcpServers = this.fromWorkspaceFolderMcpServers(result);
@@ -130,7 +141,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				if (updateFn) {
 					scannedMcpServers = updateFn(scannedMcpServers ?? {});
 
-					if (target === ConfigurationTarget.USER) {
+					if (usesMcpServersProperty) {
+						await this.writeMcpServersConfiguration(mcpResource, scannedMcpServers);
+					} else if (target === ConfigurationTarget.USER) {
 						await this.writeScannedMcpServers(mcpResource, scannedMcpServers);
 					} else if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 						await this.writeScannedMcpServersToWorkspaceFolder(mcpResource, scannedMcpServers);
@@ -142,6 +155,16 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				}
 				return scannedMcpServers;
 			});
+	}
+
+	private async writeMcpServersConfiguration(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
+		const configuration: IScannedMcpServersConfiguration = {
+			mcpServers: scannedMcpServers.servers ?? {},
+			inputs: scannedMcpServers.inputs?.length ? scannedMcpServers.inputs : undefined,
+			sandbox: scannedMcpServers.sandbox,
+		};
+		await this.fileService.createFolder(dirname(mcpResource));
+		await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(configuration, null, '\t')));
 	}
 
 	private async writeScannedMcpServers(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
@@ -193,6 +216,14 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			}
 		}
 		return userMcpServers;
+	}
+
+	private fromMcpServersConfiguration(configuration: IScannedMcpServersConfiguration): IScannedMcpServers {
+		return this.fromWorkspaceFolderMcpServers({
+			servers: configuration.mcpServers,
+			inputs: configuration.inputs,
+			sandbox: configuration.sandbox,
+		});
 	}
 
 	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedMcpServers): IScannedMcpServers {

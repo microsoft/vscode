@@ -25,6 +25,7 @@ import { CustomizationType, McpServerStatus, type ChildCustomization, type Custo
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { isMcpServersConfigurationResource } from '../../../../platform/mcp/common/mcpConfigPaths.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -41,9 +42,7 @@ import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService,
 
 const diagnosticOwner = 'vscode.mcp';
 
-type ConfigDescriptor = Pick<IMcpConfigPath, 'section' | 'scope' | 'target'> & {
-	serversKey?: string;
-};
+type ConfigDescriptor = Pick<IMcpConfigPath, 'section' | 'scope' | 'target' | 'serversKey'>;
 
 type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
@@ -67,6 +66,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		const patterns = [
 			{ pattern: '**/mcp.json' },
 			{ pattern: '**/.mcp.json' },
+			{ pattern: '**/mcp-config.json' },
 			{ pattern: '**/workspace.json' },
 		];
 
@@ -128,8 +128,10 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		}
 
 		const uri = model.uri;
-		const inConfig: ConfigDescriptor | undefined = uri.path.endsWith('/.mcp.json')
-			? { scope: StorageScope.WORKSPACE, target: ConfigurationTarget.WORKSPACE_FOLDER, serversKey: 'mcpServers' }
+		const inConfig: ConfigDescriptor | undefined = isMcpServersConfigurationResource(uri)
+			? uri.path.endsWith('/.mcp.json')
+				? { scope: StorageScope.WORKSPACE, target: ConfigurationTarget.WORKSPACE_FOLDER, serversKey: 'mcpServers' }
+				: { scope: StorageScope.PROFILE, target: ConfigurationTarget.USER_LOCAL, serversKey: 'mcpServers' }
 			: await this._mcpWorkbenchService.getMcpConfigPath(model.uri);
 		if (!inConfig) {
 			return undefined;

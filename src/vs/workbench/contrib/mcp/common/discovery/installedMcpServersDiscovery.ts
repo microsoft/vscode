@@ -14,7 +14,6 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
@@ -65,13 +64,17 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
 			for (const server of this.mcpWorkbenchService.getEnabledLocalMcpServers()) {
+				const configPath = this.mcpWorkbenchService.getMcpConfigPath(server);
+				if (configPath?.serversKey === 'mcpServers') {
+					continue;
+				}
+
 				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.mcpResource);
 				if (!mcpConfigPathPromise) {
-					mcpConfigPathPromise = (async (local: IWorkbenchLocalMcpServer) => {
-						const mcpConfigPath = this.mcpWorkbenchService.getMcpConfigPath(local);
-						const locations = mcpConfigPath?.uri ? await this.getServerIdMapping(mcpConfigPath?.uri, mcpConfigPath.section ? [...mcpConfigPath.section, 'servers'] : ['servers']) : new Map();
-						return mcpConfigPath ? { ...mcpConfigPath, locations } : undefined;
-					})(server);
+					mcpConfigPathPromise = (async () => {
+						const locations = configPath?.uri ? await this.getServerIdMapping(configPath.uri, configPath.section ? [...configPath.section, 'servers'] : ['servers']) : new Map();
+						return configPath ? { ...configPath, locations } : undefined;
+					})();
 					mcpConfigPathInfos.set(server.mcpResource, mcpConfigPathPromise);
 				}
 

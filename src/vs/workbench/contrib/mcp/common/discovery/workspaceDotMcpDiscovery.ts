@@ -6,9 +6,9 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
-import { joinPath } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { getWorkspaceMcpConfigurationResource } from '../../../../../platform/mcp/common/mcpConfigPaths.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
@@ -51,7 +51,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 	}
 
 	private _watchFolder(folder: IWorkspaceFolder) {
-		const configFile = joinPath(folder.uri, '.mcp.json');
+		const configFile = getWorkspaceMcpConfigurationResource(folder.uri);
 		const collectionId = `${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${folder.index}`;
 		const serverDefinitions = observableValue<readonly McpServerDefinition[]>(this, []);
 
