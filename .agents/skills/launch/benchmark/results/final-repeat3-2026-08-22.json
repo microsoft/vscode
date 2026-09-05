@@ -1,0 +1,103 @@
+{
+	"date": "2026-08-22",
+	"commit": "0b87e78adc5",
+	"fixtureRoot": "/tmp/vscode-launch-benchmark-workspaces",
+	"uniqueFixturePerTrial": true,
+	"fixtureDirectoriesRemoved": true,
+	"repositoryWorktreesChanged": false,
+	"summary": {
+		"agents": {
+			"passed": 3,
+			"failed": 0,
+			"medianLaunchMs": 1110,
+			"medianScenarioMs": 13894,
+			"medianTotalMs": 14874,
+			"medianForkMs": 236
+		},
+		"editor": {
+			"passed": 3,
+			"failed": 0,
+			"medianLaunchMs": 746,
+			"medianScenarioMs": 14620,
+			"medianTotalMs": 15366,
+			"medianForkMs": 215
+		}
+	},
+	"trials": [
+		{
+			"surface": "agents",
+			"run": 1,
+			"preLaunchSkipped": false,
+			"launchMs": 1179,
+			"scenarioMs": 16135,
+			"totalMs": 17314,
+			"composerReadyMs": 6973,
+			"workspaceReselections": 1,
+			"firstResponseMs": 12162,
+			"secondResponseMs": 2482,
+			"forkMs": 236
+		},
+		{
+			"surface": "agents",
+			"run": 2,
+			"preLaunchSkipped": false,
+			"launchMs": 980,
+			"scenarioMs": 13894,
+			"totalMs": 14874,
+			"composerReadyMs": 7150,
+			"workspaceReselections": 1,
+			"firstResponseMs": 10155,
+			"secondResponseMs": 2242,
+			"forkMs": 240
+		},
+		{
+			"surface": "agents",
+			"run": 3,
+			"preLaunchSkipped": false,
+			"launchMs": 1110,
+			"scenarioMs": 13625,
+			"totalMs": 14735,
+			"composerReadyMs": 5552,
+			"workspaceReselections": 1,
+			"firstResponseMs": 9367,
+			"secondResponseMs": 2762,
+			"forkMs": 235
+		},
+		{
+			"surface": "editor",
+			"run": 1,
+			"preLaunchSkipped": true,
+			"launchMs": 756,
+			"scenarioMs": 14064,
+			"totalMs": 14820,
+			"workspaceTrustHandled": true,
+			"firstResponseMs": 8012,
+			"secondResponseMs": 4578,
+			"forkMs": 211
+		},
+		{
+			"surface": "editor",
+			"run": 2,
+			"preLaunchSkipped": true,
+			"launchMs": 697,
+			"scenarioMs": 15069,
+			"totalMs": 15766,
+			"workspaceTrustHandled": true,
+			"firstResponseMs": 7241,
+			"secondResponseMs": 6325,
+			"forkMs": 228
+		},
+		{
+			"surface": "editor",
+			"run": 3,
+			"preLaunchSkipped": true,
+			"launchMs": 746,
+			"scenarioMs": 14620,
+			"totalMs": 15366,
+			"workspaceTrustHandled": true,
+			"firstResponseMs": 8204,
+			"secondResponseMs": 4918,
+			"forkMs": 215
+		}
+	]
+}
