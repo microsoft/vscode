@@ -1651,7 +1651,15 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		if (suggestion.result === undefined || suggestion.result.edit === undefined) {
 			return;
 		}
-		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+		// Snippy code-referencing is a best-effort, fire-and-forget check. It can fail for
+		// expected reasons (e.g. the service rejecting a source that is shorter than its own
+		// minimum token count), so route any failure to the log service instead of letting the
+		// unawaited promise reject and surface as an unhandled error in telemetry.
+		try {
+			await this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+		} catch (e) {
+			this._logService.error(e, 'Snippy post-insertion check failed');
+		}
 	}
 
 	private _isRejectedEditMemoryEnabled(): boolean {
