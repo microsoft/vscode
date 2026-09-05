@@ -36,7 +36,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -742,7 +742,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('adapts aggregate change metadata without creating a synthetic file change', () => {
+	test('adapts and atomically refreshes aggregate change metadata without synthetic file changes', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
 		model.addSession(createMockAgentSession(resource, {
 			changes: { files: 2, insertions: 12, deletions: 4 },
@@ -750,14 +750,28 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const provider = createProvider(disposables, model);
 		const session = provider.getSessions()[0];
+		const observed: { readonly changes: readonly ISessionFileChange[]; readonly changesSummary: ISessionChangesSummary | undefined }[] = [];
+		disposables.add(autorun(reader => {
+			observed.push({
+				changes: session.changes.read(reader),
+				changesSummary: session.changesSummary?.read(reader),
+			});
+		}));
 
-		assert.deepStrictEqual({
-			changes: session.changes.get(),
-			changesSummary: session.changesSummary?.get(),
-		}, {
-			changes: [],
-			changesSummary: { files: 2, additions: 12, deletions: 4 },
-		});
+		model.replaceSession(createMockAgentSession(resource, {
+			changes: { files: 3, insertions: 20, deletions: 6 },
+		}));
+
+		assert.deepStrictEqual(observed, [
+			{
+				changes: [],
+				changesSummary: { files: 2, additions: 12, deletions: 4 },
+			},
+			{
+				changes: [],
+				changesSummary: { files: 3, additions: 20, deletions: 6 },
+			},
+		]);
 	});
 
 	test('getSessions does not emit session changes while reading the initial cache', () => {
