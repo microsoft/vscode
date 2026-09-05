@@ -12,7 +12,8 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -529,6 +530,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('workspace continuation restores with a hidden request and visible transition before provider output', () => {
+			const turn = createTurn({
+				message: withMessageRequestHiddenFromTranscript({
+					text: 'Continue in the requested workspace.',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentWorkspaceContinuationMessageMeta(),
+				}, true),
+				responseParts: [
+					{
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Now working in vscode',
+						_meta: toAgentSystemNotificationMeta({
+							kind: AgentSystemNotificationKind.WorkspaceTransition,
+							workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+							workspaceName: 'vscode',
+						}),
+					},
+					{ kind: ResponsePartKind.Markdown, id: 'provider-response', content: 'Provider continued work' },
+				],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const request = history[0];
+			const response = history[1];
+			assert.deepStrictEqual({
+				request: request.type === 'request' ? {
+					prompt: request.prompt,
+					isRequestHidden: request.isRequestHidden,
+					isHidden: request.isHidden,
+				} : undefined,
+				responseParts: response.type === 'response' ? response.parts : undefined,
+			}, {
+				request: {
+					prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.',
+					isRequestHidden: true,
+					isHidden: undefined,
+				},
+				responseParts: [{
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.worktreeCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+				}, {
+					kind: 'markdownContent',
+					content: new MarkdownString('Provider continued work'),
+				}],
+			});
 		});
 
 		test('worktree failure notification restores as warning', () => {
@@ -2594,6 +2646,40 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result[0], {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
+		test('styles workspace transitions as accessible transcript boundaries', () => {
+			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Now working in vscode',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.WorkspaceTransition,
+					workspaceKind,
+					workspaceName: 'vscode',
+				}),
+			}]), undefined)[0];
+
+			assert.deepStrictEqual({
+				folder: notice(AgentSystemNotificationWorkspaceKind.Folder),
+				worktree: notice(AgentSystemNotificationWorkspaceKind.Worktree),
+			}, {
+				folder: {
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.folderCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+				},
+				worktree: {
+					kind: 'systemNotification',
+					content: new MarkdownString('Now working in vscode'),
+					icon: Codicon.worktreeCompact,
+					presentation: 'workspaceTransition',
+					workspaceName: 'vscode',
+					accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+				},
 			});
 		});
 

@@ -24,6 +24,10 @@
 	cursor: pointer;
 }
 
+.monaco-workbench a.monaco-link.chat-rich-link:hover {
+	text-decoration: none;
+}
+
 .chat-rich-link:hover {
 	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-button-secondaryHoverBackground);

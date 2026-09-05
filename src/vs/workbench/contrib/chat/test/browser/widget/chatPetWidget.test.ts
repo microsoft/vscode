@@ -23,6 +23,7 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
+import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
 import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldReserveChatPetSpace, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
@@ -286,13 +287,21 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('stacks dragging above sticky scroll and the run cycle behind the input', () => {
+		const session = mainWindow.document.createElement('div');
+		session.className = 'interactive-session chat-floating-persistent-content';
+		session.style.setProperty('--vscode-chat-persistent-content-height', '28px');
 		const parent = mainWindow.document.createElement('div');
+		parent.className = 'interactive-input-part';
+		const persistentContent = mainWindow.document.createElement('div');
+		persistentContent.className = 'chat-input-persistent-content chat-persistent-content-visible';
 		const input = mainWindow.document.createElement('div');
+		input.className = 'chat-input-container';
 		const movementBounds = mainWindow.document.createElement('div');
-		parent.append(input);
-		mainWindow.document.body.append(parent, movementBounds);
+		parent.append(persistentContent, input);
+		session.append(parent);
+		mainWindow.document.body.append(session, movementBounds);
 		disposables.add(toDisposable(() => {
-			parent.remove();
+			session.remove();
 			movementBounds.remove();
 		}));
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
@@ -315,6 +324,12 @@ suite('ChatPetWidget', () => {
 		));
 		const overlay = parent.getElementsByClassName('chat-pet-overlay')[0];
 		const button = parent.getElementsByClassName('chat-pet-button')[0] as HTMLElement;
+		const getRunLayer = () => ({
+			runLayerClass: overlay.classList.contains('chat-pet-run-layer'),
+			isolation: mainWindow.getComputedStyle(overlay).isolation,
+			fadeVisible: mainWindow.getComputedStyle(overlay, '::before').content !== 'none',
+			persistentFadeVisible: mainWindow.getComputedStyle(persistentContent, '::before').content !== 'none',
+		});
 		const restingZIndex = mainWindow.getComputedStyle(button).zIndex;
 		button.classList.add('dragging');
 		const draggingZIndex = mainWindow.getComputedStyle(button).zIndex;
@@ -325,19 +340,21 @@ suite('ChatPetWidget', () => {
 			onTheRunClass: button.classList.contains('on-the-run'),
 			returningClass: button.classList.contains('returning-from-run'),
 			zIndex: mainWindow.getComputedStyle(button).zIndex,
+			layer: getRunLayer(),
 		};
 		service.setOnTheRun(false);
 		const returning = {
 			onTheRunClass: button.classList.contains('on-the-run'),
 			returningClass: button.classList.contains('returning-from-run'),
 			zIndex: mainWindow.getComputedStyle(button).zIndex,
+			layer: getRunLayer(),
 		};
 		const transitionEnd = new mainWindow.Event('transitionend');
 		Object.defineProperty(transitionEnd, 'propertyName', { value: 'transform' });
 		button.dispatchEvent(transitionEnd);
 
 		assert.deepStrictEqual({
-			overlayPrecedesInput: overlay.nextElementSibling === input,
+			overlayPrecedesPersistentContent: !!(overlay.compareDocumentPosition(persistentContent) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
 			restingZIndex,
 			draggingZIndex,
 			onTheRun,
@@ -345,24 +362,43 @@ suite('ChatPetWidget', () => {
 			returned: {
 				returningClass: button.classList.contains('returning-from-run'),
 				zIndex: mainWindow.getComputedStyle(button).zIndex,
+				layer: getRunLayer(),
 			},
 		}, {
-			overlayPrecedesInput: true,
+			overlayPrecedesPersistentContent: true,
 			restingZIndex: '1',
 			draggingZIndex: '14',
 			onTheRun: {
 				onTheRunClass: true,
 				returningClass: false,
-				zIndex: 'auto',
+				zIndex: '1',
+				layer: {
+					runLayerClass: true,
+					isolation: 'isolate',
+					fadeVisible: true,
+					persistentFadeVisible: false,
+				},
 			},
 			returning: {
 				onTheRunClass: false,
 				returningClass: true,
-				zIndex: 'auto',
+				zIndex: '1',
+				layer: {
+					runLayerClass: true,
+					isolation: 'isolate',
+					fadeVisible: true,
+					persistentFadeVisible: false,
+				},
 			},
 			returned: {
 				returningClass: false,
 				zIndex: '1',
+				layer: {
+					runLayerClass: false,
+					isolation: 'auto',
+					fadeVisible: false,
+					persistentFadeVisible: true,
+				},
 			},
 		});
 	});
