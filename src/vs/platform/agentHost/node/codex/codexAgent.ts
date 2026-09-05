@@ -61,6 +61,7 @@ import { IAgentPluginManager, type ISyncedCustomization } from '../../common/age
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostMcpConnectorsService, toMcpServerConfigurationMap } from '../agentHostMcpConnectorsService.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
@@ -1177,6 +1178,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostMcpConnectorsService private readonly _mcpConnectorsService: IAgentHostMcpConnectorsService,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
@@ -1207,6 +1209,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}));
 		this._register(this._gitHubEndpointService.onDidChange(() => this._handleGitHubEndpointChange()));
+		this._register(this._mcpConnectorsService.onDidChange(() => {
+			for (const session of this._sessions.values()) {
+				session.materializedMcpSig = undefined;
+				if (session.firstTurnSent) {
+					this._markSessionForReload(session);
+				}
+			}
+		}));
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			const affectedConfigurations = new Map<string, URI>();
 			for (const session of this._sessions.values()) {
@@ -1560,7 +1570,11 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Whether `normalizedUrl` is a currently-configured http MCP server (root config or any session's client plugins). */
 	private _isConfiguredHttpServerUrl(normalizedUrl: string): boolean {
-		if (Object.values(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
+		const configured = {
+			...codexMcpServersFromConfig(toMcpServerConfigurationMap(this._mcpConnectorsService.getCachedConnectors())),
+			...codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)),
+		};
+		if (Object.values(configured)
 			.some(server => server.url !== undefined && normalizeCodexMcpResourceUrl(server.url) === normalizedUrl)) {
 			return true;
 		}
@@ -2549,7 +2563,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * header so codex connects authenticated.
 	 */
 	private _buildSessionMcpServers(session: ICodexSession): Record<string, ICodexMcpServerConfigJson> {
-		const configuredRoot = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
+		const configuredRoot = {
+			...codexMcpServersFromConfig(toMcpServerConfigurationMap(this._mcpConnectorsService.getCachedConnectors())),
+			...codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)),
+		};
 		const root = Object.fromEntries(
 			Object.entries(configuredRoot)
 				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
@@ -2587,6 +2604,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _refreshSessionMcpDiscovery(session: ICodexSession): Promise<void> {
+		await this._mcpConnectorsService.getConnectors();
 		const roots = session.workingDirectories?.length
 			? session.workingDirectories
 			: session.workingDirectory ? [session.workingDirectory] : [];
@@ -2625,7 +2643,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _httpMcpServerUrls(session: ICodexSession): Map<string, string> {
 		const root = Object.fromEntries(
-			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
+			Object.entries({
+				...codexMcpServersFromConfig(toMcpServerConfigurationMap(this._mcpConnectorsService.getCachedConnectors())),
+				...codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)),
+			})
 				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
 		);
 		const workspace = codexMcpServersFromDefinitions(this._sessionMcpDiscoveries.get(session.sessionId)?.discovery.definitions ?? []);
