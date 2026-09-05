@@ -24,7 +24,7 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
@@ -257,13 +257,6 @@ export async function showToolsPicker(
 			notificationService.error(localize('deleteToolSet.error', "Failed to delete tool set '{0}': {1}", toolSet.referenceName, toErrorMessage(error)));
 		}
 	};
-
-	const mcpServerByTool = new Map<string, IMcpServer>();
-	for (const server of mcpService.servers.get()) {
-		for (const tool of server.tools.get()) {
-			mcpServerByTool.set(tool.id, server);
-		}
-	}
 
 	function computeItems(previousToolsEntries?: ToolAndToolSetEnablementMap) {
 		// Create default entries if none provided
