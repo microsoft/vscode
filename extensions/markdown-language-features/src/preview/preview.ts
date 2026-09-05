@@ -76,6 +76,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	readonly #delay = 300;
 	#throttleTimer: any;
+	#forceNextUpdate = false;
 
 	readonly #resource: vscode.Uri;
 	readonly #webviewPanel: vscode.WebviewPanel;
@@ -86,6 +87,15 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	#firstUpdate = true;
 	#scrollToFirstDiffChange: boolean;
 	#currentVersion?: PreviewDocumentVersion;
+
+	/**
+	 * Whether `webview.html` no longer matches what the preview shows.
+	 *
+	 * Updates made while the panel is visible are posted to the webview as `updateContent` messages
+	 * and leave `webview.html` untouched. VS Code discards a hidden panel's webview and rebuilds it
+	 * from `webview.html` when the panel is revealed again, so that html must be refreshed before then.
+	 */
+	#webviewHtmlOutOfDate = false;
 	#isScrolling = false;
 	#scrollingTimer?: NodeJS.Timeout;
 
@@ -155,6 +165,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this._register(vscode.workspace.onDidOpenTextDocument(document => {
 			if (this.isPreviewOf(document.uri)) {
 				this.refresh();
+			}
+		}));
+
+		this._register(this.#webviewPanel.onDidChangeViewState(({ webviewPanel }) => {
+			if (!webviewPanel.visible && this.#webviewHtmlOutOfDate) {
+				this.refresh(true);
 			}
 		}));
 
@@ -244,12 +260,17 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	 * calls happening shortly thereafter are debounced.
 	*/
 	public refresh(forceUpdate: boolean = false) {
+		// Keep a requested full reload even when an update is already scheduled
+		if (forceUpdate) {
+			this.#forceNextUpdate = true;
+		}
+
 		// Schedule update if none is pending
 		if (!this.#throttleTimer) {
 			if (this.#firstUpdate) {
 				this.#updatePreview(true);
 			} else {
-				this.#throttleTimer = setTimeout(() => this.#updatePreview(forceUpdate), this.#delay);
+				this.#throttleTimer = setTimeout(() => this.#updatePreview(this.#forceNextUpdate), this.#delay);
 			}
 		}
 
@@ -292,6 +313,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	async #updatePreview(forceUpdate?: boolean): Promise<void> {
 		clearTimeout(this.#throttleTimer);
 		this.#throttleTimer = undefined;
+		this.#forceNextUpdate = false;
 
 		if (this.#disposed) {
 			return;
@@ -421,7 +443,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		if (reloadPage) {
 			this.#webviewPanel.webview.html = html;
+			this.#webviewHtmlOutOfDate = false;
 		} else {
+			this.#webviewHtmlOutOfDate = true;
 			this.postMessage({
 				type: 'updateContent',
 				content: html,
