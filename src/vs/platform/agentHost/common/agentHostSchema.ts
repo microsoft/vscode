@@ -552,6 +552,12 @@ export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
 
+/** Root config key controlling automatic archival of inactive sessions with merged pull requests. */
+export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
+
+/** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
+export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
+
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
  * support for the Copilot provider. When `true`, the Copilot provider advertises
@@ -867,6 +873,20 @@ export const platformRootSchema = createSchema({
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
 		],
 		default: ChatExternalSessionsMode.None,
+	}),
+	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
+		enum: [0, 1, 7, 15, 30],
+		default: 0,
+	}),
+	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
+		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
+		enum: [0, 1, 7, 15, 30],
+		default: 0,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

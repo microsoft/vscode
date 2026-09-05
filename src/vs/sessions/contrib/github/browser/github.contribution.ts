@@ -3,15 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IReader, IReaderWithStore } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/common/session.js';
+import { localize } from '../../../../nls.js';
+import { getGitHubPullRequestRefs, isActiveSessionStatus, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
@@ -23,6 +34,73 @@ import './createSessionFromPullRequestAction.js';
 import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_AUTO_ARCHIVE_AFTER_DAYS = 15;
+const DEFAULT_AUTO_DELETE_AFTER_DAYS = 15;
+const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
+
+export const AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
+export const AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
+			type: 'integer',
+			enum: [0, 1, 7, 15, 30],
+			enumItemLabels: [
+				localize('autoArchiveMergedSessions.disabled', "Disabled"),
+				localize('autoArchiveMergedSessions.oneDay', "1 day"),
+				localize('autoArchiveMergedSessions.sevenDays', "7 days"),
+				localize('autoArchiveMergedSessions.fifteenDays', "15 days"),
+				localize('autoArchiveMergedSessions.thirtyDays', "30 days"),
+			],
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview'],
+			markdownDescription: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
+			policy: {
+				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				localization: {
+					description: {
+						key: 'autoArchiveMergedSessions.policy',
+						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived."),
+					},
+				},
+			},
+			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
+		},
+		[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
+			type: 'integer',
+			enum: [0, 1, 7, 15, 30],
+			enumItemLabels: [
+				localize('autoDeleteArchivedMergedSessions.disabled', "Disabled"),
+				localize('autoDeleteArchivedMergedSessions.oneDay', "1 day"),
+				localize('autoDeleteArchivedMergedSessions.sevenDays', "7 days"),
+				localize('autoDeleteArchivedMergedSessions.fifteenDays', "15 days"),
+				localize('autoDeleteArchivedMergedSessions.thirtyDays', "30 days"),
+			],
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview'],
+			markdownDescription: localize('autoDeleteArchivedMergedSessions.description', "Controls when automatically archived agent sessions with a merged pull request are permanently deleted. The period starts when the session is automatically archived. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`'),
+			policy: {
+				name: 'ChatAgentSessionsAutoDeleteArchivedMergedSessionsAfterDays',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				localization: {
+					description: {
+						key: 'autoDeleteArchivedMergedSessions.policy',
+						value: localize('autoDeleteArchivedMergedSessions.policy', "Configure when automatically archived agent sessions with a merged pull request are permanently deleted."),
+					},
+				},
+			},
+			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
+		},
+	},
+});
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
@@ -61,14 +139,26 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	/** Per-session pollers, keyed by `session.sessionId`. */
 	private readonly _sessionTrackers = this._register(new DisposableMap<string, SessionPollingTracker>());
+	private readonly _cleanupEnabled: IObservable<boolean>;
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._cleanupEnabled = observableFromEvent(
+			Event.filter(this._configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING)
+				|| event.affectsConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING)),
+			() => this._getArchiveAfterDays() > 0 || this._getDeleteAfterDays() > 0,
+		);
 
 		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual }, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -237,13 +327,13 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			}
 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} resolved ${identity.pullRequests.length} PR identities; acquiring models and refreshing`);
-			for (const pullRequest of identity.pullRequests) {
-				this._pollPullRequest(session, pullRequest, reader);
+			for (let index = 0; index < identity.pullRequests.length; index++) {
+				this._pollPullRequest(session, identity.pullRequests[index], index === 0, reader);
 			}
 		});
 	}
 
-	private _pollPullRequest(session: ISession, identity: IPullRequestIdentity, reader: IReaderWithStore): void {
+	private _pollPullRequest(session: ISession, identity: IPullRequestIdentity, isDesignatedPullRequest: boolean, reader: IReaderWithStore): void {
 		const { owner, repo, prNumber } = identity;
 		this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} polling ${owner}/${repo}#${prNumber}`);
 
@@ -290,6 +380,73 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			reviewThreadsModelRef.object.refresh();
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
+
+		if (isDesignatedPullRequest) {
+			reader.store.add(autorun(promptReader => {
+				const pullRequest = model.pullRequest.read(promptReader);
+				if (pullRequest?.state !== GitHubPullRequestState.Merged || session.isArchived.read(promptReader)) {
+					return;
+				}
+
+				const status = session.status.read(promptReader);
+				if (isActiveSessionStatus(status)) {
+					return;
+				}
+
+				const updatedAt = session.updatedAt.read(promptReader);
+				if (!this._cleanupEnabled.read(promptReader) && this._isInactiveForDays(updatedAt, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS)) {
+					this._promptToEnableAutoArchive();
+				}
+			}));
+		}
+	}
+
+	private _getArchiveAfterDays(): number {
+		const value = this._configurationService.getValue<number>(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING);
+		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+	}
+
+	private _getDeleteAfterDays(): number {
+		const value = this._configurationService.getValue<number>(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING);
+		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+	}
+
+	private _isInactiveForDays(updatedAt: Date, days: number): boolean {
+		return Date.now() - updatedAt.getTime() >= days * DAY_MS;
+	}
+
+	private _promptToEnableAutoArchive(): void {
+		if (this._storageService.getBoolean(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+			return;
+		}
+		this._storageService.store(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+
+		this._notificationService.prompt(
+			Severity.Info,
+			localize('autoArchiveMergedSessions.prompt', "Free up space from finished agent sessions? Sessions with merged pull requests can be archived after 15 days of inactivity and permanently deleted 15 days later. Deletion cannot be undone."),
+			[
+				{
+					label: localize('autoArchiveMergedSessions.enable', "Turn On Session Cleanup"),
+					run: () => {
+						void Promise.all([
+							this._configurationService.updateValue(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER),
+							this._configurationService.updateValue(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_DELETE_AFTER_DAYS, ConfigurationTarget.USER),
+						]).catch(error => {
+							this._storageService.remove(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, StorageScope.APPLICATION);
+							this._notificationService.error(localize('autoArchiveMergedSessions.enableFailed', "Failed to turn on automatic session cleanup."));
+							this._logService.warn('[SessionLifecycle] Failed to enable automatic session cleanup', error);
+						});
+					},
+				},
+				{
+					label: localize('autoArchiveMergedSessions.openSettings', "Open Settings"),
+					isSecondary: true,
+					run: () => {
+						void this._commandService.executeCommand('workbench.action.openSettings', 'chat.agentSessions.auto').catch(onUnexpectedError);
+					},
+				},
+			],
+		);
 	}
 
 	private _isActiveSession(session: ISession, reader: IReader): boolean {

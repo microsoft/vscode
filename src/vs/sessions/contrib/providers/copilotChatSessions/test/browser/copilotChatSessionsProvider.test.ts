@@ -61,6 +61,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../../../github/common/types.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 
 // ---- Helpers ----------------------------------------------------------------
 

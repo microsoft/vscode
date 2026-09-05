@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -3047,6 +3047,93 @@ suite('AgentService (node dispatcher)', () => {
 				providerDataPersisted: false,
 				disposeCalls: 1,
 			});
+		});
+	});
+
+	suite('session lifecycle candidates', () => {
+		test('filters the registry before reading only lifecycle metadata', async () => {
+			const perSession = createPerSessionDataService();
+			const opened: string[] = [];
+			const sessionDataService = perSession.service as { tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> };
+			const originalTryOpen = sessionDataService.tryOpenDatabase;
+			sessionDataService.tryOpenDatabase = async session => {
+				opened.push(session.toString());
+				return originalTryOpen.call(perSession.service, session);
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const oldInternal = AgentSession.uri('copilot', 'old-internal');
+			const recentInternal = AgentSession.uri('copilot', 'recent-internal');
+			const oldExternal = AgentSession.uri('copilot', 'old-external');
+			const register = (session: URI, modifiedTime: number, source: 'explicit' | 'discovery') => registry.register(session, {
+				provider: 'copilot',
+				startTime: modifiedTime,
+				modifiedTime,
+				source,
+			}, { checkTombstone: false });
+			await Promise.all([
+				register(oldInternal, now - 8 * 24 * 60 * 60 * 1000, 'explicit'),
+				register(recentInternal, now, 'explicit'),
+				register(oldExternal, now - 8 * 24 * 60 * 60 * 1000, 'discovery'),
+			]);
+			for (const session of [oldInternal, recentInternal, oldExternal]) {
+				await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({
+					pullRequestUrls: [`https://github.com/microsoft/vscode/pull/${session === oldInternal ? 1 : 2}`],
+				}));
+			}
+
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
+
+			assert.deepStrictEqual({
+				candidates: candidates.map(candidate => ({
+					session: candidate.session.toString(),
+					pullRequestUrl: candidate.pullRequestUrl,
+					action: candidate.action,
+				})),
+				opened,
+			}, {
+				candidates: [{
+					session: oldInternal.toString(),
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+					action: 'archive',
+				}],
+				opened: [oldInternal.toString()],
+			});
+		});
+
+		test('enumerates only automatically archived sessions past the delete cutoff', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const now = Date.UTC(2026, 8, 5);
+			const session = AgentSession.uri('copilot', 'auto-archived');
+			await registry.register(session, {
+				provider: 'copilot',
+				startTime: now - 10 * 24 * 60 * 60 * 1000,
+				modifiedTime: now,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			const database = perSession.database(session);
+			await Promise.all([
+				database.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'),
+				database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(now - 2 * 24 * 60 * 60 * 1000)),
+				database.setMetadata(META_GITHUB_STATE, JSON.stringify({
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'],
+				})),
+			]);
+
+			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000);
+
+			assert.deepStrictEqual(candidates.map(candidate => ({
+				session: candidate.session.toString(),
+				pullRequestUrl: candidate.pullRequestUrl,
+				action: candidate.action,
+			})), [{
+				session: session.toString(),
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/3',
+				action: 'delete',
+			}]);
 		});
 	});
 
@@ -8718,6 +8805,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('unarchiving an un-loaded session clears the persisted flag', async () => {
 			const db = new TestSessionDatabase();
 			await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+			await db.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(Date.now()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
@@ -8738,10 +8826,51 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				autoArchivedAt: await db.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY),
 				restored: !!getStateManager(localService).getSessionState(sessionStr),
 			}, {
 				persisted: '',
+				autoArchivedAt: '',
 				restored: false,
+			});
+		});
+
+		test('unarchiving is rejected after conditional session deletion begins', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const stateManager = getStateManager(localService);
+			const session = AgentSession.uri('copilot', 'conditional-delete');
+			const sessionStr = session.toString();
+			stateManager.createSession({
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Archived',
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			const validationStarted = new DeferredPromise<void>();
+			const finishValidation = new DeferredPromise<void>();
+			const deletion = localService.disposeSessionIf(session, async () => {
+				validationStarted.complete();
+				await finishValidation.p;
+				return false;
+			});
+			await validationStarted.p;
+
+			const rejected = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+				envelope.action.type === ActionType.SessionIsArchivedChanged && envelope.rejectionReason !== undefined));
+			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			finishValidation.complete();
+
+			assert.deepStrictEqual({
+				rejectionReason: (await rejected).rejectionReason,
+				deleted: await deletion,
+				archived: isSessionStatusArchived(stateManager.getSessionSummary(sessionStr)?.status),
+			}, {
+				rejectionReason: 'Cannot unarchive a session while it is being deleted.',
+				deleted: false,
+				archived: true,
 			});
 		});
 

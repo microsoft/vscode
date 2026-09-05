@@ -37,7 +37,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TextRange } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionRelatedPullRequestUrls, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -71,6 +71,7 @@ import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts,
 
 import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -2091,6 +2092,82 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...await inFlight.trailing];
 	}
 
+	/**
+	 * Enumerates only the persisted facts needed by merged-session cleanup.
+	 * This deliberately avoids provider metadata, transcript materialization,
+	 * presentation overlays, and the shared `listSessions()` computation.
+	 */
+	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
+		const registered = (await this._listRegisteredSessions()).filter(entry => !entry.external);
+		const limiter = new Limiter<IAgentHostSessionLifecycleCandidate | undefined>(4);
+		const candidates = await Promise.all(registered.map(entry => limiter.queue(async () => {
+			const sessionKey = entry.session.toString();
+			const liveSummary = this._stateManager.getSessionSummary(sessionKey);
+			const modifiedTime = liveSummary ? Date.parse(liveSummary.modifiedAt) : entry.modifiedTime;
+			const liveStatus = liveSummary?.status;
+			if (liveStatus !== undefined && (liveStatus & SessionStatus.InProgress) !== 0) {
+				return undefined;
+			}
+
+			let archived = liveStatus !== undefined ? isSessionStatusArchived(liveStatus) : undefined;
+			if (archived === false && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
+				return undefined;
+			}
+			if (archived === true && deleteCutoff === undefined) {
+				return undefined;
+			}
+			if (archived === undefined
+				&& deleteCutoff === undefined
+				&& (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
+				return undefined;
+			}
+
+			let gitHubState = readSessionGitHubState(liveSummary?._meta);
+			let autoArchivedAt: number | undefined;
+			if (archived === undefined || archived || getSessionRelatedPullRequestUrls(gitHubState).length === 0) {
+				const ref = await this._sessionDataService.tryOpenDatabase(entry.session);
+				if (!ref) {
+					return undefined;
+				}
+				try {
+					const metadata = await ref.object.getMetadataObject({
+						[AH_META_IS_ARCHIVED_DB_KEY]: true,
+						[AH_META_IS_DONE_DB_KEY]: true,
+						[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: true,
+						[META_GITHUB_STATE]: true,
+					});
+					if (archived === undefined) {
+						archived = (metadata[AH_META_IS_ARCHIVED_DB_KEY] ?? metadata[AH_META_IS_DONE_DB_KEY]) === 'true';
+					}
+					if (archived) {
+						const rawAutoArchivedAt = metadata[AH_META_AUTO_ARCHIVED_AT_DB_KEY];
+						const value = rawAutoArchivedAt ? Number(rawAutoArchivedAt) : Number.NaN;
+						autoArchivedAt = Number.isFinite(value) ? value : undefined;
+					}
+					if (getSessionRelatedPullRequestUrls(gitHubState).length === 0 && metadata[META_GITHUB_STATE]) {
+						try {
+							gitHubState = JSON.parse(metadata[META_GITHUB_STATE]) as ISessionGitHubState;
+						} catch (error) {
+							this._logService.warn(`[AgentService] Failed to parse lifecycle GitHub state for ${sessionKey}: ${toErrorMessage(error)}`);
+						}
+					}
+				} finally {
+					ref.dispose();
+				}
+			}
+
+			const action = archived ? 'delete' : 'archive';
+			if (action === 'delete'
+				? deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff
+				: archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff) {
+				return undefined;
+			}
+			const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
+			return pullRequestUrl ? { session: entry.session, pullRequestUrl, action } : undefined;
+		})));
+		return candidates.filter((candidate): candidate is IAgentHostSessionLifecycleCandidate => candidate !== undefined);
+	}
+
 	private _startSessionListComputation(mode: AgentHostExternalSessionsMode): ISessionListComputation {
 		const entry: ISessionListComputation = {
 			epoch: this._registryEpoch,
@@ -4070,6 +4147,21 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
 	}
 
+	async disposeSessionIf(session: URI, validate: () => Promise<boolean>): Promise<boolean> {
+		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
+		return this._sessionResidency.runDisposal(session, async () => {
+			if (!await validate()) {
+				return false;
+			}
+			await this._doDisposeSession(session);
+			return true;
+		});
+	}
+
+	canAutomaticallyDeleteArchivedSession(session: URI): Promise<boolean> {
+		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
+	}
+
 	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
 		this._cancelPendingSessionGc(session);
@@ -4539,7 +4631,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const [key, flag, set] = action.type === ActionType.SessionIsArchivedChanged
 			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
 			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
-		await persistSessionMetadataValues(this._sessionDataService, session, { [key]: set ? 'true' : '' });
+		await persistSessionMetadataValues(this._sessionDataService, session, {
+			[key]: set ? 'true' : '',
+			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
+		});
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
 		return true;
 	}
@@ -4764,6 +4859,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a session while it is being deleted.');
+			return;
+		}
 		if (action.type === ActionType.ChatTurnCancelled) {
 			const resumedDuration = this._sideEffects.getResumedTurnDuration(channel, action.turnId);
 			if (resumedDuration !== undefined) {

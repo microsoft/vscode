@@ -62,6 +62,7 @@ import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {

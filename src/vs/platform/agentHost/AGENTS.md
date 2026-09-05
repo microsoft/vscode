@@ -133,6 +133,13 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
+- Owns the automatic merged-pull-request session lifecycle through
+  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
+  into root config; candidates are filtered from the registry using only the
+  persisted archive/GitHub fields needed for cleanup; and the designated pull
+  request is authoritatively refreshed before a candidate is restored. Eligible
+  sessions are archived through the normal `SessionIsArchivedChanged` action
+  path.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:

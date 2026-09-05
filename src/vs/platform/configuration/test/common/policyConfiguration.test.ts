@@ -85,6 +85,16 @@ suite('PolicyConfiguration', () => {
 					localization: { description: { key: '', value: '' }, }
 				}
 			},
+			'policy.integerSetting': {
+				'type': 'integer',
+				'default': 0,
+				policy: {
+					name: 'PolicyIntegerSetting',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' }, }
+				}
+			},
 			'policy.internalSetting': {
 				'type': 'string',
 				'default': 'defaultInternalValue',
@@ -221,6 +231,21 @@ suite('PolicyConfiguration', () => {
 		const acutal = testObject.configurationModel;
 
 		assert.deepStrictEqual(acutal.getValue('policy.booleanSetting'), true);
+	});
+
+	test('initialize: with integer type policy', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyIntegerSetting': 7 })));
+
+		await testObject.initialize();
+		const actual = testObject.configurationModel;
+
+		assert.deepStrictEqual({
+			value: actual.getValue('policy.integerSetting'),
+			definitionType: policyService.policyDefinitions['PolicyIntegerSetting']?.type,
+		}, {
+			value: 7,
+			definitionType: 'number',
+		});
 	});
 
 	test('initialize: with object type policy ignores policy if value is not valid', async () => {

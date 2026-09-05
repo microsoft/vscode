@@ -231,6 +231,38 @@ suite('AgentSessionResidency', () => {
 		assert.deepStrictEqual(released, [session.toString()]);
 	});
 
+	test('keeps the disposal guard while overlapping disposals remain', async () => {
+		const session = createUsedSession('overlapping-disposals');
+		const firstStarted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const finishFirst = new DeferredPromise<void>();
+		const finishSecond = new DeferredPromise<void>();
+		const first = residency.runDisposal(session, async () => {
+			firstStarted.complete();
+			await finishFirst.p;
+		});
+		await firstStarted.p;
+		const second = residency.runDisposal(session, async () => {
+			secondStarted.complete();
+			await finishSecond.p;
+		});
+		await secondStarted.p;
+
+		finishFirst.complete();
+		await first;
+		const guardedAfterFirst = residency.isBeingDisposed(session);
+		finishSecond.complete();
+		await second;
+
+		assert.deepStrictEqual({
+			guardedAfterFirst,
+			guardedAfterBoth: residency.isBeingDisposed(session),
+		}, {
+			guardedAfterFirst: true,
+			guardedAfterBoth: false,
+		});
+	});
+
 	test('revalidates recency after asynchronous provider preflight', async () => {
 		residency.dispose();
 		const canRelease = new DeferredPromise<void>();

@@ -119,6 +119,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			getPullRequestStatus: () => currentStatus,
 			markPullRequestMerged: (sessionKey, url) => { merged.push(`${sessionKey}|${url}`); },
 			refresh: async (sessionKey: string) => { refreshes.push(sessionKey); },
+			resolveForLifecycle: async () => currentStatus,
 			dispose: () => { },
 		};
 
