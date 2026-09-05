@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Control whether an indicator is rendered at the end of soft wrapped lines.
+	 * Defaults to 'none'.
+	 */
+	wordWrapIndicator?: 'none' | 'end';
+	/**
 	 * Override the `wordWrap` setting.
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -5964,6 +5969,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	wordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6825,6 +6831,23 @@ export const EditorOptions = {
 					'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 				]
 			}, "Controls how lines should wrap.")
+		}
+	)),
+	wordWrapIndicator: register(new EditorStringEnumOption(
+		EditorOption.wordWrapIndicator, 'wordWrapIndicator',
+		'none' as 'none' | 'end',
+		['none', 'end'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('wordWrapIndicator.none', "No indicator is rendered."),
+				nls.localize('wordWrapIndicator.end', "An indicator is rendered at the end of every wrapped line."),
+			],
+			markdownDescription: nls.localize({
+				key: 'wordWrapIndicator',
+				comment: [
+					'- `editor.wordWrap` refers to a different setting and should not be localized.'
+				]
+			}, "Controls whether an indicator is rendered on lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
