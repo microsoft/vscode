@@ -1103,8 +1103,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	let isScenarioRequest = false;
 	let requestToolNames: string[] = [];
 	let input: any[] = [];
+	let streaming = true;
 	try {
 		const parsed = JSON.parse(body);
+		// Resumed turns omit `stream` and expect the Responses API's default non-streaming JSON payload.
+		streaming = parsed.stream === true;
 		// Responses API uses `input` array and `tools` array
 		input = parsed.input || [];
 		const tools = parsed.tools || [];
@@ -1132,6 +1135,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
+
+	if (!streaming) {
+		await sendResponsesNonStreaming(res, scenario, input, requestToolNames, scenarioId, isScenarioRequest);
+		return;
+	}
 
 	res.writeHead(200, {
 		'Content-Type': 'text/event-stream',
@@ -1178,6 +1186,100 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		: scenario as StreamChunk[];
 
 	await streamResponsesContent(res, chunks, isScenarioRequest);
+}
+
+/** Emits a non-streaming Responses API payload for resumed turns. */
+async function sendResponsesNonStreaming(
+	res: import('http').ServerResponse,
+	scenario: StreamChunk[] | MultiTurnScenario,
+	input: any[],
+	requestToolNames: string[],
+	scenarioId: string,
+	isScenarioRequest: boolean
+): Promise<void> {
+	const responseId = `resp_mock_${Date.now()}`;
+	const model = 'gpt-5.3-codex';
+	let output: any[];
+	let outputTokens: number;
+
+	if (isMultiTurnScenario(scenario) && requestToolNames.length > 0) {
+		const { turn } = resolveCurrentResponsesApiTurn(scenario.turns, input);
+
+		if (turn.kind === 'tool-calls') {
+			output = turn.toolCalls.map((call, i) => {
+				let toolName = requestToolNames.find(name => call.toolNamePattern.test(name));
+				if (!toolName) {
+					toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
+				}
+				const callId = `call_${scenarioId}_${i}_${Date.now()}`;
+				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, input));
+				return {
+					id: `fc_${callId}`,
+					type: 'function_call',
+					status: 'completed',
+					call_id: callId,
+					name: toolName,
+					arguments: argsJson,
+				};
+			});
+			outputTokens = 1;
+		} else {
+			let text: string;
+			if (turn.kind === 'echo-last-message') {
+				const lastItem = input[input.length - 1];
+				text = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			} else if (turn.kind === 'echo-last-tool-result') {
+				text = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
+			} else {
+				text = turn.chunks.map(chunk => chunk.content).join('');
+			}
+			output = [{
+				id: `msg_mock_${Date.now()}`,
+				type: 'message',
+				role: 'assistant',
+				status: 'completed',
+				content: [{ type: 'output_text', text }],
+			}];
+			outputTokens = Math.max(1, Math.ceil(text.length / 4));
+		}
+	} else {
+		const chunks = isMultiTurnScenario(scenario)
+			? getFirstContentTurn(scenario)
+			: scenario as StreamChunk[];
+		const text = chunks.map(chunk => chunk.content).join('');
+		output = [{
+			id: `msg_mock_${Date.now()}`,
+			type: 'message',
+			role: 'assistant',
+			status: 'completed',
+			content: [{ type: 'output_text', text }],
+		}];
+		outputTokens = Math.max(1, Math.ceil(text.length / 4));
+	}
+
+	res.writeHead(200, {
+		'Content-Type': 'application/json',
+		'X-Request-Id': 'perf-benchmark-' + Date.now(),
+	});
+	res.end(JSON.stringify({
+		id: responseId,
+		object: 'response',
+		created_at: Math.floor(Date.now() / 1000),
+		model,
+		status: 'completed',
+		output,
+		usage: {
+			input_tokens: 100,
+			output_tokens: outputTokens,
+			total_tokens: 100 + outputTokens,
+			input_tokens_details: { cached_tokens: 0 },
+			output_tokens_details: { reasoning_tokens: 0 },
+		},
+	}));
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
 }
 
 /**
