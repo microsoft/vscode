@@ -978,13 +978,7 @@ export class ActionListWidget<T> extends Disposable {
 					return;
 				}
 				// Focus the pressed row without opening a preview or rebuilding it before click.
-				const suppressHover = this._suppressHover;
-				this._suppressHover = true;
-				try {
-					this._list.setFocus([e.index]);
-				} finally {
-					this._suppressHover = suppressHover;
-				}
+				this._setFocus([e.index], true);
 			}
 		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
@@ -1697,13 +1691,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._list.splice(0, this._list.length, visibleItems);
 				this._list.layout(height);
 				this._list.scrollTop = scrollTop;
-				const suppressHover = this._suppressHover;
-				this._suppressHover = true;
-				try {
-					this._list.setFocus(focus);
-				} finally {
-					this._suppressHover = suppressHover;
-				}
+				this._setFocus(focus, true);
 			}
 		}
 
@@ -1878,6 +1866,16 @@ export class ActionListWidget<T> extends Disposable {
 			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
 		} else {
 			this._list.setSelection([]);
+		}
+	}
+
+	private _setFocus(indexes: number[], suppressHover: boolean): void {
+		const previousSuppressHover = this._suppressHover;
+		this._suppressHover = previousSuppressHover || suppressHover;
+		try {
+			this._list.setFocus(indexes);
+		} finally {
+			this._suppressHover = previousSuppressHover;
 		}
 	}
 
@@ -2393,15 +2391,7 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			const hasPanel = !!(element.submenuActions?.length || element.hover?.content);
-			const suppressHover = this._suppressHover;
-			if (hasPanel || this._options?.persistentHover) {
-				this._suppressHover = true;
-			}
-			try {
-				this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
-			} finally {
-				this._suppressHover = suppressHover;
-			}
+			this._setFocus(typeof e.index === 'number' ? [e.index] : [], hasPanel || !!this._options?.persistentHover);
 
 			if (hasPanel) {
 				if (this._currentSubmenuElement === element) {
