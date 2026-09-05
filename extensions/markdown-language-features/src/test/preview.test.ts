@@ -55,7 +55,7 @@ function holdNextRenderBody(renderer: MdDocumentRenderer): { readonly started: b
 		renderer.renderBody = original;
 		hold.started = true;
 		await held;
-		return original.apply(renderer, args);
+		return renderer.renderBody(...args);
 	};
 	return hold;
 }
