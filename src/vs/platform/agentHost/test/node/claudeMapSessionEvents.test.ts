@@ -315,6 +315,52 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
+	test('an mcp__client__* tool with no owner gets no contributor and is failed at content_block_stop', () => {
+		const log = new CapturingLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+		const noOwner = () => undefined;
+
+		const start = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_orphan', 'mcp__client__lookup')), SESSION, TURN_ID, state, log, resolver, noOwner);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeInputJsonDelta(0, '{"q":"a"}')), SESSION, TURN_ID, state, log, resolver, noOwner);
+		const stop = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver, noOwner);
+		const result = mapSDKMessageToAgentSignals(makeUserToolResultMessage(SESSION_ID, 'tu_orphan', 'No client was connected to run lookup', { isError: true }), SESSION, TURN_ID, state, log, resolver, noOwner);
+
+		assert.deepStrictEqual({
+			start: start.map(s => s.kind === 'action' ? s.action : s.kind),
+			stop: stop.map(s => s.kind === 'action' ? s.action : s.kind),
+			resultTypes: result.map(s => s.kind === 'action' ? s.action.type : s.kind),
+			warns: log.warns,
+		}, {
+			start: [{
+				type: ActionType.ChatToolCallStart,
+				turnId: TURN_ID,
+				toolCallId: 'tu_orphan',
+				toolName: 'lookup',
+				displayName: 'lookup',
+			}],
+			stop: [{
+				type: ActionType.ChatToolCallReady,
+				turnId: TURN_ID,
+				toolCallId: 'tu_orphan',
+				invocationMessage: 'lookup',
+				toolInput: '{\n  "q": "a"\n}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: TURN_ID,
+				toolCallId: 'tu_orphan',
+				result: {
+					success: false,
+					pastTenseMessage: 'lookup failed',
+					error: { message: 'No client was connected to run lookup', code: 'toolUnavailable' },
+				},
+			}],
+			resultTypes: [ActionType.ChatToolCallComplete],
+			warns: [],
+		});
+	});
+
 	test('Test 10b — a tool denied by the user maps to result.error.code = denied', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();

@@ -14,6 +14,7 @@ import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { SUBAGENT_TOOL_NAMES, type SubagentRegistry } from './claudeSubagentRegistry.js';
 import { buildClaudeToolCallMeta, buildClaudeToolMeta, getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { clientToolUnavailableResult } from './clientTools/claudeClientToolResult.js';
 
 /**
  * Phase 12 — SDK tool names that spawn subagent sessions. Re-exported
@@ -301,6 +302,18 @@ export function emitInnerAssistantSignals(
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
+			if (isClientTool && clientId === undefined) {
+				signals.push({
+					kind: 'action',
+					resource: chat,
+					action: {
+						type: ActionType.ChatToolCallComplete,
+						turnId,
+						toolCallId: block.id,
+						result: clientToolUnavailableResult(toolName),
+					},
+				});
+			}
 			continue;
 		}
 		// Unknown inner block kind — skip silently (caller will trace at

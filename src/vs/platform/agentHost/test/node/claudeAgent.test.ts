@@ -5858,6 +5858,198 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(sdk.startupCallCount, 1, 'equal snapshot should NOT yield-restart');
 	});
 
+	/** Start/Ready/Complete projection of one tool call, with its subagent routing. */
+	function clientToolLifecycle(signals: readonly AgentSignal[], toolCallId: string) {
+		return signals.flatMap(s => {
+			if (s.kind !== 'action') {
+				return [];
+			}
+			const action = s.action;
+			switch (action.type) {
+				case ActionType.ChatToolCallStart:
+				case ActionType.ChatToolCallReady:
+				case ActionType.ChatToolCallComplete:
+					if (action.toolCallId !== toolCallId) {
+						return [];
+					}
+					return [{
+						type: action.type,
+						parentToolCallId: s.parentToolCallId,
+						...(action.type === ActionType.ChatToolCallStart ? { contributor: action.contributor } : {}),
+						...(action.type === ActionType.ChatToolCallComplete ? { result: action.result } : {}),
+					}];
+				default:
+					return [];
+			}
+		});
+	}
+
+	test('a client tool with no active client owner is failed immediately and its parked handler resolves with an error', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const client = getOrCreateActiveClient(agent, chat, 'client-1');
+		client.tools = [{ name: 'x', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartToolUse(0, 'tu_x', 'mcp__client__x')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			makeResultSuccess(sessionId),
+		];
+		let handlerResult: CallToolResult | 'parked' = 'parked';
+		let permission: boolean | 'parked' = 'parked';
+		// The window drops `x` mid-turn; index 5 is after that tool's content_block_stop.
+		sdk.queryAdvance = async index => {
+			if (index === 1) {
+				client.tools = [];
+			}
+			if (index === 5) {
+				const session = agent.getSessionForTesting(created.session)!;
+				permission = await session.requestPermission({
+					toolUseID: 'tu_x',
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tu_x', toolName: 'mcp__client__x', displayName: 'x', invocationMessage: 'x', toolInput: '{}', confirmationTitle: 'Run x?' },
+					permissionKind: 'read',
+				});
+				handlerResult = await sdk.toolHandlers.get('x')!({}, { _meta: { 'claudecode/toolUseId': 'tu_x' } });
+			}
+		};
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
+
+		await agent.chats.sendMessage(chat, 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		assert.deepStrictEqual({
+			lifecycle: clientToolLifecycle(signals, 'tu_x'),
+			handlerResult,
+			permission,
+			pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+			bufferedAfterTurn: agent.getSessionForTesting(created.session)!.pendingClientToolCalls.hasBufferedResult('tu_x'),
+		}, {
+			lifecycle: [
+				{ type: ActionType.ChatToolCallStart, parentToolCallId: undefined, contributor: undefined },
+				{ type: ActionType.ChatToolCallReady, parentToolCallId: undefined },
+				{
+					type: ActionType.ChatToolCallComplete,
+					parentToolCallId: undefined,
+					result: {
+						success: false,
+						pastTenseMessage: 'x failed',
+						error: { message: 'No client was connected to run x', code: 'toolUnavailable' },
+					},
+				},
+			],
+			handlerResult: { content: [{ type: 'text', text: 'No client was connected to run x' }], isError: true },
+			permission: true,
+			pendingConfirmations: 0,
+			bufferedAfterTurn: false,
+		});
+	});
+
+	test('a subagent client tool with no active client owner is failed immediately and its parked handler resolves with an error', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const client = getOrCreateActiveClient(agent, chat, 'client-1');
+		client.tools = [{ name: 'x', inputSchema: { type: 'object' } }];
+		const innerAssistant = makeAssistantMessage(sessionId, [{ type: 'tool_use', id: 'tu_inner_x', name: 'mcp__client__x', input: {} }]);
+		innerAssistant.parent_tool_use_id = 'tu_task';
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartToolUse(0, 'tu_task', 'Task')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			innerAssistant,
+			makeResultSuccess(sessionId),
+		];
+		let handlerResult: CallToolResult | 'parked' = 'parked';
+		sdk.queryAdvance = async index => {
+			if (index === 1) {
+				client.tools = [];
+			}
+			if (index === 6) {
+				handlerResult = await sdk.toolHandlers.get('x')!({}, { _meta: { 'claudecode/toolUseId': 'tu_inner_x' } });
+			}
+		};
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
+
+		await agent.chats.sendMessage(chat, 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		assert.deepStrictEqual({
+			lifecycle: clientToolLifecycle(signals, 'tu_inner_x'),
+			handlerResult,
+			bufferedAfterTurn: agent.getSessionForTesting(created.session)!.pendingClientToolCalls.hasBufferedResult('tu_inner_x'),
+		}, {
+			lifecycle: [
+				{ type: ActionType.ChatToolCallStart, parentToolCallId: 'tu_task', contributor: undefined },
+				{ type: ActionType.ChatToolCallReady, parentToolCallId: 'tu_task' },
+				{
+					type: ActionType.ChatToolCallComplete,
+					parentToolCallId: 'tu_task',
+					result: {
+						success: false,
+						pastTenseMessage: 'x failed',
+						error: { message: 'No client was connected to run x', code: 'toolUnavailable' },
+					},
+				},
+			],
+			handlerResult: { content: [{ type: 'text', text: 'No client was connected to run x' }], isError: true },
+			bufferedAfterTurn: false,
+		});
+	});
+
+	test('an ownerless client tool whose handler never runs leaves no buffered failure or permission answer', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const chat = defaultChatUri(created.session);
+		const client = getOrCreateActiveClient(agent, chat, 'client-1');
+		client.tools = [{ name: 'x', inputSchema: { type: 'object' } }];
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartToolUse(0, 'tu_x', 'mcp__client__x')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			makeResultSuccess(sessionId),
+		];
+		// Models a mode that never runs the in-process handler (plan / dontAsk): it is not invoked.
+		let bufferedMidTurn = false;
+		sdk.queryAdvance = async index => {
+			if (index === 1) {
+				client.tools = [];
+			}
+			if (index === 5) {
+				bufferedMidTurn = agent.getSessionForTesting(created.session)!.pendingClientToolCalls.hasBufferedResult('tu_x');
+			}
+		};
+
+		await agent.chats.sendMessage(chat, 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+
+		// A stale buffered approval would answer this and sit in the registry all session.
+		let permissionAfterTurn: boolean | 'parked' = 'parked';
+		void agent.getSessionForTesting(created.session)!.requestPermission({
+			toolUseID: 'tu_x',
+			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tu_x', toolName: 'mcp__client__x', displayName: 'x', invocationMessage: 'x', toolInput: '{}', confirmationTitle: 'Run x?' },
+			permissionKind: 'read',
+		}).then(approved => { permissionAfterTurn = approved; }, () => undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			bufferedMidTurn,
+			bufferedAfterTurn: agent.getSessionForTesting(created.session)!.pendingClientToolCalls.hasBufferedResult('tu_x'),
+			permissionAfterTurn,
+		}, { bufferedMidTurn: true, bufferedAfterTurn: false, permissionAfterTurn: 'parked' });
+	});
+
 	test('setClientTools on an unknown chat is silently dropped', () => {
 		const { agent } = createTestContext(disposables);
 		const unknownChat = defaultChatUri(URI.parse('claude:/never-existed'));
