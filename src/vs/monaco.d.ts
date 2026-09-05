@@ -8535,7 +8535,10 @@ declare namespace monaco.languages {
 	export interface CodeLens {
 		range: IRange;
 		id?: string;
-		command?: Command;
+		/**
+		 * A command without an id is rendered as non-clickable text.
+		 */
+		command?: Pick<Command, 'title' | 'tooltip' | 'arguments'> & Partial<Pick<Command, 'id'>>;
 	}
 
 	export interface CodeLensList {

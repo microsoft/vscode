@@ -11,7 +11,7 @@ import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, ICo
 import { Range } from '../../../common/core/range.js';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
-import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLens, Command, isExecutableCodeLensCommand } from '../../../common/languages.js';
 import { CodeLensItem } from './codelens.js';
 
 class CodeLensViewZone implements IViewZone {
@@ -96,7 +96,7 @@ class CodeLensContentWidget implements IContentWidget {
 			hasSymbol = true;
 			if (lens.command) {
 				const title = renderLabelWithIcons(lens.command.title.trim());
-				if (lens.command.id) {
+				if (isExecutableCodeLensCommand(lens.command)) {
 					const id = `c${(CodeLensContentWidget._idPool++)}`;
 					children.push(dom.$('a', { id, title: lens.command.tooltip, role: 'button' }, ...title));
 					this._commands.set(id, lens.command);
