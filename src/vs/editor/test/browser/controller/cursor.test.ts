@@ -5496,6 +5496,69 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #6841: Auto closing brackets should balance brackets', () => {
+		const languageId = 'balancedAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+			],
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+			],
+		}));
+
+		usingCursor({
+			text: [
+				'',
+				'}',
+			],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n}');
+
+			model.setValue('');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}');
+
+			model.setValue('{}');
+			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{{}}');
+
+			model.setValue('{\n');
+			viewModel.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n{');
+
+			model.setValue('\n]');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n]');
+		});
+
+		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			brackets: [['{', '}']],
+		}));
+		setupAutoClosingLanguageTokenization();
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"');
+		});
+	});
+
 	test('issue #25658 - Do not auto-close single/double quotes after word characters', () => {
 		usingCursor({
 			text: [

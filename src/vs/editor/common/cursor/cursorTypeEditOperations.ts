@@ -217,6 +217,9 @@ export class AutoClosingOpenCharTypeOperation {
 		if (autoCloseConfig === 'never') {
 			return null;
 		}
+		if (!chIsAlreadyTyped && !this._isBracketPairBalanced(model, pair)) {
+			return null;
+		}
 		// Sometimes, it is possible to have two auto-closing pairs that have a containment relationship
 		// e.g. when having [(,)] and [(*,*)]
 		// - when typing (, the resulting state is (|)
@@ -283,6 +286,17 @@ export class AutoClosingOpenCharTypeOperation {
 		} else {
 			return pair.close;
 		}
+	}
+
+	private static _isBracketPairBalanced(model: ITextModel, pair: StandardAutoClosingPairConditional): boolean {
+		const fullModelRange = model.getFullModelRange();
+		const hasUnclosedOpeningBracket = model.bracketPairs.getBracketPairsInRange(fullModelRange)
+			.some(bracketPair => bracketPair.openingBracketInfo.bracketText === pair.open && !bracketPair.closingBracketRange);
+		if (hasUnclosedOpeningBracket) {
+			return false;
+		}
+		return !model.bracketPairs.getBracketsInRange(fullModelRange)
+			.some(bracket => bracket.isInvalid && model.getValueInRange(bracket.range) === pair.close);
 	}
 
 	/**
