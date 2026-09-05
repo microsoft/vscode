@@ -24,7 +24,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, ISessionChangeset, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -99,6 +99,8 @@ export interface ICopilotChatSession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Summary of file changes produced by the session. */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
@@ -281,6 +283,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+
+	private readonly _changesSummary: ReturnType<typeof observableValueOpts<ISessionChangesSummary | undefined>>;
+	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
 
 	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
@@ -1067,6 +1072,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, this._extractChanges(session));
 		this.changes = this._changes;
 
+		this._changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractChangesSummary(session));
+		this.changesSummary = this._changesSummary;
+
 		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
 		this.checkpoints = this._checkpoints;
 
@@ -1123,6 +1131,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._updatedAt, new Date(updatedTime), tx, dateEquals) || changed;
 			changed = setIfChanged(this._status, toSessionStatus(session.status), tx) || changed;
 			changed = setIfChanged(this._changes, this._extractChanges(session), tx, sessionFileChangesEqual) || changed;
+			changed = setIfChanged(this._changesSummary, this._extractChangesSummary(session), tx, structuralEquals) || changed;
 			changed = setIfChanged(this._checkpoints, this._extractCheckpoints(session), tx, structuralEquals) || changed;
 			changed = setIfChanged(this._isArchived, session.isArchived(), tx) || changed;
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
@@ -1272,22 +1281,18 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 
 	private _extractChanges(session: IAgentSession): readonly ISessionFileChange[] {
-		if (!session.changes) {
-			return [];
+		return Array.isArray(session.changes) ? session.changes as ISessionFileChange[] : [];
+	}
+
+	private _extractChangesSummary(session: IAgentSession): ISessionChangesSummary | undefined {
+		if (!session.changes || Array.isArray(session.changes)) {
+			return undefined;
 		}
-		if (Array.isArray(session.changes)) {
-			return session.changes as ISessionFileChange[];
-		}
-		// Summary object — create a synthetic entry for total insertions/deletions
-		const summary = session.changes as { readonly files: number; readonly insertions: number; readonly deletions: number };
-		if (summary.insertions > 0 || summary.deletions > 0) {
-			return [{
-				modifiedUri: URI.parse('summary://changes'),
-				insertions: summary.insertions,
-				deletions: summary.deletions,
-			}];
-		}
-		return [];
+		return {
+			files: session.changes.files,
+			additions: session.changes.insertions,
+			deletions: session.changes.deletions,
+		};
 	}
 
 	private _extractCheckpoints(session: IAgentSession): IChatCheckpoints | undefined {
@@ -3357,6 +3362,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			updatedAt: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.updatedAt.read(reader))!),
 			status: chatsObs.map((chats, reader) => this._aggregateStatus(chats, reader)),
 			changesets: this._createChangesets(primaryChat.sessionType, primaryChat.workspace, chatsObs),
+			changesSummary: primaryChat.changesSummary,
 			changes: primaryChat.changes,
 			modelId: primaryChat.modelId,
 			mode: primaryChat.mode,
@@ -3399,6 +3405,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			updatedAt: chat.updatedAt,
 			status: chat.status,
 			changesets,
+			changesSummary: chat.changesSummary,
 			changes: chat.changes,
 			modelId: chat.modelId,
 			mode: chat.mode,
