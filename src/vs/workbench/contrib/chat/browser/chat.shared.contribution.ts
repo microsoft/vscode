@@ -482,6 +482,14 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
 		},
+		[ChatConfiguration.CustomizationEntryPoints]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
 			description: nls.localize('chat.saveBeforeSend', "Controls whether all dirty editors except untitled editors are saved before sending a chat message."),

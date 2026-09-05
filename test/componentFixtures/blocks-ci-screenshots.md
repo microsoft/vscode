@@ -228,6 +228,12 @@
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/3ee80de3c6e3555e9bf2dec75a00acc06a5656a4bf3864b95b7ac7a16a5fe499)
 
+#### sessions/chat/newWidget/newChatWidget/NewSessionDefault/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6646486035136d6960d0e8547e01e572fdb9a2bd61652f75710e29003e9764ed)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionDefault/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/070c122c652f70e4e01f4565b47ff936af668eee09a5928f59c15200c3029e2f)
+
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6646486035136d6960d0e8547e01e572fdb9a2bd61652f75710e29003e9764ed)
 
