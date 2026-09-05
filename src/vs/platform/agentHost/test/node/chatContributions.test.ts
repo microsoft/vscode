@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { BrandedService, IConstructorSignature } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -20,12 +25,12 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
-import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { ChatOriginKind } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -788,9 +793,12 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, surface?: IChatSurfaceMeta): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly fileService: FileService; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const fileService = disposables.add(new FileService(logService));
+	const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	stateManager.createSession({
 		resource: 'agent-host-session://test',
 		provider: 'test',
@@ -798,7 +806,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		status: sessionStatus,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
-		_meta: withChatSurfaceMeta(undefined, enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined),
+		_meta: withChatSurfaceMeta(undefined, surface ?? (enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined)),
 	});
 	if (observed) {
 		stateManager.dispatchServerAction(buildDefaultChatUri('agent-host-session://test'), queuedMessage('queue-order', 'queue order'));
@@ -829,6 +837,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostGitStateService, new RecordingGitStateService(observed)],
+		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
@@ -860,7 +869,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, session: 'agent-host-session://test' };
+	return { service, stateManager, database: usageDatabase, fileService, session: 'agent-host-session://test' };
 }
 
 function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
@@ -1432,6 +1441,72 @@ suite('AgentHostChatContributions', () => {
 			return undefined;
 		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('actualizes bounded editor inline context before sending the turn', async () => {
+		const file = URI.file('/workspace/inline.ts');
+		const unrelatedFile = URI.file('/workspace/unrelated.ts');
+		const contributions = createBuiltInContributions(
+			disposables,
+			undefined,
+			false,
+			SessionStatus.IsRead,
+			{ surface: 'editorInline', languageId: 'typescript', targetUri: file.toString() },
+		);
+		const sourceLines = Array.from({ length: 20 }, (_, index) => `${index + 1}: ${'x'.repeat(1000)}`);
+		await contributions.fileService.writeFile(file, VSBuffer.fromString(sourceLines.join('\n')));
+		await contributions.fileService.writeFile(unrelatedFile, VSBuffer.fromString('unrelated selection'));
+
+		const message: Message = {
+			text: 'change this',
+			origin: { kind: MessageKind.User },
+			attachments: [
+				{
+					type: MessageAttachmentKind.Resource,
+					uri: unrelatedFile.toString(),
+					label: 'unrelated.ts',
+					displayKind: 'selection',
+					selection: {
+						range: {
+							start: { line: 0, character: 0 },
+							end: { line: 0, character: 9 },
+						},
+					},
+				},
+				{
+					type: MessageAttachmentKind.Resource,
+					uri: file.toString(),
+					label: 'inline.ts',
+					displayKind: 'selection',
+					selection: {
+						range: {
+							start: { line: 4, character: 0 },
+							end: { line: 4, character: 10 },
+						},
+					},
+				},
+			],
+		};
+		const result = await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: buildDefaultChatUri(contributions.session),
+			message,
+			turnId: 'editor-inline-context',
+		});
+
+		const expectedContext = [
+			'<editor_inline_context>',
+			'File: inline.ts',
+			`Target 5:1-5:11; '>' marks target lines:`,
+			...sourceLines.slice(0, 16).map((line, index) => `${index === 4 ? '>' : ' '} ${String(index + 1).padStart(2)} | ${line.slice(0, 217)}...`),
+			'</editor_inline_context>',
+			'',
+			'change this',
+		].join('\n');
+		assert.deepStrictEqual(result, {
+			instructions: [createEditorInlineChatInstruction({ surface: 'editorInline', languageId: 'typescript', targetUri: file.toString() })],
+			message: { ...message, text: expectedContext },
+		});
 	});
 
 	test('updates and persists an independent chat title', async () => {
