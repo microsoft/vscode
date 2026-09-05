@@ -824,6 +824,23 @@ A client-contributed custom agent can specify its stable name, description, and 
     --grep "custom agent without a display name completes as a subagent"
   ```
 
+### Copilot restored-parent replay differs between OSS and product runtimes
+
+A parent session should remain usable after restoration when a custom subagent has no available transcript. The public runtime used by OSS CI creates that state by rejecting a custom agent without `displayName`, while the product runtime override fixes that validation error and makes an additional child-model request. One sequence-based model fixture cannot replay both request paths, so enabling the test makes either OSS CI or product-build CI fail despite the restored parent accepting another turn in live recording.
+
+- Test: `restored parent accepts a new turn after a custom subagent has no transcript`.
+- Scope: Copilot deterministic replay while OSS and product builds use different runtime versions.
+- Expected: the parent is reconstructed and accepts a new turn under both runtimes.
+- Observed: the OSS fixture records the failed child launch, while the product runtime launches the child successfully and consumes the fixture's next response.
+- Gate: the scenario is disabled until OSS and product builds use the same fixed runtime.
+- Reproduce after locally installing the product runtime:
+
+  ```bash
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "restored parent accepts a new turn after a custom subagent has no transcript"
+  ```
+
 ### Mid-turn abort is record-only
 
 - Tests:
