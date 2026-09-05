@@ -182,9 +182,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => {
 			if (isWindows && this.environmentMainService.enableRDPDisplayTracking && this._win) {
-				const [x, y] = this._win.getPosition();
-				const [width, height] = this._win.getSize();
-
+^I^I^I^Iconst { x, y, width, height } = this._win.getBounds();
 				this.maximizedWindowState = { mode: WindowMode.Maximized, width, height, x, y };
 				this.logService.debug(`Saved maximized window ${this.id} display state:`, this.maximizedWindowState);
 			}
@@ -1517,10 +1515,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	getBounds(): electron.Rectangle {
-		const [x, y] = this._win.getPosition();
-		const [width, height] = this._win.getSize();
-
-		return { x, y, width, height };
+		return this._win.getBounds();
 	}
 
 	protected override setFullScreen(fullscreen: boolean, fromRestore: boolean): void {
