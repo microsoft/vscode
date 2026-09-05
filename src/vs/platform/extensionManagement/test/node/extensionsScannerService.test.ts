@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import * as platform from '../../../../base/common/platform.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -297,6 +298,24 @@ suite('NativeExtensionsScanerService Test', () => {
 		assert.ok(actual !== null);
 		assert.deepStrictEqual(actual!.identifier, { id: 'pub.name' });
 		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World');
+	});
+
+	test('scan existing extension falls back to platform language for nls when language is undefined', async () => {
+		const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', displayName: '%displayName%' }));
+		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
+		// Localized bundle for the platform language
+		const nlsLocation = joinPath(extensionLocation, `package.nls.${platform.language}.json`);
+		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World Localized' })));
+		// Not built, so the scanner would skip localization. Simulate a built environment to exercise the language lookup.
+		instantiationService.stub(INativeEnvironmentService, 'isBuilt', true);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+		// No language is passed - this simulates the incremental scan after an extension install/update
+		const actual = await testObject.scanExistingExtension(extensionLocation, ExtensionType.User, {});
+
+		assert.ok(actual !== null);
+		assert.deepStrictEqual(actual!.identifier, { id: 'pub.name' });
+		assert.deepStrictEqual(actual!.manifest.displayName, 'Hello World Localized');
 	});
 
 	test('scan single extension with manifest metadata retains manifest metadata', async () => {
