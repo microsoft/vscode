@@ -4046,6 +4046,46 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('output the parent produces after a background subagent settles still reaches the chat', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const PARENT = 'toolu_bg_resume';
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeAssistantMessage(sessionId, [
+				{ type: 'tool_use', id: PARENT, name: 'Task', input: { description: 'Audit', subagent_type: 'Explore', prompt: 'go' } },
+			]),
+			{ type: 'system', subtype: 'task_started', task_id: 't1', tool_use_id: PARENT, description: 'bg' } as unknown as SDKMessage,
+			// The parent ends its own turn here, so the prompt queue drains.
+			makeResultSuccess(sessionId),
+			// The subagent settles, which removes its spawn record.
+			{ type: 'system', subtype: 'task_notification', task_id: 't1', tool_use_id: PARENT, status: 'completed', output_file: 'o', summary: 's' } as unknown as SDKMessage,
+			// The parent then resumes, so these arrive with no turn of their own.
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+			makeStreamEvent(sessionId, makeTextDelta(0, 'the audit agent came back')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		// `sendMessage` settles on the result; the loop still drains what follows.
+		const resumed = () => signals.some(s => JSON.stringify(s).includes('the audit agent came back'));
+		for (let i = 0; i < 50 && !resumed(); i++) {
+			await tick();
+		}
+
+		assert.strictEqual(resumed(), true, `expected the resumed parent output to produce a signal; saw kinds: ${signals.map(s => s.kind).join(', ')}`);
+	});
+
 	test('canonical SDKAssistantMessage with text content does not double-emit signals already produced by stream_event partials (Phase 6.1 / Cycle F)', async () => {
 		// CONTEXT.md M8:875 — partials are advisory, final
 		// `SDKAssistantMessage` is canonical. With `includePartialMessages:
