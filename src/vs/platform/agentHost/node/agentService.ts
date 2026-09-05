@@ -1810,15 +1810,16 @@ export class AgentService extends Disposable implements IAgentService {
 			const sessionMetadata = this._toSessionMetadata(metadata);
 			const session = sessionMetadata.session;
 			try {
-				// Matching registry entries still advance their durable recency from
-				// the provider catalog, but need no per-session metadata I/O. Only a
-				// genuine forward move is queued for the batched write below, so a
-				// steady-state startup issues no recency writes at all.
+				// Registered sessions need metadata I/O only when their discovery announcement previously failed.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
 					const stored = registeredRecency.get(session.toString());
 					if (Number.isFinite(sessionMetadata.modifiedTime) && (stored === undefined || sessionMetadata.modifiedTime > stored)) {
 						modifiedTimeAdvances.push({ session, modifiedTime: sessionMetadata.modifiedTime });
+					}
+					const pendingExternal = this._pendingDiscoveredSessionAnnouncements.get(session.toString());
+					if (pendingExternal !== undefined) {
+						await this._announceDiscoveredSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, pendingExternal) }, provider.id);
 					}
 					return false;
 				}
@@ -1855,7 +1856,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (external && !readSessionEhcliAdoptable(sessionMetadata._meta)) {
 						registeredExternal = true;
 					} else {
-						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
+						await this._announceDiscoveredSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, external) }, provider.id);
 					}
 				} else {
 					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
@@ -2115,6 +2116,115 @@ export class AgentService extends Disposable implements IAgentService {
 		return entry;
 	}
 
+	/** Applies the same host-owned metadata to listings and incremental session announcements. */
+	private async _withPersistedSessionMetadata(session: IAgentSessionMetadata): Promise<IAgentSessionMetadata | undefined> {
+		const sanitized = { ...session, _meta: withSessionMultiRootMetadata(session._meta, undefined) };
+		// A failed backing-marker write must not expose the backing as a top-level session.
+		if (this._unpersistedChatBackings.has(session.session.toString())) {
+			return undefined;
+		}
+		const ref = await this._sessionDataService.tryOpenDatabase(session.session);
+		if (!ref) {
+			return sanitized;
+		}
+		try {
+			// Read flags and the required changeset metadata in one database operation.
+			const sessionStr = session.session.toString();
+			const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
+			const metadataKeys: Record<string, true> = changesetKeys
+				? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+				: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
+			const m = await ref.object.getMetadataObject(metadataKeys);
+			if (m[CHAT_BACKING_METADATA_KEY]) {
+				return undefined;
+			}
+			let updated = sanitized;
+			if (m.customTitle) {
+				updated = { ...updated, summary: m.customTitle };
+			}
+			if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
+				updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
+			}
+			// `isDone` is the legacy key for `isArchived`.
+			const persistedArchived = m[AH_META_IS_ARCHIVED_DB_KEY] ?? m[AH_META_IS_DONE_DB_KEY];
+			if (persistedArchived !== undefined) {
+				updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
+			}
+			const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
+			if (creationReference) {
+				updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
+			}
+			if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionHasWorkspaceTransitions(updated._meta, m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') };
+			}
+			if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
+				try {
+					const metadata = readAgentDevContainerWorktreeMetadata({
+						[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
+					});
+					if (metadata) {
+						updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, metadata.handle) };
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] Failed to parse Dev Container worktree metadata for ${session.session}`, err);
+				}
+			}
+			if (m[META_GIT_STATE]) {
+				try {
+					const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
+					updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
+				} catch (e) {
+					this._logService.warn(`[AgentService] Failed to parse Git state for ${session.session}`, e);
+				}
+			}
+			if (m[META_GITHUB_STATE]) {
+				try {
+					const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
+					updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
+				} catch (e) {
+					this._logService.warn(`[AgentService] Failed to parse GitHub state for ${session.session}`, e);
+				}
+			}
+			if (m[META_SOURCE_CONTROL_STATE]) {
+				try {
+					const sourceControlState = parsePersistedSourceControlState(m[META_SOURCE_CONTROL_STATE]);
+					updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
+				} catch (e) {
+					this._logService.warn(`[AgentService] Failed to parse source-control state for ${session.session}`, e);
+				}
+			}
+			if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
+			}
+			if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
+			}
+			if (m[AH_META_EHCLI_LAST_TURN_DB_KEY] !== undefined) {
+				updated = { ...updated, _meta: withSessionEhcliLastMigratedTurn(updated._meta, m[AH_META_EHCLI_LAST_TURN_DB_KEY]) };
+			}
+			const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
+			if (multiRoot) {
+				updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
+			}
+			const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService]');
+			if (artifacts.length > 0) {
+				updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
+			}
+			const folderPickerDecision = parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]);
+			if (folderPickerDecision) {
+				updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
+			}
+			// Use the persisted root as-is to keep catalog publication off Git.
+			const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
+			if (worktreeProject) {
+				updated = { ...updated, project: worktreeProject };
+			}
+			return this._changesetCoordinator.decorateListEntry(updated, m);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	private async _computeSessions(mode: AgentHostExternalSessionsMode): Promise<readonly IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions computation started');
 		const startedAt = Date.now();
@@ -2192,132 +2302,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const overlayLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		const overlayPhaseStartedAt = Date.now();
 		const overlaid = await Promise.all(flat.map(s => overlayLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
-			const sanitized = { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
-			// A backing session whose durable marker write kept failing is
-			// suppressed in-process (see `_unpersistedChatBackings`); check
-			// this before touching the DB so it is filtered the same way
-			// whether or not the marker ever made it to disk.
-			if (this._unpersistedChatBackings.has(s.session.toString())) {
-				return undefined;
-			}
 			try {
-				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
-				if (!ref) {
-					return sanitized;
-				}
-				try {
-					// Batch the always-required keys (title / read / archive
-					// flags) with any keys the changeset coordinator asks for
-					// so the session DB is hit exactly once. The coordinator
-					// returns `undefined` when a live source can already
-					// answer the catalogue question, avoiding the
-					// potentially-large persisted blobs entirely.
-					const sessionStr = s.session.toString();
-					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
-					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_EHCLI_LAST_TURN_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
-					const m = await ref.object.getMetadataObject(metadataKeys);
-					// This session is an internal peer-chat backing (e.g. a
-					// Claude peer chat's SDK session, enumerated by the agent's
-					// own `listSessions`). Drop it so it never leaks as a
-					// standalone top-level session — mirrors the subagent filter
-					// on the state-manager overlay path below.
-					if (m[CHAT_BACKING_METADATA_KEY]) {
-						return undefined;
-					}
-					let updated = sanitized;
-					if (m.customTitle) {
-						updated = { ...updated, summary: m.customTitle };
-					}
-					// `isDone` is the legacy key for `isArchived`.
-					if (m[AH_META_IS_READ_DB_KEY] !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsRead, m[AH_META_IS_READ_DB_KEY] === 'true') };
-					}
-					const persistedArchived = m[AH_META_IS_ARCHIVED_DB_KEY] ?? m[AH_META_IS_DONE_DB_KEY];
-					if (persistedArchived !== undefined) {
-						updated = { ...updated, status: withSessionStatusFlag(updated.status ?? SessionStatus.Idle, SessionStatus.IsArchived, persistedArchived === 'true') };
-					}
-					const creationReference = parseSessionCreationReference(m[AH_META_CREATED_BY_SESSION_DB_KEY]);
-					if (creationReference) {
-						updated = { ...updated, _meta: withSessionCreationReference(updated._meta, creationReference) };
-					}
-					if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionHasWorkspaceTransitions(updated._meta, m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
-						try {
-							const metadata = readAgentDevContainerWorktreeMetadata({
-								[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: JSON.parse(m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]),
-							});
-							if (metadata) {
-								updated = { ...updated, _meta: withAgentDevContainerWorktreeMetadata(updated._meta, metadata.handle) };
-							}
-						} catch (err) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse Dev Container worktree metadata for ${s.session}`, err);
-						}
-					}
-					if (m[META_GIT_STATE]) {
-						try {
-							const gitState = JSON.parse(m[META_GIT_STATE]) as ISessionGitState;
-							updated = { ...updated, _meta: withSessionGitState(updated._meta, gitState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse Git state for ${s.session}`, e);
-						}
-					}
-					if (m[META_GITHUB_STATE]) {
-						try {
-							const gitHubState = JSON.parse(m[META_GITHUB_STATE]) as ISessionGitHubState;
-							updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
-						}
-					}
-					if (m[META_SOURCE_CONTROL_STATE]) {
-						try {
-							const sourceControlState = parsePersistedSourceControlState(m[META_SOURCE_CONTROL_STATE]);
-							updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
-						} catch (e) {
-							this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${s.session}`, e);
-						}
-					}
-
-					if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionWorkspaceless(updated._meta, m[AH_META_WORKSPACELESS_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_EHCLI_ADOPTED_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionEhcliAdopted(updated._meta, m[AH_META_EHCLI_ADOPTED_DB_KEY] === 'true') };
-					}
-					if (m[AH_META_EHCLI_LAST_TURN_DB_KEY] !== undefined) {
-						updated = { ...updated, _meta: withSessionEhcliLastMigratedTurn(updated._meta, m[AH_META_EHCLI_LAST_TURN_DB_KEY]) };
-					}
-					const multiRoot = parseSessionMultiRootMetadata(m[SESSION_META_MULTI_ROOT_KEY]);
-					if (multiRoot) {
-						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
-					}
-					const artifacts = this._readPersistedArtifacts(m[SESSION_ARTIFACTS_KEY], sessionStr, '[AgentService][listSessions]');
-					if (artifacts.length > 0) {
-						updated = { ...updated, _meta: withSessionArtifacts(updated._meta, artifacts) };
-					}
-					const folderPickerDecision = parseSessionFolderPickerDecision(m[SESSION_META_FOLDER_PICKER_KEY]);
-					if (folderPickerDecision) {
-						updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
-					}
-
-					// Use the persisted root as-is to keep listing off Git; the metadata reader re-canonicalizes it on open.
-					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
-					if (worktreeProject) {
-						updated = { ...updated, project: worktreeProject };
-					}
-
-					return this._changesetCoordinator.decorateListEntry(updated, m as Record<string, string | undefined>);
-				} finally {
-					ref.dispose();
-				}
+				return await this._withPersistedSessionMetadata(s);
 			} catch (e) {
 				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
-			return sanitized;
+			return { ...s, _meta: withSessionMultiRootMetadata(s._meta, undefined) };
 		})));
 		const result = overlaid.filter((s): s is IAgentSessionMetadata => s !== undefined);
 		const overlayPhaseMs = Date.now() - overlayPhaseStartedAt;
@@ -2598,6 +2588,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Session keys already announced this AH lifetime, so provider signals do not re-announce them. */
 	private readonly _announcedSurfacedKeys = new Set<string>();
+	/** External provenance for discovered sessions whose registration succeeded but announcement failed. */
+	private readonly _pendingDiscoveredSessionAnnouncements = new Map<string, boolean>();
 	private readonly _broadcastExternalSessions = new Set<string>();
 	private _sessionListReconciliation = Promise.resolve();
 	/** Coalescing state for storm-driven (mode-agnostic) reconciliations. */
@@ -2747,6 +2739,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return visible;
 	}
 
+	private async _announceDiscoveredSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
+		const key = meta.session.toString();
+		// Claim the retry before awaiting so overlapping discovery cannot discard a failed attempt.
+		this._pendingDiscoveredSessionAnnouncements.delete(key);
+		try {
+			await this._announceSurfacedSession(meta, provider);
+		} catch (err) {
+			this._pendingDiscoveredSessionAnnouncements.set(key, readSessionExternal(meta._meta));
+			throw err;
+		}
+	}
+
 	private async _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
 		const key = meta.session.toString();
 		if (!this._shouldIncludeSession(meta) || this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
@@ -2754,17 +2758,22 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._announcedSurfacedKeys.add(key);
 		try {
-			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+			// Default legacy chats to read only when no host-owned read flag overrides it.
+			const metadata = await this._withPersistedSessionMetadata({
+				...meta,
+				status: withSessionStatusFlag(meta.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
+			});
+			if (!metadata || await this._sessionRegistry.isTombstoned(meta.session)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
-			// The external-sessions mode may have changed during the await above; re-check so a row that is no longer visible is not surfaced.
-			if (!this._shouldIncludeSession(meta)) {
+			// Visibility or live state may have changed while the persisted metadata was read.
+			if (!this._shouldIncludeSession(metadata) || this._stateManager.getSessionState(key)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
-			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
-			if (readSessionExternal(meta._meta)) {
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(metadata, provider));
+			if (readSessionExternal(metadata._meta)) {
 				this._broadcastExternalSessions.add(key);
 			}
 		} catch (err) {
@@ -2779,16 +2788,12 @@ export class AgentService extends Disposable implements IAgentService {
 			resource: meta.session.toString(),
 			provider,
 			title: meta.summary ?? '',
-			// Surfaced legacy sessions predate agent-host read ownership, which has
-			// no per-session read flag for them yet. Default them to read: the
-			// client trusts the provider's read state once it owns it, so an
-			// unflagged summary would otherwise flip every previously-seen session
-			// to unread the moment migration is turned on.
-			status: withSessionStatusFlag(meta.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
+			status: meta.status ?? SessionStatus.Idle,
 			createdAt: new Date(meta.startTime).toISOString(),
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
+			...(meta.changes ? { changes: meta.changes } : {}),
 			_meta: meta._meta,
 		};
 	}
@@ -4099,6 +4104,7 @@ export class AgentService extends Disposable implements IAgentService {
 				`unregistration for ${session.toString()}`,
 			);
 		}
+		this._pendingDiscoveredSessionAnnouncements.delete(sessionKey);
 		if (!isIdleProvisional) {
 			this._invalidateSessionList();
 		}
