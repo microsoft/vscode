@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
@@ -63,7 +63,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 // #region --- New Chat Widget ---
 

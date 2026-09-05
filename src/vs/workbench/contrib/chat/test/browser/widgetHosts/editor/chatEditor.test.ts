@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatEditor } from '../../../../browser/widgetHosts/editor/chatEditor.js';
 import { CustomizationMigration, CustomizationMigrationTrigger, ICustomizationMigrationService } from '../../../../common/promptSyntax/service/customizationMigrationService.js';
 
@@ -22,6 +23,8 @@ const reportCustomizationMigrationTelemetry = Reflect.get(ChatEditor.prototype, 
 ) => Promise<void>;
 
 suite('ChatEditor', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('reports customization migration telemetry from the editor new-chat lifecycle', async () => {
 		const reports: CustomizationMigrationTrigger[] = [];
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
