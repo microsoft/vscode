@@ -969,18 +969,7 @@ export class ActionListWidget<T> extends Disposable {
 				this.onListHover(e);
 			}
 		}));
-		this._register(this._list.onMouseDown(e => {
-			const ignoreInitialHover = this._ignoreInitialHover;
-			this._enableHover();
-			if (ignoreInitialHover && e.browserEvent.button === 0 && e.element && this.focusCondition(e.element) && typeof e.index === 'number') {
-				const target = e.browserEvent.target;
-				if (dom.isHTMLElement(target) && target.closest('.action-list-item-toolbar')) {
-					return;
-				}
-				// Focus the pressed row without opening a preview or rebuilding it before click.
-				this._setFocus([e.index], true);
-			}
-		}));
+		this._register(this._list.onMouseDown(() => this._enableHover()));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		if (this._options?.persistentHover) {
@@ -1691,7 +1680,13 @@ export class ActionListWidget<T> extends Disposable {
 				this._list.splice(0, this._list.length, visibleItems);
 				this._list.layout(height);
 				this._list.scrollTop = scrollTop;
-				this._setFocus(focus, true);
+				const suppressHover = this._suppressHover;
+				this._suppressHover = true;
+				try {
+					this._list.setFocus(focus);
+				} finally {
+					this._suppressHover = suppressHover;
+				}
 			}
 		}
 
@@ -1866,16 +1861,6 @@ export class ActionListWidget<T> extends Disposable {
 			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
 		} else {
 			this._list.setSelection([]);
-		}
-	}
-
-	private _setFocus(indexes: number[], suppressHover: boolean): void {
-		const previousSuppressHover = this._suppressHover;
-		this._suppressHover = previousSuppressHover || suppressHover;
-		try {
-			this._list.setFocus(indexes);
-		} finally {
-			this._suppressHover = previousSuppressHover;
 		}
 	}
 
@@ -2391,7 +2376,15 @@ export class ActionListWidget<T> extends Disposable {
 
 			// Set focus immediately for responsive hover feedback
 			const hasPanel = !!(element.submenuActions?.length || element.hover?.content);
-			this._setFocus(typeof e.index === 'number' ? [e.index] : [], hasPanel || !!this._options?.persistentHover);
+			const suppressHover = this._suppressHover;
+			if (hasPanel || this._options?.persistentHover) {
+				this._suppressHover = true;
+			}
+			try {
+				this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+			} finally {
+				this._suppressHover = suppressHover;
+			}
 
 			if (hasPanel) {
 				if (this._currentSubmenuElement === element) {
