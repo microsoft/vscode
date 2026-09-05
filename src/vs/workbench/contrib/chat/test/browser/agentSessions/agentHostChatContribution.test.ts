@@ -12913,6 +12913,54 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
+		/** Sends the first prompt of a new session in a workspace of `folders` and returns the working directories it was created with. */
+		async function createSessionInWorkspace(folders: readonly URI[], resourceUris = identityAgentHostResourceUriMapper): Promise<string[] | undefined> {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				workingDirectoryResolver: { resolve: () => folders[0] },
+				workspaceFolders: folders,
+			});
+			agentHostService.resourceUris = resourceUris;
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } }],
+				activeSessions: 0,
+			});
+			agentHostService.setInitializeResult({ defaultDirectory: 'file:///home/user' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			return agentHostService.createSessionCalls.at(-1)?.workingDirectories?.map(directory => directory.toString());
+		}
+
+		test('keeps the workspace folders of a remote window, which reach the host as local paths', async () => {
+			// The remote client maps `vscode-agent-host:` only, so the folders keep their `vscode-remote:` scheme here.
+			const primary = URI.parse('vscode-remote://dev-container+abc123/workspaces/vscode');
+			const secondary = URI.parse('vscode-remote://dev-container+abc123/workspaces/shared');
+
+			const workingDirectories = await createSessionInWorkspace([primary, secondary], createAgentHostResourceUriMapper(agentHostAuthority('vscode-remote://dev-container+abc123')));
+
+			assert.deepStrictEqual(workingDirectories, [primary.toString(), secondary.toString()]);
+		});
+
+		test('keeps the workspace folders of a local window', async () => {
+			const primary = URI.file('/workspaces/vscode');
+			const secondary = URI.file('/workspaces/shared');
+
+			const workingDirectories = await createSessionInWorkspace([primary, secondary]);
+
+			assert.deepStrictEqual(workingDirectories, [primary.toString(), secondary.toString()]);
+		});
+
+		test('still drops a folder the host cannot address alongside remote folders', async () => {
+			const primary = URI.parse('vscode-remote://dev-container+abc123/workspaces/vscode');
+			const virtualRepository = URI.parse('https://github.com/microsoft/vscode');
+
+			const workingDirectories = await createSessionInWorkspace([primary, virtualRepository], createAgentHostResourceUriMapper(agentHostAuthority('vscode-remote://dev-container+abc123')));
+
+			assert.deepStrictEqual(workingDirectories, [primary.toString()]);
+		});
+
 		test('waits for initial scope resolution before creating a session', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', []);
