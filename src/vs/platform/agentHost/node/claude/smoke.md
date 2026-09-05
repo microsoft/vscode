@@ -137,14 +137,11 @@ SMOKE_DIR=$(ls -td /tmp/claude-smoke/*/ | head -1)
 npx @playwright/cli screenshot --filename="$SMOKE_DIR/picker-open.png"
 ```
 
-> **Gotcha — clicking the option directly fails.** The dropdown overlay
-> registers a `context-view-pointerBlock` element that intercepts pointer
-> events on the option items. Use `ArrowDown` then `Enter` instead:
->
-> ```bash
-> npx @playwright/cli press ArrowDown
-> npx @playwright/cli press Enter
-> ```
+Click the Claude option using its ref from the snapshot:
+
+```bash
+npx @playwright/cli click <ref>
+```
 
 After selecting Claude, re-snapshot and verify:
 

@@ -232,14 +232,9 @@ export class TabbedActionListWidget extends Disposable {
 				};
 				applyWidgetClassNames();
 
-				// Invisible layers that swallow the mouse events which follow the one that
-				// opened the popup. Without them a trigger that opens on mouse down is
-				// dismissed by its own mouse up.
+				// Keep outside mouse-down events from reaching the underlying UI.
 				const block = dom.append(container, dom.$('.context-view-block'));
 				renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
-				const pointerBlock = dom.append(container, dom.$('.context-view-pointerBlock'));
-				renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-				renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
 
 				const tabBar = dom.append(widget, dom.$('.tabbed-action-list-tabbar'));
 				if (options.tabBarClassName) {

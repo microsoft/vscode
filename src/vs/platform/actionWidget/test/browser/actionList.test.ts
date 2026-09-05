@@ -166,6 +166,89 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('opening under a stationary pointer preserves keyboard focus and selection', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second'), action('third')],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'first');
+
+		widget.focusNext();
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.acceptSelected();
+		assert.deepStrictEqual(selected, ['second']);
+	});
+
+	test('pointer movement enables hover on the initial row and subsequent rows', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second'), action('third')],
+			listOptions: { showFilter: false },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'second');
+
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
+	});
+
+	test('the first click selects its row without prior pointer movement', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second')],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+		row.click();
+		assert.deepStrictEqual(selected, ['second']);
+	});
+
+	test('initial pointer movement and clicks do not select disabled items', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), { ...action('disabled'), disabled: true }],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+		row.click();
+		assert.deepStrictEqual(selected, []);
+	});
+
+	test('initial hover does not open a submenu until the pointer moves', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), { ...action('second'), hover: { content: 'Details' } }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(500);
+		assert.strictEqual(panel.style.display, 'none');
+
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		await timeout(500);
+		assert.notStrictEqual(panel.style.display, 'none');
+	}));
+
 	function createPersistentPreview(side: 'left' | 'right' = 'right') {
 		const selected: string[] = [];
 		const contents = ['first', 'second', 'third'].map(label => {
@@ -198,6 +281,7 @@ suite('ActionListWidget', () => {
 			const bounds = row.getBoundingClientRect();
 			const point = { x: clientX ?? bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: point.x, clientY: point.y }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: point.x, clientY: point.y }));
 			return point;
 		};
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
@@ -733,7 +817,7 @@ suite('ActionListWidget', () => {
 		});
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		await timeout(1000);
 
 		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
@@ -911,7 +995,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// The banner is a sibling of the list, so reaching it drags the pointer across a row.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
 		await timeout(1000);
 
@@ -926,7 +1010,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// Dwelling on the row long enough for the panel to open, then continuing to the banner.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
 		await timeout(600);
 		const openedWhileOnRow = panel.textContent;
 

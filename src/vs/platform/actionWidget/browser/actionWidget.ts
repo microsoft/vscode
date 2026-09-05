@@ -211,15 +211,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		block.classList.add('context-view-block');
 		renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
-		// Invisible div to block mouse interaction with the menu
-		const pointerBlockDiv = document.createElement('div');
-		const pointerBlock = element.appendChild(pointerBlockDiv);
-		pointerBlock.classList.add('context-view-pointerBlock');
-
-		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
-
 		// Action bar
 		let actionBarWidth = 0;
 		if (actionBarActions.length) {
