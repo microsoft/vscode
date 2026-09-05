@@ -28,7 +28,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationHandle, INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
@@ -519,7 +519,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		// Scoped to the current mount, like the other mount listeners: a failed
+		// document never sends webview-ready, so registering on the element's
+		// lifetime would retain one listener per remount.
+		const subscription = this._mountListeners.add(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -645,8 +648,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	 * The notification shown when service worker registration terminally failed,
 	 * so that it can be closed when the webview is disposed or reinitialized,
 	 * instead of keeping the disposed webview alive through its action closure.
+	 * Stored as an IDisposable that closes the handle, since the notification
+	 * handle itself only exposes close(), not dispose().
 	 */
-	private readonly _serviceWorkerErrorNotification = this._register(new MutableDisposable<INotificationHandle>());
+	private readonly _serviceWorkerErrorNotification = this._register(new MutableDisposable<IDisposable>());
 	/**
 	 * Whether service worker registration has terminally failed for the
 	 * current document. Further registration errors are suppressed until
@@ -726,8 +731,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			// Track the notification so it can be closed when the webview is
 			// disposed or reinitialized; otherwise its action closure would
 			// keep the disposed webview's object graph alive until the user
-			// manually dismissed it.
-			this._serviceWorkerErrorNotification.value = this._notificationService.prompt(Severity.Error,
+			// manually dismissed it. The handle only exposes close() rather
+			// than dispose(), so wrap it in an IDisposable.
+			const notificationHandle = this._notificationService.prompt(Severity.Error,
 				localize('fatalErrorMessage', "Error loading webview: {0}", message),
 				[{
 					label: localize('reloadWebview', "Reload Webview"),
@@ -741,6 +747,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						this.reinitializeAfterDismount();
 					}
 				}]);
+			this._serviceWorkerErrorNotification.value = toDisposable(() => notificationHandle.close());
 			this._onFatalError.fire({ message });
 			return;
 		}
