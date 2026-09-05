@@ -271,17 +271,29 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (!sessionId) {
 			return undefined;
 		}
-		const agentSession = this.agentSessionsService.model.sessions
+		const agentSessions = this.agentSessionsService.model.sessions
 			.find(session => !session.isArchived() && session.resource.toString() === sessionId);
-		if (agentSession) {
-			return agentSession.resource;
+		if (agentSessions) {
+			return agentSessions.resource;
 		}
 		for (const model of this.chatService.chatModels.get()) {
 			if (model.sessionResource.toString() === sessionId) {
 				return model.sessionResource;
 			}
 		}
-		return undefined;
+
+		const normalizedSessionId = sessionId.trim().toLocaleLowerCase();
+		const labeledSessions = this.agentSessionsService.model.sessions.filter(session =>
+			!session.isArchived() && session.label?.trim().toLocaleLowerCase() === normalizedSessionId
+		);
+		if (labeledSessions.length === 1) {
+			return labeledSessions[0].resource;
+		}
+
+		const labeledChatModels = this.chatService.chatModels.get().filter(model =>
+			model.title?.trim().toLocaleLowerCase() === normalizedSessionId
+		);
+		return labeledChatModels.length === 1 ? labeledChatModels[0].sessionResource : undefined;
 	}
 
 	private async _showActionTarget(sessionId: string): Promise<{ ok: true; resource: URI } | { ok: false; reason: 'no_session' | 'session_not_found' | 'switch_failed' }> {
@@ -560,10 +572,12 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		const sessionData: Array<Record<string, unknown> & { state: string; is_active: boolean; last_activity: number }> = agentSessions.map(session => {
 			const model = this.chatService.getSession(session.resource);
 			const changes = getAgentChangesSummary(session.changes);
-			const state = session.status === AgentSessionStatus.InProgress ? 'working'
-				: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
-					: session.status === AgentSessionStatus.Completed ? 'idle'
-						: 'unknown';
+			const state = model
+				? model.requestNeedsInput?.get() ? 'waiting_for_input' : model.hasActiveRequest?.get() ? 'working' : 'idle'
+				: session.status === AgentSessionStatus.InProgress ? 'working'
+					: session.status === AgentSessionStatus.NeedsInput ? 'waiting_for_input'
+						: session.status === AgentSessionStatus.Completed ? 'idle'
+							: 'unknown';
 			const lastActivity = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created ?? 0;
 			return {
 				id: session.resource.toString(),
