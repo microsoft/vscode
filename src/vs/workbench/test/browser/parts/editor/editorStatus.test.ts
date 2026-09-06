@@ -28,14 +28,14 @@ suite('EditorStatus', () => {
 		}, {
 			missingSelections: undefined,
 			emptySelections: undefined,
-			singleSelection: 'Ln 12, Col 34',
-			compactSingleSelection: '12:34',
-			singleSelectionRange: 'Ln 12, Col 34 (9 selected)',
-			compactSingleSelectionRange: '12:34 (9 selected)',
-			multipleSelections: '2 selections',
-			compactMultipleSelections: '2 selections',
-			multipleSelectionRanges: '2 selections (9 characters selected)',
-			compactMultipleSelectionRanges: '2 selections (9 characters selected)',
+			singleSelection: { text: 'Ln 12, Col 34', ariaLabel: 'Line 12, Column 34' },
+			compactSingleSelection: { text: '12:34', ariaLabel: 'Line 12, Column 34' },
+			singleSelectionRange: { text: 'Ln 12, Col 34 (9 selected)', ariaLabel: 'Line 12, Column 34 (9 selected)' },
+			compactSingleSelectionRange: { text: '12:34 (9 selected)', ariaLabel: 'Line 12, Column 34 (9 selected)' },
+			multipleSelections: { text: '2 selections', ariaLabel: '2 selections' },
+			compactMultipleSelections: { text: '2 selections', ariaLabel: '2 selections' },
+			multipleSelectionRanges: { text: '2 selections (9 characters selected)', ariaLabel: '2 selections (9 characters selected)' },
+			compactMultipleSelectionRanges: { text: '2 selections (9 characters selected)', ariaLabel: '2 selections (9 characters selected)' },
 		});
 	});
 
