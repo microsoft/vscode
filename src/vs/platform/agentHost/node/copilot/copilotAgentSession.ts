@@ -6573,14 +6573,24 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Subagent selected: ${e.data.agentName}`);
 		}));
 
+		const subagentIdsByStopHook = new Map<string, string>();
 		this._register(wrapper.onHookStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
+			if (e.data.hookType === 'subagentStop') {
+				// Some SDK stop hooks identify the subagent only in the start event's input.
+				const agentId = e.agentId ?? (hasKey(e.data.input, { agentId: true }) && isString(e.data.input.agentId) ? e.data.input.agentId : undefined);
+				if (agentId) {
+					subagentIdsByStopHook.set(e.data.hookInvocationId, agentId);
+				}
+			}
 		}));
 
 		this._register(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
-			if (e.data.hookType === 'agentStop') {
-				this._completeSubagentTurn(e.agentId);
+			const agentId = e.agentId ?? subagentIdsByStopHook.get(e.data.hookInvocationId);
+			subagentIdsByStopHook.delete(e.data.hookInvocationId);
+			if (e.data.hookType === 'agentStop' || e.data.hookType === 'subagentStop') {
+				this._completeSubagentTurn(agentId);
 			}
 		}));
 
