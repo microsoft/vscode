@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -119,7 +120,11 @@ export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'conflict'; readonly current: IAutomation }
 	| { readonly kind: 'missing' };
 
+export type AutomationInitialDiscoveryState = 'pending' | 'ready' | 'unavailable';
+
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Initial provider catalogue state. Absent for synchronously initialized stores. */
+	readonly initialDiscoveryState?: IObservable<AutomationInitialDiscoveryState>;
 	canRunAutomation?(automationId: string): boolean;
 	canUpdateAutomation?(automationId: string): boolean;
 	canDeleteAutomation?(automationId: string): boolean;

@@ -98,10 +98,16 @@ suite('SessionsLifecycleTracker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let storage: InMemoryStorageService;
 	let tracker: SessionsLifecycleTracker;
+	let appLaunchCount: number;
+
+	function createTracker(): SessionsLifecycleTracker {
+		return disposables.add(new SessionsLifecycleTracker(storage, ++appLaunchCount));
+	}
 
 	setup(() => {
 		storage = disposables.add(new InMemoryStorageService());
-		tracker = disposables.add(new SessionsLifecycleTracker(storage));
+		appLaunchCount = 0;
+		tracker = createTracker();
 	});
 
 	test('starts untracked until a user interaction is recorded', () => {
@@ -144,7 +150,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.recordNewChatRequestSent(session);
 		tracker.bumpCounter(session, 'feedbackAdded');
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 
 		assert.strictEqual(secondTracker.isTracked(session.sessionId), true);
 		const summary = secondTracker.finalize(session.sessionId, 'archived', session);
@@ -265,7 +271,7 @@ suite('SessionsLifecycleTracker', () => {
 		stored[session.sessionId].typedFileHashes = [123, 456];
 		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const reloaded = disposables.add(new SessionsLifecycleTracker(storage));
+		const reloaded = createTracker();
 		reloaded.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 2);
 
 		const summary = reloaded.finalize(session.sessionId, 'archived', session);
@@ -566,7 +572,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.recordNewChatRequestSent(session);
 		tracker.recordFirstRequestTaskInfo(session, { hasWorktreeCreatedTask: false, configuredTasksCount: 2 });
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 		const summary = secondTracker.finalize(session.sessionId, 'archived', session);
 
 		assert.ok(summary);
@@ -660,7 +666,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.incrementAndGetUserRequestCounters(session);
 		tracker.incrementAndGetUserRequestCounters(session);
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 		assert.deepStrictEqual(secondTracker.incrementAndGetUserRequestCounters(session), { userSessionsTotal: 3, userSessionsInWorkspace: 3, userSessionsForProvider: 3 });
 	});
 
@@ -708,7 +714,7 @@ suite('SessionsLifecycleTracker', () => {
 	test('tracker treats corrupted storage as empty', () => {
 		storage.store(SESSIONS_KEY, '{not valid json', StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const recoveredTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const recoveredTracker = createTracker();
 
 		assert.deepStrictEqual(recoveredTracker.getTrackedIds(), []);
 	});
@@ -745,7 +751,7 @@ suite('SessionsLifecycleTracker', () => {
 		}
 		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const capTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const capTracker = createTracker();
 		assert.strictEqual(capTracker.getTrackedIds().length, MAX_TRACKED_SESSIONS);
 
 		const newSession = createSession('brand-new');

@@ -216,6 +216,16 @@ Every non-supported state exposes the provider-scoped legacy fallback when it co
 
 After legacy data has migrated and its source is drained, disconnecting or disabling the provider does not create a second authority. The host retains durable definitions; its projection becomes available again after reconnect or re-enable.
 
+### Initial discovery
+
+Provider Automation stores may expose an initial-discovery state through `ISessionsProviderAutomations`:
+
+- `pending` means the provider may still reveal existing definitions;
+- `ready` means its initial authoritative catalogue is definitive;
+- `unavailable` means it cannot currently establish a definitive catalogue.
+
+Stores without this state are synchronously initialized. Agent Host stores become ready only after their initial catalogue and migration state are authoritative. A host without Automation capability is ready because its synchronous legacy store remains authoritative; a disconnected host is unavailable because host-owned definitions cannot be projected.
+
 ## Migration
 
 Migration has two ownership boundaries:

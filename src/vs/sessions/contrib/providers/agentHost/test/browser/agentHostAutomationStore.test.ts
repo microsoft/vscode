@@ -2214,6 +2214,7 @@ suite('AgentHostAutomationStore', () => {
 			configurationService,
 		));
 		store.setConnection(connection);
+		assert.strictEqual(store.initialDiscoveryState.get(), 'pending');
 		await assert.rejects(store.completeMigration(), /cannot be migrated safely/);
 
 		legacy.migrationAllowed = true;
@@ -2221,9 +2222,11 @@ suite('AgentHostAutomationStore', () => {
 		await store.completeMigration();
 
 		assert.deepStrictEqual({
+			initialDiscoveryState: store.initialDiscoveryState.get(),
 			subscriptions: connection.subscribedChannel,
 			completionRequests: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
 		}, {
+			initialDiscoveryState: 'ready',
 			subscriptions: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			completionRequests: 1,
 		});
@@ -2413,6 +2416,7 @@ suite('AgentHostAutomationStore', () => {
 			configurationService,
 		));
 		store.setConnection(connection);
+		const pendingState = store.initialDiscoveryState.get();
 
 		let settled = false;
 		const migration = store.completeMigration().finally(() => settled = true);
@@ -2426,7 +2430,15 @@ suite('AgentHostAutomationStore', () => {
 		}, undefined);
 		await migration;
 
-		assert.strictEqual(connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length, 1);
+		assert.deepStrictEqual({
+			pendingState,
+			readyState: store.initialDiscoveryState.get(),
+			completionRequests: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+		}, {
+			pendingState: 'pending',
+			readyState: 'ready',
+			completionRequests: 1,
+		});
 	});
 
 	test('migration resolves without subscribing after an older host finishes initializing', async () => {
@@ -2451,6 +2463,7 @@ suite('AgentHostAutomationStore', () => {
 		));
 		store.setConnection(connection);
 		const migration = store.completeMigration();
+		const pendingState = store.initialDiscoveryState.get();
 
 		connection.initializeResult.set({
 			protocolVersion: '1',
@@ -2460,9 +2473,13 @@ suite('AgentHostAutomationStore', () => {
 		await migration;
 
 		assert.deepStrictEqual({
+			pendingState,
+			readyState: store.initialDiscoveryState.get(),
 			subscribedChannel: connection.subscribedChannel,
 			completionRequests: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
 		}, {
+			pendingState: 'pending',
+			readyState: 'ready',
 			subscribedChannel: undefined,
 			completionRequests: 0,
 		});
@@ -2492,7 +2509,13 @@ suite('AgentHostAutomationStore', () => {
 
 		await store.completeMigration();
 
-		assert.strictEqual(connection.dispatched.length, 0);
+		assert.deepStrictEqual({
+			initialDiscoveryState: store.initialDiscoveryState.get(),
+			dispatched: connection.dispatched.length,
+		}, {
+			initialDiscoveryState: 'pending',
+			dispatched: 0,
+		});
 	}));
 
 	test('disposing while capabilities initialize settles migration', async () => {
