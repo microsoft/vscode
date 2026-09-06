@@ -29,7 +29,7 @@ import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/an
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
-import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { isRememberedSessionConfigKey, KNOWN_MODE_VALUES, REMEMBERED_SESSION_CONFIG_STORAGE_KEY, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -70,8 +70,6 @@ import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, IAgentHostChangeset, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
-const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
-const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
 
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
@@ -282,10 +280,6 @@ function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStat
 		status = withSessionStatusFlag(status, ProtocolSessionStatus.IsArchived, legacyArchived);
 	}
 	return status;
-}
-
-function isRememberedSessionConfigKey(property: string): boolean {
-	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
@@ -3775,7 +3769,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Seed session config values from the last user picks, migrating any
 		// legacy `autoApprove='autopilot'` remembered value into the new
 		// `mode='autopilot'` shape before the per-axis precedence below runs.
-		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(REMEMBERED_SESSION_CONFIG_STORAGE_KEY, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
 			if (typeof value === 'string' && isRememberedSessionConfigKey(property)) {
 				config[property] = value;
@@ -3867,7 +3861,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Remember portable config picks across sessions.
 		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
-			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(REMEMBERED_SESSION_CONFIG_STORAGE_KEY, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
 			for (const [key, rememberedValue] of Object.entries(rememberedValues)) {
 				if (typeof rememberedValue === 'string' && isRememberedSessionConfigKey(key)) {
@@ -3875,7 +3869,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 			nextRememberedValues[property] = normalizedValue;
-			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this._storageService.store(REMEMBERED_SESSION_CONFIG_STORAGE_KEY, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 
 		// Mark resolution before firing so the first picker render is already inert.

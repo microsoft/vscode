@@ -70,3 +70,16 @@ export function omitTransientSessionConfigValues<T>(values: Record<string, T>): 
 	delete result[SessionConfigKey.ShellInitScripts];
 	return result;
 }
+
+/**
+ * Profile-scoped store of the user's last session-config picks. Shared so the Agents
+ * window and the chat input seed new sessions from the same choices.
+ */
+export const REMEMBERED_SESSION_CONFIG_STORAGE_KEY = 'sessions.agentHost.sessionConfigPicker.selectedValues';
+
+const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** Whether a session-config property may be carried from one session to the next. */
+export function isRememberedSessionConfigKey(property: string): boolean {
+	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+}
