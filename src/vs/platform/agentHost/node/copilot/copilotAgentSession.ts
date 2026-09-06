@@ -6572,7 +6572,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
 			if (e.data.hookType === 'subagentStop') {
 				// Some SDK stop hooks identify the subagent only in the start event's input.
-				const agentId = e.agentId ?? (hasKey(e.data.input, { agentId: true }) && isString(e.data.input.agentId) ? e.data.input.agentId : undefined);
+				const input = e.data.input;
+				const inputAgentId = input !== null && typeof input === 'object' && !Array.isArray(input) ? input.agentId : undefined;
+				const agentId = e.agentId ?? (isString(inputAgentId) ? inputAgentId : undefined);
 				if (agentId) {
 					subagentIdsByStopHook.set(e.data.hookInvocationId, agentId);
 				}

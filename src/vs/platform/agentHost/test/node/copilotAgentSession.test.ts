@@ -9380,6 +9380,35 @@ Use the attached image as context.
 			});
 		});
 
+		test('ignores subagent stop hook inputs without a string agent ID', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+
+			const inputs: SessionEventPayload<'hook.start'>['data']['input'][] = [
+				undefined, null, true, 1, 'agent-1', [], {}, { agentId: 1 }, { agentId: null }, { agentId: ['agent-1'] },
+			];
+			for (const input of inputs) {
+				mockSession.fire('hook.start', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					input,
+				});
+				mockSession.fire('hook.end', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					success: true,
+				});
+			}
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+		});
+
 		test('matches overlapping subagent stop hooks to their own agents', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
