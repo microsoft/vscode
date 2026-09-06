@@ -46,7 +46,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 	MultiplePullRequests: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderBanners(context, [
-			combinedPRBanner(42, 2, 3),
+			combinedPRBanner(42, 2, 3, true),
 			{ ...commentsBanner(4, 'pr'), id: 'pr-43', text: '4 PR Comments', ariaLabel: '#43, 4 PR Comments', reference: { label: '#43', hover: 'Pull Request #43: Improve session rendering' } },
 			{ ...ciBanner(1, 2, 0), id: 'pr-44', text: '1 Check Failing', ariaLabel: '#44, 1 Check Failing', reference: { label: '#44', hover: 'Pull Request #44: Fix accessibility labels' } },
 		]),
@@ -55,6 +55,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 	CombinedNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderBanners(context, [combinedPRBanner(42, 2, 3)], 360),
+	}),
+
+	CommentsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderBanners(context, [commentsBanner(3, 'pr')], 280),
 	}),
 
 	LongTextEllipsis: defineComponentFixture({
@@ -73,8 +78,8 @@ function ciBanner(failed: number, completed: number, pending: number): ISessionI
 		ariaLabel: text,
 		dismissTooltip: 'Hide for this session',
 		actions: [
-			{ label: 'Fix CI', primary: true, run: () => console.log('Fix CI') },
-			{ label: 'Reveal CI', run: () => console.log('Open Pull Request') },
+			{ label: 'Fix Checks', primary: true, run: () => console.log('Fix Checks') },
+			{ label: 'Reveal', run: () => console.log('Open Pull Request') },
 		],
 		dismiss: () => console.log('Dismiss CI banner'),
 	};
@@ -91,32 +96,33 @@ function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISession
 		dismissTooltip: 'Hide for this session',
 		actions: [
 			{ label: 'Address Comments', primary: true, run: () => console.log('Address Comments') },
-			{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') },
+			{ label: 'Reveal', run: () => console.log('Reveal Comments') },
 		],
 		dismiss: () => console.log('Dismiss comments banner'),
 	};
 }
 
-function combinedPRBanner(number: number, failed: number, comments: number): ISessionInputBanner {
-	const fixCI = { label: 'Fix CI', primary: true, run: () => console.log('Fix CI') };
+function combinedPRBanner(number: number, failed: number, comments: number, multiplePullRequests = false): ISessionInputBanner {
+	const fixCI = { label: 'Fix Checks', primary: true, run: () => console.log('Fix Checks') };
 	const addressComments = { label: 'Address Comments', primary: true, run: () => console.log('Address Comments') };
+	const reference = multiplePullRequests
+		? { reference: { label: `#${number}`, hover: `Pull Request #${number}: Add multi-PR banner support` } }
+		: {};
 	return {
 		id: `pr-${number}`,
 		icon: Codicon.warning,
 		accent: true,
 		text: `${failed} Checks Failing | ${comments} PR Comments`,
-		ariaLabel: `#${number}, ${failed} Checks Failing, ${comments} PR Comments`,
-		reference: { label: `#${number}`, hover: `Pull Request #${number}: Add multi-PR banner support` },
+		ariaLabel: multiplePullRequests
+			? `#${number}, ${failed} Checks Failing, ${comments} PR Comments`
+			: `${failed} Checks Failing, ${comments} PR Comments`,
+		...reference,
 		dismissTooltip: 'Hide this item for this session',
 		actions: [{
-			label: 'Fix CI & Address Comments',
+			label: 'Fix Checks & Address Comments',
 			primary: true,
 			dropdownActions: [fixCI, addressComments],
-			run: () => console.log('Fix CI and Address Comments'),
-		}, {
-			label: 'Reveal CI',
-			dropdownActions: [{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') }],
-			run: () => console.log('Reveal CI'),
+			run: () => console.log('Fix Checks and Address Comments'),
 		}],
 		dismiss: () => console.log('Dismiss PR banner'),
 	};

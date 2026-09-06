@@ -11,7 +11,7 @@ import type { URI } from '../common/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 import type { AgentInfo } from '../channels-root/state.js';
 import type { AutomationSetAction } from './actions.js';
-import type { AutomationDefinition, AutomationSessionTemplate, AutomationState, AutomationTriggerDefinition } from './state.js';
+import type { AutomationDefinition, AutomationEntry, AutomationSessionTemplate, AutomationTriggerDefinition } from './state.js';
 
 /**
  * Discover event-trigger types available for a prospective session template.
@@ -63,8 +63,8 @@ export interface ListAutomationTriggerDefinitionsResult {
  */
 export interface RunAutomationParams extends BaseParams {
 	/** Manual runs are scoped to the catalogue channel. */
-	channel: 'ahp-automations://catalog';
-	/** Target {@link AutomationState.resource}. */
+	channel: 'ahp-automations://';
+	/** Target {@link AutomationEntry.resource}. */
 	automation: URI;
 	/**
 	 * Durable client-generated idempotency key. Retrying with the same key and
@@ -89,7 +89,7 @@ export interface RunAutomationResult {
  *
  * The response only acknowledges the request. The updated full state arrives
  * through {@link AutomationSetAction | `automation/set`} on the
- * `ahp-automations://catalog` channel, keeping all catalogue subscribers synchronized
+ * `ahp-automations://` channel, keeping all catalogue subscribers synchronized
  * through the normal action stream.
  *
  * @category Commands
@@ -100,11 +100,11 @@ export interface RunAutomationResult {
  */
 export interface FetchAutomationRunsParams extends BaseParams {
 	/** Run-history loading is scoped to the catalogue channel. */
-	channel: 'ahp-automations://catalog';
-	/** Target {@link AutomationState.resource}. */
+	channel: 'ahp-automations://';
+	/** Target {@link AutomationEntry.resource}. */
 	automation: URI;
 	/**
-	 * Cursor previously received as {@link AutomationState.runsNextCursor}.
+	 * Cursor previously received as {@link AutomationEntry.runsNextCursor}.
 	 * Omit to request the first page not already included by the snapshot.
 	 */
 	cursor?: string;

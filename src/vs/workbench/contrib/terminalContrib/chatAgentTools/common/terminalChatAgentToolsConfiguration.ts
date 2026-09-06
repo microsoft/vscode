@@ -558,7 +558,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: {
 		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['preview'],
 		restricted: true,
 		policy: {

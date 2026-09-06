@@ -296,6 +296,66 @@ suite('FetcherFallback Test Suite', function () {
 		}
 	});
 
+	test('caps terminal response error cardinality while preserving counts', async function () {
+		vi.useFakeTimers();
+		cleanupTime += 24 * 60 * 60 * 1000;
+		vi.setSystemTime(cleanupTime);
+		const primingTelemetryService = new SpyingTelemetryService();
+		const primingFetchers = createTestFetchers([
+			{ name: 'fetcher1', response: createFakeResponse(503, someJSON) },
+			{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+		]);
+		await fetchWithFallbacks(primingFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, primingTelemetryService, experimentationService);
+		vi.advanceTimersByTime(16 * 60 * 1000);
+		const createSuccessfulFetchers = () => createTestFetchers([
+			{ name: 'fetcher1', response: createFakeResponse(200, someJSON) },
+			{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+		]);
+		await fetchWithFallbacks(createSuccessfulFetchers().fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, primingTelemetryService, experimentationService);
+		const spyingTelemetryService = new SpyingTelemetryService();
+		try {
+			for (let i = 0; i < 200; i++) {
+				const testFetchers = createTestFetchers([
+					{ name: 'fetcher1', response: createFakeResponse(503, someJSON, `unique status ${i}`) },
+					{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+				]);
+				await fetchWithFallbacks(testFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+			}
+			const repeatedOverflowFetchers = createTestFetchers([
+				{ name: 'fetcher1', response: createFakeResponse(503, someJSON, 'unique status 199') },
+				{ name: 'fetcher2', response: createFakeResponse(200, someJSON) },
+			]);
+			await fetchWithFallbacks(repeatedOverflowFetchers.fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+
+			vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+			await fetchWithFallbacks(createSuccessfulFetchers().fetchers, 'https://example.com', { callSite: 'test', expectJSON: true, retryFallbacks: true }, knownBadFetchers, configurationService, logService, spyingTelemetryService, experimentationService);
+			const telemetryEvents = spyingTelemetryService.getEvents().telemetryServiceEvents;
+			const properties = telemetryEvents[0].properties;
+			if (!properties || !('errors' in properties) || typeof properties.errors !== 'string') {
+				assert.fail('Expected an errors telemetry property');
+			}
+			const errors: Record<string, number> = JSON.parse(properties.errors);
+
+			assert.deepStrictEqual({
+				eventCount: telemetryEvents.length,
+				eventName: telemetryEvents[0].eventName,
+				errorKeyCount: Object.keys(errors).length,
+				overflowCount: errors['<other>'],
+				repeatedOverflowErrorCount: errors['fetcher1: 503 unique status 199'],
+				allFailuresAccountedFor: Object.values(errors).reduce((total, count) => total + count, 0),
+			}, {
+				eventCount: 1,
+				eventName: 'fetcherTerminalResponse',
+				errorKeyCount: 101,
+				overflowCount: 101,
+				repeatedOverflowErrorCount: undefined,
+				allFailuresAccountedFor: 201,
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	test('no fetcher succeeds', async function () {
 		const fetcherSpec = [
 			{ name: 'fetcher1', response: createFakeResponse(407, someHTML) },
@@ -407,7 +467,7 @@ function createTestFetchers(fetcherSpecs: Array<{ name: string; response: Respon
 				}
 				return next;
 			},
-			fetchWithPagination: async <T>(baseUrl: string, options: PaginationOptions<T>): Promise<T[]> => {
+			fetchWithPagination: async <T>(_baseUrl: string, _options: PaginationOptions<T>): Promise<T[]> => {
 				throw new Error('Method not implemented.');
 			},
 			disconnectAll: async () => { },
@@ -422,10 +482,10 @@ function createTestFetchers(fetcherSpecs: Array<{ name: string; response: Respon
 	return { fetchers, calls };
 }
 
-function createFakeResponse(statusCode: number, content: string) {
+function createFakeResponse(statusCode: number, content: string, statusText = 'status text') {
 	return Response.fromText(
 		statusCode,
-		'status text',
+		statusText,
 		new FakeHeaders(),
 		content,
 		'test-stub'

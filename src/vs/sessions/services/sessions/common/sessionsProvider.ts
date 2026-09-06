@@ -273,9 +273,11 @@ export interface ISessionsProvider {
 	/**
 	 * Asynchronously replace a draft before its first chat is created.
 	 * Providers use this to materialize execution environments that can change
-	 * the provider or workspace backing the session.
+	 * the provider or workspace backing the session. The first query is supplied
+	 * so preparation that depends on it, such as worktree branch naming, does not
+	 * need to delay until the replacement provider sends the request.
 	 */
-	prepareNewSession?(sessionId: string, token: CancellationToken): Promise<IPreparedNewSession>;
+	prepareNewSession?(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession>;
 
 	/**
 	 * Mark a new session as preparing its first request before asynchronous

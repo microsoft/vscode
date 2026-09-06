@@ -646,10 +646,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateTabHeight(): void {
+		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
 		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
 		// can apply a proportionally smaller --editor-group-tab-height value.
-		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
+		this.parent.classList.toggle('compact-height', isCompact);
+		this.parent.parentElement?.classList.toggle('editor-tabs-compact-height', isCompact);
 	}
 
 	private updateTabActionSpaceReservation(): void {

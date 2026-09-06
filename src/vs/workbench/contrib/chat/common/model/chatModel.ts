@@ -142,6 +142,8 @@ export interface IChatRequestModel {
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	readonly isHiddenFromTranscript: boolean;
+	/** Whether only the request row is hidden. Full-turn hiding also implies this. */
+	readonly isRequestHiddenFromTranscript: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly terminalExecutionId?: string;
 	readonly origin?: IChatRequestOrigin;
@@ -393,6 +395,7 @@ export interface IChatRequestModelParameters {
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
 	isHiddenFromTranscript?: boolean;
+	isRequestHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	origin?: IChatRequestOrigin;
@@ -413,6 +416,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
 	public readonly isHiddenFromTranscript: boolean;
+	public readonly isRequestHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
 	public readonly terminalExecutionId?: string;
 	public readonly isTerminalCommand: boolean;
@@ -491,6 +495,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
 		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
+		this.isRequestHiddenFromTranscript = this.isHiddenFromTranscript || params.isRequestHiddenFromTranscript === true;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
 		this.terminalExecutionId = params.terminalExecutionId;
 		this.isTerminalCommand = params.isTerminalCommand ?? false;
@@ -1901,6 +1906,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;
 	hiddenFromTranscript?: boolean;
+	requestHiddenFromTranscript?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	agent?: ISerializableChatAgentData;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -2945,6 +2951,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
+			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
 			terminalExecutionId: raw.terminalExecutionId,
 			origin: reviveChatRequestOrigin(raw.origin),
@@ -3153,6 +3160,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		timestamp?: number | null,
 		hideFromTranscript?: boolean,
 		origin?: IChatRequestOrigin,
+		isRequestHiddenFromTranscript?: boolean,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3179,6 +3187,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			userSelectedTools,
 			isSystemInitiated,
 			isHiddenFromTranscript: hideFromTranscript,
+			isRequestHiddenFromTranscript,
 			systemInitiatedLabel,
 			terminalExecutionId,
 			isTerminalCommand,
@@ -3343,6 +3352,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
+					...(r.isRequestHiddenFromTranscript && !r.isHiddenFromTranscript ? { requestHiddenFromTranscript: true } : {}),
 					systemInitiatedLabel: r.systemInitiatedLabel,
 					terminalExecutionId: r.terminalExecutionId,
 					origin: r.origin ? serializeChatRequestOrigin(r.origin) : undefined,

@@ -12,6 +12,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService, AutomationStore } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationActiveRunError, isAutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -40,6 +41,21 @@ function serializeLedgerAutomation(id: string, name: string) {
 suite('AutomationService', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies only homogeneous active-run aggregates as deferrals', () => {
+		const activeRunError = new AutomationActiveRunError('automation', 'run');
+		assert.deepStrictEqual({
+			direct: isAutomationActiveRunError(activeRunError),
+			nested: isAutomationActiveRunError(new AggregateError([new AggregateError([activeRunError])])),
+			mixed: isAutomationActiveRunError(new AggregateError([activeRunError, new Error('storage failed')])),
+			empty: isAutomationActiveRunError(new AggregateError([])),
+		}, {
+			direct: true,
+			nested: true,
+			mixed: false,
+			empty: false,
+		});
+	});
 
 	/** Records a run, asserting the automation's active-run slot was free. */
 	async function claimRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger, leaderWindowId = 1): Promise<IAutomationRun> {

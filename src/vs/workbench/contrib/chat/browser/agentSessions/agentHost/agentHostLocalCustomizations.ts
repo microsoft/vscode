@@ -71,13 +71,6 @@ export interface ILocalCustomizationFile {
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientSet`).
  *
- * A file counts as opted out when the per-harness sync provider has it disabled,
- * or when the user disabled it in the Customizations UI
- * (`IPromptsService.getDisabledPromptFiles`) and that customization is one the
- * UI can re-enable ({@link isUserToggleableCustomization}). See "Enabling and
- * Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md` for why
- * the second store is scoped rather than honoured for every prompt type.
- *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
@@ -103,7 +96,7 @@ export async function enumerateLocalCustomizationsForHarness(
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
-			const honourUserDisabled = isUserToggleableCustomization(type, source);
+			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
 					seenUris.add(file.uri);
@@ -113,8 +106,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
-						disabled: syncProvider.isDisabled(file.uri)
-							|| (honourUserDisabled && userDisabled.has(file.uri)),
+						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
 			}

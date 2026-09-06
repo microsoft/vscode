@@ -254,7 +254,9 @@ export class ModePicker extends Disposable {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.focus();
+			},
 		};
 
 		this.actionWidgetService.show<ModePickerItem>(

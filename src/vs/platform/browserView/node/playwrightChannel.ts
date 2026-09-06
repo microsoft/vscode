@@ -58,10 +58,10 @@ export class PlaywrightChannel extends Disposable implements IServerChannel<stri
 		// Handle the one-time initialization call that creates the instance
 		if (command === '__initialize') {
 			if (!isPlaywrightServiceInitializeOptions(arg)) {
-				throw new Error('Invalid argument for __initialize: expected a window ID');
+				throw new Error('Invalid argument for __initialize: expected window options');
 			}
 			if (!this._instances.has(ctx)) {
-				this._instances.set(ctx, new PlaywrightService(arg.windowId, this.browserViewGroupRemoteService, this.logService, this.agentNetworkFilterService, this.telemetryService));
+				this._instances.set(ctx, new PlaywrightService(arg.windowId, arg.useSessionStorageAffinity, this.browserViewGroupRemoteService, this.logService, this.agentNetworkFilterService, this.telemetryService));
 			}
 			return Promise.resolve(undefined as T);
 		}
@@ -91,5 +91,6 @@ function isPlaywrightServiceInitializeOptions(value: unknown): value is IPlaywri
 	}
 
 	const candidate = value as Partial<IPlaywrightServiceInitializeOptions>;
-	return typeof candidate.windowId === 'number';
+	return typeof candidate.windowId === 'number'
+		&& typeof candidate.useSessionStorageAffinity === 'boolean';
 }

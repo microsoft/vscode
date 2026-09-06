@@ -39,6 +39,7 @@ import {
 } from '../../common/voiceClient/voiceClientService.js';
 import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { getVoiceWebSocketUrl } from './voiceEndpoint.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -306,9 +307,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _getWsUrl(): string {
-		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
-		const url = typeof configured === 'string' ? configured.trim() : '';
-		return url || this._productService.voiceWsUrl || '';
+		return getVoiceWebSocketUrl(this._configurationService, this._productService);
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {

@@ -53,10 +53,13 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	) { }
 
 	canRun(session: ISession): boolean {
-		return this._getAddress(session) !== undefined;
+		return this._isSessionRemoteHostAvailable(session) && this._getAddress(session) !== undefined;
 	}
 
 	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
+		if (!this._isSessionRemoteHostAvailable(session)) {
+			return undefined;
+		}
 		const address = this._getAddress(session);
 		if (!address) {
 			return undefined;
@@ -81,6 +84,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 
+		if (!this._isSessionRemoteHostAvailable(session)) {
+			return undefined;
+		}
 		const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
 			cwd,
 			name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
@@ -105,6 +111,11 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
+	}
+
+	private _isSessionRemoteHostAvailable(session: ISession): boolean {
+		const status = session.remoteConnectionStatus?.get();
+		return status === undefined || status.kind === 'connected';
 	}
 
 	private _getCwd(session: ISession): URI | undefined {

@@ -77,7 +77,9 @@ suite('AgentFeedbackEditorWidget', () => {
 			}
 			override addReply(): void { }
 		});
-		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
+		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
+			override markPRReviewCommentConverted(): void { }
+		});
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
 
 		withTestCodeEditor(['first line', 'second line'], { serviceCollection: services }, (editor, _viewModel, instantiationService) => {
@@ -183,36 +185,43 @@ suite('AgentFeedbackEditorWidget', () => {
 				hiddenFeedbackIds: [resolvedComment.sourceId],
 			});
 
-			test('preserves pull request identity when editing and replying to PR comments', () => {
-				const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
-				const prComment: ISessionEditorComment = {
-					...comment,
-					id: 'prReview:thread-1',
-					sourceId: 'thread-1',
-					source: SessionEditorCommentSource.PRReview,
-					kind: AgentFeedbackKind.PRReview,
-					canConvertToAgentFeedback: true,
-					sourcePullRequest,
-				};
-				const captured: (IFeedbackPullRequest | undefined)[] = [];
-				withWidget(({ domNode, sourcePullRequests }) => {
-					triggerAction(domNode, 'codicon-edit');
-					const textarea = composer(domNode)!;
-					type(textarea, 'Edited PR comment');
-					dispatchEnter(textarea);
-					captured.push(...sourcePullRequests);
-				}, prComment);
-				withWidget(({ domNode, sourcePullRequests }) => {
-					triggerAction(domNode, 'codicon-comment-discussion');
-					const textarea = composer(domNode)!;
-					type(textarea, 'Reply to PR comment');
-					dispatchEnter(textarea);
-					captured.push(...sourcePullRequests);
-				}, prComment);
-
-				assert.deepStrictEqual(captured, [sourcePullRequest, sourcePullRequest]);
-			});
 		}, resolvedComment);
+	});
+
+	function prReviewComment(sourcePullRequest: IFeedbackPullRequest): ISessionEditorComment {
+		return {
+			...comment,
+			id: 'prReview:thread-1',
+			sourceId: 'thread-1',
+			source: SessionEditorCommentSource.PRReview,
+			kind: AgentFeedbackKind.PRReview,
+			canConvertToAgentFeedback: true,
+			sourcePullRequest,
+		};
+	}
+
+	test('preserves pull request identity when editing a PR comment', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		withWidget(({ domNode, sourcePullRequests }) => {
+			triggerAction(domNode, 'codicon-edit');
+			const textarea = composer(domNode)!;
+			type(textarea, 'Edited PR comment');
+			dispatchEnter(textarea);
+
+			assert.deepStrictEqual(sourcePullRequests, [sourcePullRequest]);
+		}, prReviewComment(sourcePullRequest));
+	});
+
+	test('preserves pull request identity when replying to a PR comment', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		withWidget(({ domNode, sourcePullRequests }) => {
+			triggerAction(domNode, 'codicon-comment-discussion');
+			const textarea = composer(domNode)!;
+			type(textarea, 'Reply to PR comment');
+			dispatchEnter(textarea);
+
+			assert.deepStrictEqual(sourcePullRequests, [sourcePullRequest]);
+		}, prReviewComment(sourcePullRequest));
 	});
 
 	test('the edit composer survives losing focus and is closed by Escape from the widget', () => {

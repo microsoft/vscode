@@ -42,6 +42,12 @@ function targetedModel(identifier: string, sessionType: string): ILanguageModelC
  * conversation reproduces the production guarantee — one record per conversation, reachable only
  * while that conversation is bound — rather than assuming it.
  */
+/** An agent-host model; `byokModelIdentifier` marks it as a copy bridged in from a BYOK provider. */
+function hostModel(identifier: string, byokModelIdentifier?: string): ILanguageModelChatMetadataAndIdentifier {
+	const base = targetedModel(identifier, 'agent-host-copilotcli');
+	return { ...base, metadata: { ...base.metadata, vendor: 'agent-host-copilotcli', byokModelIdentifier } };
+}
+
 function createIntentStore(
 	boundKey: () => string | undefined,
 	intents = new Map<string | undefined, IIntendedModelSelection | undefined>(),
@@ -68,6 +74,8 @@ interface IRuntimeState {
 	 * only while that conversation is bound — is reproduced rather than assumed.
 	 */
 	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
+	/** Set to report the session type as still loading until a model targets it. */
+	readonly awaitsSessionModels?: boolean;
 }
 
 function createRuntime(
@@ -82,6 +90,7 @@ function createRuntime(
 		getModels: () => state.models,
 		getAllModels: () => state.models,
 		getConfiguredModelValue: () => state.configuredModel,
+		...(state.awaitsSessionModels ? { isAwaitingSessionModels: (type: string) => !hasModelsTargetingSession(state.models, type) } : {}),
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 		subscribeToModelChanges: listener => modelChanges.event(listener),
@@ -1246,6 +1255,57 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
 			applied: [byok.identifier, copilotDefault.identifier],
 			current: copilotDefault.identifier,
+		});
+	});
+
+	test('a BYOK-only wave leaves the awaited model alone and yields to the first non-BYOK model', () => {
+		// A wave carrying only bridged BYOK copies used to reset the picker and take one as "first
+		// available", moving the conversation onto the user's own API key.
+		const sessionType = 'agent-host-copilotcli';
+		const chosen = hostModel('agent-host-copilotcli:gpt-5.6-terra');
+		const anthropic = hostModel('agent-host-copilotcli:anthropic/Anthropic/claude-opus-5', 'anthropic/Anthropic/claude-opus-5');
+		const openrouter = hostModel('agent-host-copilotcli:openrouter/OpenRouter/ai21/jamba', 'openrouter/OpenRouter/ai21/jamba');
+		const free = hostModel('agent-host-copilotcli:gpt-5.6-sol');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [anthropic, openrouter, chosen], sessionType, isEmpty: false, awaitsSessionModels: true };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.syncFromConversationState(chosen, undefined, sessionType, 'chat:one', false, ModelSelectionReason.RestoredChoice);
+		// Only the two BYOK providers are on offer: neither is picked, and neither is ranked above the other.
+		state.models = [anthropic, openrouter];
+		modelChanges.fire('byok-only-wave');
+		const duringByokOnly = controller.currentModel.get()?.identifier;
+		// A non-BYOK model publishes, but still not the awaited one.
+		state.models = [anthropic, openrouter, free];
+		modelChanges.fire('free-model-wave');
+
+		assert.deepStrictEqual({ duringByokOnly, afterNonByok: controller.currentModel.get()?.identifier, applied }, {
+			duringByokOnly: chosen.identifier,
+			afterNonByok: free.identifier,
+			applied: [chosen.identifier, free.identifier],
+		});
+	});
+
+	test('a conversation with no model to keep is still seeded by the pool that arrives', () => {
+		// The guard must not become a permanent no-op: with nothing awaited, a BYOK-only pool still
+		// seeds the conversation — for a signed-out user it is the only way to run at all.
+		const sessionType = 'agent-host-copilotcli';
+		const bridged = hostModel('agent-host-copilotcli:anthropic/Anthropic/claude-opus-5', 'anthropic/Anthropic/claude-opus-5');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [], sessionType, awaitsSessionModels: true };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(undefined);
+		const beforePublish = controller.currentModel.get()?.identifier;
+		state.models = [bridged];
+		modelChanges.fire('byok-only');
+
+		assert.deepStrictEqual({ beforePublish, current: controller.currentModel.get()?.identifier, applied }, {
+			beforePublish: undefined,
+			current: bridged.identifier,
+			applied: [bridged.identifier],
 		});
 	});
 

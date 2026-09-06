@@ -20,6 +20,8 @@ import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/co
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { readAgentMergeSessionState } from '../common/agentMerge.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 /**
  * Soft upper bound, in characters, for the conversation context fed to the
@@ -43,9 +45,9 @@ export interface PullRequestCreatedEvent {
 }
 
 /**
- * Server-side handler for the `create-pr` and `create-draft-pr` changeset
- * operations advertised on git-backed sessions whose working directory has
- * a GitHub remote. Operation availability is recomputed by
+ * Server-side handler for pull request creation changeset operations advertised
+ * on git-backed sessions whose working directory has a GitHub remote.
+ * Operation availability is recomputed by
  * `AgentHostChangesetOperationService.updateOperations`.
  *
  * The flow mirrors the Copilot CLI extension's `createPullRequest` helper
@@ -69,10 +71,13 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = 'create-pr-auto-merge';
 	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = 'create-pr-auto-squash';
 	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = 'create-pr-auto-rebase';
+	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = 'create-pr-agent-merge';
+	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = 'create-draft-pr-agent-merge';
 
 	constructor(
 		private readonly _draft: boolean,
 		private readonly _autoMergeMethod: AutoMergeMethod | undefined,
+		private readonly _enableAgentMerge: boolean,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
@@ -82,6 +87,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentBranchNameGenerator private readonly _branchNameGenerator: IAgentBranchNameGenerator,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -270,9 +276,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	/**
 	 * Notifies listeners that the pull request now exists, optionally enables
-	 * auto-merge with the configured {@link AutoMergeMethod} (best-effort: a
-	 * failure to enable auto-merge does not fail the operation), and builds the
-	 * result message describing what happened.
+	 * auto-merge or Agent Merge, and builds the result message describing what
+	 * happened. A failure to enable auto-merge does not fail the operation.
 	 */
 	private async _finalize(
 		pr: CreatedPullRequest,
@@ -287,7 +292,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	): Promise<InvokeChangesetOperationResult> {
 		if (!this._autoMergeMethod) {
 			// No auto-merge configured
-			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
+			this._completePullRequestOperation(sessionUri, pr.url, branchName);
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined));
 		}
 
@@ -310,11 +315,34 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
 		}
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url, branchName });
+		this._completePullRequestOperation(sessionUri, pr.url, branchName);
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError));
 	}
 
+	private _completePullRequestOperation(sessionUri: string, pullRequestUrl: string, branchName: string): void {
+		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl, branchName });
+		if (!this._enableAgentMerge) {
+			return;
+		}
+		const current = readAgentMergeSessionState(this._configurationService.getSessionConfigValues(sessionUri));
+		this._configurationService.updateSessionConfig(sessionUri, {
+			[SessionConfigKey.AgentMerge]: {
+				enabled: true,
+				...(current?.overrides ? { overrides: current.overrides } : {}),
+			},
+			[SessionConfigKey.AgentMergeController]: {},
+		});
+	}
+
 	private _buildMessage(pr: CreatedPullRequest, isExisting: boolean, autoMergeOutcome: 'none' | 'enabled' | 'failed', autoMergeError: string | undefined): string {
+		if (this._enableAgentMerge) {
+			return isExisting
+				? localize('agentHost.changeset.pr.existing.agentMerge', "Pull request [#{0}]({1}) already exists; enabled Agent Merge.", pr.number, pr.url)
+				: this._draft
+					? localize('agentHost.changeset.pr.createdDraft.agentMerge', "Created draft pull request [#{0}]({1}) and enabled Agent Merge.", pr.number, pr.url)
+					: localize('agentHost.changeset.pr.created.agentMerge', "Created pull request [#{0}]({1}) and enabled Agent Merge.", pr.number, pr.url);
+		}
+
 		let mergeMethodLabel: string | undefined;
 		switch (this._autoMergeMethod) {
 			case 'SQUASH':

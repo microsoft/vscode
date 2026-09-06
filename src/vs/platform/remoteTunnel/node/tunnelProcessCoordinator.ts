@@ -17,17 +17,10 @@ import { hostname } from 'os';
 
 type TunnelCliFactory = (onLog: (message: string) => void) => CodeTunnelCli;
 
-/** The process mode selected from the combined tunnel intents. */
-export type TunnelProcessMode = 'none' | 'agentHost' | 'remoteAccess' | 'service';
+/** The process mode selected from the Remote Tunnel Access intent. */
+export type TunnelProcessMode = 'none' | 'remoteAccess' | 'service';
 /** The connection lifecycle state reported by the coordinator. */
 export type TunnelProcessConnectionState = 'disconnected' | 'connecting' | 'connected';
-
-/** The requested agent-host-only sharing session. */
-export interface IAgentHostSharingRequest {
-	readonly token: string;
-	readonly authProvider: 'github' | 'microsoft';
-	readonly logLevel: LogLevel;
-}
 
 /** Credentials passed to `tunnel user login`. */
 interface ITunnelLoginCredentials {
@@ -69,7 +62,7 @@ export interface ITunnelProcessMachineStatus {
 	cancel(): void;
 }
 
-/** The single, resolved tunnel state shared by Remote Tunnel Access and agent host sharing. */
+/** The tunnel process state shared by Remote Tunnel Access consumers. */
 export interface ITunnelProcessStatus {
 	readonly mode: TunnelProcessMode;
 	readonly tunnelName: string | undefined;
@@ -81,7 +74,7 @@ export interface ITunnelProcessStatus {
 /** Service identifier for the shared-process tunnel coordinator. */
 export const ITunnelProcessCoordinator = createDecorator<ITunnelProcessCoordinator>('tunnelProcessCoordinator');
 
-/** Coordinates the one `code tunnel` process used by both shared-process tunnel consumers. */
+/** Coordinates the `code tunnel` process used by Remote Tunnel Access. */
 export interface ITunnelProcessCoordinator {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeStatus: Event<ITunnelProcessStatus>;
@@ -90,17 +83,13 @@ export interface ITunnelProcessCoordinator {
 	getStatus(): ITunnelProcessStatus;
 	getIntendedTunnelName(): string;
 	setRemoteAccess(mode: TunnelMode, logLevel: LogLevel): Promise<void>;
-	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void>;
 	restart(): Promise<void>;
 	setRemoteAccessStatus(status: TunnelStatus): void;
 }
 
-/** Resolves the process mode from the two independent tunnel intents. */
-export function resolveTunnelProcessMode(agentHostSharing: boolean, remoteAccess: TunnelMode): TunnelProcessMode {
-	if (remoteAccess.active) {
-		return remoteAccess.asService ? 'service' : 'remoteAccess';
-	}
-	return agentHostSharing ? 'agentHost' : 'none';
+/** Resolves the process mode from the Remote Tunnel Access intent. */
+export function resolveTunnelProcessMode(remoteAccess: TunnelMode): TunnelProcessMode {
+	return remoteAccess.active ? (remoteAccess.asService ? 'service' : 'remoteAccess') : 'none';
 }
 
 /**
@@ -125,7 +114,6 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	private readonly _tunnelCli: CodeTunnelCli;
 	private _remoteAccess: { mode: TunnelMode; logLevel: LogLevel } = { mode: { active: false }, logLevel: LogLevel.Info };
-	private _agentHostSharing: IAgentHostSharingRequest | undefined;
 	private _currentProcess: ICodeTunnelCliRun | undefined;
 	private _queue: Promise<void> = Promise.resolve();
 	private _generation = 0;
@@ -172,11 +160,6 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		const wasService = this._remoteAccess.mode.active && this._remoteAccess.mode.asService;
 		this._remoteAccess = { mode, logLevel };
 		return this._schedule(wasService && (!mode.active || !mode.asService));
-	}
-
-	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void> {
-		this._agentHostSharing = request;
-		return this._schedule(false);
 	}
 
 	restart(): Promise<void> {
@@ -277,9 +260,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 
 		this._setStatus({ mode: target.mode, tunnelName, tunnelId: undefined, connectionState: 'connecting', serviceInstallFailed: false });
-		const isServiceInstalled = target.mode === 'service' || target.mode === 'remoteAccess'
-			? await this._isServiceInstalled(generation)
-			: false;
+		const isServiceInstalled = await this._isServiceInstalled(generation);
 		if (generation !== this._generation) {
 			return;
 		}
@@ -311,14 +292,9 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 
 		const args = ['tunnel'];
-		if (target.mode === 'agentHost') {
-			args.push('--agent-host-only', '--name', tunnelName!, '--user-data-dir', this.environmentService.userDataPath);
-			args.push('--delegate-to-editor', '--parent-process-id', String(process.pid));
-		} else {
-			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
-			args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
-		}
-		if (target.mode !== 'agentHost' && this._preventSleep()) {
+		args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
+		args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
+		if (this._preventSleep()) {
 			args.push('--no-sleep');
 		}
 		this._launched = this._describeLaunch(target);
@@ -326,24 +302,15 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	/**
-	 * The credentials the CLI needs for `tunnel user login`. Deliberately not an
-	 * {@link IRemoteTunnelSession}: agent host sharing has no session, only a
-	 * token, and fabricating one with empty ids would misrepresent that.
+	 * The credentials the CLI needs for `tunnel user login`.
 	 */
 	private _getTarget(): ITunnelTarget {
 		if (this._remoteAccess.mode.active) {
 			const session = this._remoteAccess.mode.session;
 			return {
-				mode: resolveTunnelProcessMode(!!this._agentHostSharing, this._remoteAccess.mode),
+				mode: resolveTunnelProcessMode(this._remoteAccess.mode),
 				login: session.token ? { providerId: session.providerId, token: session.token } : undefined,
 				logLevel: this._remoteAccess.logLevel,
-			};
-		}
-		if (this._agentHostSharing) {
-			return {
-				mode: resolveTunnelProcessMode(true, this._remoteAccess.mode),
-				login: { providerId: this._agentHostSharing.authProvider, token: this._agentHostSharing.token },
-				logLevel: this._agentHostSharing.logLevel,
 			};
 		}
 		return { mode: 'none', login: undefined, logLevel: LogLevel.Info };

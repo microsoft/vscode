@@ -15,6 +15,7 @@ import { ConfigKey, IConfigurationService } from '../../configuration/common/con
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService, collectSingleLineErrorMessage } from '../../log/common/logService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { getCopilotServiceRequestId } from '../common/fetch';
 import { HeadersImpl, IHeaders, WebSocketConnection } from '../common/fetcherService';
 import { stringifyJsonBody } from '../common/jsonBody';
 import { IEndpointBody } from '../common/networking';
@@ -122,6 +123,9 @@ export interface IChatWebSocketConnection extends IDisposable {
 
 	/** The GitHub request ID from response headers. */
 	readonly gitHubRequestId: string;
+
+	/** CAPI's service request ID from the handshake response headers. */
+	readonly copilotServiceRequestId: string;
 
 	/**
 	 * The response.id from the last completed response on this connection.
@@ -377,6 +381,10 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		return this._responseHeaders.get('x-github-request-id') || '';
 	}
 
+	get copilotServiceRequestId(): string {
+		return getCopilotServiceRequestId(this._responseHeaders);
+	}
+
 	async connect(): Promise<void> {
 		if (this._state === ConnectionState.Open) {
 			return;
@@ -408,6 +416,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					conversationId: this._conversationId,
 					initiatingRequestId: this._initiatingRequestId,
 					gitHubRequestId: this.gitHubRequestId,
+					copilotServiceRequestId: this.copilotServiceRequestId,
 					connectDurationMs,
 				});
 				resolve();
@@ -428,6 +437,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					conversationId: this._conversationId,
 					initiatingRequestId: this._initiatingRequestId,
 					gitHubRequestId: this.gitHubRequestId,
+					copilotServiceRequestId: this.copilotServiceRequestId,
 					error: errorMessage,
 					connectDurationMs,
 					responseStatusCode: this._responseStatusCode,
@@ -450,6 +460,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					conversationId: this._conversationId,
 					initiatingRequestId: this._initiatingRequestId,
 					gitHubRequestId: this.gitHubRequestId,
+					copilotServiceRequestId: this.copilotServiceRequestId,
 					closeCode: event.code,
 					closeReason: closeCodeDescription,
 					closeEventReason: event.reason,
@@ -496,6 +507,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					hadActiveRequest: this._hadActiveRequest,
 					requestId: this._activeRequest?.requestId,
 					gitHubRequestId: this.gitHubRequestId,
+					copilotServiceRequestId: this.copilotServiceRequestId,
 					modelId: this._activeRequest?.modelId,
 					error: parseErrorMessage,
 					connectionDurationMs,
@@ -529,6 +541,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest: this._hadActiveRequest,
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				copilotServiceRequestId: this.copilotServiceRequestId,
 				modelId: this._activeRequest?.modelId,
 				closeCode: event.code,
 				closeReason: closeCodeDescription,
@@ -558,6 +571,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest: this._hadActiveRequest,
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				copilotServiceRequestId: this.copilotServiceRequestId,
 				modelId: this._activeRequest?.modelId,
 				error: errorMessage,
 				connectionDurationMs,
@@ -636,6 +650,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest,
 				requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				copilotServiceRequestId: this.copilotServiceRequestId,
 				modelId: options.model,
 				requestOutcome: outcome,
 				statefulMarkerMatched,
@@ -696,6 +711,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			hadActiveRequest,
 			requestId,
 			gitHubRequestId: this.gitHubRequestId,
+			copilotServiceRequestId: this.copilotServiceRequestId,
 			modelId: options.model,
 			statefulMarkerMatched,
 			previousResponseIdUnset,

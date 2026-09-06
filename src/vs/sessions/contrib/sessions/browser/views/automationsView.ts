@@ -50,14 +50,13 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionIsArchivedContext, SessionIsReadContext, SessionSupportsDeleteContext, SessionSupportsRenameContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../common/contextkeys.js';
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
-const DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.deleteRunSession';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanDisableContext = new RawContextKey<boolean>('sessionsAutomationCardCanDisable', false);
 
@@ -870,9 +869,6 @@ class AutomationHistorySection extends Disposable {
 			case ARCHIVE_SESSION_COMMAND_ID:
 				await this.sessionsManagementService.archiveSession(session);
 				return true;
-			case DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID:
-				await this.confirmDeleteRunSession(run, session, this.getAutomationName(run));
-				return true;
 			default:
 				return false;
 		}
@@ -910,54 +906,6 @@ class AutomationHistorySection extends Disposable {
 				getErrorMessage(error),
 			);
 		}
-	}
-
-	private async confirmDeleteRunSession(run: IAutomationRun, session: ISession, automationName: string): Promise<void> {
-		// Capture focus before the confirmation dialog moves it.
-		const hadFocus = this.container.contains(DOM.getActiveElement());
-		const confirmed = await this.dialogService.confirm({
-			message: localize('confirmDeleteAutomationRunSession', "Delete the session for \"{0}\"?", automationName),
-			detail: localize('confirmDeleteAutomationRunSessionDetail', "This will permanently delete the session and remove this item from run history. This action cannot be undone."),
-			primaryButton: localize('delete', "Delete"),
-		});
-		if (!confirmed.confirmed) {
-			return;
-		}
-		const focusRunId = hadFocus ? this.getFocusRunIdAfterDeletion(run.id) : undefined;
-		try {
-			await this.sessionsManagementService.deleteSession(session);
-		} catch (error) {
-			this.clearPendingFocus();
-			this.logService.error('[AutomationsCards] Failed to delete automation run session', error);
-			await this.dialogService.error(
-				localize('automationRunSessionDeleteFailed', "Failed to delete the automation run session."),
-				getErrorMessage(error),
-			);
-			return;
-		}
-		if (hadFocus) {
-			this.pendingFocusRunId = focusRunId;
-			this.shouldRestoreFocus = true;
-		}
-		try {
-			await this.automationService.deleteRun(run.id);
-			this.restoreFocusAfterRender();
-			status(localize('automationRunSessionDeletedStatus', "Deleted the session for {0}", automationName));
-		} catch (error) {
-			this.restoreFocusAfterRender();
-			this.logService.error('[AutomationsCards] Failed to remove deleted automation run from history', error);
-			await this.dialogService.error(
-				localize('automationRunHistoryDeleteFailed', "The session was deleted, but its run history item could not be removed."),
-				getErrorMessage(error),
-			);
-		}
-	}
-
-	private getFocusRunIdAfterDeletion(runId: string): string | undefined {
-		const index = this.renderedFocusableRunIds.indexOf(runId);
-		return index >= 0
-			? this.renderedFocusableRunIds[index + 1] ?? this.renderedFocusableRunIds[index - 1]
-			: undefined;
 	}
 
 	private restoreFocusAfterRender(): void {
@@ -1250,22 +1198,6 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 				SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput),
 			),
 		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
-			command: {
-				id: DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID,
-				title: localize('deleteAutomationRunSessionAction', "Delete"),
-				icon: Codicon.trash,
-			},
-			group: 'navigation',
-			order: 3,
-			when: ContextKeyExpr.and(
-				SessionSupportsDeleteContext,
-				ContextKeyExpr.or(
-					SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
-					SessionItemStatusContext.isEqualTo(SessionStatus.Error),
-				),
-			),
-		}),
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
 			command: {
 				id: MARK_SESSION_READ_COMMAND_ID,
@@ -1310,21 +1242,6 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			group: '1_edit',
 			order: 2,
 			when: SessionIsArchivedContext,
-		}),
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
-			command: {
-				id: DELETE_AUTOMATION_RUN_SESSION_COMMAND_ID,
-				title: localize('deleteAutomationRunSessionContextAction', "Delete"),
-			},
-			group: '2_delete',
-			order: 1,
-			when: ContextKeyExpr.and(
-				SessionSupportsDeleteContext,
-				ContextKeyExpr.or(
-					SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
-					SessionItemStatusContext.isEqualTo(SessionStatus.Error),
-				),
-			),
 		}),
 	);
 }

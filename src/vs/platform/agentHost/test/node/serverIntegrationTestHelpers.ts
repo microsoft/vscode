@@ -76,9 +76,17 @@ interface IPendingCall {
 	reject: (err: Error) => void;
 }
 
+/**
+ * Default bound for one protocol request or notification wait. Short locally
+ * so a wedged host fails fast; longer on CI, where the E2E entrypoints run in
+ * parallel on a shared agent and contention alone can push a call past 5s.
+ */
 function getProtocolOperationTimeout(): number {
 	if (AGENT_HOST_E2E_COVERAGE) {
 		return 30_000;
+	}
+	if (isCI) {
+		return 20_000;
 	}
 	return isWindows ? 8_000 : 5_000;
 }
@@ -1057,11 +1065,11 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requests) live on the session's default chat channel, so reading them
  * requires merging the session snapshot with its default chat snapshot.
  */
-export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
+export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
 	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
 	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession });
-	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri });
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession }, timeoutMs);
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri }, timeoutMs);
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,
 		chatSnap.snapshot?.state as ChatState | undefined,

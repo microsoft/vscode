@@ -6,6 +6,7 @@
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { match } from '../../../../../../base/common/glob.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -165,6 +166,11 @@ export class AgentHostAuthTokenCache {
 	}
 }
 
+type AuthenticationTokenResolution =
+	| { readonly kind: 'resolved'; readonly token: string }
+	| { readonly kind: 'signedOut' }
+	| { readonly kind: 'unavailable' };
+
 /**
  * Returns a stable identity for an authentication challenge.
  */
@@ -211,7 +217,7 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
-		const token = await resolveTokenForResource(
+		const resolution = await resolveAuthenticationTokenForResource(
 			URI.parse(resource.resource),
 			resource.authorization_servers ?? [],
 			scopes,
@@ -220,15 +226,14 @@ export class AgentHostAuthenticationRecovery {
 			options.logPrefix,
 		);
 		throwIfAuthenticationStale(options);
-		if (!token) {
-			logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
-			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, '')) {
+		if (resolution.kind !== 'resolved') {
+			logAuthenticationTokenResolution(logService, options.logPrefix, resource.resource, resolution);
+			if (resolution.kind === 'signedOut') {
 				this._resentTokens.delete(key);
-				logService.info(`${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
 			}
 			return;
 		}
+		const token = resolution.token;
 
 		const previousToken = this._resentTokens.get(key);
 		if (previousToken !== undefined && previousToken === token) {
@@ -267,24 +272,74 @@ export async function resolveTokenForResource(
 	logService: ILogService,
 	logPrefix: string,
 ): Promise<string | undefined> {
+	const resolution = await resolveAuthenticationTokenForResource(
+		resourceServer,
+		authorizationServers,
+		scopes,
+		authenticationService,
+		logService,
+		logPrefix,
+	);
+	return resolution.kind === 'resolved' ? resolution.token : undefined;
+}
+
+async function resolveAuthenticationTokenForResource(
+	resourceServer: URI,
+	authorizationServers: readonly string[],
+	scopes: readonly string[],
+	authenticationService: IAuthenticationService,
+	logService: ILogService,
+	logPrefix: string,
+): Promise<AuthenticationTokenResolution> {
+	let hasUnavailableProvider = false;
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
-		const providerId = await authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
+		let providerId: string | undefined;
+		try {
+			providerId = await authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
+		} catch (error) {
+			hasUnavailableProvider = true;
+			logService.trace(`${logPrefix} Authentication provider is not ready for server: ${server}`, error);
+			continue;
+		}
 		if (!providerId) {
-			logService.trace(`${logPrefix} No auth provider found for server: ${server}`);
+			const declaredProvider = authenticationService.declaredProviders.find(provider =>
+				!authenticationService.isAuthenticationProviderRegistered(provider.id)
+				&& provider.authorizationServerGlobs?.some(glob => match(glob, serverUri.toString(true), { ignoreCase: true }))
+			);
+			if (declaredProvider) {
+				hasUnavailableProvider = true;
+				logService.trace(`${logPrefix} Authentication provider '${declaredProvider.id}' is not ready for server: ${server}`);
+			} else {
+				logService.trace(`${logPrefix} No authentication provider resolved for server: ${server}`);
+			}
 			continue;
 		}
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
 
-		// Try exact scope match first
-		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+		let sessions: readonly AuthenticationSession[];
+		try {
+			// Try exact scope match first
+			sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+		} catch (error) {
+			hasUnavailableProvider = true;
+			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
+			continue;
+		}
 		const exactSession = sessions[0];
 		if (exactSession) {
-			return exactSession.accessToken;
+			return { kind: 'resolved', token: exactSession.accessToken };
 		}
 
-		// Fall back: get all sessions and find the narrowest superset of requested scopes
-		const allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
+		let allSessions: readonly AuthenticationSession[];
+		try {
+			// Fall back: get all sessions and find the narrowest superset of requested scopes
+			allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
+		} catch (error) {
+			hasUnavailableProvider = true;
+			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
+			continue;
+		}
 		const requestedSet = new Set(scopes);
 		let bestToken: string | undefined;
 		let bestExtraScopes = Infinity;
@@ -306,10 +361,10 @@ export async function resolveTokenForResource(
 			}
 		}
 		if (bestToken) {
-			return bestToken;
+			return { kind: 'resolved', token: bestToken };
 		}
 	}
-	return undefined;
+	return hasUnavailableProvider ? { kind: 'unavailable' } : { kind: 'signedOut' };
 }
 
 export interface IAgentHostAuthenticateRequest {
@@ -387,6 +442,103 @@ export async function authenticateProtectedResources(
 }
 
 /**
+ * Reconciles resources backed by an authentication session that was explicitly
+ * removed.
+ *
+ * A removal event proves the provider is live and managing its sessions, which
+ * is what makes an empty resolution trustworthy here -- unlike the polling path,
+ * where "no token" cannot be distinguished from "not loaded yet". It does not,
+ * however, prove the credential is gone: a provider may host several accounts,
+ * and signing out of one leaves the others usable. Re-resolving keeps a partial
+ * sign-out from revoking a credential the host still needs, which would restart
+ * provider clients and move the Claude proxy port for no reason.
+ *
+ * Only resources the removed sessions could have satisfied are reconciled. One
+ * provider commonly serves several resources with different scope sets (GitHub
+ * serves both the Copilot and repository challenges), and a resource the removed
+ * session never covered must not be re-evaluated against this client's view of
+ * the world -- another client may be the one supplying its credential.
+ */
+export async function revokeAuthenticationForRemovedSessions(
+	accessor: ServicesAccessor,
+	agents: readonly AgentInfo[],
+	providerId: string,
+	removedSessions: readonly AuthenticationSession[],
+	options: IAgentHostAuthenticationOptions,
+): Promise<void> {
+	const authenticationService = accessor.get(IAuthenticationService);
+	const logService = accessor.get(ILogService);
+	const reconciledResources = new Set<string>();
+	for (const agent of agents) {
+		for (const resource of agent.protectedResources ?? []) {
+			const scopes = resource.scopes_supported ?? [];
+			const key = protectedResourceAuthenticationKey(resource);
+			if (reconciledResources.has(key)) {
+				continue;
+			}
+			if (!removedSessionsCouldSatisfyResource(removedSessions, scopes)) {
+				continue;
+			}
+			if (!await resourceMatchesAuthenticationProvider(authenticationService, resource, providerId, logService, options.logPrefix)) {
+				continue;
+			}
+			reconciledResources.add(key);
+
+			const resolution = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
+			throwIfAuthenticationStale(options);
+			if (resolution.kind === 'unavailable') {
+				logAuthenticationTokenResolution(logService, options.logPrefix, resource.resource, resolution);
+				continue;
+			}
+			if (resolution.kind === 'resolved') {
+				// Another account still covers this resource; forward it so the host
+				// swaps credentials instead of losing them. Unchanged tokens are
+				// deduped by the cache.
+				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.token)) {
+					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
+				}
+				continue;
+			}
+
+			options.authTokenCache?.clear(resource.resource, scopes);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, '')) {
+				logService.info(`${options.logPrefix} Clearing authentication for resource after session removal: ${resource.resource}`);
+			}
+		}
+	}
+}
+
+/**
+ * Whether any removed session granted every scope a resource requires, and so
+ * could have been the credential backing it.
+ */
+function removedSessionsCouldSatisfyResource(removedSessions: readonly AuthenticationSession[], scopes: readonly string[]): boolean {
+	return removedSessions.some(session => {
+		const granted = new Set(session.scopes);
+		return scopes.every(scope => granted.has(scope));
+	});
+}
+
+async function resourceMatchesAuthenticationProvider(
+	authenticationService: IAuthenticationService,
+	resource: ProtectedResourceMetadata,
+	providerId: string,
+	logService: ILogService,
+	logPrefix: string,
+): Promise<boolean> {
+	for (const authorizationServer of resource.authorization_servers ?? []) {
+		try {
+			if (await authenticationService.getOrActivateProviderIdForServer(URI.parse(authorizationServer), URI.parse(resource.resource)) === providerId) {
+				return true;
+			}
+		} catch (error) {
+			logService.trace(`${logPrefix} Unable to resolve authentication provider for session removal: ${authorizationServer}`, error);
+		}
+	}
+	return false;
+}
+
+/**
  * Resolves and forwards a bearer token for a single protected resource.
  */
 export async function authenticateProtectedResource(
@@ -404,17 +556,19 @@ async function authenticateProtectedResourceWithServices(
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
-	const token = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
+	const resolution = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
 	throwIfAuthenticationStale(options);
+	if (resolution.kind !== 'resolved') {
+		logAuthenticationTokenResolution(logService, options.logPrefix, resource.resource, resolution);
+		return false;
+	}
 
-	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token ?? '');
+	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.token);
 	if (!authenticated) {
 		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 		return false;
 	}
-	logService.info(token
-		? `${options.logPrefix} Authenticating for resource: ${resource.resource}`
-		: `${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
+	logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 	return true;
 }
 
@@ -423,8 +577,8 @@ async function resolveTokenForProtectedResource(
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
 	options: Pick<IAgentHostAuthenticationOptions, 'logPrefix'>,
-): Promise<string | undefined> {
-	const token = await resolveTokenForResource(
+): Promise<AuthenticationTokenResolution> {
+	return resolveAuthenticationTokenForResource(
 		URI.parse(resource.resource),
 		resource.authorization_servers ?? [],
 		resource.scopes_supported ?? [],
@@ -432,10 +586,19 @@ async function resolveTokenForProtectedResource(
 		logService,
 		options.logPrefix,
 	);
-	if (!token) {
-		logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+}
+
+function logAuthenticationTokenResolution(
+	logService: ILogService,
+	logPrefix: string,
+	resource: string,
+	resolution: Exclude<AuthenticationTokenResolution, { readonly kind: 'resolved' }>,
+): void {
+	if (resolution.kind === 'unavailable') {
+		logService.info(`${logPrefix} Authentication provider is not ready for resource: ${resource}; deferring authentication`);
+	} else {
+		logService.info(`${logPrefix} No signed-in session resolved for resource: ${resource}`);
 	}
-	return token;
 }
 
 /**

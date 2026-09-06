@@ -40,7 +40,7 @@ suite('getChatRequestText', () => {
 			getChatRequestText(request(agentMergePrompt, 'Terminal needs input')),
 		], [
 			'Rename the widget',
-			'Agent Merge, 1 comment',
+			'1 Review Comment, Agent Merge',
 			agentMergePrompt,
 		]);
 	});

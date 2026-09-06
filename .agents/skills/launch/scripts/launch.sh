@@ -12,7 +12,7 @@
 # caller can pick them up programmatically. Logs go to stderr.
 #
 # Usage:
-#   launch.sh [--agents] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
+#   launch.sh [--agents] [--session-title <title>] [--source-user-data-dir <path>] [--repo <vscode-repo-root>]
 #             [--clone-extensions] [--full] [--skip-prelaunch]
 #             [--disable-workspace-trust] [-- <extra code.sh args>]
 #
@@ -43,10 +43,19 @@ CLONE_EXTENSIONS=0
 FULL=0
 SKIP_PRELAUNCH=0
 DISABLE_WORKSPACE_TRUST=0
+SESSION_TITLE=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--agents) AGENTS=1; shift ;;
+		--session-title)
+			if [[ $# -lt 2 ]]; then
+				echo "Missing value for --session-title." >&2
+				exit 2
+			fi
+			SESSION_TITLE="$2"
+			shift 2
+			;;
 		--source-user-data-dir) SOURCE_UDD="$2"; shift 2 ;;
 		--repo) REPO="$2"; shift 2 ;;
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
@@ -166,70 +175,25 @@ fi
 # always applied because every launched instance under this skill is
 # a throwaway used for automation.
 SETTINGS_FILE="$DEST_UDD/User/settings.json"
+SOURCE_SETTINGS_FILE="$SOURCE_UDD/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"
-# Data-preserving text-based merge: insert/update `files.simpleDialog.enable`
-# without reparsing the whole file. Avoids dropping user comments and
-# string values containing `//` (e.g. URLs). Fails loudly if the file
-# exists but has no recognizable JSON object shape — never silently
-# overwrites with `{}`.
-if ! node - "$SETTINGS_FILE" <<'NODE'
-const fs = require('fs');
-const f = process.argv[2];
-const KEY = 'files.simpleDialog.enable';
-
-let text;
-try { text = fs.readFileSync(f, 'utf8'); }
-catch (e) {
-	if (e.code === 'ENOENT') text = '';
-	else { console.error('[launch.sh] cannot read ' + f + ': ' + e.message); process.exit(1); }
-}
-
-// Empty file → write a fresh object.
-if (text.trim() === '') {
-	fs.writeFileSync(f, '{\n  "' + KEY + '": true\n}\n');
-	process.exit(0);
-}
-
-// Key already present (with any value) → update its value to `true`
-// via a targeted regex on the value slot only.
-const keyValueRe = new RegExp('("' + KEY.replace(/\./g, '\\.') + '"\\s*:\\s*)(true|false|null|"[^"\\n]*"|-?\\d+(?:\\.\\d+)?)', 'g');
-if (keyValueRe.test(text)) {
-	const updated = text.replace(keyValueRe, '$1true');
-	fs.writeFileSync(f, updated);
-	process.exit(0);
-}
-
-// Otherwise: find the LAST `}` and insert the new key before it.
-// We deliberately don't parse JSONC — this preserves comments and
-// any other content the source profile had.
-const lastBrace = text.lastIndexOf('}');
-if (lastBrace === -1) {
-	console.error('[launch.sh] settings.json has no closing brace — refusing to clobber it: ' + f);
-	process.exit(1);
-}
-
-// Decide whether to add a leading comma. If the only thing between the
-// first `{` and the last `}` is whitespace and comments, the object is
-// empty for our purposes and no comma is needed.
-const firstBrace = text.indexOf('{');
-if (firstBrace === -1 || firstBrace >= lastBrace) {
-	console.error('[launch.sh] settings.json has no opening brace — refusing to clobber it: ' + f);
-	process.exit(1);
-}
-const between = text.slice(firstBrace + 1, lastBrace)
-	.replace(/\/\*[\s\S]*?\*\//g, '')
-	.replace(/\/\/[^\n]*/g, '')
-	.trim();
-const separator = between.length === 0 || between.endsWith(',') ? '' : ',';
-const insertion = separator + '\n  "' + KEY + '": true\n';
-
-fs.writeFileSync(f, text.slice(0, lastBrace) + insertion + text.slice(lastBrace));
-NODE
-then
-	echo "[launch.sh] failed to ensure files.simpleDialog.enable=true in $SETTINGS_FILE — automation may need to fall back to per-key input" >&2
+SETTINGS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/updateSettings.ts"
+SETTINGS_SESSION_TITLE="$SESSION_TITLE"
+if [[ "$AGENTS" == "1" ]]; then
+	SETTINGS_SESSION_TITLE=""
+fi
+if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SETTINGS_SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
+	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
 echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
+if [[ -n "$SESSION_TITLE" ]]; then
+	if [[ "$AGENTS" == "1" ]]; then
+		echo "[launch.sh] set Agents command center title for session: $SESSION_TITLE" >&2
+	else
+		echo "[launch.sh] set window.title for session: $SESSION_TITLE" >&2
+	fi
+fi
 PROFILE_READY_MS=$(monotonic_ms)
 
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
@@ -256,6 +220,10 @@ if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
 fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
+	if [[ -n "$SESSION_TITLE" ]]; then
+		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' -- "$SESSION_TITLE")
+		ARGS+=("--session-title-base64=$SESSION_TITLE_BASE64")
+	fi
 fi
 if (( ${#EXTRA_ARGS[@]} )); then
 	ARGS+=("${EXTRA_ARGS[@]}")

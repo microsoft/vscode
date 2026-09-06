@@ -1506,8 +1506,6 @@ suite('AutomationsCardsWidget', () => {
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
 				'sessionsViewPane.archiveSession',
-				'vs.actions.separator',
-				'sessions.automations.deleteRunSession',
 			],
 			archiveLabel: 'Archive',
 			readActionIds: [
@@ -1515,8 +1513,6 @@ suite('AutomationsCardsWidget', () => {
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
 				'sessionsViewPane.archiveSession',
-				'vs.actions.separator',
-				'sessions.automations.deleteRunSession',
 			],
 			commandCalls: [{
 				commandId: MARK_SESSION_READ_COMMAND_ID,
@@ -1597,34 +1593,6 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('history context menu deletion uses the run-only deletion flow', async () => {
-		const { automationService, contextMenuService, dialogService, sessionsManagementService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run()]);
-		dialogService.confirmResult = { confirmed: true };
-		await waitForSessionActions();
-		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
-		assert.ok(row);
-
-		dispatchContextMenu(row);
-		const delegate = contextMenuService.delegate;
-		const deleteAction = delegate?.getActions().find(action => action.id === 'sessions.automations.deleteRunSession');
-		assert.ok(deleteAction);
-		await delegate?.actionRunner?.run(deleteAction, delegate.getActionsContext?.());
-		await automationService.deleteRunCompleted.p;
-		delegate?.onHide?.(false);
-
-		assert.deepStrictEqual({
-			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
-			deleteRunCalls: automationService.deleteRunCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
-		}, {
-			deleteSessionCalls: 1,
-			deleteRunCalls: 1,
-			historyItemStillVisible: false,
-		});
-	});
-
 	test('stops an active run without opening its session', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
@@ -1672,37 +1640,6 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('deleting a run session confirms the permanent deletion without opening it', async () => {
-		const { automationService, dialogService, sessionsManagementService, sessionsService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run()]);
-		dialogService.confirmResult = { confirmed: true };
-		await waitForSessionActions();
-
-		const deleteButton = getSessionAction(widget, 'Delete');
-		assert.ok(deleteButton);
-		deleteButton.click();
-		await automationService.deleteRunCompleted.p;
-
-		assert.deepStrictEqual({
-			confirmation: dialogService.confirmations[0],
-			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
-			deleteRunCalls: automationService.deleteRunCalls,
-			openCalls: sessionsService.openCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
-		}, {
-			confirmation: {
-				message: 'Delete the session for "Daily review"?',
-				detail: 'This will permanently delete the session and remove this item from run history. This action cannot be undone.',
-				primaryButton: 'Delete',
-			},
-			deleteSessionCalls: 1,
-			deleteRunCalls: 1,
-			openCalls: 0,
-			historyItemStillVisible: false,
-		});
-	});
-
 	test('archives a run session without opening it and hides the action', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -1718,93 +1655,27 @@ suite('AutomationsCardsWidget', () => {
 			archived: sessionsManagementService.archived.map(session => session.sessionId),
 			openCalls: sessionsService.openCalls,
 			archiveButtonVisible: !!getSessionAction(widget, 'Archive'),
-			deleteButtonVisible: !!getSessionAction(widget, 'Delete'),
 		}, {
 			archived: ['test/session-1'],
 			openCalls: 0,
 			archiveButtonVisible: false,
-			deleteButtonVisible: true,
 		});
 	});
 
-	test('deleting the focused run moves focus to the next run', async () => {
-		const { automationService, dialogService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([
-			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
-		]);
-		dialogService.confirmResult = { confirmed: true };
-		await waitForSessionActions();
-
-		const deleteButton = getSessionAction(widget, 'Delete');
-		assert.ok(deleteButton);
-		const list = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list');
-		assert.ok(list);
-		list.focus();
-		deleteButton.click();
-		await automationService.deleteRunCompleted.p;
-		const remainingRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
-
-		assert.deepStrictEqual({
-			historyItemCount: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
-			focusedNextRun: remainingRow?.classList.contains('focused'),
-		}, {
-			historyItemCount: 1,
-			focusedNextRun: true,
-		});
-	});
-
-	test('canceling run session deletion keeps the session', async () => {
-		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+	test('does not expose delete action on run history rows', async () => {
+		const { automationService, contextMenuService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		await waitForSessionActions();
 
-		getSessionAction(widget, 'Delete')?.click();
-		await Promise.resolve();
+		assert.strictEqual(getSessionAction(widget, 'Delete'), undefined, 'delete absent from toolbar');
 
-		assert.deepStrictEqual({
-			confirmations: dialogService.confirmations.length,
-			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
-			deleteButtonStillVisible: !!getSessionAction(widget, 'Delete'),
-		}, {
-			confirmations: 1,
-			deleteSessionCalls: 0,
-			deleteButtonStillVisible: true,
-		});
-	});
-
-	test('keeps run history when session deletion fails', async () => {
-		const { automationService, dialogService, sessionsManagementService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run()]);
-		dialogService.confirmResult = { confirmed: true };
-		sessionsManagementService.deleteError = new Error('delete failed');
-		await waitForSessionActions();
-
-		getSessionAction(widget, 'Delete')?.click();
-		await dialogService.errorCalled.p;
-
-		assert.deepStrictEqual({
-			deleteRunCalls: automationService.deleteRunCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
-			error: dialogService.errors,
-		}, {
-			deleteRunCalls: 0,
-			historyItemStillVisible: true,
-			error: [{ message: 'Failed to delete the automation run session.', detail: 'delete failed' }],
-		});
-	});
-
-	test('does not expose session deletion when the provider does not support it', async () => {
-		const { automationService, sessionsManagementService, widget } = setup();
-		sessionsManagementService.setSupportsDelete(false);
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run()]);
-		await waitForSessionActions();
-
-		assert.strictEqual(getSessionAction(widget, 'Delete'), undefined);
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+		dispatchContextMenu(row);
+		const actionIds = (contextMenuService.delegate?.getActions() ?? []).map(a => a.id);
+		contextMenuService.delegate?.onHide?.(false);
+		assert.ok(!actionIds.includes('sessions.automations.deleteRunSession'), 'delete absent from context menu');
 	});
 
 	test('edit conflict is reported to the user', async () => {

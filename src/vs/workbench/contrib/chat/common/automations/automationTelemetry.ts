@@ -153,7 +153,7 @@ export function publishAutomationRunError(telemetryService: ITelemetryService, a
 }
 
 type AutomationMigrationEvent = {
-	outcome: 'started' | 'completed' | 'failed';
+	outcome: 'started' | 'completed' | 'deferred' | 'failed';
 	discoveredCount: number;
 	migratedCount: number;
 	failedCount: number;
@@ -161,7 +161,7 @@ type AutomationMigrationEvent = {
 };
 
 type AutomationMigrationClassification = {
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the migration started, completed, or failed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the migration started, completed, deferred for an active run, or failed.' };
 	discoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of legacy Automation definitions discovered.' };
 	migratedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions durably present in the Agent Host catalogue.' };
 	failedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions that failed migration.' };

@@ -23,7 +23,8 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
-	private _targetLabel: string | undefined;
+	private _harnessLabel: string | undefined;
+	private _workspaceLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -54,14 +55,25 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getName(): string {
-		if (this._targetLabel) {
-			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations - {0}", this._targetLabel);
-		}
 		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
+	}
+
+	override getDescription(): string | undefined {
+		if (this._harnessLabel && this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithHarnessAndWorkspace', "({0} · {1})", this._harnessLabel, this._workspaceLabel);
+		}
+		if (this._harnessLabel || this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", this._harnessLabel ?? this._workspaceLabel);
+		}
+		return undefined;
 	}
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
+	}
+
+	override getLabelExtraClasses(): string[] {
+		return ['ai-customization-management-editor-label'];
 	}
 
 	getModalEditorOptions(): IModalEditorOptions {
@@ -102,11 +114,12 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 		this._saveHandler = handler;
 	}
 
-	setTargetLabel(label: string | undefined): void {
-		if (this._targetLabel === label) {
+	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string): void {
+		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel) {
 			return;
 		}
-		this._targetLabel = label;
+		this._harnessLabel = harnessLabel;
+		this._workspaceLabel = workspaceLabel;
 		this._onDidChangeLabel.fire();
 	}
 }

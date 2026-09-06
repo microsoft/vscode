@@ -74,9 +74,10 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			readonly prepareMergeError?: Error;
 			readonly mergeMethod?: string;
 		},
-	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[] } {
+	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[]; readonly merged: string[] } {
 		const recorded: IRecordedCalls = { calls: [] };
 		const refreshes: string[] = [];
+		const merged: string[] = [];
 		const currentStatus = options?.status === null ? undefined : options?.status ?? status();
 
 		const mutations = new class extends mock<IPullRequestMutations>() {
@@ -116,6 +117,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			_serviceBrand: undefined,
 			onDidChangePullRequestStatus: Event.None,
 			getPullRequestStatus: () => currentStatus,
+			markPullRequestMerged: (sessionKey, url) => { merged.push(`${sessionKey}|${url}`); },
 			refresh: async (sessionKey: string) => { refreshes.push(sessionKey); },
 			dispose: () => { },
 		};
@@ -133,7 +135,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			gitHubService,
 			new NullLogService(),
 		);
-		return { handler, recorded, refreshes };
+		return { handler, recorded, refreshes, merged };
 	}
 
 	function invoke(handler: AgentHostPullRequestLifecycleOperationHandler): Promise<unknown> {
@@ -141,24 +143,28 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 	}
 
 	test('merges directly with the repository-allowed method', async () => {
-		const { handler, recorded, refreshes } = createHandler('merge');
+		const { handler, recorded, refreshes, merged } = createHandler('merge');
 		disposables.add({ dispose: () => { } });
 
 		await invoke(handler);
 
 		// The preparation gate runs before the merge, and the status is
 		// refreshed afterwards so the button bar re-derives.
-		assert.deepStrictEqual({ calls: recorded.calls, refreshed: refreshes.length }, { calls: ['prepareMerge', 'merge:SQUASH'], refreshed: 1 });
+		assert.deepStrictEqual({ calls: recorded.calls, refreshed: refreshes.length, merged }, {
+			calls: ['prepareMerge', 'merge:SQUASH'],
+			refreshed: 1,
+			merged: [`${sessionUri}|${pullRequestUrl}`],
+		});
 	});
 
 	test('enqueues instead of merging when the repository requires a merge queue', async () => {
-		const { handler, recorded } = createHandler('merge', {
+		const { handler, recorded, merged } = createHandler('merge', {
 			preparation: preparation({ mergeQueueRequired: true }),
 		});
 
 		await invoke(handler);
 
-		assert.deepStrictEqual(recorded.calls, ['prepareMerge', 'enqueue']);
+		assert.deepStrictEqual({ calls: recorded.calls, merged }, { calls: ['prepareMerge', 'enqueue'], merged: [] });
 	});
 
 	test('honours the configured merge method and rejects one the repository forbids', async () => {

@@ -176,7 +176,7 @@ function createSessionDatabaseReference(database: ISessionDatabase) {
 }
 
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
-	const models = [{ id: 'gpt-test', name: 'GPT Test', supported_endpoints: ['/responses'] }] as CCAModel[];
+	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
@@ -195,6 +195,8 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
+		hasDownloadConsent: () => false,
+		recordDownloadConsent: async () => { },
 		acquireDownloadProgressInterest: () => toDisposable(() => { }),
 		loadSdkRoot: async () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
 		isAvailable: () => true,
@@ -332,7 +334,22 @@ suite('CodexAgent createChat', () => {
 	test('advertises chat fork and side-chat support', async () => {
 		const agent = await createAgent(disposables);
 
-		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleChats, { fork: true, sideChat: true });
+		assert.deepStrictEqual({
+			multipleChats: agent.getDescriptor().capabilities?.multipleChats,
+			agentHostCapabilities: agent.agentHostCapabilities,
+		}, {
+			multipleChats: { fork: true, sideChat: true },
+			agentHostCapabilities: { workspaceConversion: false },
+		});
+	});
+
+	test('setWorkingDirectory rejects because Codex does not advertise workspace conversion', async () => {
+		const agent = await createAgent(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('codex:/chat'), URI.parse('codex:/session'), URI.file('/workspace')),
+			/Codex does not support changing the working directory/,
+		);
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
@@ -860,10 +877,16 @@ suite('CodexAgent createChat', () => {
 			const read = await readNextRequest(peer.outbound);
 			assert.strictEqual(read.method, 'thread/read');
 			assert.strictEqual(read.params.threadId, 'source-thread');
-			assert.strictEqual(read.params.includeTurns, true);
+			assert.strictEqual(read.params.includeTurns, false);
 			peer.push({
 				id: read.id,
-				result: { thread: { id: 'source-thread', cwd: folder.fsPath, turns: [{ id: 'turn-1' }] } },
+				result: { thread: { id: 'source-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+			});
+			const historyRead = await readNextRequest(peer.outbound);
+			assert.strictEqual(historyRead.params.includeTurns, true);
+			peer.push({
+				id: historyRead.id,
+				result: { thread: { id: 'source-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }] } },
 			});
 
 			const fork = await readNextRequest(peer.outbound);
@@ -954,7 +977,9 @@ suite('CodexAgent createChat', () => {
 			const resumeInventory = await readNextRequest(peer.outbound);
 			peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, turns: [{ id: 'source-turn' }] } } });
+			peer.push({ id: read.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({ id: historyRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'source-turn' }] } } });
 			const fork = await readNextRequest(peer.outbound);
 			peer.push({ id: fork.id, result: { thread: { id: 'resumed-fork-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
 			await forking;
@@ -965,10 +990,12 @@ suite('CodexAgent createChat', () => {
 				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: resumeInventory.method, threadId: resumeInventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: historyRead.method, threadId: historyRead.params.threadId },
 				{ method: fork.method, threadId: fork.params.threadId },
 			], [
 				{ method: 'thread/resume', threadId: 'resume-before-fork-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'resume-before-fork-thread' },
+				{ method: 'thread/read', threadId: 'resume-before-fork-thread' },
 				{ method: 'thread/read', threadId: 'resume-before-fork-thread' },
 				{ method: 'thread/fork', threadId: 'resume-before-fork-thread' },
 			]);
@@ -1003,7 +1030,10 @@ suite('CodexAgent createChat', () => {
 			});
 			const read = await readNextRequest(firstPeer.outbound);
 			assert.strictEqual(read.method, 'thread/read');
-			firstPeer.push({ id: read.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, turns: [{ id: 'source-turn' }] } } });
+			firstPeer.push({ id: read.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(firstPeer.outbound);
+			assert.strictEqual(historyRead.method, 'thread/read');
+			firstPeer.push({ id: historyRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'source-turn' }] } } });
 
 			// Replace the process in the response-to-next-request gap. The fork must
 			// not be sent to the new process until its source thread is resumed there.
@@ -1019,7 +1049,10 @@ suite('CodexAgent createChat', () => {
 			secondPeer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 			const retriedRead = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(retriedRead.method, 'thread/read');
-			secondPeer.push({ id: retriedRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, turns: [{ id: 'source-turn' }] } } });
+			secondPeer.push({ id: retriedRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const retriedHistoryRead = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(retriedHistoryRead.method, 'thread/read');
+			secondPeer.push({ id: retriedHistoryRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'source-turn' }] } } });
 			const fork = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: fork.id, result: { thread: { id: 'replace-after-read-fork', cwd: folder.fsPath }, cwd: folder.fsPath } });
 			await forking;
@@ -1028,12 +1061,16 @@ suite('CodexAgent createChat', () => {
 
 			assert.deepStrictEqual([
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: historyRead.method, threadId: historyRead.params.threadId },
 				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: retriedRead.method, threadId: retriedRead.params.threadId },
+				{ method: retriedHistoryRead.method, threadId: retriedHistoryRead.params.threadId },
 				{ method: fork.method, threadId: fork.params.threadId },
 			], [
 				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
+				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/resume', threadId: 'replace-after-read-thread' },
+				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/fork', threadId: 'replace-after-read-thread' },
 			]);
@@ -1148,7 +1185,12 @@ suite('CodexAgent createChat', () => {
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
-				result: { thread: { id: 'fork-chat-source', cwd: folder.fsPath, turns: [{ id: 'turn-1' }] } },
+				result: { thread: { id: 'fork-chat-source', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+			});
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({
+				id: historyRead.id,
+				result: { thread: { id: 'fork-chat-source', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }] } },
 			});
 			const fork = await readNextRequest(peer.outbound);
 			peer.push({ id: fork.id, result: { thread: { id: 'fork-chat-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
@@ -1741,7 +1783,12 @@ suite('CodexAgent exact chat routing', () => {
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
-				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, turns: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }] } },
+				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+			});
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({
+				id: historyRead.id,
+				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }] } },
 			});
 			const rollback = await readNextRequest(peer.outbound);
 			peer.push({ id: rollback.id, result: {} });
@@ -1749,8 +1796,10 @@ suite('CodexAgent exact chat routing', () => {
 
 			assert.deepStrictEqual([
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: historyRead.method, threadId: historyRead.params.threadId },
 				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
 			], [
+				{ method: 'thread/read', threadId: 'peer-thread' },
 				{ method: 'thread/read', threadId: 'peer-thread' },
 				{ method: 'thread/rollback', threadId: 'peer-thread', numTurns: 1 },
 			]);
@@ -1783,7 +1832,9 @@ suite('CodexAgent exact chat routing', () => {
 			const inventory = await readNextRequest(peer.outbound);
 			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
+			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({ id: historyRead.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
 			const rollback = await readNextRequest(peer.outbound);
 			peer.push({ id: rollback.id, result: {} });
 			await truncating;
@@ -1792,10 +1843,12 @@ suite('CodexAgent exact chat routing', () => {
 				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: historyRead.method, threadId: historyRead.params.threadId },
 				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
 			], [
 				{ method: 'thread/resume', threadId: 'resume-before-truncate-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'resume-before-truncate-thread' },
+				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
 				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
 				{ method: 'thread/rollback', threadId: 'resume-before-truncate-thread', numTurns: 1 },
 			]);
@@ -2259,18 +2312,30 @@ suite('CodexAgent chat backing durability', () => {
 			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
 
 			const reading = agent['_readSession'](session, true);
-			const staleRead = await readNextRequest(firstPeer.outbound);
-			assert.strictEqual(staleRead.method, 'thread/read');
+			const staleMetadataRead = await readNextRequest(firstPeer.outbound);
+			assert.strictEqual(staleMetadataRead.method, 'thread/read');
+			firstPeer.push({
+				id: staleMetadataRead.id,
+				result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+			});
+			const staleHistoryRead = await readNextRequest(firstPeer.outbound);
+			assert.strictEqual(staleHistoryRead.method, 'thread/read');
 			connect(agent, secondPeer);
 			firstPeer.push({
-				id: staleRead.id,
-				result: { thread: { id: entry.threadId, cwd: folder.fsPath, turns: [{ id: 'stale-turn' }] } },
+				id: staleHistoryRead.id,
+				result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'stale-turn' }] } },
 			});
-			const currentRead = await readNextRequest(secondPeer.outbound);
-			assert.strictEqual(currentRead.method, 'thread/read');
+			const currentMetadataRead = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(currentMetadataRead.method, 'thread/read');
 			secondPeer.push({
-				id: currentRead.id,
-				result: { thread: { id: entry.threadId, cwd: folder.fsPath, turns: [{ id: 'current-turn' }] } },
+				id: currentMetadataRead.id,
+				result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+			});
+			const currentHistoryRead = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(currentHistoryRead.method, 'thread/read');
+			secondPeer.push({
+				id: currentHistoryRead.id,
+				result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'current-turn' }] } },
 			});
 
 			assert.deepStrictEqual((await reading)?.thread.turns?.map(turn => turn.id), ['current-turn']);
@@ -2591,7 +2656,9 @@ suite('CodexAgent chat backing durability', () => {
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath } } });
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, turns: [] } } });
+			peer.push({ id: read.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({ id: historyRead.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
 			const turns = await reading;
 			await new Promise(resolve => setImmediate(resolve));
 			assert.strictEqual(receipts.length, 1);
@@ -3010,7 +3077,9 @@ suite('CodexAgent chat backing durability', () => {
 				fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 			});
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath, turns: [{ id: 'turn-1' }] } } });
+			peer.push({ id: read.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({ id: historyRead.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }] } } });
 			const fork = await readNextRequest(peer.outbound);
 			peer.push({ id: fork.id, result: { thread: { id: 'forked-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
 			const forked = await forking;

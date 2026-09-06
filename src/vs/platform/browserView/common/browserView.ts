@@ -58,6 +58,7 @@ export enum BrowserViewCommandId {
 	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
 	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
 	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	ClearAgentStorage = `${commandPrefix}.clearAgentStorage`,
 
 	// Find in page
 	ShowFind = `${commandPrefix}.showFind`,
@@ -255,13 +256,19 @@ export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, patt
 		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
 }
 
+/** Identifies the workbench window and optional Agents Window session that host a browser view. */
+export interface IBrowserViewHost {
+	readonly windowId: number;
+	readonly sessionId?: string;
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
@@ -287,7 +294,7 @@ export interface IBrowserViewCreatedEvent {
 
 /** Host, ownership, storage, and initial access for a newly created browser view. */
 export interface IBrowserViewCreationContext {
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
 	/** Grants automation clients access before the view is announced to other processes. */
@@ -431,29 +438,38 @@ export interface IBrowserViewFindInPageResult {
 export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
-	Ephemeral = 'ephemeral'
+	Ephemeral = 'ephemeral',
+	Agent = 'agent'
 }
 
 export type IBrowserViewSessionOptions =
 	| { readonly scope: BrowserViewStorageScope.Global }
 	| { readonly scope: BrowserViewStorageScope.Workspace }
+	| { readonly scope: BrowserViewStorageScope.Ephemeral }
 	| {
-		readonly scope: BrowserViewStorageScope.Ephemeral;
+		readonly scope: BrowserViewStorageScope.Agent;
 		/** Views with the same affinity share one in-memory browser session. */
 		readonly affinity?: string;
 	};
 
+export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean {
+	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
+}
+
+export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewStorageScope, networkFilteringEnabled: boolean): boolean {
+	return !networkFilteringEnabled || scope === BrowserViewStorageScope.Agent;
+}
+
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
-export function getAgentBrowserViewCreationDefaults(sessionId: string) {
+export function getAgentBrowserViewCreationDefaults(sessionId: string, storageAffinity?: string) {
 	return {
 		owner: { type: 'agent', sessionId } as const,
 		initialAudiences: [{ type: 'agent' }] as const,
-		session: {
-			scope: BrowserViewStorageScope.Ephemeral,
-			affinity: sessionId
-		} as const
+		session: storageAffinity === undefined
+			? { scope: BrowserViewStorageScope.Agent } as const
+			: { scope: BrowserViewStorageScope.Agent, affinity: storageAffinity } as const
 	};
 }
 
@@ -505,6 +521,7 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
+	onDynamicDidChangeOwner(id: string): Event<IBrowserViewOwner>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 	onDynamicDidSelectElement(id: string): Event<IElementData>;
@@ -536,6 +553,11 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Update the owner of an existing browser view.
+	 */
+	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
 	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
