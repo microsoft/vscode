@@ -1241,12 +1241,9 @@ function isRegionalIndicator(codePoint: number): boolean {
 }
 
 /**
- * Determines whether the regional indicator immediately preceding `offset`
- * (already accounted for by the caller) is paired with the one before it.
- *
- * Regional indicators combine greedily in pairs from the start of a maximal
- * run of consecutive regional indicators, so the *last* indicator of a run
- * is paired if and only if the run's length is even.
+ * Returns whether the regional indicator ending at `offset` (already counted
+ * by the caller) is paired, i.e. whether the full contiguous run of regional
+ * indicators it belongs to has even length.
  */
 function isRegionalIndicatorPaired(str: string, offset: number): boolean {
 	let runLength = 1;
