@@ -34,6 +34,7 @@ interface IEditorLayoutProviderOpts {
 	readonly minimapSide: 'left' | 'right';
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
+	readonly textDirection?: 'auto' | 'ltr' | 'rtl';
 	minimapSize?: 'proportional' | 'fill' | 'fit';
 	readonly pixelRatio: number;
 }
@@ -43,6 +44,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
+		assert.deepStrictEqual(computeLayout(input), expected);
+	}
+
+	function computeLayout(input: IEditorLayoutProviderOpts): EditorLayoutInfo {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
@@ -93,6 +98,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.wordWrapOverride1, 'inherit');
 		options._write(EditorOption.wordWrapOverride2, 'inherit');
 		options._write(EditorOption.accessibilitySupport, 'auto');
+		options._write(EditorOption.textDirection, input.textDirection ?? 'auto');
+		// `EditorLayoutInfoComputer` reads the resolved direction, not the raw setting.
+		options._write(EditorOption.effectiveTextDirection, input.textDirection === 'rtl' ? 'rtl' : 'ltr');
 
 		const actual = EditorLayoutInfoComputer.computeLayout(options, {
 			memory: null,
@@ -107,7 +115,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			pixelRatio: input.pixelRatio,
 			glyphMarginDecorationLaneCount: 1,
 		});
-		assert.deepStrictEqual(actual, expected);
+		return actual;
 	}
 
 	test('EditorLayoutProvider 1', () => {
@@ -1428,5 +1436,52 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			}
 		});
 
+	});
+
+	test('textDirection rtl: the layout is computed from the leading edge and ignores minimap.side', () => {
+		const input: IEditorLayoutProviderOpts = {
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: true,
+			lineHeight: 16,
+			showLineNumbers: true,
+			lineNumbersMinChars: 5,
+			lineNumbersDigitCount: 5,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 14,
+			horizontalScrollbarHeight: 10,
+			scrollbarArrowSize: 11,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
+		};
+
+		// In a right-to-left layout the minimap is rendered on the physical left by the view part, but
+		// the offsets are computed as if it were on the trailing side, so that `contentLeft` keeps
+		// measuring the width of the margin strip only.
+		const ltr = computeLayout({ ...input, textDirection: 'ltr' });
+		const rtl = computeLayout({ ...input, textDirection: 'rtl' });
+		const withoutMarginOrder = (layout: EditorLayoutInfo) => ({ ...layout, glyphMarginLeft: 0, lineNumbersLeft: 0, decorationsLeft: 0 });
+		assert.deepStrictEqual(withoutMarginOrder(rtl), withoutMarginOrder(ltr));
+
+		// What the margin strip holds is mirrored inside it: reading outwards from the text come the
+		// decorations, then the line numbers, then the glyph margin at the outer edge - and the strip
+		// still ends exactly at `contentLeft`, which `Margin` places flush with the right edge.
+		assert.strictEqual(rtl.decorationsLeft, 0);
+		assert.strictEqual(rtl.lineNumbersLeft, rtl.decorationsWidth);
+		assert.strictEqual(rtl.glyphMarginLeft, rtl.decorationsWidth + rtl.lineNumbersWidth);
+		assert.strictEqual(rtl.glyphMarginLeft + rtl.glyphMarginWidth, rtl.contentLeft);
+
+		// ... and `minimap.side` does not move anything around, unlike in a left-to-right layout.
+		const rtlMinimapLeft = computeLayout({ ...input, minimapSide: 'left', textDirection: 'rtl' });
+		const ltrMinimapLeft = computeLayout({ ...input, minimapSide: 'left', textDirection: 'ltr' });
+		assert.deepStrictEqual(rtlMinimapLeft, rtl);
+		assert.strictEqual(ltrMinimapLeft.minimap.minimapLeft, 0);
+		assert.strictEqual(ltrMinimapLeft.contentLeft, rtl.contentLeft + rtl.minimap.minimapWidth);
 	});
 });

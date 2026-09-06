@@ -63,6 +63,7 @@ class MinimapOptions {
 	/**
 	 * container dom node left position (in CSS px)
 	 */
+	public readonly isRtl: boolean;
 	public readonly minimapLeft: number;
 	/**
 	 * container dom node width (in CSS px)
@@ -129,7 +130,10 @@ class MinimapOptions {
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.minimapLeft = minimapLayout.minimapLeft;
+		// In a right-to-left layout the minimap is rendered flush with the physical left edge, opposite
+		// the margin (`minimap.side` is not honored, the layout is computed as if the side were 'right').
+		this.isRtl = options.get(EditorOption.effectiveTextDirection) === 'rtl';
+		this.minimapLeft = this.isRtl ? 0 : minimapLayout.minimapLeft;
 		this.minimapWidth = minimapLayout.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
@@ -190,6 +194,7 @@ class MinimapOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
+			&& this.isRtl === other.isRtl
 			&& this.minimapLeft === other.minimapLeft
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
@@ -1400,6 +1405,13 @@ class InnerMinimap extends Disposable {
 
 	private _applyLayout(): void {
 		this._domNode.setLeft(this._model.options.minimapLeft);
+		// The minimap paints each line from the left of its canvas outwards. In a mirrored layout the
+		// lines it stands for start at the right, so the shape of the file would come out reversed
+		// against the text it summarizes. Flipping the canvases mirrors the painted lines and the
+		// decorations drawn beside them in one step; the slider is a sibling and is unaffected.
+		const flip = this._model.options.isRtl ? 'scaleX(-1)' : '';
+		this._canvas.domNode.style.transform = flip;
+		this._decorationsCanvas.domNode.style.transform = flip;
 		this._domNode.setWidth(this._model.options.minimapWidth);
 		this._domNode.setHeight(this._model.options.minimapHeight);
 		this._shadow.setHeight(this._model.options.minimapHeight);

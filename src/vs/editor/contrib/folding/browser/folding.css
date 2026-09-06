@@ -49,3 +49,11 @@
 .monaco-editor .cldr.codicon.codicon-folding-manual-collapsed {
 	color: var(--vscode-editorGutter-foldingControlForeground) !important;
 }
+
+/* `textDirection: 'rtl'`: the chevron of a collapsed range points along the text, which now runs the
+   other way. Mirroring the glyph keeps it pointing at what unfolding would reveal rather than at the
+   edge of the window. The expanded chevron points down and needs nothing. */
+.monaco-editor.text-direction-rtl .cldr.codicon.codicon-folding-collapsed,
+.monaco-editor.text-direction-rtl .cldr.codicon.codicon-folding-manual-collapsed {
+	transform: scaleX(-1);
+}

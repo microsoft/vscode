@@ -110,6 +110,17 @@ export class EditorScrollbar extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
+		if (options.get(EditorOption.effectiveTextDirection) === 'rtl') {
+			// Mirrored layout: minimap [0, minimapWidth], content [minimapWidth, minimapWidth + contentWidth],
+			// margin [minimapWidth + contentWidth, width]. The vertical scrollbar stays on the physical
+			// right of the content: the lines already inset their leading edge by `verticalScrollbarWidth`,
+			// so mirroring the bar would reserve one side and paint on the other.
+			this.scrollbarDomNode.setLeft(layoutInfo.minimap.minimapWidth);
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
+			this.scrollbarDomNode.setHeight(layoutInfo.height);
+			return;
+		}
+
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
 
 		const minimap = options.get(EditorOption.minimap);
@@ -145,6 +156,7 @@ export class EditorScrollbar extends ViewPart {
 			e.hasChanged(EditorOption.scrollbar)
 			|| e.hasChanged(EditorOption.mouseWheelScrollSensitivity)
 			|| e.hasChanged(EditorOption.fastScrollSensitivity)
+			|| e.hasChanged(EditorOption.effectiveTextDirection)
 		) {
 			const options = this._context.configuration.options;
 			const scrollbar = options.get(EditorOption.scrollbar);
@@ -164,7 +176,7 @@ export class EditorScrollbar extends ViewPart {
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}
-		if (e.hasChanged(EditorOption.layoutInfo)) {
+		if (e.hasChanged(EditorOption.layoutInfo) || e.hasChanged(EditorOption.effectiveTextDirection)) {
 			this._setLayout();
 		}
 		return true;

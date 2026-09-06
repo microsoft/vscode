@@ -488,3 +488,8 @@
 .monaco-editor .suggest-details p code {
 	font-family: var(--monaco-monospace-font);
 }
+
+/* `textDirection: 'rtl'`: mirror the suggest widget (icon and label lead, details trail). */
+.monaco-editor.text-direction-rtl .suggest-widget {
+	direction: rtl;
+}

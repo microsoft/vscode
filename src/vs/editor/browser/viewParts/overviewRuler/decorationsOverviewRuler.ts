@@ -74,7 +74,7 @@ class Settings {
 
 		if (themeColor) {
 			this.backgroundColor = themeColor;
-		} else if (minimapEnabled && minimapSide === 'right') {
+		} else if (minimapEnabled && minimapSide === 'right' && options.get(EditorOption.effectiveTextDirection) !== 'rtl') {
 			this.backgroundColor = defaultBackground;
 		} else {
 			this.backgroundColor = null;
@@ -83,6 +83,10 @@ class Settings {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const position = layoutInfo.overviewRuler;
 		this.top = position.top;
+		// The overview ruler stays where the vertical scrollbar is, and the scrollbar is not mirrored:
+		// it keeps the physical right of the content box, which right-to-left lines already leave free
+		// with `padding-right`. Moving the ruler alone would separate it from the bar it annotates and
+		// paint it over the text.
 		this.right = position.right;
 		this.domWidth = position.width;
 		this.domHeight = position.height;

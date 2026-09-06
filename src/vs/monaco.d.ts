@@ -3240,6 +3240,25 @@ declare namespace monaco.editor {
 		 */
 		tabIndex?: number;
 		/**
+		 * Controls the text direction of the editor contents. A line whose direction is declared by a
+		 * decoration keeps that direction under every value below.
+		 *  - `'auto'`: lay out lines left-to-right (the behavior before this setting existed).
+		 *  - `'ltr'`: lay out lines left-to-right. The same as `'auto'` today; it is the explicit
+		 *    counterpart of `'rtl'`, and the value to reach for to opt a language out of a broader `'rtl'`.
+		 *  - `'rtl'`: lay out lines right-to-left and mirror the editor's own layout - line numbers and
+		 *    glyph margin to the right, minimap to the left.
+		 *  - `'uiLanguage'`: follow the display language - `'rtl'` when the user interface is itself
+		 *    displayed in a right-to-left language, `'ltr'` otherwise.
+		 * Defaults to 'auto'.
+		 */
+		textDirection?: 'auto' | 'ltr' | 'rtl' | 'uiLanguage';
+		/**
+		 * Overrides `textDirection` for this editor only. Written by the Change Editor Text Direction
+		 * command, which keeps it per file and in memory rather than in the settings.
+		 * Defaults to 'inherit'.
+		 */
+		textDirectionOverride?: 'inherit' | 'auto' | 'ltr' | 'rtl';
+		/**
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
@@ -5225,39 +5244,42 @@ declare namespace monaco.editor {
 		suggestSelection = 138,
 		tabCompletion = 139,
 		tabIndex = 140,
-		trimWhitespaceOnDelete = 141,
-		unicodeHighlighting = 142,
-		unusualLineTerminators = 143,
-		useShadowDOM = 144,
-		useTabStops = 145,
-		wordBreak = 146,
-		wordSegmenterLocales = 147,
-		wordSeparators = 148,
-		wordWrap = 149,
-		wordWrapBreakAfterCharacters = 150,
-		wordWrapBreakBeforeCharacters = 151,
-		wordWrapColumn = 152,
-		wordWrapOverride1 = 153,
-		wordWrapOverride2 = 154,
-		wrappingIndent = 155,
-		wrappingStrategy = 156,
-		showDeprecated = 157,
-		inertialScroll = 158,
-		inlayHints = 159,
-		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173
+		textDirection = 141,
+		textDirectionOverride = 142,
+		trimWhitespaceOnDelete = 143,
+		unicodeHighlighting = 144,
+		unusualLineTerminators = 145,
+		useShadowDOM = 146,
+		useTabStops = 147,
+		wordBreak = 148,
+		wordSegmenterLocales = 149,
+		wordSeparators = 150,
+		wordWrap = 151,
+		wordWrapBreakAfterCharacters = 152,
+		wordWrapBreakBeforeCharacters = 153,
+		wordWrapColumn = 154,
+		wordWrapOverride1 = 155,
+		wordWrapOverride2 = 156,
+		wrappingIndent = 157,
+		wrappingStrategy = 158,
+		showDeprecated = 159,
+		inertialScroll = 160,
+		inlayHints = 161,
+		wrapOnEscapedLineFeeds = 162,
+		effectiveCursorStyle = 163,
+		effectiveTextDirection = 164,
+		editorClassName = 165,
+		pixelRatio = 166,
+		tabFocusMode = 167,
+		layoutInfo = 168,
+		wrappingInfo = 169,
+		defaultColorDecorators = 170,
+		colorDecoratorsActivatedOn = 171,
+		inlineCompletionsAccessibilityVerbose = 172,
+		effectiveEditContext = 173,
+		scrollOnMiddleClick = 174,
+		effectiveAllowVariableFonts = 175,
+		doubleClickSelectsBlock = 176
 	}
 
 	export const EditorOptions: {
@@ -5409,9 +5431,11 @@ declare namespace monaco.editor {
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
+		textDirection: IEditorOption<EditorOption.textDirection, 'auto' | 'ltr' | 'rtl' | 'uiLanguage'>;
+		textDirectionOverride: IEditorOption<EditorOption.textDirectionOverride, 'auto' | 'ltr' | 'rtl' | 'inherit'>;
 		trimWhitespaceOnDelete: IEditorOption<EditorOption.trimWhitespaceOnDelete, boolean>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, Required<Readonly<IUnicodeHighlightOptions>>>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
@@ -5421,10 +5445,11 @@ declare namespace monaco.editor {
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
-		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
-		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
+		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'inherit' | 'on' | 'off'>;
+		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'inherit' | 'on' | 'off'>;
 		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
 		effectiveCursorStyle: IEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle>;
+		effectiveTextDirection: IEditorOption<EditorOption.effectiveTextDirection, 'ltr' | 'rtl'>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, 'auto' | 'always' | 'never'>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;

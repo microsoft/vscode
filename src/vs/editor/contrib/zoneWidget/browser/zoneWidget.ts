@@ -278,8 +278,11 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _getLeft(info: EditorLayoutInfo): number {
-		// If minimap is to the left, we move beyond it
-		if (info.minimap.minimapWidth > 0 && info.minimap.minimapLeft === 0) {
+		// If minimap is to the left, we move beyond it. A right-to-left layout always renders it there,
+		// whatever `minimapLeft` says: the offsets are computed as if the minimap were on the trailing
+		// side, and `Minimap` mirrors it when it paints.
+		const isRtl = this.editor.getOption(EditorOption.effectiveTextDirection) === 'rtl';
+		if (info.minimap.minimapWidth > 0 && (info.minimap.minimapLeft === 0 || isRtl)) {
 			return info.minimap.minimapWidth;
 		}
 		return 0;

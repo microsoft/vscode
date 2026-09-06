@@ -42,7 +42,11 @@ export class BlockDecorations extends ViewPart {
 			didChange = true;
 		}
 
-		const newContentLeft = layoutInfo.contentLeft;
+		// The physical left of the content: the margin strip is on the other side in a mirrored layout,
+		// where the content instead starts where the minimap ends.
+		const newContentLeft = options.get(EditorOption.effectiveTextDirection) === 'rtl'
+			? layoutInfo.minimap.minimapWidth
+			: layoutInfo.contentLeft;
 		if (this.contentLeft !== newContentLeft) {
 			this.contentLeft = newContentLeft;
 			didChange = true;

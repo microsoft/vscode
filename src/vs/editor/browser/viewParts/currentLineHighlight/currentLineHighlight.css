@@ -26,3 +26,12 @@
 	.current-line.current-line-margin.current-line-margin-both {
 	border-right: 0;
 }
+
+/* The margin is on the other side of the content when the layout is mirrored, so the seam to erase
+   between the two halves of the current-line highlight is the left one. */
+.monaco-editor.text-direction-rtl
+	.margin-view-overlays
+	.current-line.current-line-margin.current-line-margin-both {
+	border-right: 1px solid;
+	border-left: 0;
+}

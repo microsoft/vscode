@@ -159,6 +159,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	private readonly _linesLayout: LinesLayout;
 	private _maxLineWidth: number;
 	private _overlayWidgetsMinWidth: number;
+	/**
+	 * Whether the horizontal scroll position has been set explicitly (by the user, by a reveal or by
+	 * a restored view state). Until then, a right-to-left editor anchors it to the right by itself.
+	 */
+	private _horizontalPositionIsOwned: boolean;
 
 	private readonly _scrollable: EditorScrollable;
 	public readonly onDidScroll: Event<ScrollEvent>;
@@ -175,6 +180,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom, customLineHeightData);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
+		this._horizontalPositionIsOwned = false;
 
 		this._scrollable = this._register(new EditorScrollable(0, scheduleAtNextAnimationFrame));
 		this._configureSmoothScrollDuration();
@@ -229,6 +235,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			));
 		} else {
 			this._updateHeight();
+		}
+		if (e.hasChanged(EditorOption.effectiveTextDirection)
+			&& options.get(EditorOption.effectiveTextDirection) !== 'rtl'
+			&& !this._horizontalPositionIsOwned) {
+			// `_updateContentWidth` parks the viewport at the right end while the layout is right-to-left.
+			// Nothing else moves it back, so a layout that returns to left-to-right would open on the blank
+			// space past the end of its lines.
+			this._scrollable.setScrollPositionNow({ scrollLeft: 0 });
 		}
 		if (e.hasChanged(EditorOption.smoothScrolling)) {
 			this._configureSmoothScrollDuration();
@@ -352,6 +366,16 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			scrollDimensions.contentHeight
 		));
 
+		if (!this._horizontalPositionIsOwned && this._configuration.options.get(EditorOption.effectiveTextDirection) === 'rtl') {
+			// Every line is as wide as the widest line and right-to-left lines are aligned with the right
+			// edge of that box. As long as nobody has taken ownership of the horizontal position, the
+			// viewport would show the left (empty) end of the short lines, so anchor it to the right.
+			const dimensions = this._scrollable.getScrollDimensions();
+			if (dimensions.contentWidth > dimensions.width) {
+				this._scrollable.setScrollPositionNow({ scrollLeft: dimensions.contentWidth - dimensions.width });
+			}
+		}
+
 		// The height might depend on the fact that there is a horizontal scrollbar or not
 		this._updateHeight();
 	}
@@ -469,6 +493,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
+		if (typeof position.scrollLeft === 'number') {
+			// Somebody (the user, a reveal, a restored view state) owns the horizontal position now,
+			// so the editor must no longer anchor it by itself. See `_updateContentWidth`.
+			this._horizontalPositionIsOwned = true;
+		}
 		if (type === ScrollType.Immediate) {
 			this._scrollable.setScrollPositionNow(position);
 		} else {
@@ -481,6 +510,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
+		if (deltaScrollLeft !== 0) {
+			this._horizontalPositionIsOwned = true;
+		}
 		const currentScrollPosition = this._scrollable.getCurrentScrollPosition();
 		this._scrollable.setScrollPositionNow({
 			scrollLeft: currentScrollPosition.scrollLeft + deltaScrollLeft,

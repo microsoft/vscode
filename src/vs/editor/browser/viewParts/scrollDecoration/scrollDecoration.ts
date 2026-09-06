@@ -53,7 +53,10 @@ export class ScrollDecorationViewPart extends ViewPart {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
-		if (layoutInfo.minimap.renderMinimap === RenderMinimap.None || (layoutInfo.minimap.minimapWidth > 0 && layoutInfo.minimap.minimapLeft === 0)) {
+		// `minimapLeft === 0` means the minimap is on the physical left, which a mirrored layout makes
+		// true whatever the offsets say: the shadow then spans the whole width, minimap included.
+		const minimapIsOnTheLeft = layoutInfo.minimap.minimapLeft === 0 || options.get(EditorOption.effectiveTextDirection) === 'rtl';
+		if (layoutInfo.minimap.renderMinimap === RenderMinimap.None || (layoutInfo.minimap.minimapWidth > 0 && minimapIsOnTheLeft)) {
 			this._width = layoutInfo.width;
 		} else {
 			this._width = layoutInfo.width - layoutInfo.verticalScrollbarWidth;
