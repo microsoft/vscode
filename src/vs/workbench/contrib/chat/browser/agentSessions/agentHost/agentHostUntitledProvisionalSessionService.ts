@@ -58,7 +58,8 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { isRememberedSessionConfigKey, KNOWN_MODE_VALUES, REMEMBERED_SESSION_CONFIG_STORAGE_KEY, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -291,6 +292,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -1062,7 +1064,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
-		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
+		// Seed from the picks the Agents window remembers, so a chip set there is not reset here.
+		const remembered: Record<string, unknown> = Object.create(null);
+		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(REMEMBERED_SESSION_CONFIG_STORAGE_KEY, StorageScope.PROFILE, {});
+		for (const [property, value] of Object.entries(rememberedValues)) {
+			if (typeof value === 'string' && isRememberedSessionConfigKey(property)) {
+				remembered[property] = value;
+			}
+		}
+		const config: Record<string, unknown> = { ...remembered, [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
