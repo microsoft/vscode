@@ -62,6 +62,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 	return {
 		definitions,
 		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
+		isEnabledForSession: () => true,
 		execute: (_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');

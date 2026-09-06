@@ -15,7 +15,7 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -286,6 +286,10 @@ export class SessionsPart extends Part {
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
+	}
+
+	getFocusedSessionView(): SessionView | undefined {
+		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
 	}
 
 	/**

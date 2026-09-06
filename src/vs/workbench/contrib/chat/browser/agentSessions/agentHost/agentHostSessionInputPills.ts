@@ -33,7 +33,7 @@ import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../..
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
-import { observeTurnStatusPillsEnabled, openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
+import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
@@ -237,7 +237,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	) {
 		super();
 
-		const pillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
+		const pillsEnabled = constObservable(true);
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -247,7 +247,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		const sessionStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
-			if (!current || !pillsEnabled.read(reader)) {
+			if (!current) {
 				return constObservable<SessionState | undefined>(undefined);
 			}
 			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Session, current.backendSession, 'AgentHostSessionInputPills'));
@@ -312,7 +312,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const browserInputs = derived(this, reader => {
 			this._browserChanged.read(reader);
 			const resource = sessionResource.read(reader);
-			if (!resource || !resolution.read(reader) || !pillsEnabled.read(reader)) {
+			if (!resource || !resolution.read(reader)) {
 				return [];
 			}
 			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));

@@ -4,6 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IChatWidget } from '../../../browser/chat.js';
+import { IChatViewModel } from '../../../common/model/chatViewModel.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -13,14 +33,153 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
-import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
-import { ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
+
+suite('AgentHostChatInputPicker - sandbox toggle', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('editability follows managed bypass policy', async () => {
+		const sandboxSettingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
+		const writes: unknown[] = [];
+		const configurationService = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				writes.push({ key, value });
+			}
+		}();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
+		let allowBypass: boolean | undefined;
+		const managedSettingsChanged = store.add(new Emitter<void>());
+		const managedSettingsService: IManagedSettingsService = {
+			_serviceBrand: undefined,
+			onDidChangeManagedSettings: managedSettingsChanged.event,
+			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+		};
+		const enablementService: IAgentHostEnablementService = {
+			_serviceBrand: undefined,
+			enabled: constObservable(true),
+			managedSandboxEnforced,
+			managedSandboxAllowsBypass: observableFromEvent(managedSettingsService, managedSettingsChanged.event, () => allowBypass === true),
+		};
+		const visibleStates: Pick<IActionListItemInlineToggle, 'disabled' | 'title'>[] = [];
+		let onHide: (() => void) | undefined;
+		const recordVisibleState = <T>(items: readonly IActionListItem<T>[]) => {
+			const toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+			assert.ok(toggle);
+			visibleStates.push({ disabled: toggle.disabled, title: toggle.title });
+		};
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				onHide = delegate.onHide;
+				recordVisibleState(items);
+			}
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				recordVisibleState(items);
+			}
+		}();
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly onDidChangeViewModel = Event.None;
+			override viewModel: IChatViewModel | undefined;
+		}();
+		const picker = store.add(new AgentHostChatInputPicker(
+			widget,
+			SessionConfigKey.AutoApprove,
+			new class extends mock<IAgentHostService>() { }(),
+			actionWidgetService,
+			new class extends mock<IHoverService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
+			new class extends mock<IWorkspaceContextService>() { }(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+			}(),
+			configurationService,
+			new class extends mock<IAgentHostNewSessionFolderService>() { }(),
+			new class extends mock<IDialogService>() { }(),
+			store.add(new TestStorageService()),
+			enablementService,
+		));
+		widget.viewModel = new class extends mock<IChatViewModel>() {
+			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
+		}();
+
+		for (const managed of [false, true]) {
+			managedSandboxEnforced.set(managed, undefined);
+			for (const bypass of [undefined, false, true]) {
+				allowBypass = bypass;
+				for (const configured of [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On]) {
+					await configurationService.setUserConfiguration(sandboxSettingId, configured);
+					const toggle = picker['_getSandboxStandaloneToggle']()!;
+					writes.length = 0;
+					toggle.onChange(false);
+					toggle.onChange(true);
+					const disabled = managed && bypass !== true;
+					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
+						checked: managed || configured === AgentSandboxEnabledValue.On,
+						disabled,
+						title: managed
+							? disabled ? 'Sandboxing is required by your organization' : 'Sandboxing is enabled by your organization, but you may disable it'
+							: 'Run terminal commands inside a sandbox that restricts file system and network access',
+						writes: disabled ? [] : [
+							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.Off },
+							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.On },
+						],
+					});
+				}
+			}
+		}
+
+		const toggle = picker['_getSandboxStandaloneToggle']()!;
+		allowBypass = false;
+		writes.length = 0;
+		toggle.onChange(false);
+		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
+		allowBypass = true;
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
+
+		picker['_initialResolved'] = {
+			sessionResource: widget.viewModel.sessionResource,
+			result: {
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default' },
+					},
+				},
+			},
+		};
+		allowBypass = false;
+		await picker['_showPicker'](document.createElement('div'));
+		allowBypass = true;
+		managedSettingsChanged.fire();
+		managedSettingsChanged.fire();
+		managedSandboxEnforced.set(false, undefined);
+		managedSandboxEnforced.set(true, undefined);
+		allowBypass = false;
+		managedSettingsChanged.fire();
+		assert.ok(onHide);
+		onHide();
+		allowBypass = true;
+		managedSettingsChanged.fire();
+		assert.deepStrictEqual(visibleStates, [
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
+			{ disabled: false, title: 'Run terminal commands inside a sandbox that restricts file system and network access' },
+			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
+			{ disabled: true, title: 'Sandboxing is required by your organization' },
+		]);
+	});
+});
 
 suite('AgentHostChatInputPicker - compact layout', () => {
 

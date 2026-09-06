@@ -1004,6 +1004,7 @@ function narrowFileChangeDecision(decision: CommandExecutionApprovalDecision): F
 export class CodexAgent extends Disposable implements IAgent {
 
 	readonly id: AgentProvider = CODEX_AGENT_PROVIDER_ID;
+	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -1929,15 +1930,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		// A fresh refresh or the retry itself supersedes the pending timer.
 		this._modelRefreshRetry.clear();
-		const [copilotError, sdkReady] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
+		const [copilotError] = await Promise.all([this._refreshCopilotModels(), this._refreshCodexModels()]);
 		if (generation !== this._modelCatalogGeneration || this._isShuttingDown || this._store.isDisposed) {
 			return;
 		}
 		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
-		// Last, never first: also the freshest answer to "is the SDK here" (a
-		// download that landed elsewhere surfaces here), but announcing `ready`
-		// before the catalog lands is how the window renders "no account found".
-		this._sdkSetupChannel.publishWith(sdkReady);
+		// Last, never first: announcing `ready` before the catalog lands is how the
+		// window renders "no account found".
+		this._sdkSetupChannel.refresh();
 
 		if (!copilotError) {
 			return;
@@ -2036,39 +2036,36 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshCodexModels(): Promise<boolean> {
-		// Outside the `try` so a throw still reports what we had established about
-		// the SDK, rather than a `false` the caller would publish as "not downloaded".
-		let sdkReady = false;
+	private async _refreshCodexModels(): Promise<void> {
 		try {
 			// A refresh must never be what pulls the SDK down — the download is an
 			// explicit gesture now — so with no local SDK this reports the honest
 			// empty catalog and the banner offers it. A live connection already
 			// proves the SDK is on disk, so it short-circuits the stat.
-			sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
+			const sdkReady = this._connection.kind !== 'idle' || await this._isSdkResolvableWithoutDownload();
 			if (!sdkReady) {
 				this._codexModels = [];
-				return sdkReady;
+				return;
 			}
 			// Account/model enumeration belongs to a selected Codex session. Ambient
 			// model refreshes may still publish SDK readiness and Copilot models, but
 			// must not turn the startup account probe into a persistent connection.
 			if (!this._activated && this._connection.kind === 'idle') {
 				this._codexModels = [];
-				return sdkReady;
+				return;
 			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client, false);
 			if (!this._isCurrentConnection(connection)) {
-				return sdkReady;
+				return;
 			}
 			if (account.status === 'signedOut' || account.status === 'error') {
 				this._codexModels = [];
-				return sdkReady;
+				return;
 			}
 			const configResponse = await connection.client.request<'config/read', ConfigReadResponse>('config/read', { includeLayers: false });
 			if (!this._isCurrentConnection(connection)) {
-				return sdkReady;
+				return;
 			}
 			const modelProvider = configResponse.config.model_provider ?? CODEX_OPENAI_MODEL_PROVIDER;
 			const usesChatGPTSubscription = modelProvider === CODEX_OPENAI_MODEL_PROVIDER && account.status === 'signedIn' && account.authType === 'chatgpt';
@@ -2078,7 +2075,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			do {
 				const response: ModelListResponse = await connection.client.request<'model/list', ModelListResponse>('model/list', { cursor, limit: 100, includeHidden: false });
 				if (!this._isCurrentConnection(connection)) {
-					return sdkReady;
+					return;
 				}
 				data.push(...response.data);
 				cursor = response.nextCursor;
@@ -2104,7 +2101,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Keep the last known-good catalog; a transient periodic failure must
 			// not make every model disappear.
 		}
-		return sdkReady;
 	}
 
 	// #endregion
@@ -2710,14 +2706,15 @@ export class CodexAgent extends Disposable implements IAgent {
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
-					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
+					const display = getServerToolDisplay(params.tool, params.arguments);
+					const invocationMessage = display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {
 							type: ActionType.ChatToolCallReady,
 							turnId: entry.turnId,
 							toolCallId: entry.toolCallId,
 							invocationMessage,
-							confirmationTitle: localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+							confirmationTitle: display?.confirmationTitle ?? localize('codex.serverToolConfirmation.title', "Allow tool call?"),
 						});
 					});
 					if (decision !== 'accept' && decision !== 'acceptForSession') {
@@ -3981,6 +3978,10 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _isMultiRootEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
+	}
+
+	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
+		throw new Error('Codex does not support changing the working directory of an existing session.');
 	}
 
 	/**

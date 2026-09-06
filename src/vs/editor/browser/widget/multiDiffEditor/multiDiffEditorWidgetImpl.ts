@@ -13,6 +13,7 @@ import { ContextKeyValue, IContextKeyService } from '../../../../platform/contex
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
@@ -216,6 +217,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		));
 
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+		this._register(bindContextKey(EditorContextKeys.diffEditorAutomaticRenderSideBySide, this._contextKeyService, reader =>
+			this.activeControl.read(reader)?.renderSideBySideInAutomaticMode.read(reader) ?? true));
+		this._register(bindContextKey(EditorContextKeys.diffEditorTemporaryInlineMode, this._contextKeyService, reader =>
+			this.activeControl.read(reader)?.temporaryInlineMode.read(reader) ?? false));
 
 		this._lastDocStates = {};
 
@@ -393,6 +398,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public getScopedInstantiationService(): IInstantiationService {
 		return this._instantiationService;
 	}
+
+	public resetWidthBasedLayout(): void {
+		for (const item of this._viewItemsInfo.get().items) {
+			item.template.get()?.editor.resetWidthBasedLayout();
+		}
+	}
+
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(

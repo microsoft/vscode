@@ -12,7 +12,7 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -365,6 +365,9 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
 	private readonly _initialResolveCts = this._registerInitialResolveCts();
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _pickerDisposables = this._register(new DisposableStore());
+	private readonly _sandboxToggleDisabled = derived(this, reader => this._agentHostEnablementService.managedSandboxEnforced.read(reader)
+		&& !this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader));
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & { readonly sub: IAgentSubscription<SessionState>; readonly backendSession: URI }>());
 
@@ -700,7 +703,10 @@ export class AgentHostChatInputPicker extends Disposable {
 					return toActionItems(this._property, await this._getItems(refreshed.schema, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
 				})
 				: undefined,
-			onHide: () => trigger.focus(),
+			onHide: () => {
+				this._pickerDisposables.clear();
+				trigger.focus();
+			},
 		};
 
 		this._actionWidgetService.show<IConfigPickerItem>(
@@ -722,6 +728,15 @@ export class AgentHostChatInputPicker extends Disposable {
 					: {}),
 			}),
 		);
+		if (actionItems.some(item => item.standaloneToggle)) {
+			this._pickerDisposables.add(autorun(reader => {
+				this._agentHostEnablementService.managedSandboxEnforced.read(reader);
+				this._sandboxToggleDisabled.read(reader);
+				this._actionWidgetService.updateItems(actionItems.map(item => item.standaloneToggle
+					? { ...item, standaloneToggle: this._getSandboxStandaloneToggle() }
+					: item));
+			}));
+		}
 	}
 
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
@@ -743,21 +758,28 @@ export class AgentHostChatInputPicker extends Disposable {
 		return settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId));
 	}
 
+	private _isSandboxToggleDisabled(): boolean {
+		return this._sandboxToggleDisabled.get();
+	}
+
 	private _getSandboxStandaloneToggle(): IActionListItemInlineToggle | undefined {
 		const settingId = this._getSandboxSettingId();
 		if (this._property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId) {
 			return undefined;
 		}
 		const managed = this._agentHostEnablementService.managedSandboxEnforced.get();
+		const disabled = this._isSandboxToggleDisabled();
 		return {
 			label: localize('agentHostChatInputPicker.defaultSandboxToggle', "Sandboxing for terminal"),
 			title: managed
-				? localize('agentHostChatInputPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				? disabled
+					? localize('agentHostChatInputPicker.requiredSandboxToggleTitle', "Sandboxing is required by your organization")
+					: localize('agentHostChatInputPicker.editableManagedSandboxToggleTitle', "Sandboxing is enabled by your organization, but you may disable it")
 				: localize('agentHostChatInputPicker.defaultSandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managed,
+			disabled,
 			onChange: checked => {
-				if (this._agentHostEnablementService.managedSandboxEnforced.get()) {
+				if (this._isSandboxToggleDisabled()) {
 					return;
 				}
 				const target = checked ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;

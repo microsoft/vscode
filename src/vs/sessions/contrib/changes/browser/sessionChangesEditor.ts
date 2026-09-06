@@ -178,6 +178,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	private bodyContainer: HTMLElement | undefined;
 
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this.widget?.getContextKeyService();
+	}
+
 	private _singlePane = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
@@ -274,9 +278,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
-			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
+			this.widget?.setViewMode(this.diffEditorOptionsService.viewMode.read(reader));
 		}));
 	}
 
@@ -291,6 +296,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
 		return this.widget!.getLayoutDebugState();
+	}
+
+	override getControl(): IDiffEditor | undefined {
+		return this.widget?.getActiveControl();
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this.widget?.resetWidthBasedLayout();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
