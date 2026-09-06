@@ -209,7 +209,7 @@ async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 					for (const color of colors) {
 						const colorId = color.id;
 						if (colorId) {
-							result[colorId] = colorId.description;
+							result[colorId] = color.description;
 						}
 					}
 				}
