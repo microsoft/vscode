@@ -61,7 +61,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -5655,6 +5655,27 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
+		});
+
+		test('revokes elevated permission modes when policy changes', async () => {
+			const results: PermissionMode[][] = [];
+			for (const autoApprove of ['assisted', 'autoApprove']) {
+				const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: autoApprove },
+				});
+				await session.syncPermissionMode('turn-start');
+				session.resetTurnState('active-turn');
+				setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, true);
+
+				fireRootConfigChange();
+				await timeout(0);
+				results.push([...mockSession.permissionModeSetCalls]);
+			}
+
+			assert.deepStrictEqual(results, [
+				['assisted', 'manual'],
+				['allow-all', 'manual'],
+			]);
 		});
 
 		test('aborts when a live permission mode update fails', async () => {

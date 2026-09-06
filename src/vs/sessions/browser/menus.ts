@@ -47,6 +47,8 @@ export const Menus = {
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */
 	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
+	/** Input toolbar actions in the Automation dialog prompt editor. */
+	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
