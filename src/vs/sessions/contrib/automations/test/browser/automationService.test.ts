@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -12,7 +13,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService, AutomationStore } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, isAutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationActiveRunError, type AutomationCatalogueState, isAutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -78,8 +79,15 @@ suite('AutomationService', () => {
 
 	test('starts with an empty ledger when nothing is persisted', () => {
 		const { service } = createService();
-		assert.deepStrictEqual(service.automations.get(), []);
-		assert.deepStrictEqual(service.runs.get(), []);
+		assert.deepStrictEqual({
+			automations: service.automations.get(),
+			runs: service.runs.get(),
+			catalogueState: service.catalogueState.get(),
+		}, {
+			automations: [],
+			runs: [],
+			catalogueState: 'ready',
+		});
 	});
 
 	test('provider stores isolate ledgers by storage key', async () => {
@@ -811,6 +819,7 @@ suite('AutomationService', () => {
 		// but the service is now in read-only mode.
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
+		assert.strictEqual(service.catalogueState.get(), 'error');
 
 		// A subsequent mutation must be rejected (read-only mode) and must not
 		// destroy the on-disk newer ledger.
@@ -836,7 +845,68 @@ suite('AutomationService', () => {
 
 		// The onDidChangeValue refresh must NOT clear our observables to
 		// empty. We keep displaying what we last knew about.
-		assert.strictEqual(service.automations.get().length, 1);
+		assert.deepStrictEqual({
+			automationCount: service.automations.get().length,
+			catalogueState: service.catalogueState.get(),
+		}, {
+			automationCount: 1,
+			catalogueState: 'error',
+		});
+	});
+
+	test('refreshFromStorage reports malformed storage after a newer valid revision', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
+		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const emissions: Array<{ automationCount: number; catalogueState: AutomationCatalogueState }> = [];
+		teardown.add(autorun(reader => emissions.push({
+			automationCount: service.automations.read(reader).length,
+			catalogueState: service.catalogueState.read(reader),
+		})));
+
+		storage.store('chat.automations.ledger', '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual({
+			automationCount: service.automations.get().length,
+			catalogueState: service.catalogueState.get(),
+			emissions,
+		}, {
+			automationCount: 1,
+			catalogueState: 'error',
+			emissions: [
+				{ automationCount: 1, catalogueState: 'ready' },
+				{ automationCount: 1, catalogueState: 'error' },
+			],
+		});
+	});
+
+	test('publishes catalogue contents and readability atomically on refresh and recovery', async () => {
+		const { service, storage } = createService();
+		const initialLedger = JSON.stringify({
+			schemaVersion: 4, revision: 5,
+			automations: [serializeLedgerAutomation('saved', 'Saved')],
+			runs: [],
+		});
+		storage.store('chat.automations.ledger', initialLedger, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const emissions: Array<{ ids: string[]; catalogueState: AutomationCatalogueState; readable: boolean }> = [];
+		teardown.add(autorun(reader => emissions.push({
+			ids: service.automations.read(reader).map(automation => automation.id),
+			catalogueState: service.catalogueState.read(reader),
+			readable: service.canCompleteMigration(),
+		})));
+
+		storage.store('chat.automations.ledger', JSON.stringify({
+			schemaVersion: 4, revision: 6, automations: [], runs: null,
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.store('chat.automations.ledger', initialLedger, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await service.updateAutomation('saved', { name: 'Recovered' });
+
+		assert.deepStrictEqual(emissions, [
+			{ ids: ['saved'], catalogueState: 'ready', readable: true },
+			{ ids: [], catalogueState: 'error', readable: false },
+			{ ids: ['saved'], catalogueState: 'ready', readable: true },
+			{ ids: ['saved'], catalogueState: 'ready', readable: true },
+		]);
 	});
 
 	test('persist bumps the revision counter on every write', async () => {
