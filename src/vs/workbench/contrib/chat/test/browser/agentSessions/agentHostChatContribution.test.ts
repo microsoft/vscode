@@ -151,7 +151,7 @@ function normalizeTestAction(action: SessionAction | ChatAction | TerminalAction
  * these on the session for convenience; the mock connection splits them onto
  * the default-chat subscription when serving {@link StateComponents.Chat}.
  */
-type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'draft'>>;
+type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessages' | 'queuedMessages' | 'draft'>>;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -559,7 +559,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			interactivity: this._chatInteractivities.get(chatUriStr),
 			turns: seeded?.turns ?? [],
 			activeTurn: seeded?.activeTurn,
-			steeringMessage: seeded?.steeringMessage,
+			steeringMessages: seeded?.steeringMessages,
 			queuedMessages: seeded?.queuedMessages,
 			draft: seeded?.draft,
 		};

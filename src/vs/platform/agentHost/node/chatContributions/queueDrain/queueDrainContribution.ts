@@ -86,7 +86,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const session = parseRequiredSessionUriFromChatUri(channel);
-		this._providerService.getProviderForSession(session)?.setPendingMessages?.(URI.parse(channel), state.steeringMessage, []);
+		this._providerService.getProviderForSession(session)?.setPendingMessages?.(URI.parse(channel), state.steeringMessages ?? [], []);
 		this._tryConsumeNextQueuedMessage(channel);
 	}
 
@@ -98,7 +98,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const state = this._stateManager.getSessionState(channel);
-		if (!state?.queuedMessages?.length || state.steeringMessage) {
+		if (!state?.queuedMessages?.length || state.steeringMessages?.length) {
 			return;
 		}
 		const latestTurn = state.turns.at(-1);

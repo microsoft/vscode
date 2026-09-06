@@ -78,7 +78,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
-	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
+	readonly setPendingMessagesCalls: { chat: URI; steeringMessages: readonly PendingMessage[]; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -250,8 +250,8 @@ export class MockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
-		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages });
+	setPendingMessages(chat: URI, steeringMessages: readonly PendingMessage[], queuedMessages: readonly PendingMessage[]): void {
+		this.setPendingMessagesCalls.push({ chat, steeringMessages, queuedMessages });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -1012,9 +1012,9 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessages: readonly PendingMessage[], _queuedMessages: readonly PendingMessage[]): void {
 		// When steering is set, consume it on the next tick
-		if (steeringMessage) {
+		for (const steeringMessage of steeringMessages) {
 			timeout(20).then(() => {
 				this._onDidChatProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(chat.toString()) ? chat : URI.parse(buildDefaultChatUri(chat)), id: steeringMessage.id });
 			});

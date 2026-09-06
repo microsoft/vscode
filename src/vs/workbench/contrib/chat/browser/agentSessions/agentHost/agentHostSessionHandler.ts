@@ -2072,12 +2072,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const chatURI = this._getChatURI(sessionResource);
 		const pending = chatModel.getPendingRequests();
 		const protocolState = this._getSessionState(session, chatURI);
-		const prevSteering = protocolState?.steeringMessage;
+		const prevSteering = protocolState?.steeringMessages ?? [];
 		const prevQueued = protocolState?.queuedMessages ?? [];
 
 		// Compute current state from chat model
 		interface IPendingSnapshot { id: string; message: Message }
-		let currentSteering: IPendingSnapshot | undefined;
+		const currentSteering: IPendingSnapshot[] = [];
 		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
@@ -2085,28 +2085,36 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments) };
 			if (p.kind === ChatRequestQueueKind.Steering) {
-				currentSteering = snapshot;
+				currentSteering.push(snapshot);
 			} else {
 				currentQueued.push(snapshot);
 			}
 		}
 
-		// --- Steering ---
-		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id || !equals(currentSteering.message, prevSteering.message)) {
+		// --- Steering: removals ---
+		const currentSteeringIds = new Set(currentSteering.map(s => s.id));
+		for (const prev of prevSteering) {
+			if (!currentSteeringIds.has(prev.id)) {
+				this._dispatchAction(backendSession, {
+					type: ActionType.ChatPendingMessageRemoved,
+					kind: PendingMessageKind.Steering,
+					id: prev.id,
+				}, chatURI);
+			}
+		}
+
+		// --- Steering: additions ---
+		const prevSteeringById = new Map(prevSteering.map(s => [s.id, s]));
+		for (const s of currentSteering) {
+			const prev = prevSteeringById.get(s.id);
+			if (!prev || !equals(s.message, prev.message)) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
-					id: currentSteering.id,
-					message: currentSteering.message,
+					id: s.id,
+					message: s.message,
 				}, chatURI);
 			}
-		} else if (prevSteering) {
-			this._dispatchAction(backendSession, {
-				type: ActionType.ChatPendingMessageRemoved,
-				kind: PendingMessageKind.Steering,
-				id: prevSteering.id,
-			}, chatURI);
 		}
 
 		// --- Queued: removals ---
@@ -2176,8 +2184,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 
 		const remote: IRemotePendingRequest[] = [];
-		if (state.steeringMessage) {
-			remote.push(toRemote(state.steeringMessage, ChatRequestQueueKind.Steering));
+		for (const steering of state.steeringMessages ?? []) {
+			remote.push(toRemote(steering, ChatRequestQueueKind.Steering));
 		}
 		for (const queued of state.queuedMessages ?? []) {
 			remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
@@ -2345,7 +2353,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentState = this._getSessionState(sessionStr, chatURI);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
-		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
+		let previousSteeringIds = new Set((currentState?.steeringMessages ?? []).map(m => m.id));
 		let previousTitle: string | undefined = currentState ? getChatTitle(currentState, chatURI) : undefined;
 		let previousTurnIds = new Set(currentState?.turns.map(turn => turn.id) ?? []);
 
@@ -2368,13 +2376,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Track queued message IDs so we can detect which one was consumed
 			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
-			const currentSteeringId = e.state.steeringMessage?.id;
+			const currentSteeringIds = new Set((e.state.steeringMessages ?? []).map(m => m.id));
 
 			// Detect steering message removal or replacement regardless of turn changes
-			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
-				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
+			for (const prevId of previousSteeringIds) {
+				if (!currentSteeringIds.has(prevId)) {
+					this._chatService.removePendingRequest(sessionResource, prevId);
+				}
 			}
-			previousSteeringId = currentSteeringId;
+			previousSteeringIds = currentSteeringIds;
 
 			const currentTitle = getChatTitle(e.state, chatURI);
 			if (currentTitle && currentTitle !== previousTitle) {

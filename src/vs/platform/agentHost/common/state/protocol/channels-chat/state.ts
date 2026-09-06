@@ -78,8 +78,8 @@ export interface ChatState {
 	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
-	/** Message to inject into the current turn at a convenient point */
-	steeringMessage?: PendingMessage;
+	/** Messages to inject into the current turn at a convenient point, in send order */
+	steeringMessages?: PendingMessage[];
 	/** Messages to send automatically as new turns after the current turn finishes */
 	queuedMessages?: PendingMessage[];
 	/**

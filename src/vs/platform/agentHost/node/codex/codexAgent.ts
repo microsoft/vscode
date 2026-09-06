@@ -5726,13 +5726,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		// Queued messages are consumed server-side (AgentSideEffects drives a
-		// fresh turn per `idle`); only the single steering message reaches the
-		// agent for mid-turn injection.
-		if (!steeringMessage) {
-			return;
+	setPendingMessages(chat: URI, steeringMessages: readonly PendingMessage[], _queuedMessages: readonly PendingMessage[]): void {
+		// Queued messages are consumed server-side; only steering reaches the agent.
+		for (const steeringMessage of steeringMessages) {
+			this._sendSteering(chat, steeringMessage);
 		}
+	}
+
+	/** Injects one steering message into the chat's active codex turn. */
+	private _sendSteering(chat: URI, steeringMessage: PendingMessage): void {
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.

@@ -1135,7 +1135,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
-	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessages?.length || targetState?.queuedMessages?.length)) {
 		const queuedMessage: Message = {
 			text: message,
 			origin: { kind: MessageKind.Agent },

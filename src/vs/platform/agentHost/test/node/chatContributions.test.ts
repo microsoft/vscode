@@ -895,7 +895,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
-	mockAgent.setPendingMessages = (_chat, steeringMessage) => pendingMessages.push(steeringMessage);
+	mockAgent.setPendingMessages = (_chat, steeringMessages) => pendingMessages.push(steeringMessages[0]);
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

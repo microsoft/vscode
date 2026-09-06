@@ -7953,7 +7953,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
 		await tick();
 
-		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), { id: 'pending-1', message: { text: 'switch topic', origin: { kind: MessageKind.User } } }, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), [{ id: 'pending-1', message: { text: 'switch topic', origin: { kind: MessageKind.User } } }], []);
 		await tick();
 		await tick();
 
@@ -7973,7 +7973,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 	test('setPendingMessages with empty steering and non-empty queued is a no-op', async () => {
 		const { ctx, sessionUri, query, advance } = await materialize();
 		const before = query.drainedPrompts.length;
-		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), undefined, [{ id: 'q1', message: { text: 'queued', origin: { kind: MessageKind.User } } }]);
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), [], [{ id: 'q1', message: { text: 'queued', origin: { kind: MessageKind.User } } }]);
 		await tick();
 		assert.strictEqual(query.drainedPrompts.length, before);
 		advance.complete();
@@ -7989,7 +7989,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
 		await tick();
 
-		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), { id: 'pending-9', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(sessionUri), [{ id: 'pending-9', message: { text: 'steer', origin: { kind: MessageKind.User } } }], []);
 		// Microtask cycles let the FakeQuery's background drain pull the
 		// steering entry off `_toYield`; that drain is when our session
 		// fires `steering_consumed` (SDK ack semantics — mirrors Copilot's
@@ -8157,7 +8157,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
 		// Inject steering and capture its uuid via the iterable's drain.
-		ctx.agent.setPendingMessages!(defaultChatUri(created.session), { id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(created.session), [{ id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }], []);
 		await tick();
 		await tick();
 		const query = ctx.sdk.warmQueries[0].produced!;
@@ -8222,7 +8222,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 
 		// Inject steering so the queue holds [original, steering] when
 		// result#1 lands.
-		ctx.agent.setPendingMessages!(defaultChatUri(created.session), { id: 'pending-c1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
+		ctx.agent.setPendingMessages!(defaultChatUri(created.session), [{ id: 'pending-c1', message: { text: 'steer', origin: { kind: MessageKind.User } } }], []);
 		await tick();
 		await tick();
 
@@ -10337,12 +10337,12 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		// Known materialized additional chat: resolved via the `chat` arg, no warning.
 		logService.warns.length = 0;
-		agent.setPendingMessages!(chatUri, { id: 'p1', message: { text: 'steer', origin: { kind: MessageKind.User } } }, []);
+		agent.setPendingMessages!(chatUri, [{ id: 'p1', message: { text: 'steer', origin: { kind: MessageKind.User } } }], []);
 		const warnAfterKnown = logService.warns.filter(w => w.includes('setPendingMessages'));
 
 		// Unknown additional chat URI: not found, warns.
 		const unknownChat = URI.parse(buildChatUri(created.session.toString(), 'chat-missing'));
-		agent.setPendingMessages!(unknownChat, undefined, []);
+		agent.setPendingMessages!(unknownChat, [], []);
 		const warnAfterUnknown = logService.warns.filter(w => w.includes('setPendingMessages'));
 
 		assert.deepStrictEqual({ knownWarns: warnAfterKnown.length, unknownWarns: warnAfterUnknown.length }, { knownWarns: 0, unknownWarns: 1 });
