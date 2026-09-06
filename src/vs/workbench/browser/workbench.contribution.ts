@@ -617,7 +617,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
-			'workbench.statusBar.compactPositionFormat' : {
+			'workbench.statusBar.compactPositionFormat': {
 				'type': 'boolean',
 				'default': false,
 				'markdownDescription': localize('statusBarCompactPositionFormat', "When enabled, shows the cursor position in a compact `line:column` format (for example `42:7`) instead of `Ln 42, Col 7`."),

@@ -335,16 +335,45 @@ class StatusInputMode extends Disposable {
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
 const nlsSingleSelectionCompact = localize('singleSelectionCompact', "{0}:{1}");
+const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelectionRangeCompact = localize('singleSelectionRangeCompact', "{0}:{1} ({2} selected)");
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
+const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
+export function getEditorSelectionStatusLabel(info: IEditorSelectionStatus, compactPositionFormat: boolean): string | undefined {
+	if (!info.selections) {
+		return undefined;
+	}
+
+	if (info.selections.length === 1) {
+		const selection = info.selections[0];
+		if (info.charactersSelected) {
+			const formatTemplate = compactPositionFormat ? nlsSingleSelectionRangeCompact : nlsSingleSelectionRange;
+			return format(formatTemplate, selection.positionLineNumber, selection.positionColumn, info.charactersSelected);
+		}
+
+		const formatTemplate = compactPositionFormat ? nlsSingleSelectionCompact : nlsSingleSelection;
+		return format(formatTemplate, selection.positionLineNumber, selection.positionColumn);
+	}
+
+	if (info.charactersSelected) {
+		return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+	}
+
+	if (info.selections.length > 0) {
+		return format(nlsMultiSelection, info.selections.length);
+	}
+
+	return undefined;
+}
+
 class EditorStatus extends Disposable {
+
+	private static readonly COMPACT_POSITION_FORMAT_SETTING = 'workbench.statusBar.compactPositionFormat';
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly inputModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -390,6 +419,9 @@ class EditorStatus extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(EditorStatus.COMPACT_POSITION_FORMAT_SETTING))(() => {
+			this.onSelectionChange(getCodeEditor(this.editorService.activeTextEditorControl) ?? undefined);
+		}));
 		this._register(Event.runAndSubscribe(this.tabFocusMode.onDidChange, (tabFocusMode) => {
 			if (tabFocusMode !== undefined) {
 				this.onTabFocusModeChange(tabFocusMode);
@@ -653,33 +685,8 @@ class EditorStatus extends Disposable {
 	}
 
 	private getSelectionLabel(info: IEditorSelectionStatus): string | undefined {
-		if (!info?.selections) {
-			return undefined;
-		}
-
-		const compact = this.configurationService.getValue<boolean>('workbench.statusBar.compactPositionFormat');
-
-		if (info.selections.length === 1) {
-			if (info.charactersSelected) {
-				return compact
-				? format(nlsSingleSelectionRangeCompact, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected)
-				: format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
-			}
-
-			return compact
-			? format(nlsSingleSelectionCompact, info.selections[0].positionLineNumber, info.selections[0].positionColumn)
-			: format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
-		}
-
-		if (info.charactersSelected) {
-			return format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
-		}
-
-		if (info.selections.length > 0) {
-			return format(nlsMultiSelection, info.selections.length);
-		}
-
-		return undefined;
+		const compactPositionFormat = this.configurationService.getValue<boolean>(EditorStatus.COMPACT_POSITION_FORMAT_SETTING);
+		return getEditorSelectionStatusLabel(info, compactPositionFormat);
 	}
 
 	private updateStatusBar(): void {
