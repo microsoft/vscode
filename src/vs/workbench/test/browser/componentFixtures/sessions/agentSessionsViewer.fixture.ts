@@ -502,7 +502,7 @@ export default defineThemedFixtureGroup({
 			renderSessionItem(ctx, createMockSession({
 				label: 'Analyze code complexity',
 				status: AgentSessionStatus.Completed,
-				providerType: AgentSessionProviders.Claude,
+				providerType: AgentSessionProviders.AgentHostClaude,
 				icon: Codicon.claude,
 				timing: {
 					created: now - 150 * 60 * 1000,

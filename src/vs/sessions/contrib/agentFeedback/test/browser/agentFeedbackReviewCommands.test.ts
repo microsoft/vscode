@@ -109,4 +109,65 @@ suite('AgentFeedbackReviewCommands', () => {
 			],
 		});
 	});
+
+	test('links pull request review threads to their mirrored comments in any state', () => {
+		const sessionResource = URI.parse('agent-host-copilotcli:/session-2');
+		const peerChatResource = sessionResource.with({ fragment: 'peer-chat-1' });
+		const fileResource = URI.file('/workspace/file.ts');
+		const session = new class extends mock<ISession>() {
+			override readonly resource = sessionResource;
+		}();
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = peerChatResource;
+		}();
+		const feedbackItem = (id: string, kind: AgentFeedbackKind, state: AgentFeedbackState, sourcePRReviewCommentId?: string): IAgentFeedback => ({
+			id,
+			text: 'Review this',
+			resourceUri: fileResource,
+			range: new Range(3, 1, 3, 5),
+			sessionResource,
+			kind,
+			state,
+			...(sourcePRReviewCommentId ? { sourcePRReviewCommentId } : {}),
+		});
+		const feedback: IAgentFeedback[] = [
+			feedbackItem('mirror-created', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, 'PRRT_created'),
+			// An addressed thread still links, unlike the `created`-only review list.
+			feedbackItem('mirror-submitted', AgentFeedbackKind.PRReview, AgentFeedbackState.Submitted, 'PRRT_submitted'),
+			// No pull request thread behind these, so neither is linkable.
+			feedbackItem('mirror-without-source', AgentFeedbackKind.PRReview, AgentFeedbackState.Created),
+			feedbackItem('agent-review', AgentFeedbackKind.AgentReview, AgentFeedbackState.Created),
+		];
+
+		const requestedResources: string[] = [];
+		const feedbackService = new class extends mock<IAgentFeedbackService>() {
+			override getFeedback(resource: URI): readonly IAgentFeedback[] {
+				requestedResources.push(resource.toString());
+				return feedback;
+			}
+		}();
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+				return resource.toString() === peerChatResource.toString() ? { session, chat } : undefined;
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentFeedbackService, feedbackService);
+		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
+		instantiationService.stub(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
+		store.add(registerAgentFeedbackReviewCommands());
+
+		const getThreadLinks = CommandsRegistry.getCommand(AgentFeedbackReviewCommandId.GetPullRequestThreadLinks)?.handler;
+		assert.ok(getThreadLinks);
+
+		const links = getThreadLinks(instantiationService, peerChatResource);
+
+		assert.deepStrictEqual({ links, requestedResources }, {
+			links: [
+				{ pullRequestThreadId: 'PRRT_created', commentId: 'mirror-created' },
+				{ pullRequestThreadId: 'PRRT_submitted', commentId: 'mirror-submitted' },
+			],
+			requestedResources: [sessionResource.toString()],
+		});
+	});
 });

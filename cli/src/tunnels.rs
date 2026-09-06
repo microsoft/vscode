@@ -20,6 +20,7 @@ mod agent_host_registry_acl_windows;
 mod challenge;
 mod control_server;
 pub mod idle_timeout;
+pub(crate) mod machine_status;
 mod nosleep;
 #[cfg(target_os = "linux")]
 mod nosleep_linux;

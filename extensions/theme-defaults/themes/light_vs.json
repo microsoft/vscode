@@ -36,7 +36,15 @@
 		"actionBar.toggledBackground": "#dddddd",
 		"diffEditor.unchangedRegionBackground": "#f8f8f8",
 		"agentsNewSessionButton.border": "#D8D8D8",
-		"agentsChatInput.border": "#D8D8D8"
+		"agentsChatInput.border": "#D8D8D8",
+		"agentsPanel.border": "#00000000",
+		// modern ui
+		"surface.border": "#F3F3F3",
+		"modernActivityBarItem.activeBackground": "#e4e6f122",
+		"modernActivityBarItem.hoverBackground": "#E8E8E822",
+		"modernActivityBarItem.activeForeground": "#FFF",
+		"modernActivityBarItem.hoverForeground": "#FFF",
+		"modernActivityBar.border": "#2C2C2C"
 	},
 	"tokenColors": [
 		{

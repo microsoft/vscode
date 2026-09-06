@@ -7,7 +7,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AutomationService } from '../../browser/automationService.js';
-import { AUTOMATION_STORAGE_KEY, IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
+import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
 
 export class TestAutomationStorageService implements IAutomationStorageService {
 
@@ -17,16 +17,16 @@ export class TestAutomationStorageService implements IAutomationStorageService {
 		private readonly storageService: IStorageService,
 	) { }
 
-	async read(): Promise<string | undefined> {
-		return this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION);
+	async read(key: string): Promise<string | undefined> {
+		return this.storageService.get(key, StorageScope.APPLICATION);
 	}
 
-	async compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
-		const currentValue = this.storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION);
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+		const currentValue = this.storageService.get(key, StorageScope.APPLICATION);
 		if (currentValue !== expectedValue) {
 			return { swapped: false, currentValue };
 		}
-		this.storageService.store(AUTOMATION_STORAGE_KEY, newValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(key, newValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		return { swapped: true, currentValue: newValue };
 	}
 }

@@ -13,18 +13,6 @@
 	height: 100%;
 }
 
-.monaco-workbench .debug-action.notification:after {
-	content: '';
-	width: 6px;
-	height: 6px;
-	background-color: #CC6633;
-	position: absolute;
-	top: 10px;
-	right: 6px;
-	border-radius: 10px;
-	border: 1px solid white;
-}
-
 .monaco-workbench .part > .title.has-start-debug-action-item > .title-actions {
 	min-width: 0;
 	overflow: hidden;
@@ -307,14 +295,6 @@
 .debug-pane .monaco-inputbox > .ibwrapper > .input {
 	padding: 0px;
 	color: initial;
-}
-
-.debug-pane .watch-expression {
-	display: flex;
-}
-
-.debug-pane .watch-expression .expression {
-	flex : 1;
 }
 
 .debug-pane .debug-variables .scope .error {

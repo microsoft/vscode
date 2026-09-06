@@ -31,8 +31,12 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
+	async createBranch(): Promise<void> { }
+	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> { return false; }
+	async createStash(): Promise<void> { }
 	async commitAll(): Promise<void> { }
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }

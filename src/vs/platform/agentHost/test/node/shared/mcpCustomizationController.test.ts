@@ -5,19 +5,32 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentSession } from '../../../common/agentService.js';
+import { AgentSession } from '../../../common/agent.js';
+import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
-function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean } = {}) {
+const SESSION_URI = AgentSession.uri('copilot', 'session-1');
+const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
+const MCP_FS_CHANNEL = buildMcpChannel(CHAT_URI, 'fs');
+const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search');
+
+function harness(store: Pick<DisposableStore, 'add'>, opts: {
+	customizations?: readonly Customization[];
+	desiredEnabled?: boolean;
+	pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
+	resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
+} = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-	const sessionUri = AgentSession.uri('copilot', 'session-1');
+	const sessionUri = SESSION_URI;
 	const session = sessionUri.toString();
 	stateManager.createSession({
 		resource: session,
@@ -27,25 +40,24 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		createdAt: new Date().toISOString(),
 		modifiedAt: new Date().toISOString(),
 	});
-	if (opts.desiredEnabled !== undefined) {
+	if (opts.desiredEnabled !== undefined || opts.customizations !== undefined) {
 		stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
-			customizations: [{
+			customizations: opts.customizations ? [...opts.customizations] : [{
 				type: CustomizationType.McpServer,
 				id: 'mcp-top-level:copilot:session-1:search',
 				uri: 'mcp-top-level:copilot:session-1:search',
 				name: 'search',
-				enabled: opts.desiredEnabled,
+				...(opts.desiredEnabled ? {} : { enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }),
 				state: starting(),
 			}],
 		});
 	}
 	const controller = new McpCustomizationController({
-		providerId: 'copilot',
-		sessionId: 'session-1',
-		sessionUri,
-		resolveChildId: name => findMcpChildId(opts.customizations ?? [], name),
+		chatUri: CHAT_URI,
 		emit: a => actions.push(a),
+		pluginMcpServerSources: opts.pluginMcpServerSources,
+		resolveEnablement: opts.resolveEnablement,
 	}, stateManager);
 	return { controller, actions };
 }
@@ -78,14 +90,12 @@ const PLUGIN_CUSTOMIZATIONS: readonly Customization[] = [
 		id: 'plugin:demo',
 		uri: 'file:///plugins/demo',
 		name: 'demo-plugin',
-		enabled: true,
 		children: [
 			{
 				type: CustomizationType.McpServer,
 				id: 'mcp-child:demo:fs',
 				uri: 'mcp-child:demo:fs',
 				name: 'fs',
-				enabled: true,
 				state: { kind: McpServerStatus.Starting },
 			},
 		],
@@ -119,7 +129,7 @@ suite('McpCustomizationController', () => {
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
 				state: { kind: McpServerStatus.Ready },
-				channel: 'mcp://copilot/session-1/fs',
+				channel: MCP_FS_CHANNEL,
 			},
 			{
 				type: ActionType.SessionMcpServerStateChanged,
@@ -131,7 +141,7 @@ suite('McpCustomizationController', () => {
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
 				state: { kind: McpServerStatus.Ready },
-				channel: 'mcp://copilot/session-1/fs',
+				channel: MCP_FS_CHANNEL,
 			},
 		]);
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
@@ -152,9 +162,8 @@ suite('McpCustomizationController', () => {
 					id: expectedId,
 					uri: expectedId,
 					name: 'search',
-					enabled: true,
 					state: { kind: McpServerStatus.Ready },
-					channel: 'mcp://copilot/session-1/search',
+					channel: MCP_SEARCH_CHANNEL,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
 				},
 			},
@@ -165,12 +174,60 @@ suite('McpCustomizationController', () => {
 				id: expectedId,
 				uri: expectedId,
 				name: 'search',
-				enabled: true,
 				state: { kind: McpServerStatus.Ready },
-				channel: 'mcp://copilot/session-1/search',
+				channel: MCP_SEARCH_CHANNEL,
 				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
 			},
 		]);
+	});
+
+	test('passes a plugin MCP server source internally when it is temporarily surfaced top-level', () => {
+		let receivedOwner: string | undefined;
+		const { controller, actions } = harness(store, {
+			pluginMcpServerSources: () => new Map([['azure', 'file:///plugins/azure-skills']]),
+			resolveEnablement: (_server, owningPluginUri) => {
+				receivedOwner = owningPluginUri;
+				return undefined;
+			},
+		});
+		store.add(controller);
+
+		controller.applyOne(server('azure', ready()));
+
+		const action = actions[0] as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+		assert.strictEqual(action.customization.type, CustomizationType.McpServer);
+		if (action.customization.type === CustomizationType.McpServer) {
+			assert.strictEqual(Object.hasOwn(action.customization, 'owningPluginUri'), false);
+		}
+		assert.strictEqual(receivedOwner, 'file:///plugins/azure-skills');
+	});
+
+	test('uses the resolved global and workspace enablement for a plugin server temporarily surfaced top-level', () => {
+		const enablement = [
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false },
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+		] as const;
+		const { controller, actions } = harness(store, {
+			pluginMcpServerSources: () => new Map([['azure', 'file:///plugins/azure-skills']]),
+			resolveEnablement: () => enablement,
+		});
+		store.add(controller);
+
+		controller.applyOne(server('azure', stopped()));
+
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.SessionCustomizationUpdated,
+			customization: {
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilot:session-1:azure',
+				uri: 'mcp-top-level:copilot:session-1:azure',
+				name: 'azure',
+				enablement,
+				state: { kind: McpServerStatus.Stopped },
+				channel: undefined,
+				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+			},
+		}]);
 	});
 
 	test('non-ready bare server has no channel but still advertises mcpApp (static capability)', () => {
@@ -188,7 +245,6 @@ suite('McpCustomizationController', () => {
 					id: expectedId,
 					uri: expectedId,
 					name: 'search',
-					enabled: true,
 					state: { kind: McpServerStatus.Starting },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
@@ -227,7 +283,7 @@ suite('McpCustomizationController', () => {
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
 				state: { kind: McpServerStatus.Ready },
-				channel: 'mcp://copilot/session-1/fs',
+				channel: MCP_FS_CHANNEL,
 			},
 			{
 				type: ActionType.SessionMcpServerStateChanged,
@@ -245,7 +301,7 @@ suite('McpCustomizationController', () => {
 		controller.applyOne(server('search', starting()));
 
 		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
-			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: 'mcp://copilot/session-1/fs' }],
+			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: MCP_FS_CHANNEL }],
 			['mcp-top-level:copilot:session-1:search', { state: { kind: McpServerStatus.Starting }, channel: undefined }],
 		]));
 		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:fs'), 'fs');
@@ -279,7 +335,43 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(actions
 			.filter(action => action.type === ActionType.SessionCustomizationUpdated)
-			.map(action => action.customization.enabled), [false, false]);
+			.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? isCustomizationEnabled(action.customization) : undefined), [false, false]);
+	});
+
+	test('workspace plugin enablement masks and restores its child MCP server without changing the child decision', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'mcp-child:demo:fs',
+			uri: 'mcp-child:demo:fs',
+			name: 'fs',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			state: starting(),
+		};
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin:demo',
+			uri: 'file:///plugins/demo',
+			name: 'demo-plugin',
+			children: [child],
+		};
+		const disabledPlugin: PluginCustomization = {
+			...plugin,
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }],
+		};
+
+		const effective = [plugin, disabledPlugin, plugin].map(customization =>
+			getEffectiveMcpServerCustomizations([customization]).map(({ server, enabled }) => ({
+				id: server.id,
+				enablement: server.enablement,
+				enabled,
+			}))
+		);
+
+		assert.deepStrictEqual(effective, [
+			[{ id: 'mcp-child:demo:fs', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], enabled: true }],
+			[{ id: 'mcp-child:demo:fs', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], enabled: false }],
+			[{ id: 'mcp-child:demo:fs', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], enabled: true }],
+		]);
 	});
 
 	test('authRequired state is preserved across coarse starting updates', () => {
@@ -308,25 +400,26 @@ suite('McpCustomizationController', () => {
 				type: ActionType.SessionMcpServerStateChanged,
 				id: 'mcp-child:demo:fs',
 				state: { kind: McpServerStatus.Ready },
-				channel: 'mcp://copilot/session-1/fs',
+				channel: MCP_FS_CHANNEL,
 			},
 		]);
 	});
 
 	test('parseMcpChannelUri round-trips the controller-minted channel URI', () => {
-		const channel = 'mcp://copilot/session-1/fs';
-		assert.deepStrictEqual(parseMcpChannelUri(channel), {
+		const route = parseMcpChannelUri(MCP_FS_CHANNEL);
+		assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, {
 			providerId: 'copilot',
-			sessionId: 'session-1',
+			chatUri: CHAT_URI.toString(),
 			serverName: 'fs',
 		});
 	});
 
 	test('parseMcpChannelUri decodes URL-encoded path segments', () => {
-		const channel = 'mcp://copilot/session%2F1/my%20server';
-		assert.deepStrictEqual(parseMcpChannelUri(channel), {
+		const chatUri = URI.parse(buildChatUri(AgentSession.uri('copilot', 'session/1'), 'chat with spaces'));
+		const route = parseMcpChannelUri(buildMcpChannel(chatUri, 'my server'));
+		assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, {
 			providerId: 'copilot',
-			sessionId: 'session/1',
+			chatUri: chatUri.toString(),
 			serverName: 'my server',
 		});
 	});
@@ -337,6 +430,7 @@ suite('McpCustomizationController', () => {
 		assert.strictEqual(parseMcpChannelUri('mcp:///session/server'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session-only'), undefined);
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/session/'), undefined);
+		assert.strictEqual(parseMcpChannelUri(MCP_FS_CHANNEL.replace('mcp://copilot/', 'mcp://codex/')), undefined);
 		// Bad percent escapes must not throw — caller turns undefined
 		// into a clean Method not found, not an internal error.
 		assert.strictEqual(parseMcpChannelUri('mcp://copilot/bad%/server'), undefined);
@@ -351,7 +445,6 @@ suite('McpCustomizationController', () => {
 				id: 'mcp-top-level:test:search',
 				uri: 'mcp-top-level:test:search',
 				name: 'search',
-				enabled: true,
 				state: { kind: McpServerStatus.Ready },
 			},
 		];
@@ -369,7 +462,6 @@ suite('McpCustomizationController', () => {
 				id: 'mcp-top-level:test:search',
 				uri: 'mcp-top-level:test:search',
 				name: 'search',
-				enabled: true,
 				state: { kind: McpServerStatus.Ready },
 			},
 		];

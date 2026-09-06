@@ -14,13 +14,14 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatWidget } from '../../browser/widget/chatWidget.js';
+import { toPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatVariablesService } from '../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IChatService } from '../../common/chatService/chatService.js';
 import { MockChatService } from '../common/chatService/mockChatService.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
 import { MockPromptsService } from '../common/promptSyntax/service/mockPromptsService.js';
@@ -29,7 +30,7 @@ suite('ChatWidget Slash Commands', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('during-request execution trims from the parsed slash-command range', async () => {
+	test('during-request execution handles an active request waiting for input', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -42,18 +43,26 @@ suite('ChatWidget Slash Commands', () => {
 
 		const chatSlashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		let executedPrompt: string | undefined;
+		let executedRequestOptions: IChatSendRequestOptions | undefined;
 		chatSlashCommandService.getCommands.returns([{ command: 'btw', executeDuringRequest: true, silent: true }]);
-		chatSlashCommandService.executeCommand.callsFake(async (command, prompt) => {
+		let acceptedInput: { storeToHistory: boolean | undefined; preserveFocus: boolean | undefined } | undefined;
+		chatSlashCommandService.executeCommand.callsFake(async (command, prompt, _progress, _history, _location, _sessionResource, _token, requestOptions) => {
 			assert.strictEqual(command, 'btw');
+			assert.ok(acceptedInput);
 			executedPrompt = prompt;
+			executedRequestOptions = requestOptions;
 		});
 		instantiationService.stub(IChatSlashCommandService, chatSlashCommandService);
 
-		let acceptedInput: { storeToHistory: boolean | undefined; preserveFocus: boolean | undefined } | undefined;
+		const pastedText = toPasteVariableEntry('Pasted text #1', 'Long pasted text');
+		let hasActiveRequest = false;
 		const widget = {
 			viewModel: {
 				sessionResource: LocalChatSessionUri.forSession('test-session'),
-				model: { getRequests: () => [] },
+				model: {
+					getRequests: () => [],
+					hasActiveRequest: { get: () => hasActiveRequest },
+				},
 			},
 			instantiationService,
 			location: ChatAgentLocation.Chat,
@@ -64,24 +73,37 @@ suite('ChatWidget Slash Commands', () => {
 			chatSlashCommandService,
 			input: {
 				currentModeKind: ChatModeKind.Ask,
+				getAttachedContext: () => ({ asArray: () => [pastedText] }),
 				acceptInput(storeToHistory?: boolean, preserveFocus?: boolean): void {
 					acceptedInput = { storeToHistory, preserveFocus };
 				},
 			},
 		} as unknown as ChatWidget;
 
-		const handled = await (ChatWidget.prototype as unknown as {
-			_executeSlashCommandDuringRequest(widgetInput: string, store: boolean, isUserQuery: boolean | undefined): Promise<boolean>;
-		})._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', true, true);
+		const privateMethods = ChatWidget.prototype as unknown as {
+			_getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): NonNullable<IChatSendRequestOptions['attachedContext']>;
+			_executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean>;
+		};
+		const attachedContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, false);
+		const preservedInputContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, true);
+		const handledWithoutActiveRequest = await privateMethods._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext }, true, true);
+		hasActiveRequest = true;
+		const handled = await privateMethods._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext }, true, true);
 
 		assert.deepStrictEqual({
+			handledWithoutActiveRequest,
 			handled,
 			executedPrompt,
 			acceptedInput,
+			attachedContext: executedRequestOptions?.attachedContext,
+			preservedInputContext,
 		}, {
+			handledWithoutActiveRequest: false,
 			handled: true,
 			executedPrompt: 'keep indentation',
 			acceptedInput: { storeToHistory: true, preserveFocus: true },
+			attachedContext: [pastedText],
+			preservedInputContext: [],
 		});
 	});
 });

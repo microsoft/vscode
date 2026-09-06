@@ -42,6 +42,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		status: observableValue('status', SessionStatus.Untitled),
 		changes: observableValue('changes', []),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),

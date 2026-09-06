@@ -6,6 +6,18 @@
 import type { ToolDefinition, URI } from './state/sessionState.js';
 
 /**
+ * A server tool definition plus agent-host-local metadata that is not part of
+ * the wire protocol.
+ */
+export interface IAgentServerToolDefinition extends ToolDefinition {
+	/**
+	 * Whether this tool is offered to ephemeral sessions. Defaults to `false` so
+	 * throwaway surfaces do not pay for session-management tooling.
+	 */
+	readonly enabledForEphemeralSessions?: boolean;
+}
+
+/**
  * Server-side host for the agent host's **server tools** — tools that the
  * agent host owns and executes in-process (against a session's own state
  * channels) rather than round-tripping to the workbench. Providers (Copilot,
@@ -17,28 +29,45 @@ import type { ToolDefinition, URI } from './state/sessionState.js';
  * never hard-code any specific tool — they read {@link definitions} /
  * {@link toolNames} and route through {@link executeTool}.
  *
- * `sessionUri` is the session's protocol URI.
+ * Tool invocation methods take the exact Agent Host chat channel URI. The host
+ * resolves its owning session for session-scoped state and tools.
  */
 export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
-	readonly definitions: readonly ToolDefinition[];
+	readonly definitions: readonly IAgentServerToolDefinition[];
+	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[];
 	/** Names of every server tool across the contributed groups. */
 	readonly toolNames: readonly string[];
 	/** Advertises all server tools on the session's `serverTools`. */
 	advertise(sessionUri: URI): void;
 	/**
-	 * Whether {@link toolName} must be confirmed by the user before it runs.
-	 * Providers exclude such tools from their server-tool auto-approve lists so
-	 * the call surfaces a confirmation instead of executing silently. Returns
-	 * `false` for unknown tools and for tools that are auto-approved.
+	 * Whether {@link toolName} can ever prompt for confirmation, independent of
+	 * any session's current state. Providers use this to decide up front which
+	 * tools must route through their confirmation path; a tool that answers
+	 * `false` is auto-approved and never asks {@link requiresConfirmation}.
+	 * Returns `false` for unknown tools.
+	 *
+	 * This must stay session-independent: providers bake the answer into
+	 * long-lived SDK allow-lists, so a state-dependent value would go stale.
 	 */
-	requiresConfirmation(toolName: string): boolean;
+	canRequireConfirmation(toolName: string): boolean;
 	/**
-	 * Executes a server tool against the session's state, dispatching any
+	 * Whether {@link toolName} needs to prompt for *this* invocation, given the
+	 * current state of {@link chatUri}. Lets a tool that normally confirms
+	 * run silently when it has nothing to confirm. Defaults to
+	 * {@link canRequireConfirmation} when the owning group has no
+	 * session-specific condition.
+	 *
+	 * Providers must consult this before prompting or executing the tool.
+	 */
+	requiresConfirmation(chatUri: URI, toolName: string): boolean;
+	/**
+	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
 	 *
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 }

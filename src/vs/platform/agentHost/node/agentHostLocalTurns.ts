@@ -5,9 +5,26 @@
 
 import type { IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ILocalTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { Turn } from '../common/state/sessionState.js';
+
+export const IAgentHostLocalTurns = createDecorator<IAgentHostLocalTurns>('agentHostLocalTurns');
+
+export interface IAgentHostLocalTurns {
+	readonly _serviceBrand: undefined;
+
+	/** Whether `turnId` is a known host-injected local turn in `chat`. */
+	isLocal(chat: string, turnId: string): boolean;
+	/**
+	 * Resolves the anchor a host-injected turn must be recorded against: the
+	 * nearest preceding turn in `chat` that the agent SDK actually owns.
+	 */
+	findAnchorTurnId(chat: string, turns: readonly Turn[], turnId: string): string | undefined;
+	/** Records `turn` as a host-injected local turn anchored to `anchorTurnId`. */
+	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void;
+}
 
 /**
  * Tracks host-injected ("local") turns — completed protocol turns the agent SDK
@@ -25,7 +42,8 @@ import type { Turn } from '../common/state/sessionState.js';
  * the owning session's database (one per session, shared across its chats),
  * discriminated by {@link ILocalTurnRecord.chatUri}.
  */
-export class AgentHostLocalTurns {
+export class AgentHostLocalTurns implements IAgentHostLocalTurns {
+	declare readonly _serviceBrand: undefined;
 
 	/** chat URI → (localTurnId → { anchorTurnId, seq }). */
 	private readonly _byChat = new Map<string, Map<string, { readonly anchorTurnId: string | undefined; readonly seq: number }>>();
@@ -78,6 +96,20 @@ export class AgentHostLocalTurns {
 		ref.object.insertLocalTurn(record).catch(err => {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to persist local turn ${turn.id}`, err);
 		}).finally(() => ref.dispose());
+	}
+
+	/**
+	 * Resolves the anchor a host-injected turn must be recorded against: the
+	 * nearest preceding turn in `chat` that the agent SDK actually owns, or
+	 * `undefined` when the turn precedes every concrete turn.
+	 */
+	findAnchorTurnId(chat: string, turns: readonly Turn[], turnId: string): string | undefined {
+		for (let i = turns.findIndex(turn => turn.id === turnId) - 1; i >= 0; i--) {
+			if (!this.isLocal(chat, turns[i].id)) {
+				return turns[i].id;
+			}
+		}
+		return undefined;
 	}
 
 	/**

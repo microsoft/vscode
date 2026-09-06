@@ -43,6 +43,20 @@ export interface IChatContentPart extends IDisposable {
 	addDisposable?(disposable: IDisposable): void;
 }
 
+/** Diff resource emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffResource {
+	readonly resource: URI;
+	readonly originalURI: URI | undefined;
+	readonly modifiedURI: URI | undefined;
+}
+
+/** Aggregated diff data emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffData {
+	readonly added: number;
+	readonly removed: number;
+	readonly resources: readonly IChatContentPartDiffResource[];
+}
+
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly elementIndex: number;

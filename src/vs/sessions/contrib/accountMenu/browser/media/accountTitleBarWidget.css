@@ -20,12 +20,6 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account {
-	width: 28px;
-	min-width: 28px;
-	overflow: visible;
-}
-
 .agent-sessions-workbench .sessions-account-titlebar-widget:hover,
 .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
 	background: var(--vscode-toolbar-hoverBackground);
@@ -67,40 +61,6 @@
 	display: block;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-avatar,
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-icon {
-	position: absolute;
-	left: 1px;
-	z-index: 2;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon:not(.visible) {
-	display: none;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon {
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 18px;
-	font-size: 15px;
-	border: 1px solid var(--vscode-titleBar-activeBackground);
-	border-radius: 50%;
-	background: var(--vscode-titleBar-activeBackground);
-	color: var(--vscode-foreground);
-	box-sizing: border-box;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget-codex-icon.visible {
-	display: flex;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget.has-chatgpt-account .sessions-account-titlebar-widget-codex-icon {
-	position: absolute;
-	right: 0;
-	z-index: 1;
-}
-
 .monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
 	border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
 }
@@ -128,8 +88,8 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	font-size: var(--vscode-agents-fontSize-label3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 }
@@ -228,7 +188,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions .monaco-button {
 	height: 22px;
 	padding: 0 8px;
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	line-height: 20px;
 	border-radius: var(--vscode-cornerRadius-medium);
 }
@@ -254,7 +214,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-summary {
 	padding: 12px 16px;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 }
@@ -315,6 +275,11 @@
 	color: var(--vscode-foreground);
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-avatar.hidden,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-icon.hidden {
+	display: none;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-details {
 	display: flex;
 	flex: 1;
@@ -327,8 +292,8 @@
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 	line-height: 20px;
 	color: var(--vscode-foreground);
 	text-overflow: ellipsis;
@@ -337,7 +302,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-description {
 	overflow: hidden;
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	text-overflow: ellipsis;
@@ -376,7 +341,7 @@
 	padding: 2px 6px;
 	justify-content: flex-start;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 20px;
 	color: var(--vscode-foreground);
 }
@@ -399,8 +364,8 @@
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-plan {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 20px;
 	color: var(--vscode-foreground);
 }
@@ -418,7 +383,7 @@
 	justify-content: space-between;
 	gap: 16px;
 	min-width: 0;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 20px;
 	color: var(--vscode-foreground);
 }
@@ -439,7 +404,7 @@
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value,
@@ -455,6 +420,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-footer .chat-status-bar-entry-tooltip {
 	min-width: 0;
+	max-width: none;
 	padding: 0;
 }
 
@@ -477,7 +443,7 @@
 	display: flex;
 	align-items: center;
 	min-width: 0;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 20px;
 	color: var(--vscode-foreground);
 }
@@ -501,7 +467,7 @@
 	padding: 3px 16px;
 	justify-content: flex-start;
 	border-radius: 0;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 }
@@ -539,9 +505,9 @@
 	padding: 0 28px 0 0;
 	border-top: none;
 	background: none;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-fontWeight-regular);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -551,12 +517,12 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
 	margin-left: auto;
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	line-height: 15px;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .contributed-detail {
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	line-height: 15px;
 }
 
@@ -568,8 +534,8 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
 	padding: 4px 8px 2px;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 }
@@ -596,7 +562,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -604,8 +570,8 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .header-label {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-weight: var(--vscode-agents-fontWeight-regular);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .monaco-action-bar {
@@ -625,7 +591,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > div.description {
 	margin: 0;
 	padding: 0 2px;
-	font-size: var(--vscode-agents-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2);
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -636,8 +602,8 @@
 	margin: 0;
 	padding: 0 12px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1;
 }
 

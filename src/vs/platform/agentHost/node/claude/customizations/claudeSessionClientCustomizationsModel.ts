@@ -6,6 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
@@ -176,21 +177,24 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 		return false;
 	}
 	for (let i = 0; i < a.length; i++) {
-		const ai = a[i].customization;
-		const bi = b[i].customization;
+		const ai = a[i].customization as ClientPluginCustomization;
+		const bi = b[i].customization as ClientPluginCustomization;
 		if (ai.id !== bi.id) {
 			return false;
 		}
 		if (ai.uri !== bi.uri) {
 			return false;
 		}
-		if ((ai as ClientPluginCustomization).nonce !== (bi as ClientPluginCustomization).nonce) {
+		if (ai.nonce !== bi.nonce) {
 			return false;
 		}
 		if (ai.name !== bi.name) {
 			return false;
 		}
-		if (ai.enabled !== bi.enabled) {
+		if (!objectsEqual(ai.enablement ?? [], bi.enablement ?? [])) {
+			return false;
+		}
+		if (!objectsEqual(ai.childEnablement ?? {}, bi.childEnablement ?? {})) {
 			return false;
 		}
 		if (ai.load?.kind !== bi.load?.kind) {

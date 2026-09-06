@@ -38,6 +38,8 @@ process.on('exit', () => {
 	killCmds.forEach(cmd => cmd());
 });
 
+type SpawnRipgrepCmd = typeof spawnRipgrepCmd;
+
 export class FileWalker {
 	private config: IFileQuery;
 	private filePattern: string;
@@ -55,13 +57,14 @@ export class FileWalker {
 	private errors: string[];
 	private cmdSW: StopWatch | null = null;
 	private cmdResultCount: number = 0;
+	private readonly killCmds = new Set<() => void>();
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
 	private walkedPaths: { [path: string]: boolean };
 
-	constructor(config: IFileQuery) {
+	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd) {
 		this.config = config;
 		this.filePattern = config.filePattern || '';
 		const globOptions = config.ignoreGlobCase ? { ignoreCase: true } : undefined;
@@ -111,7 +114,7 @@ export class FileWalker {
 
 	cancel(): void {
 		this.isCanceled = true;
-		killCmds.forEach(cmd => cmd());
+		this.killCmds.forEach(cmd => cmd());
 	}
 
 	walk(folderQueries: IFolderQuery[], extraFiles: URI[], numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
@@ -194,25 +197,38 @@ export class FileWalker {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 
-		const killCmd = () => cmd && cmd.kill();
-		killCmds.add(killCmd);
-
-		let done = (err?: Error) => {
-			killCmds.delete(killCmd);
-			done = () => { };
-			cb(err);
-		};
 		let leftover = '';
 		const tree = this.initDirectoryTree();
 
 		let ripgrep;
 		try {
-			ripgrep = await spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
 		} catch (err) {
-			done(err instanceof Error ? err : new Error(String(err)));
+			cb(err instanceof Error ? err : new Error(String(err)));
 			return;
 		}
 		const cmd = ripgrep.cmd;
+		const killCmd = () => {
+			if (cmd.pid !== undefined) {
+				cmd.kill();
+			}
+		};
+		this.killCmds.add(killCmd);
+		killCmds.add(killCmd);
+
+		let done = (err?: Error) => {
+			this.killCmds.delete(killCmd);
+			killCmds.delete(killCmd);
+			done = () => { };
+			cb(err);
+		};
+
+		if (this.isCanceled) {
+			cmd.once('error', () => { });
+			cmd.once('close', () => done());
+			killCmd();
+			return;
+		}
 		const noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
 		const escapedArgs = ripgrep.rgArgs.args

@@ -14,6 +14,7 @@ import type { IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agent
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
+import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 
@@ -56,7 +57,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			baseDirectory,
 			useLoggedInUser: false,
 			logLevel: 'error',
-			env: createCopilotCliEnvironment(),
+			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(baseDirectory)),
 		});
 		let session: Awaited<ReturnType<CopilotClient['createSession']>> | undefined;
 		let clientStarted = false;

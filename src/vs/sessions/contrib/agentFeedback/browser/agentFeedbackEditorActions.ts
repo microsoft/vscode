@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
@@ -49,20 +53,18 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			?? editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.activeEditorPane)?.activeEditorPane
 			?? editorService.visibleEditorPanes[0];
 		const candidates = getActiveResourceCandidates(activePane?.input);
-		for (const candidate of candidates) {
-			const sessionResource = agentFeedbackService.getFeedbackSessionResource(candidate)
-				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
-			if (!sessionResource) {
-				continue;
-			}
-
+		const sessionCandidates = getFeedbackSessionCandidates(candidates, candidate =>
+			agentFeedbackService.getFeedbackSessionResource(candidate)
+			?? agentFeedbackService.getMostRecentSessionForResource(candidate));
+		for (const { resource, sessionResource } of sessionCandidates) {
 			const comments = getSessionEditorComments(
 				sessionResource,
 				agentFeedbackService.getFeedback(sessionResource),
 				codeReviewService.getPRReviewState(sessionResource).get(),
+				agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 			);
 			if (comments.length > 0) {
-				return this.runWithSession(accessor, sessionResource, candidate);
+				return this.runWithSession(accessor, sessionResource, resource);
 			}
 		}
 	}
@@ -79,6 +81,11 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			shortTitle: localize2('agentFeedback.submitShort', 'Submit'),
 			icon: Codicon.send,
 			precondition: ChatContextKeys.enabled,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus, hasUnsubmittedAgentFeedback),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+			},
 			menu: {
 				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
@@ -125,6 +132,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			sessionResource,
 			agentFeedbackService.getFeedback(sessionResource),
 			codeReviewService.getPRReviewState(sessionResource).get(),
+			agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 		);
 
 		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);

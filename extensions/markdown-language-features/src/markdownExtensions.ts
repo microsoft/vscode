@@ -41,13 +41,14 @@ export interface MarkdownCodeBlockEditorSandbox {
 
 export type MarkdownCodeBlockEditorSource =
 	| { readonly kind: 'static'; readonly resource: vscode.Uri }
-	| { readonly kind: 'exportApi' };
+	| { readonly kind: 'exportApi'; readonly apiVersion: number };
 
 export interface MarkdownCodeBlockEditorProvider {
 	readonly id: string;
 	readonly providerId: string;
 	readonly extension: vscode.Extension<unknown>;
 	readonly extensionVersion: string;
+	readonly runtimeKey?: string;
 	readonly selector: MarkdownCodeBlockEditorSelector;
 	readonly source: MarkdownCodeBlockEditorSource;
 	readonly contentType: 'text' | 'json';
@@ -100,6 +101,7 @@ export namespace MarkdownContributions {
 				&& x.providerId === y.providerId
 				&& x.extension.id === y.extension.id
 				&& x.extensionVersion === y.extensionVersion
+				&& x.runtimeKey === y.runtimeKey
 				&& selectorEqual(x.selector, y.selector)
 				&& sourceEqual(x.source, y.source)
 				&& x.contentType === y.contentType
@@ -179,6 +181,7 @@ export namespace MarkdownContributions {
 				typeof provider.id !== 'string'
 				|| !selector
 				|| !source
+				|| (provider.runtimeKey !== undefined && (typeof provider.runtimeKey !== 'string' || provider.runtimeKey.length === 0 || provider.runtimeKey.length > 256))
 				|| (provider.contentType !== undefined && provider.contentType !== 'text' && provider.contentType !== 'json')
 				|| (provider.initialHeight !== undefined && !isPositiveNumber(provider.initialHeight))
 			) {
@@ -189,6 +192,7 @@ export namespace MarkdownContributions {
 				providerId: provider.id,
 				extension,
 				extensionVersion: typeof extension.packageJSON?.version === 'string' ? extension.packageJSON.version : '',
+				runtimeKey: provider.runtimeKey as string | undefined,
 				selector,
 				source,
 				contentType: provider.contentType ?? 'text',
@@ -255,8 +259,8 @@ export namespace MarkdownContributions {
 			return undefined;
 		}
 		const source = value as Record<string, unknown>;
-		if (source.kind === 'exportApi') {
-			return { kind: 'exportApi' };
+		if (source.kind === 'exportApi' && isPositiveInteger(source.apiVersion)) {
+			return { kind: 'exportApi', apiVersion: source.apiVersion };
 		}
 		if (source.kind === 'static' && typeof source.entrypoint === 'string') {
 			return { kind: 'static', resource: resolveExtensionResource(extension, source.entrypoint) };
@@ -281,6 +285,10 @@ export namespace MarkdownContributions {
 		return typeof value === 'number' && Number.isFinite(value) && value > 0;
 	}
 
+	function isPositiveInteger(value: unknown): value is number {
+		return isPositiveNumber(value) && Number.isInteger(value);
+	}
+
 	function selectorEqual(a: MarkdownCodeBlockEditorSelector, b: MarkdownCodeBlockEditorSelector): boolean {
 		return a.language === b.language && a.languagePrefix === b.languagePrefix;
 	}
@@ -289,7 +297,9 @@ export namespace MarkdownContributions {
 		if (a.kind !== b.kind) {
 			return false;
 		}
-		return a.kind !== 'static' || (b.kind === 'static' && uriEqual(a.resource, b.resource));
+		return a.kind === 'static'
+			? b.kind === 'static' && uriEqual(a.resource, b.resource)
+			: b.kind === 'exportApi' && a.apiVersion === b.apiVersion;
 	}
 
 	function sandboxEqual(a: MarkdownCodeBlockEditorSandbox | undefined, b: MarkdownCodeBlockEditorSandbox | undefined): boolean {

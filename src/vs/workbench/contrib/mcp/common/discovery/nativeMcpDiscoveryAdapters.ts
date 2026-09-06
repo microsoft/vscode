@@ -8,20 +8,20 @@ import { Platform } from '../../../../../base/common/platform.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
-import { DiscoverySource } from '../mcpConfiguration.js';
+import { ExternalDiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../mcpTypes.js';
 
 export interface NativeMpcDiscoveryAdapter {
 	readonly remoteAuthority: string | null;
 	readonly id: string;
 	readonly order: number;
-	readonly discoverySource: DiscoverySource;
+	readonly discoverySource: ExternalDiscoverySource;
 
 	getFilePath(details: INativeMcpDiscoveryData): URI | undefined;
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -49,15 +49,19 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			command: server.command,
 			env: server.env || {},
 			envFile: undefined,
-			cwd: cwd?.fsPath,
+			cwd: options?.cwd?.fsPath,
 			sandbox: undefined
 		};
+		const defaultCwd = launch.type === McpServerTransportType.Stdio ? options?.defaultCwd : undefined;
+		// Keep the legacy fsPath-based nonce so existing trust decisions survive this URI-preservation change.
+		const nonceLaunch = defaultCwd && launch.type === McpServerTransportType.Stdio ? { ...launch, cwd: defaultCwd.fsPath } : launch;
 
 		return {
 			id: `${idPrefix}.${name}`,
 			label: name,
 			launch,
-			cacheNonce: await McpServerLaunch.hash(launch),
+			defaultCwd,
+			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
 		};
 	}));
 }
@@ -65,7 +69,7 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
 	public id: string;
 	public readonly order = McpCollectionSortOrder.Filesystem;
-	public readonly discoverySource: DiscoverySource = DiscoverySource.ClaudeDesktop;
+	public readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.ClaudeDesktop;
 
 	constructor(public readonly remoteAuthority: string | null) {
 		this.id = `claude-desktop.${this.remoteAuthority}`;
@@ -84,12 +88,25 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, homedir);
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
+	}
+}
+
+export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Copilot;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `copilot.${this.remoteAuthority}`;
+	}
+
+	override getFilePath({ copilotHome, homedir }: INativeMcpDiscoveryData): URI | undefined {
+		return URI.joinPath(copilotHome ?? URI.joinPath(homedir, '.copilot'), 'mcp-config.json');
 	}
 }
 
 export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.Windsurf;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Windsurf;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);
@@ -102,7 +119,7 @@ export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscover
 }
 
 export class CursorDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.CursorGlobal;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.CursorGlobal;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);

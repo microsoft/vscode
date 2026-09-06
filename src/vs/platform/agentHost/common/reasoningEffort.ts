@@ -17,13 +17,13 @@ import { localize } from '../../../nls.js';
  * does not prevent that: it only verifies each entry is a valid level, not that
  * every level is present.
  */
-export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
 
 /**
  * Union of every reasoning-effort / thinking-level value surfaced by any
  * agent-host provider. Individual providers expose a subset:
- * - Codex: `'minimal' | 'low' | 'medium' | 'high'`
- * - Copilot / Claude: `'low' | 'medium' | 'high' | 'xhigh' | 'max'`
+ * - Codex: model-dependent, currently up to `'ultra'`
+ * - Copilot / Claude: model-dependent, currently up to `'max'`
  *
  * The label/description helpers below are the single source of truth for
  * the localized picker strings so every provider renders the same value
@@ -45,6 +45,7 @@ export function getReasoningEffortLabel(level: string): string {
 		case 'high': return localize('reasoningEffort.high', "High");
 		case 'xhigh': return localize('reasoningEffort.xhigh', "Extra High");
 		case 'max': return localize('reasoningEffort.max', "Max");
+		case 'ultra': return localize('reasoningEffort.ultra', "Ultra");
 		default: return level.charAt(0).toUpperCase() + level.slice(1);
 	}
 }
@@ -67,6 +68,7 @@ export function getReasoningEffortDescription(level: string): string | undefined
 		case 'high': return localize('reasoningEffort.highDescription', "Greater reasoning depth but slower");
 		case 'xhigh': return localize('reasoningEffort.xhighDescription', "Highest reasoning depth but slowest");
 		case 'max': return localize('reasoningEffort.maxDescription', "Absolute maximum capability with no constraints");
+		case 'ultra': return localize('reasoningEffort.ultraDescription', "Maximum reasoning with automatic task delegation");
 		default: return undefined;
 	}
 }

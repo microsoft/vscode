@@ -13,7 +13,6 @@ export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
 	export const Local = 'local';
-	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilot';
@@ -27,12 +26,11 @@ export namespace SessionType {
  * Handles multiple URI schemes:
  * - `vscode-chat-session://local/<base64EncodedSessionId>` — foreground chat sessions
  * - `copilotcli://<sessionId>` — CLI in-process sessions
- * - `claude-code://<sessionId>` — Claude Code sessions
  *
  * Used by the debug panel, span export, and other session-aware features.
  */
 export function decodeSessionId(sessionResource: URI): string {
-	if (sessionResource.scheme === SessionType.CopilotCLI || sessionResource.scheme === SessionType.ClaudeCode) {
+	if (sessionResource.scheme === SessionType.CopilotCLI) {
 		return sessionResource.path.replace(/^\//, '');
 	}
 	const pathSegment = sessionResource.path.replace(/^\//, '').split('/').pop() || '';
@@ -71,4 +69,3 @@ export function getChatSessionType(sessionResource: URI): string {
 export function matchesSessionType(sessionTypes: readonly string[] | undefined, currentSessionType: string | undefined): boolean {
 	return sessionTypes === undefined || currentSessionType === undefined || sessionTypes.includes(currentSessionType);
 }
-

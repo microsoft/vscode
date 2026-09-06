@@ -46,13 +46,13 @@
 .sessions-policy-blocked-card h2 {
 	margin: 0;
 	font-size: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
 .sessions-policy-blocked-card p {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 }
@@ -98,8 +98,8 @@
 
 .sessions-policy-blocked-card .sessions-policy-blocked-orgs-label {
 	margin: 0 0 4px 0;
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -110,13 +110,13 @@
 }
 
 .sessions-policy-blocked-card .sessions-policy-blocked-orgs li {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.6;
 }
 
 .sessions-policy-blocked-card .sessions-policy-blocked-footer {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .sessions-policy-blocked-card .monaco-button {

@@ -18,6 +18,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -172,6 +173,9 @@ suite('ResponseSelectionSideChatController', () => {
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => undefined,
 		}));
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ILogService, new NullLogService());

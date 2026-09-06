@@ -39,7 +39,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName, getQuotaReset, getQuotaUsage, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { isNewUser } from './chatStatus.js';
@@ -245,9 +245,9 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		const creditsUsed = hasPremiumUnlimited && !isPooledQuotaDepleted ? premiumChat?.creditsUsed : undefined;
-		if (typeof creditsUsed === 'number') {
-			this.createCreditsUsedIndicator(this.element, creditsUsed, premiumChat?.resetAt);
+		const premiumChatUsage = getQuotaUsage(premiumChat);
+		if (premiumChatUsage?.kind === QuotaUsageKind.CreditsUsed) {
+			this.createCreditsUsedIndicator(this.element, premiumChatUsage.creditsUsed, this.formatQuotaResetLabel(premiumChat));
 		} else if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
@@ -299,7 +299,6 @@ export class ChatStatusDashboard extends DomWidget {
 		const planName = compact ? getChatPlanName(this.chatEntitlementService.entitlement) : undefined;
 
 		if (chatQuota || premiumChatQuota || completionsQuota) {
-			const resetLabel = this.formatGlobalResetLabel();
 
 			// Global quota callout (shown at the top, before quota indicators)
 			const globalCalloutUpdater = this.createGlobalQuotaCallout(container);
@@ -320,7 +319,7 @@ export class ChatStatusDashboard extends DomWidget {
 				const chatLabel = this.chatEntitlementService.quotas.usageBasedBilling && this.chatEntitlementService.entitlement === ChatEntitlement.Free
 					? localize('creditsLabel', "Credits")
 					: localize('chatsLabel', "Chat messages");
-				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, chatLabel, resetLabel, compact ? planName : undefined);
+				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, chatLabel, this.formatQuotaResetLabel(chatQuota), compact ? planName : undefined);
 			}
 
 			let premiumChatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
@@ -329,8 +328,7 @@ export class ChatStatusDashboard extends DomWidget {
 				const premiumChatLabel = isUBB
 					? localize('creditsLabel', "Credits")
 					: this.chatEntitlementService.quotas.additionalUsageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
-				const premiumChatResetLabel = isUBB ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
-				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel, compact ? planName : undefined);
+				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, this.formatQuotaResetLabel(premiumChatQuota), compact ? planName : undefined);
 			}
 
 			// Additional Budget indicator (overage bar, shown when overage_entitlement > 0)
@@ -345,9 +343,10 @@ export class ChatStatusDashboard extends DomWidget {
 					unlimited: false,
 					entitlement: initialOverageEntitlement,
 					quotaRemaining: Math.max(0, initialOverageEntitlement - overageCount),
+					resetAt: premiumChatQuota?.resetAt,
 				};
 				const additionalBudgetLabel = localize('additionalBudgetLabel', "Additional Budget");
-				additionalBudgetIndicator = this.createQuotaIndicator(container, overageSnapshot, additionalBudgetLabel, resetLabel, compact ? additionalBudgetLabel : undefined);
+				additionalBudgetIndicator = this.createQuotaIndicator(container, overageSnapshot, additionalBudgetLabel, this.formatQuotaResetLabel(overageSnapshot), compact ? additionalBudgetLabel : undefined);
 				additionalBudgetElement = container.lastElementChild as HTMLElement;
 				const isPremiumExhausted = premiumChatQuota && premiumChatQuota.percentRemaining <= 0;
 				if (!isPremiumExhausted) {
@@ -359,7 +358,7 @@ export class ChatStatusDashboard extends DomWidget {
 			const showCompletions = !compact && completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
-				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel, compact ? planName : undefined);
+				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), this.formatQuotaResetLabel(completionsQuota), compact ? planName : undefined);
 			}
 
 			// Update indicators from current quota state
@@ -450,7 +449,7 @@ export class ChatStatusDashboard extends DomWidget {
 			disclosureHeader.appendChild($('span.collapsible-label', undefined, localize('inlineSuggestionsTab', "Inline Suggestions")));
 
 			chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 
 			statusEl = disclosureHeader.appendChild($('span.collapsible-status', undefined, getStatusText()));
 		}
@@ -468,7 +467,7 @@ export class ChatStatusDashboard extends DomWidget {
 				collapsibleInner.inert = isCollapsed;
 				disclosureHeader!.setAttribute('aria-expanded', String(!isCollapsed));
 				chevron!.className = 'collapsible-chevron';
-				chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
+				chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRightCompact : Codicon.chevronDownCompact));
 				this.storageService.store(ChatStatusDashboard.QUICK_SETTINGS_COLLAPSED_KEY, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
 			};
 
@@ -759,27 +758,19 @@ export class ChatStatusDashboard extends DomWidget {
 		this.hoverService.hideHover(true);
 	}
 
-	private formatResetAtLabel(resetAt: number | undefined): string | undefined {
-		if (!resetAt) {
+	private formatQuotaResetLabel(quota: IQuotaSnapshot | undefined): string | undefined {
+		const reset = getQuotaReset(quota, this.chatEntitlementService.quotas);
+		if (!reset) {
 			return undefined;
 		}
-		const resetDate = new Date(resetAt * 1000);
-		return localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(resetDate), this.timeFormatter.value.format(resetDate));
+
+		return reset.hasTime
+			? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(reset.date), this.timeFormatter.value.format(reset.date))
+			: localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(reset.date));
 	}
 
-	private formatGlobalResetLabel(): string | undefined {
-		const { resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
-		if (!resetDate) {
-			return undefined;
-		}
-		return resetDateHasTime
-			? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate)))
-			: localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)));
-	}
-
-	private createCreditsUsedIndicator(container: HTMLElement, creditsUsed: number, resetAt: number | undefined): void {
+	private createCreditsUsedIndicator(container: HTMLElement, creditsUsed: number, resetLabel: string | undefined): void {
 		const isCompact = !!this.options?.compactQuotaLayout;
-		const resetLabel = this.formatResetAtLabel(resetAt) ?? this.formatGlobalResetLabel();
 
 		const resetValue = $('span.quota-reset');
 		if (resetLabel) {
@@ -858,18 +849,21 @@ export class ChatStatusDashboard extends DomWidget {
 		};
 
 		const showCredits = () => {
-			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
-				const total = currentQuota.entitlement;
-				const used = currentQuota.quotaRemaining !== undefined
-					? total - currentQuota.quotaRemaining
-					: total * (100 - currentQuota.percentRemaining) / 100;
-				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
-				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
-				quotaValueSuffix.textContent = isCompact
-					? localize('quotaLabelUsed', "{0} used", label)
-					: ` ${localize('quotaUsed', "used")}`;
+			if (typeof currentQuota === 'string') {
+				return;
 			}
+
+			const usage = getQuotaUsage(currentQuota);
+			if (usage?.kind !== QuotaUsageKind.Percentage || usage.used === undefined || usage.total === undefined) {
+				return;
+			}
+
+			const usedFormatted = this.quotaCreditsFormatter.value.format(usage.used);
+			const totalFormatted = this.quotaCreditsFormatter.value.format(usage.total);
+			quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+			quotaValueSuffix.textContent = isCompact
+				? localize('quotaLabelUsed', "{0} used", label)
+				: ` ${localize('quotaUsed', "used")}`;
 		};
 
 		const hoverTarget = isCompact ? quotaValueText : quotaPercentage;

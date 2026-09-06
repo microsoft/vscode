@@ -112,3 +112,17 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 		throw new Error(`Unknown command '${command}' on AgentHostClientByokLmChannel`);
 	}
 }
+
+export class NullAgentHostClientByokLmChannel implements IServerChannel {
+
+	listen<T>(_ctx: unknown, event: string): Event<T> {
+		if (event === 'models') {
+			return Event.None;
+		}
+		throw new Error(`No event '${event}' on NullAgentHostClientByokLmChannel`);
+	}
+
+	async call<T>(_ctx: unknown, command: string): Promise<T> {
+		throw new Error(`No command '${command}' on NullAgentHostClientByokLmChannel`);
+	}
+}

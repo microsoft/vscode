@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { getEffectiveAgents, getEffectiveClientAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 
 function sc(uri: string, children?: AgentCustomization[], enabled = true): Customization {
 	return {
@@ -14,7 +14,10 @@ function sc(uri: string, children?: AgentCustomization[], enabled = true): Custo
 		id: uri,
 		uri,
 		name: uri,
-		enabled,
+		...(enabled ? {} : {
+			// TODO: Step 2 selects the persisted enablement scope.
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		}),
 		load: { kind: CustomizationLoadStatus.Loaded },
 		...(children ? { children } : {}),
 	};
@@ -27,6 +30,18 @@ function agent(uri: string, name: string, description?: string): AgentCustomizat
 		uri,
 		name,
 		...(description ? { description } : {}),
+	};
+}
+
+function clientPlugin(uri: string, enabled = true): ClientPluginCustomization {
+	return {
+		type: CustomizationType.Plugin,
+		id: uri,
+		uri,
+		name: uri,
+		...(enabled ? {} : {
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		}),
 	};
 }
 
@@ -81,5 +96,23 @@ suite('getEffectiveAgents', () => {
 			]),
 		]);
 		assert.deepStrictEqual(result.map(a => a.uri), ['agent://y', 'agent://x', 'agent://z']);
+	});
+
+	test('filters draft agents by plugin enablement without dropping unmatched agents', () => {
+		const disabledPlugin = clientPlugin('file:///plugins/disabled', false);
+		const enabledPlugin = clientPlugin('file:///plugins/enabled');
+		const draftAgents = [
+			agent('file:///plugins/disabled/agents/shared.agent.md', 'disabled'),
+			agent('file:///plugins/enabled/agents/enabled.agent.md', 'enabled'),
+			agent('file:///workspace/.github/agents/loose.agent.md', 'loose'),
+		];
+
+		assert.deepStrictEqual({
+			disabled: getEffectiveClientAgents([disabledPlugin, enabledPlugin], draftAgents).map(agent => agent.name),
+			reenabled: getEffectiveClientAgents([enabledPlugin], draftAgents).map(agent => agent.name),
+		}, {
+			disabled: ['enabled', 'loose'],
+			reenabled: ['disabled', 'enabled', 'loose'],
+		});
 	});
 });

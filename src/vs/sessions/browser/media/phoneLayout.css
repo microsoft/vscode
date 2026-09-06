@@ -58,6 +58,7 @@
 
 .agent-sessions-workbench.phone-layout .monaco-dialog-box {
 	width: calc(100% - 32px);
+	min-width: 0;
 	max-width: calc(100% - 32px);
 }
 
@@ -69,6 +70,7 @@
 /* ---- Phone Layout: Notifications and Hovers ---- */
 
 .agent-sessions-workbench.phone-layout .notifications-toasts {
+	--modern-ui-notifications-block-start-inset: calc(env(safe-area-inset-top) + 48px + var(--vscode-spacing-size40));
 	left: 8px !important;
 	right: 8px !important;
 	bottom: auto !important;
@@ -81,7 +83,16 @@
 	max-width: 100%;
 }
 
-.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast .notification-toast-container {
+.agent-sessions-workbench.phone-layout .notifications-list-container .notification-list-item > .notification-list-item-main-row {
+	align-items: center;
+}
+
+.agent-sessions-workbench.phone-layout .notifications-toasts,
+.agent-sessions-workbench.phone-layout .notifications-toasts .notifications-list-container,
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast-container > .notification-toast,
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus::before,
+.agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
 	border-radius: var(--vscode-cornerRadius-xLarge);
 }
 

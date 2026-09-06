@@ -182,11 +182,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				await refreshSessions();
 			}
 		));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				void refreshSessions();
-			}
-		}));
 		this._register(this._workspaceFolderService.onDidChangeWorkspaceFolderChanges(e => {
 			this.refreshSession({ reason: 'update', sessionId: e.sessionId });
 		}));
@@ -385,6 +380,9 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 		item.timing = session.timing;
 		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
+		// Rehydrate persisted archived state: a re-emit (e.g. onDidChangeSession) must not
+		// resurrect an archived row by rebuilding the item without it.
+		item.archived = await this._metadataStore.getSessionArchived(session.id);
 
 		// Building changes is expensive, so defer it to explicit resolve and refresh paths
 		// when lazy loading is enabled. Preserve eager loading when it is disabled.

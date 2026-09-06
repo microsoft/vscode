@@ -13,14 +13,16 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
-import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -31,7 +33,7 @@ import {
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
 
@@ -60,26 +62,6 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
-
-/** Default write-path glob rules applied to auto-approved edits. */
-const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
-	'**/*': true,
-	'**/.vscode/*.json': false,
-	'**/.git/**': false,
-	'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-	'**/{.npmrc,.yarnrc,.yarnrc.yml,.pnpmfile.js,.pnpmfile.cjs,.pnpmfile.mjs,pnpm-workspace.yaml}': false,
-	'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
-	'**/*.lock': false,
-	'**/*-lock.{yaml,json}': false,
-	// Files that can register lifecycle hooks running arbitrary shell commands.
-	// Writing them must never be auto-approved. Keep in sync with the hook and
-	// agent source locations in `promptFileLocations.ts`.
-	'**/.github/agents/**': false,
-	'**/.github/hooks/**': false,
-	'**/.claude/agents/**': false,
-	'**/.claude/settings.json': false,
-	'**/.claude/settings.local.json': false,
-};
 
 const HOME_DIR = URI.file(homedir());
 
@@ -226,6 +208,7 @@ export class SessionPermissionManager extends Disposable {
 		options: { realpath?: (fsPath: string) => Promise<string> },
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -265,7 +248,7 @@ export class SessionPermissionManager extends Disposable {
 		// contained by *any* root. Today the set has exactly one entry (the
 		// create-time length guard), so this is behaviour-identical to the
 		// previous single-directory logic.
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 		// 0. Sandbox bypass: a shell command that opted out of the
@@ -290,8 +273,41 @@ export class SessionPermissionManager extends Disposable {
 			return ToolCallConfirmationReason.Setting;
 		}
 
+		// 3.5 Surface edit scope. A session created by a file-bound surface
+		// (editor inline chat) is scoped to the one document it was invoked on.
+		// The user opened chat *on* that file, so reading and writing it needs no
+		// further consent even when it sits outside the working directory. Every
+		// other write -- and every shell command, which can write anywhere and
+		// carries no inspectable destination -- falls through to a confirmation
+		// prompt. Reads of other files keep the normal rules below so routine
+		// context gathering stays silent.
+		//
+		// This runs after the explicit opt-ins above: a user who turned on
+		// global or session auto-approve asked for that everywhere, and inline
+		// chat does not override it.
+		const surfaceScope = this._getSurfaceEditScope(sessionKey);
+		if (surfaceScope) {
+			if ((e.permissionKind === 'write' || e.permissionKind === 'read')
+				&& e.permissionPath
+				&& surfaceScope.target
+				&& extUriBiasedIgnorePathCase.isEqual(URI.file(e.permissionPath), surfaceScope.target)
+			) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface ${e.permissionKind} of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
+			if (e.permissionKind === 'write' || e.permissionKind === 'shell') {
+				this._logService.trace(`[SessionPermissionManager] Requiring confirmation for out-of-scope surface ${e.permissionKind}`);
+				return undefined;
+			}
+		}
+
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
+			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
+			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
 			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
@@ -337,6 +353,51 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
+	/**
+	 * The edit scope of a session created by a file-bound chat surface, or
+	 * `undefined` for surfaces that are not file-bound.
+	 *
+	 * Returning a scope whose `target` is `undefined` is deliberate and fails
+	 * closed: an inline-chat session that did not record a usable target must
+	 * not fall back to unscoped editing, so no write auto-approves for it.
+	 */
+	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
+		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		if (surface?.surface !== 'editorInline') {
+			return undefined;
+		}
+		if (surface.targetUri === undefined) {
+			return { target: undefined };
+		}
+		try {
+			return { target: URI.parse(surface.targetUri) };
+		} catch {
+			this._logService.warn(`[SessionPermissionManager] Ignoring malformed inline chat target ${surface.targetUri}`);
+			return { target: undefined };
+		}
+	}
+
+	/**
+	 * Whether a write targets a file under the session attachments directory. Those files are
+	 * host-created **read-only snapshots** of client/derived content (pasted text/images, unsaved
+	 * editors, `git:` diff views); the model must never edit the copy (#331154).
+	 *
+	 * {@link _handleToolReady} hard-denies such writes when a provider raises an interactive
+	 * `pending_confirmation` (the auto-approve checks in {@link getAutoApproval} would otherwise
+	 * approve first). Note this only fires for the interactive / managed-approval flow — providers
+	 * that auto-approve upstream (Copilot SDK `'on'`, Claude bypass/acceptEdits, or Codex, which never
+	 * routes through the host permission layer) don't reach it, so the read-only presentation is the
+	 * primary defense there.
+	 */
+	isForbiddenSnapshotWrite(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
+		if (e.permissionKind !== 'write' || !e.permissionPath) {
+			return false;
+		}
+		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
+		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+	}
+
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
 	isAutoApproveRuleResolvable(e: IToolApprovalEvent, sessionKey: ProtocolURI): boolean {
 		if (e.permissionKind !== 'shell' || !e.toolInput || e.requestSandboxBypass || !e.shellLanguage) {
@@ -345,7 +406,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
@@ -584,7 +645,7 @@ export class SessionPermissionManager extends Disposable {
 		}
 		try {
 			const resolved = await resolveRealPathForNonexistent(resource, this._realpath);
-			if (!extUriBiasedIgnorePathCase.isEqual(resolved, resource)) {
+			if (!extUri.isEqual(resolved, resource)) {
 				resourcesToCheck.push(resolved);
 			}
 		} catch (e) {
@@ -611,7 +672,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._isPlatformRestrictedResource(resource, workingDirectory)) {
 			return false;
 		}
-		return this._matchesEditAutoApprovePatterns(resource.fsPath);
+		return this._matchesEditAutoApprovePatterns(resource);
 	}
 
 	/**
@@ -637,11 +698,16 @@ export class SessionPermissionManager extends Disposable {
 		return false;
 	}
 
-	private _matchesEditAutoApprovePatterns(filePath: string): boolean {
+	private _matchesEditAutoApprovePatterns(resource: URI): boolean {
 		let approved = true;
-		for (const [pattern, isApproved] of Object.entries(DEFAULT_EDIT_AUTO_APPROVE_PATTERNS)) {
-			if (isApproved !== approved && globMatch(pattern, filePath)) {
-				approved = isApproved;
+		const patterns = this._configService.getRootValue(platformRootSchema, AgentHostEditAutoApprovePatternsConfigKey) ?? DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+		const ignoreCase = extUriBiasedIgnorePathCase.ignorePathCasing(resource);
+		for (const patternSet of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS]) {
+			for (const [pattern, configuredApproval] of Object.entries(patternSet)) {
+				const isApproved = configuredApproval === true;
+				if (isApproved !== approved && globMatch(pattern, resource.fsPath, { ignoreCase })) {
+					approved = isApproved;
+				}
 			}
 		}
 		return approved;

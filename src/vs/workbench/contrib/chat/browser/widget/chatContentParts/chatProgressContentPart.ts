@@ -28,6 +28,7 @@ import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -137,7 +138,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 			const shimmerText = text.slice(0, remaining);
 			const suffixText = text.slice(remaining);
-			const span = element.ownerDocument.createElement('span');
+			const span = $<HTMLSpanElement>('span');
 			span.classList.add('chat-progress-shimmer-text');
 			span.textContent = shimmerText;
 			node.parentNode?.insertBefore(span, node);
@@ -255,7 +256,7 @@ export class ChatProgressSubPart extends Disposable {
 
 		this.domNode = $('.progress-container');
 		const iconElement = $('div');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 		if (tooltip) {
 			this._register(hoverService.setupDelayedHover(iconElement, {
 				content: tooltip,

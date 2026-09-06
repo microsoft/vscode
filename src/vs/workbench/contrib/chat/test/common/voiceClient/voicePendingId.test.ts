@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved, peekPendingId } from '../../../common/voiceClient/voiceClientService.js';
+import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved, peekPendingId, restoreResolvedPendingId } from '../../../common/voiceClient/voiceClientService.js';
 
 suite('derivePendingId', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -281,6 +281,36 @@ suite('derivePendingId', () => {
 				parameters: {},
 			}, undefined);
 		}
+	});
+
+	test('restores the retired identity for a late rehydrated copy', () => {
+		const tool = () => {
+			const state = observableValue<IChatToolInvocation.State>('toolState', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: { command: 'echo high' },
+				confirm: () => { },
+			});
+			return { part: { kind: 'toolInvocation', toolCallId: 'late-tool-call', state } as unknown as IChatToolInvocation, state };
+		};
+		const original = tool();
+		const pendingId = derivePendingId('req-late-copy', original.part);
+		assert.strictEqual(markPendingIdResolved(pendingId), true);
+		original.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
+
+		const lateCopy = tool();
+		assert.strictEqual(restoreResolvedPendingId('req-late-copy', lateCopy.part), pendingId);
+		assert.strictEqual(derivePendingId('req-late-copy', lateCopy.part), pendingId);
+		assert.strictEqual(isPendingIdResolved(pendingId), true);
+
+		lateCopy.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Skipped,
+			parameters: {},
+		}, undefined);
 	});
 
 	test('one copy leaving pending retires the shared occurrence', () => {

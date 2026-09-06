@@ -47,6 +47,10 @@
 	opacity: 0.75;
 }
 
+.agent-host-chat-input-picker-slot .action-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .agent-host-chat-input-picker-slot.disabled span.action-label {
 	opacity: 0.6;
 	cursor: default;
@@ -84,21 +88,39 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 	}
 
 }
 
-/* Collapse agent host picker labels to icon-only when the secondary toolbar gets narrow. */
-.interactive-session .chat-secondary-toolbar {
-	container-type: inline-size;
+/* Individual secondary pickers collapse from right to left as the lane narrows. */
+.interactive-session .compact-picker .agent-host-chat-input-picker-label {
+	display: none;
 }
 
-@container (max-width: 350px) {
-	.agent-host-chat-input-picker-label {
-		display: none;
-	}
+.interactive-session .compact-picker .agent-host-chat-input-picker-sandbox-icon {
+	display: none;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot {
+	width: 22px;
+	height: 22px;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+	justify-content: center;
+}
+
+.interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label .codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 /*
@@ -132,12 +154,17 @@
 }
 
 .agent-host-chat-input-picker-label {
-	max-width: 16em;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	flex-shrink: 0;
+	overflow: visible;
+	text-overflow: clip;
 	white-space: nowrap;
 }
 
 .agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
 	margin-left: 6px;
+}
+
+.agent-host-chat-input-picker-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
 }

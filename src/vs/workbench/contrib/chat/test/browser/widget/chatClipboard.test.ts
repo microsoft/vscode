@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { convertHtmlToMarkdown } from '../../../../../../base/browser/htmlToMarkdown.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
 
@@ -23,7 +24,7 @@ function sanitizeToHtml(html: string): string {
 }
 
 suite('ChatClipboard', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports whether the selection had to change', () => {
 		assert.deepStrictEqual(
@@ -70,6 +71,37 @@ suite('ChatClipboard', () => {
 		assert.strictEqual(
 			sanitizeToHtml('<p>before <a href="" data-href="file:///repo/a.ts"></a>after</p>'),
 			'<p>before after</p>');
+	});
+
+	test('sanitizes a fragment from an auxiliary window', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const fragment = auxiliaryDocument.createDocumentFragment();
+		const anchor = auxiliaryDocument.createElement('a');
+		anchor.setAttribute('data-href', 'file:///repo/a.ts');
+		anchor.textContent = 'a.ts';
+		fragment.appendChild(anchor);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		sanitizeChatClipboardFragment(fragment);
+		const replacement = fragment.firstElementChild;
+
+		assert.deepStrictEqual({
+			html: replacement?.outerHTML,
+			ownerDocument: replacement?.ownerDocument === auxiliaryDocument,
+			mainRealmElement: replacement instanceof HTMLElement,
+		}, {
+			html: '<code>a.ts</code>',
+			ownerDocument: true,
+			mainRealmElement: true,
+		});
 	});
 
 	test('produces markdown without internal targets when pasted back into chat', () => {

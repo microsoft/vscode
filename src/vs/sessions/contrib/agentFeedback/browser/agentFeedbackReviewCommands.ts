@@ -9,7 +9,7 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range, type IRange } from '../../../../editor/common/core/range.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { AgentFeedbackReviewCommandId, IChatAgentFeedbackPullRequestThreadLink, IChatAgentFeedbackReviewComment } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
@@ -60,6 +60,16 @@ export function registerAgentFeedbackReviewCommands(): IDisposable {
 				text: item.text,
 				fileUri: item.resourceUri,
 			}));
+	}));
+
+	registrations.add(CommandsRegistry.registerCommand(AgentFeedbackReviewCommandId.GetPullRequestThreadLinks, (accessor, sessionOrChatResource: UriComponents): IChatAgentFeedbackPullRequestThreadLink[] => {
+		const feedbackService = accessor.get(IAgentFeedbackService);
+		const resource = getOwningSessionResource(accessor.get(ISessionsManagementService), URI.revive(sessionOrChatResource));
+		// Every state is linkable: a thread the agent already addressed should
+		// still reveal its comment, unlike the `created`-only review list.
+		return feedbackService.getFeedback(resource)
+			.filter(item => item.kind === AgentFeedbackKind.PRReview && !!item.sourcePRReviewCommentId)
+			.map(item => ({ pullRequestThreadId: item.sourcePRReviewCommentId!, commentId: item.id }));
 	}));
 
 	registrations.add(CommandsRegistry.registerCommand(AgentFeedbackReviewCommandId.Reveal, async (accessor, sessionOrChatResource: UriComponents, commentId: string): Promise<void> => {

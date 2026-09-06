@@ -21,16 +21,8 @@ export const enum AgentHostConfigKey {
 	 */
 	DefaultShell = 'defaultShell',
 	/**
-	 * When true (the default), the Claude provider routes all Anthropic
-	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
-	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
-	 * the user's own credentials (BYO Anthropic — Phase 19).
-	 */
-	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
-	/**
-	 * Experimentation flag for conditional agent-window auth. When true, a
-	 * session type that is usable without GitHub (e.g. Claude in native mode with
-	 * an existing local setup) lets the agent window open for a signed-out user
+	 * Experimentation flag for conditional Agent Host auth. When true, session
+	 * types that are usable without GitHub remain available to signed-out users
 	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
 	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
 	 * feature is dark (today's always-proxy behavior).
@@ -98,16 +90,10 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
-		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
-		default: true,
-	}),
 	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
-		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
 		default: false,
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
@@ -151,6 +137,5 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
-		enabled: true,
 	};
 }

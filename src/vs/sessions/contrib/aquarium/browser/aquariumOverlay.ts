@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseMoveListener, addDisposableListener, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -167,9 +167,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
-		const doc = parent.ownerDocument;
-		const button = doc.createElement('button');
-		button.className = 'agents-aquarium-toggle';
+		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle');
 		button.type = 'button';
 		this.updateToggleButtonVisual(button, !!this.activeRef.value);
 
@@ -304,7 +302,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		// Build the icon as a real DOM child instead of innerHTML to satisfy Trusted Types.
 		button.replaceChildren();
-		const iconSpan = button.ownerDocument.createElement('span');
+		const iconSpan = $<HTMLSpanElement>('span');
 		// The icon is purely decorative; the button already has an aria-label.
 		iconSpan.setAttribute('aria-hidden', 'true');
 		addIconClasses(iconSpan, icon);
@@ -318,11 +316,11 @@ export class AquariumService extends Disposable implements IAquariumService {
 		const showStreak = streak > 0 || revivable > 0;
 		button.classList.toggle('has-streak', showStreak);
 		if (showStreak) {
-			const streakSpan = button.ownerDocument.createElement('span');
+			const streakSpan = $<HTMLSpanElement>('span');
 			streakSpan.className = 'agents-aquarium-toggle-streak';
 			streakSpan.setAttribute('aria-hidden', 'true');
 			if (active) {
-				const hungerIconSpan = button.ownerDocument.createElement('span');
+				const hungerIconSpan = $<HTMLSpanElement>('span');
 				addIconClasses(hungerIconSpan, hungerIcon);
 				streakSpan.appendChild(hungerIconSpan);
 			}
@@ -508,9 +506,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 	}
 
 	const store = new DisposableStore();
-	const doc = targetWindow.document;
-	const water = doc.createElement('div');
-	water.className = 'agents-aquarium-water';
+	const water = $('.agents-aquarium-water');
 	// Decorative: hide the entire subtree from a11y tree.
 	water.setAttribute('aria-hidden', 'true');
 	// First child so subsequent chat bar content paints over it.
@@ -524,12 +520,10 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 		sessionsContainer.classList.remove('aquarium-active');
 	}));
 
-	const fishLayer = doc.createElement('div');
-	fishLayer.className = 'agents-aquarium-fish-layer';
+	const fishLayer = $('.agents-aquarium-fish-layer');
 	water.appendChild(fishLayer);
 
-	const foodLayer = doc.createElement('div');
-	foodLayer.className = 'agents-aquarium-food-layer';
+	const foodLayer = $('.agents-aquarium-food-layer');
 	water.appendChild(foodLayer);
 
 	const bounds = { width: 0, height: 0 };
@@ -675,8 +669,7 @@ function createActiveAquarium(mainContainer: HTMLElement, layoutService: IWorkbe
 			const oldest = food[0];
 			removeFood(oldest);
 		}
-		const el = doc.createElement('div');
-		el.className = 'agents-aquarium-food';
+		const el = $<HTMLDivElement>('.agents-aquarium-food');
 		el.style.transform = `translate(${dropX}px, ${dropY}px)`;
 		foodLayer.appendChild(el);
 		food.push({ element: el, positionX: dropX, positionY: dropY, fallSpeed: randomBetween(20, 35) });

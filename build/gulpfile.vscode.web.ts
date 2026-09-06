@@ -75,7 +75,7 @@ export const vscodeWebResourceIncludes = [
 	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Chat Pet
-	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/*.{gif,png}',
+	'out-build/vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',

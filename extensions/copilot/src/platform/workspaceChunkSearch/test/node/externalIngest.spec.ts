@@ -84,6 +84,10 @@ interface MockFileEntry {
 	readonly content: Uint8Array;
 	readonly size: number;
 	readonly mtime: number;
+	readonly statOverride?: {
+		readonly field: 'size' | 'mtime';
+		readonly value?: number | string;
+	};
 }
 
 function createFileFromString(content: string, mtime = Date.now()): MockFileEntry {
@@ -126,13 +130,18 @@ class MockFileSystem extends mock<IFileSystemService & ISearchService>() impleme
 		if (!entry) {
 			throw new Error(`File not found: ${uri.toString()}`);
 		}
-		return {
+		const stat = {
 			type: FileType.File,
 			ctime: 0,
 			mtime: entry.mtime,
 			size: entry.size,
 			permissions: undefined,
 		};
+		if (entry.statOverride) {
+			// Simulate a provider violating FileStat's runtime contract.
+			Object.defineProperty(stat, entry.statOverride.field, { value: entry.statOverride.value });
+		}
+		return stat;
 	}
 
 	override async readFile(uri: URI) {
@@ -357,6 +366,41 @@ suite('ExternalIngestIndex', () => {
 		// Files should be tracked after initialization
 		assert.strictEqual(await index.shouldTrackFile(file1, CancellationToken.None), true);
 		assert.strictEqual(await index.shouldTrackFile(file2, CancellationToken.None), true);
+	});
+
+	test('initialize skips malformed file stats and continues indexing', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const malformedStats: readonly {
+			readonly name: string;
+			readonly field: 'size' | 'mtime';
+			readonly value?: number | string;
+		}[] = [
+			{ name: 'missing-size.ts', field: 'size' },
+			{ name: 'string-mtime.ts', field: 'mtime', value: 'invalid' },
+			{ name: 'nan-size.ts', field: 'size', value: Number.NaN },
+			{ name: 'infinite-mtime.ts', field: 'mtime', value: Number.POSITIVE_INFINITY },
+		];
+		const files = new ResourceMap<MockFileEntry>();
+		for (const { name, field, value } of malformedStats) {
+			files.set(URI.joinPath(workspaceRoot, name), {
+				...createFileFromString('const invalid = true;'),
+				statOverride: { field, value },
+			});
+		}
+		const validFile = URI.joinPath(workspaceRoot, 'valid.ts');
+		files.set(validFile, createFileFromString('const valid = true;'));
+
+		const { mockClient, index } = setupTestContext(workspaceRoot, files);
+		await index.initialize();
+		const ingestResult = await index.doIngest(testTelemetryInfo, emptyProgressCb, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			ingestSucceeded: ingestResult.isOk(),
+			ingestedFiles: mockClient.ingestedFiles.map(file => file.uri.toString()),
+		}, {
+			ingestSucceeded: true,
+			ingestedFiles: [validFile.toString()],
+		});
 	});
 
 	test('files that fail canIngestPathAndSize are tracked but not ingested', async () => {

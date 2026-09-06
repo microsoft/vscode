@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ChangesSummary } from './state/protocol/state.js';
 import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -37,6 +38,18 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_CHANGESET_SESSION]: true,
 	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
+};
+
+/**
+ * The minimal key set that carries only the small persisted
+ * {@link META_CHANGES_SUMMARY} aggregate (no large diff blobs). Requested when a
+ * live changeset exists but is not authoritative for the chip — e.g. an
+ * evicted-but-warm multi-folder session whose live `branch`/`session`
+ * changesets are primary-only — so the caller loads the all-folder aggregate
+ * without paying for the diff blobs.
+ */
+export const CHANGES_SUMMARY_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGES_SUMMARY]: true,
 };
 
 /** The two static changeset kinds we publish by default. */
@@ -154,8 +167,8 @@ export interface IAgentHostChangesetService {
 	 * Returns the session-DB metadata keys to merge into a batched read for
 	 * `sessionUri` (so the session-list overlay can synthesise the `changes`
 	 * aggregate), OR `undefined` when live state already answers the
-	 * aggregate-counts question (loaded session or a ready live
-	 * `changeKind: 'session'` changeset state) so the caller can skip loading
+	 * aggregate-counts question (a loaded session, or a ready live changeset
+	 * state the summary is derived from) so the caller can skip loading
 	 * the potentially-large persisted diff blobs.
 	 */
 	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined;
@@ -188,9 +201,9 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`. Self-defers when the
-	 * session's working directory is not yet known; the deferred refresh is
-	 * drained by {@link onWorkingDirectoryAvailable}.
+	 * first subscribes to `<session>/changeset/branch`. Skips computation while
+	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
+	 * recomputes the current subscriptions after materialization or restore.
 	 */
 	refreshBranchChangeset(session: ProtocolURI): void;
 
@@ -199,19 +212,14 @@ export interface IAgentHostChangesetService {
 	 * client first subscribes to `<session>/changeset/session` or the
 	 * session URI itself (e.g. Agents Window observing the session). The
 	 * recompute keeps the catalogue chip fresh across session opens even
-	 * when no turn has run since process start. Self-defers when the
-	 * session's working directory is not yet known.
+	 * when no turn has run since process start. Skips computation while the
+	 * working directory is unavailable.
 	 */
 	refreshSessionChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Drains static changeset refreshes (`branch` / `session` /
-	 * `uncommitted`) that were deferred because the session's working
-	 * directory was not yet known. Called when a session is materialized or
-	 * restored. Recomputes every changeset currently subscribed for the
-	 * session via {@link recomputeSubscribedChangesets}; subscriptions that
-	 * dropped while the working directory was unknown are naturally skipped.
-	 * Idempotent.
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored.
 	 */
 	onWorkingDirectoryAvailable(session: ProtocolURI): void;
 
@@ -219,17 +227,11 @@ export interface IAgentHostChangesetService {
 	 * Recomputes every changeset currently subscribed for `session`, read
 	 * from the shared changeset subscription service. Each subscribed changeset
 	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
-	 * / turn); the individual recomputes self-defer when the working directory is
-	 * not yet known. Used as the session-level refresh entry point (drain on
-	 * materialization, git-state change).
+	 * / turn); the individual recomputes skip when the working directory is
+	 * not yet known. Used as the session-level refresh entry point after
+	 * materialization and git-state changes.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
-
-	/**
-	 * Forgets any deferred static changeset refreshes queued for a session
-	 * that is being disposed.
-	 */
-	onSessionDisposed(session: ProtocolURI): void;
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
@@ -274,14 +276,14 @@ export interface IAgentHostChangesetService {
 	 * Hook called by `AgentSideEffects` after a tool call that produced
 	 * file edits completes. Schedules a debounced session-changeset recompute.
 	 */
-	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void;
+	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a turn completes. Cancels any
 	 * pending mid-turn debounce, then schedules a final session + uncommitted
 	 * recompute. Ordering matters — see implementation.
 	 */
-	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void;
+	onTurnComplete(session: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a session is truncated (turns

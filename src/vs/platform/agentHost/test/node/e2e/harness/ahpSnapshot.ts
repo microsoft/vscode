@@ -425,12 +425,17 @@ function projectAction(
 			return profile === 'behavior' ? {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
-				error: {
-					errorType: action.error.errorType,
-					message: action.error.message,
+				part: {
+					kind: action.part.kind,
+					error: {
+						errorType: action.part.error.errorType,
+						message: action.part.error.message,
+					},
+					...(action.part.resumable ? { resumable: true } : {}),
 				},
 			} : { type: action.type };
 		case ActionType.ChatUsage:
+		case ActionType.ChatTurnResume:
 		case ActionType.ChatTurnComplete:
 			return { type: action.type, turnId: normalizeIdentifier(action.turnId, 'turn', turns) };
 		default:
@@ -707,7 +712,7 @@ async function bindPrerequisites(
 		if (replayError) {
 			throw replayError;
 		}
-		throw new Error(`[ahp-snapshot] turn failed before chat/toolCallReady: ${readyAction.error.errorType}: ${readyAction.error.message}`);
+		throw new Error(`[ahp-snapshot] turn failed before chat/toolCallReady: ${readyAction.part.error.errorType}: ${readyAction.part.error.message}`);
 	}
 	if (readyAction.type !== ActionType.ChatToolCallReady) {
 		throw new Error('[ahp-snapshot] expected chat/toolCallReady prerequisite');
@@ -925,7 +930,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 			if (replayError) {
 				throw replayError;
 			}
-			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 	}
 }

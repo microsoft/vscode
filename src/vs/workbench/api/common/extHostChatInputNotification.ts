@@ -33,6 +33,7 @@ export class ExtHostChatInputNotification {
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: false,
+			sessionTypes: undefined,
 		};
 
 		let disposed = false;
@@ -97,6 +98,14 @@ export class ExtHostChatInputNotification {
 			},
 			set autoDismissOnMessage(value: boolean) {
 				state.autoDismissOnMessage = value;
+				syncState();
+			},
+
+			get sessionTypes(): readonly string[] | undefined {
+				return state.sessionTypes;
+			},
+			set sessionTypes(value: readonly string[] | undefined) {
+				state.sessionTypes = value;
 				syncState();
 			},
 

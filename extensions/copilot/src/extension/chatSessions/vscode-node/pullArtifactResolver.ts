@@ -19,7 +19,6 @@ export interface ResolveOptions {
  * Resolve a raw {@link PullArtifactRef} to a full {@link PullRequestSearchItem} for UI rendering.
  *
  * Strategy:
- * - If the backend already provided `preResolved`, return it.
  * - Try the GraphQL `getPullRequestFromGlobalId` lookup using `globalId`.
  * - Fall back to listing the user's open PRs in the repo and matching on `headRef`.
  *
@@ -36,12 +35,12 @@ export async function resolvePullArtifact(
 ): Promise<PullRequestSearchItem | undefined> {
 	// Records which strategy (primary or a specific fallback) resolved the PR, so we can see how
 	// often — and via which path — resolution degrades past the direct global-id lookup.
-	const reportResolved = (resolvedVia: 'preResolved' | 'globalId' | 'sessionGlobalId' | 'openPrDatabaseId' | 'openPrHeadRef' | 'unresolved') => {
+	const reportResolved = (resolvedVia: 'globalId' | 'sessionGlobalId' | 'openPrDatabaseId' | 'openPrHeadRef' | 'unresolved') => {
 		/* __GDPR__
 			"copilotcloud.pullArtifactResolve" : {
 				"owner": "osortega",
 				"comment": "Tracks which strategy resolved a cloud task's pull request artifact, to monitor how often resolution falls back past the direct global-id lookup.",
-				"resolvedVia": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Strategy that produced the pull request: preResolved, globalId, sessionGlobalId, openPrDatabaseId, openPrHeadRef, or unresolved." },
+				"resolvedVia": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Strategy that produced the pull request: globalId, sessionGlobalId, openPrDatabaseId, openPrHeadRef, or unresolved." },
 				"hadGlobalId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a GraphQL global id." },
 				"hadDatabaseId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a pull request database id." },
 				"hadHeadRef": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the artifact carried a head branch ref." },
@@ -58,10 +57,6 @@ export async function resolvePullArtifact(
 		});
 	};
 
-	if (ref.preResolved) {
-		reportResolved('preResolved');
-		return ref.preResolved;
-	}
 	if (ref.globalId) {
 		const data = await getPullRequestFromGlobalId(octokit, log, ref.globalId);
 		if (data) {

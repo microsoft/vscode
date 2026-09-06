@@ -148,9 +148,8 @@ export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromi
 			}
 		});
 	};
-	promise.finally(() => {
-		promise.cancel();
-	});
+	const cancel = () => promise.cancel();
+	promise.then(cancel, cancel);
 	return promise;
 }
 

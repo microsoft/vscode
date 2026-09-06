@@ -37,9 +37,9 @@ export class CustomLine {
 		this.decorationId = decorationId;
 		this.index = index;
 		this.lineNumber = lineNumber;
-		this.specialHeight = specialHeight;
+		this.specialHeight = Math.round(specialHeight);
 		this.prefixSum = prefixSum;
-		this.maximumSpecialHeight = specialHeight;
+		this.maximumSpecialHeight = Math.round(specialHeight);
 		this.deleted = false;
 	}
 }

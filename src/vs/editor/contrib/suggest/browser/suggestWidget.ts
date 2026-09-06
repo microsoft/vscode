@@ -952,7 +952,7 @@ export class SuggestWidget implements IDisposable {
 		}
 
 		if (this._measureContext === undefined) {
-			this._measureContext = this.element.domNode.ownerDocument.createElement('canvas').getContext('2d');
+			this._measureContext = dom.$<HTMLCanvasElement>('canvas').getContext('2d');
 		}
 
 		let maxTextWidth: number;

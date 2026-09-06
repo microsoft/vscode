@@ -113,7 +113,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				toParsedSkill({ uri: wsSkillUri, name: 'ws', description: 'WS' }),
 				toParsedAgent({ uri: userAgentUri, name: 'ua', description: 'UA' }),
 			];
-			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', enabled: true, state: { kind: McpServerStatus.Starting } }];
+			const mcp: McpServerCustomization[] = [{ type: CustomizationType.McpServer, id: 'mcp-id', uri: 'inmemory:/x', name: 'srv', state: { kind: McpServerStatus.Starting } }];
 
 			const result = mapDiscoveredCustomizations(discovered, mcp, [], [], workspace, userHome);
 
@@ -195,7 +195,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				toParsedAgent({ uri: hiddenAgent, name: 'hidden' }),
 				toParsedSkill({ uri: diskSkill, name: 'kskill' }),
 			];
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'diskmcp', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'diskmcp', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [{ name: 'known', description: 'K' }, { name: 'sdkonly', description: 'S' }, { name: 'general-purpose', description: 'default' }],
 				commands: [{ name: 'kskill', description: '', argumentHint: '' }, { name: 'sdkcmd', description: 'C', argumentHint: '' }],
@@ -261,7 +261,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		});
 
 		test('SDK-reported in-process host bridges are not surfaced as SDK-only entries', () => {
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'real', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [],
 				commands: [],
@@ -279,7 +279,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		});
 
 		test('a disk-defined MCP server is kept even when its name collides with a host bridge', () => {
-			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', enabled: true, state: { kind: McpServerStatus.Starting } };
+			const diskMcp: McpServerCustomization = { type: CustomizationType.McpServer, id: 'disk-mcp', uri: 'inmemory:/settings.json', name: 'host', state: { kind: McpServerStatus.Starting } };
 			const sdk: ISdkResolvedCustomizations = {
 				agents: [],
 				commands: [],

@@ -7,11 +7,12 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -613,7 +614,9 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		eagernessPrompt?: 'aggressionHighLow';
 		aggressivenessLevel?: AggressivenessLevel;
+		rejectedEditsMemory?: RejectedEditsMemoryMode;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -633,13 +636,21 @@ describe('getUserPrompt', () => {
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
+			eagernessPrompt: opts.eagernessPrompt,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
+			...(opts.rejectedEditsMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditsMemory } } : {}),
 			currentFile: {
 				...DEFAULT_OPTIONS.currentFile,
 				maxTokens: 10000,
 				...(opts.includeLineNumbers !== undefined ? { includeLineNumbers: opts.includeLineNumbers } : {}),
 			},
 		};
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [{
+			kind: 'rejectedEdit',
+			docId: documentId,
+			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
+			ordinal: 0,
+		}];
 
 		return new PromptPieces(
 			currentDocument,
@@ -654,6 +665,9 @@ describe('getUserPrompt', () => {
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			rejectedEditHistory,
+			undefined,
+			undefined,
 		);
 	}
 
@@ -678,6 +692,48 @@ describe('getUserPrompt', () => {
 
 		// Includes postscript (includePostScript defaults to true)
 		expect(prompt).toContain('developer was working on a section of code');
+		expect(prompt).not.toContain('<|rejected/|>');
+	});
+
+	test('PatchBased02 adds rejected edit annotations only when memory is enabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('@@ -1,1 +1,1 @@ <|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+	});
+
+	test('rejected edit memory applies independently of the prompting strategy', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('previous suggestions the developer rejected');
+	});
+
+	test('explains rejection annotations when the standard postscript is disabled', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+			includePostScript: false,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt).toContain('<|rejected/|>');
+		expect(prompt).toContain('are previous suggestions the developer rejected');
+		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
 	test('PatchBased02 with includePostScript=false omits postscript', () => {
@@ -760,6 +816,32 @@ describe('getUserPrompt', () => {
 
 		// No line number prefix — cursor line starts directly with content
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
+	});
+
+	test.each([
+		[AggressivenessLevel.Medium, ''],
+		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
+		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
+	])('PatchBased02 aggression prompt places the %s tag before the postscript', (aggressivenessLevel, aggressionTag) => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			eagernessPrompt: 'aggressionHighLow',
+			aggressivenessLevel,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const cursorLocation = `${PromptTags.CURSOR_LOCATION.start}\n  const ${PromptTags.CURSOR}x = 1;\n${PromptTags.CURSOR_LOCATION.end}`;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompt).toContain(cursorLocation);
+		expect(prompt.indexOf(cursorLocation)).toBeLessThan(prompt.indexOf(postScript));
+		if (aggressivenessLevel === AggressivenessLevel.Medium) {
+			expect(prompt).not.toContain('<|aggression|>');
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${postScript}`);
+		} else {
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${aggressionTag}\n\n${postScript}`);
+		}
 	});
 
 	describe('Xtab275AggressivenessHighLow', () => {
@@ -928,6 +1010,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			[],
 			undefined,
 			extra?.precomputedCascade,
 		);
@@ -1024,7 +1107,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
 		const { activeDoc } = makeActiveDoc();
 		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
-		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget);
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget, []);
 	}
 
 	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {

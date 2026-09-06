@@ -5,6 +5,7 @@
 
 import '../../browser/media/editorBreadcrumbs.css';
 import '../../browser/media/editorHeader.css';
+import '../../../../browser/parts/media/editorPart.css';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -14,6 +15,7 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 const primaryMenu = MenuId.for('sessions.fixture.editorHeaderPrimary');
 const secondaryMenu = MenuId.for('sessions.fixture.editorHeaderSecondary');
 const layoutMenu = MenuId.for('sessions.fixture.editorHeaderLayout');
+const addTabMenu = MenuId.for('sessions.fixture.editorHeaderAddTab');
 const emptyMenu = MenuId.for('sessions.fixture.editorHeaderEmpty');
 const primaryAction = {
 	id: 'sessions.fixture.editorHeaderAction',
@@ -40,11 +42,17 @@ const toggleDetailsAction = {
 	title: localize2('sessions.fixture.editorHeaderToggleDetailsAction', "Toggle Details"),
 	icon: Codicon.layoutSidebarRight,
 };
+const addFileTabAction = {
+	id: 'sessions.fixture.editorHeaderAddFileTabAction',
+	title: localize2('sessions.fixture.editorHeaderAddFileTabAction', "Files"),
+	icon: Codicon.newFile,
+};
 MenuRegistry.addCommand(primaryAction);
 MenuRegistry.addCommand(secondaryAction);
 MenuRegistry.addCommand(secondaryOverflowAction);
 MenuRegistry.addCommand(hideEditorAction);
 MenuRegistry.addCommand(toggleDetailsAction);
+MenuRegistry.addCommand(addFileTabAction);
 MenuRegistry.appendMenuItem(primaryMenu, {
 	command: primaryAction,
 	group: 'navigation',
@@ -67,28 +75,36 @@ MenuRegistry.appendMenuItem(layoutMenu, {
 	group: 'navigation',
 	order: 20,
 });
+MenuRegistry.appendMenuItem(addTabMenu, {
+	command: addFileTabAction,
+	group: 'navigation',
+});
 
-function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false): void {
+function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default'): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
 	renderEditorTabBarFixture(ctx, {
 		modernUI: true,
+		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
 		showHeader: true,
 		headerMenuIds: {
 			headerPrimary: primaryAction ? primaryMenu : emptyMenu,
 			headerSecondary: secondaryAction ? secondaryMenu : emptyMenu,
 			headerLayout: layoutActions ? layoutMenu : emptyMenu,
+			tabsBarAddTab: addTab ? addTabMenu : undefined,
 		},
 	});
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
-	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true) }),
+	FullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true), additionalThemes: ['darkHighContrast'] }),
+	CompactFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'multiple', false, 'compact'), additionalThemes: ['darkHighContrast'] }),
 	BreadcrumbsAndAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true) }),
 	BreadcrumbsAndSecondaryAction: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false, true) }),
 	BreadcrumbsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, true, false) }),
 	PrimaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, true) }),
 	SecondaryActionOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, true) }),
 	LayoutActionsOnly: defineComponentFixture({ render: ctx => renderHeader(ctx, false, false, false, true) }),
+	SingleTabFullHeader: defineComponentFixture({ render: ctx => renderHeader(ctx, true, true, true, true, 'single', true) }),
 });

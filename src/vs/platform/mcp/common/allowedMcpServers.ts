@@ -106,40 +106,131 @@ function matchesMatcher(matcher: IMcpServerMatcher, identity: IMcpServerIdentity
 }
 
 /**
- * Matches a URL against a pattern that may contain `*` wildcards. Matching is case-insensitive,
- * anchored to the whole string, and every non-wildcard character is matched literally.
- *
- * Wildcard reach is region-aware so an authority wildcard cannot swallow the path: a `*` inside
- * the authority region (scheme + `//` + host/port, i.e. everything before the first `/` of the
- * path) matches any run of non-`/` characters, while a `*` in the path/query region matches any
- * run of characters. This prevents patterns like `https://*.example.com/*` from matching a URL
- * whose real host is untrusted, e.g. `https://evil.test/.example.com/tool`.
+ * Matches a URL against a `*` wildcard pattern. HTTP(S) URLs are compared as the WHATWG
+ * network destination so an authority wildcard cannot disagree with `fetch` about the host.
  */
 function matchesUrlPattern(pattern: string, url: string): boolean {
-	const regexSource = buildUrlPatternRegexSource(pattern);
+	const destination = toNetworkDestinationUrl(url);
+	if (destination === undefined) {
+		return false;
+	}
+	if (!pattern.includes('*')) {
+		const expected = toNetworkDestinationUrl(pattern);
+		return expected !== undefined && expected.toLowerCase() === destination.toLowerCase();
+	}
+	const normalizedPattern = toNetworkDestinationPattern(pattern);
+	if (normalizedPattern === undefined) {
+		return false;
+	}
 	try {
-		return new RegExp(regexSource, 'i').test(url);
+		return new RegExp(buildUrlPatternRegexSource(normalizedPattern), 'i').test(destination);
 	} catch {
 		return false;
 	}
 }
 
+/**
+ * Returns the HTTP(S) destination `fetch` will use, or `undefined` if `url` is not a valid URL.
+ */
+function toNetworkDestinationUrl(url: string): string | undefined {
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+			return parsed.origin + parsed.pathname + parsed.search;
+		}
+		return url;
+	} catch {
+		return undefined;
+	}
+}
+
+function toNetworkDestinationPattern(pattern: string): string | undefined {
+	const schemeSeparator = pattern.indexOf('://');
+	if (schemeSeparator < 0) {
+		return pattern;
+	}
+	const scheme = pattern.slice(0, schemeSeparator).toLowerCase();
+	if (scheme !== 'http' && scheme !== 'https') {
+		return pattern;
+	}
+
+	const rest = pattern.slice(schemeSeparator + 3);
+	const authorityEnd = findAuthorityEnd(rest, 0);
+	let authority = rest.slice(0, authorityEnd);
+	const userinfoEnd = authority.lastIndexOf('@');
+	if (userinfoEnd >= 0) {
+		authority = authority.slice(userinfoEnd + 1);
+	}
+
+	const hostAndPort = splitHostAndPort(authority);
+	if (hostAndPort === undefined) {
+		return undefined;
+	}
+	const defaultPort = scheme === 'https' ? '443' : '80';
+	const port = hostAndPort.port === defaultPort ? undefined : hostAndPort.port;
+
+	let afterAuthority = rest.slice(authorityEnd).replace(/\\/g, '/');
+	const hash = afterAuthority.indexOf('#');
+	if (hash >= 0) {
+		afterAuthority = afterAuthority.slice(0, hash);
+	}
+	if (!afterAuthority) {
+		afterAuthority = '/';
+	} else if (afterAuthority.startsWith('?')) {
+		afterAuthority = `/${afterAuthority}`;
+	}
+
+	return `${scheme}://${hostAndPort.host}${port !== undefined ? `:${port}` : ''}${afterAuthority}`;
+}
+
+function splitHostAndPort(authority: string): { host: string; port: string | undefined } | undefined {
+	if (authority.startsWith('[')) {
+		const close = authority.indexOf(']');
+		if (close === -1) {
+			return undefined;
+		}
+		if (authority[close + 1] === ':') {
+			return { host: authority.slice(0, close + 1), port: authority.slice(close + 2) };
+		}
+		if (close + 1 < authority.length) {
+			return undefined;
+		}
+		return { host: authority, port: undefined };
+	}
+
+	const colon = authority.lastIndexOf(':');
+	if (colon >= 0) {
+		return { host: authority.slice(0, colon), port: authority.slice(colon + 1) };
+	}
+	return authority ? { host: authority, port: undefined } : undefined;
+}
+
 function buildUrlPatternRegexSource(pattern: string): string {
-	// The authority region spans from the start of the pattern up to (but not including) the first
-	// `/` of the path. Wildcards there must not cross a `/` so they cannot consume path segments.
 	const schemeSeparator = pattern.indexOf('://');
 	const authorityStart = schemeSeparator >= 0 ? schemeSeparator + 3 : 0;
-	const pathStart = pattern.indexOf('/', authorityStart);
-	const authorityEnd = pathStart >= 0 ? pathStart : pattern.length;
+	const authorityEnd = findAuthorityEnd(pattern, authorityStart);
 
 	let source = '^';
 	for (let i = 0; i < pattern.length; i++) {
 		const char = pattern[i];
-		if (char === '*') {
-			source += i < authorityEnd ? '[^/]*' : '.*';
+		if (i < authorityEnd && char === ':' && pattern[i + 1] === '*') {
+			source += '(:[^/@\\\\?#]*)?';
+			i++;
+		} else if (char === '*') {
+			source += i < authorityEnd ? '[^/@\\\\?#]*' : '.*';
 		} else {
 			source += escapeRegExpCharacters(char);
 		}
 	}
 	return source + '$';
+}
+
+function findAuthorityEnd(pattern: string, authorityStart: number): number {
+	for (let i = authorityStart; i < pattern.length; i++) {
+		const char = pattern[i];
+		if (char === '/' || char === '\\' || char === '?' || char === '#') {
+			return i;
+		}
+	}
+	return pattern.length;
 }

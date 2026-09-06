@@ -122,6 +122,7 @@ suite('TerminalSandboxEngine', () => {
 			getUserHome: () => Promise.resolve(URI.file('/home/user')),
 			getSandboxTempDir: () => Promise.resolve(URI.file('/home/user/.test-data/tmp')),
 			getWorkspaceStorageReadRoot: () => Promise.resolve(undefined),
+			getReadRoots: () => [],
 			getWriteRoots: () => [URI.file('/workspace')],
 			onDidChangeRoots: rootsEmitter.event,
 			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true }),
@@ -178,6 +179,7 @@ suite('TerminalSandboxEngine', () => {
 		fileService = new MockFileService();
 
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxAllowNetwork, false);
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 
 		instantiationService.stub(IFileService, fileService);
@@ -240,6 +242,24 @@ suite('TerminalSandboxEngine', () => {
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
 		strictEqual(Object.prototype.hasOwnProperty.call(config, 'allowPty'), false);
+	});
+
+	test('sandbox config includes host read roots without granting write access', async () => {
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+			getReadRoots: () => [URI.file('/home/user/copilot-terminal-output')],
+		})));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			allowRead: config.filesystem.allowRead.includes('/home/user/copilot-terminal-output'),
+			allowWrite: config.filesystem.allowWrite.includes('/home/user/copilot-terminal-output'),
+		}, {
+			allowRead: true,
+			allowWrite: false,
+		});
 	});
 
 	test('sandbox config respects explicitly disabled PTY access on macOS', async () => {

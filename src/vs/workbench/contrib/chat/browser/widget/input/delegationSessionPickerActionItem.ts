@@ -27,6 +27,7 @@ import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { IGitService } from '../../../../git/common/gitService.js';
 
@@ -54,9 +55,10 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IChatInputNotificationService chatInputNotificationService: IChatInputNotificationService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService);
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, chatInputNotificationService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {

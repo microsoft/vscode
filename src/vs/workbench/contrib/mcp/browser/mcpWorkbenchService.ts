@@ -9,7 +9,7 @@ import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../b
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
-import { Mutable } from '../../../../base/common/types.js';
+import { isBoolean, isNumber, isObject, isString, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -48,6 +48,149 @@ import { ThrottledDelayer } from '../../../../base/common/async.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
+}
+
+interface IMcpInstallUriPayload {
+	readonly name: string;
+	readonly config: IMcpServerConfiguration;
+	readonly inputs?: IMcpServerVariable[];
+}
+
+function parseMcpInstallUriPayload(query: string): IMcpInstallUriPayload | undefined {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(decodeURIComponent(query));
+	} catch {
+		return undefined;
+	}
+
+	if (!isObject(parsed)) {
+		return undefined;
+	}
+
+	const payload = parsed as Record<string, unknown>;
+	if (!isString(payload.name) || !payload.name) {
+		return undefined;
+	}
+
+	const config = sanitizeMcpServerConfiguration(payload);
+	if (!config) {
+		return undefined;
+	}
+
+	return {
+		name: payload.name,
+		config,
+		inputs: Array.isArray(payload.inputs) ? payload.inputs as IMcpServerVariable[] : undefined,
+	};
+}
+
+function sanitizeMcpServerConfiguration(payload: Record<string, unknown>): IMcpServerConfiguration | undefined {
+	const type = payload.type === McpServerType.LOCAL || payload.type === McpServerType.REMOTE
+		? payload.type
+		: isString(payload.command)
+			? McpServerType.LOCAL
+			: McpServerType.REMOTE;
+	const dev = sanitizeMcpDevModeConfig(payload.dev);
+
+	const common = {
+		...(isString(payload.version) ? { version: payload.version } : {}),
+		...(isBoolean(payload.gallery) || isString(payload.gallery) ? { gallery: payload.gallery } : {}),
+		...(dev ? { dev } : {}),
+	};
+
+	if (type === McpServerType.LOCAL) {
+		if (!isString(payload.command)) {
+			return undefined;
+		}
+		const env = sanitizeMcpEnvironment(payload.env);
+
+		return {
+			type,
+			command: payload.command,
+			...common,
+			...(isStringArray(payload.args) ? { args: payload.args } : {}),
+			...(env ? { env } : {}),
+			...(isString(payload.envFile) ? { envFile: payload.envFile } : {}),
+			...(isString(payload.cwd) ? { cwd: payload.cwd } : {}),
+			...(isBoolean(payload.sandboxEnabled) ? { sandboxEnabled: payload.sandboxEnabled } : {}),
+		} satisfies IMcpStdioServerConfiguration;
+	}
+
+	if (!isString(payload.url)) {
+		return undefined;
+	}
+	const headers = sanitizeStringRecord(payload.headers);
+	const oauth = sanitizeMcpOAuthConfiguration(payload.oauth);
+
+	return {
+		type,
+		url: payload.url,
+		...common,
+		...(payload.transport === 'http' || payload.transport === 'sse' ? { transport: payload.transport } : {}),
+		...(headers ? { headers } : {}),
+		...(oauth ? { oauth } : {}),
+	} satisfies IMcpRemoteServerConfiguration;
+}
+
+function sanitizeMcpDevModeConfig(value: unknown): IMcpDevModeConfig | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	const debug = sanitizeMcpDevModeDebugConfiguration(payload.debug);
+	if (!isString(payload.watch) && !isStringArray(payload.watch) && !debug) {
+		return undefined;
+	}
+
+	return {
+		...(isString(payload.watch) || isStringArray(payload.watch) ? { watch: payload.watch } : {}),
+		...(debug ? { debug } : {}),
+	};
+}
+
+function sanitizeMcpDevModeDebugConfiguration(value: unknown): IMcpDevModeConfig['debug'] | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	if (payload.type === 'node') {
+		return { type: 'node' };
+	}
+	if (payload.type === 'debugpy') {
+		return {
+			type: 'debugpy',
+			...(isString(payload.debugpyPath) ? { debugpyPath: payload.debugpyPath } : {}),
+		};
+	}
+	return undefined;
+}
+
+function sanitizeMcpEnvironment(value: unknown): Record<string, string | number | null> | undefined {
+	return sanitizeRecord(value, entry => entry === null || isString(entry) || isNumber(entry));
+}
+
+function sanitizeStringRecord(value: unknown): Record<string, string> | undefined {
+	return sanitizeRecord(value, isString);
+}
+
+function sanitizeRecord<T>(value: unknown, isValidValue: (entry: unknown) => entry is T): Record<string, T> | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, T] => isValidValue(entry[1])));
+}
+
+function sanitizeMcpOAuthConfiguration(value: unknown): IMcpRemoteServerConfiguration['oauth'] | undefined {
+	if (!isObject(value)) {
+		return undefined;
+	}
+
+	const payload = value as Record<string, unknown>;
+	return isString(payload.clientId) ? { clientId: payload.clientId } : undefined;
 }
 
 class McpWorkbenchServer implements IWorkbenchMcpServer {
@@ -173,6 +316,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	// Source identity is intentionally trusted only in-process; IPC copies are re-verified.
 	private readonly gallerySourceGenerations = new WeakMap<IGalleryMcpServer, number>();
 	private readonly registrySyncDelayer = this._register(new ThrottledDelayer<void>(0));
+	readonly whenInitialLocalMcpServersLoaded: Promise<void>;
 	get local(): readonly McpWorkbenchServer[] { return [...this._local]; }
 
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -207,7 +351,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
-		this.queryLocal().then(() => {
+		this.whenInitialLocalMcpServersLoaded = this.queryLocal().then(() => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -216,7 +360,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.scheduleRegistrySync();
 			}));
 			this.scheduleRegistrySync();
-		});
+		}, error => this.logService.error(error));
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
@@ -747,15 +891,13 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private async handleMcpInstallUri(uri: URI): Promise<boolean> {
-		let parsed: IMcpServerConfiguration & { name: string; inputs?: IMcpServerVariable[] };
-		try {
-			parsed = JSON.parse(decodeURIComponent(uri.query));
-		} catch (e) {
+		const parsed = parseMcpInstallUriPayload(uri.query);
+		if (!parsed) {
 			return false;
 		}
 
 		try {
-			const { name, inputs, ...config } = parsed;
+			const { name, inputs, config } = parsed;
 
 			// When a gallery field is present and the gallery service is available,
 			// verify the server exists in the active gallery by name. If verified,
@@ -778,9 +920,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				}
 			}
 
-			if (config.type === undefined) {
-				(<Mutable<IMcpServerConfiguration>>config).type = (<IMcpStdioServerConfiguration>parsed).command ? McpServerType.LOCAL : McpServerType.REMOTE;
-			}
 			this.open(this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, undefined, { name, config, inputs }));
 		} catch (e) {
 			// ignore

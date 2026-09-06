@@ -7,8 +7,10 @@ import assert from 'assert';
 import type { SessionEvent } from '@github/copilot-sdk';
 import { readFileSync } from 'fs';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { buildChatUri } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 
 interface BenchmarkResult {
@@ -66,7 +68,8 @@ async function runBenchmarkRound(path: string): Promise<BenchmarkResult> {
 	const parseMs = parse.elapsed();
 
 	const map = StopWatch.create();
-	const restored = await mapSessionEvents(AgentSession.uri('copilot', 'event-restoration-benchmark'), undefined, events);
+	const session = AgentSession.uri('copilot', 'event-restoration-benchmark');
+	const restored = await mapSessionEvents(session, undefined, events, URI.parse(buildChatUri(session, 'default')));
 	const mapMs = map.elapsed();
 
 	const serialize = StopWatch.create();

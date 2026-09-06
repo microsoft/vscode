@@ -17,7 +17,12 @@ import { IAgentHostService } from '../../../../platform/agentHost/common/agentSe
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../browser/editorRemoteAgentHostServiceClient.js';
 
@@ -45,18 +50,43 @@ class WorkbenchAgentHostService {
 	}
 }
 
-class AgentHostPrewarmer {
+class AgentHostPrewarmer extends Disposable {
+
+	private _assignmentContextRequest = 0;
 
 	constructor(
-		@IAgentHostService agentHostService: IAgentHostService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
 	) {
-		agentHostService.startAgentHost();
+		super();
+		this._register(this.agentHostService.onAgentHostStart(() => this.updateAssignmentContext()));
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateAssignmentContext()));
+		this.agentHostService.startAgentHost();
+		this.updateAssignmentContext();
+	}
+
+	private updateAssignmentContext(): void {
+		void this.doUpdateAssignmentContext().catch(error => this.logService.error('Failed to forward Agent Host assignment context', error));
+	}
+
+	private async doUpdateAssignmentContext(): Promise<void> {
+		const request = ++this._assignmentContextRequest;
+		const context = (await this.assignmentService.getCurrentExperiments())?.join(';') ?? '';
+		if (request !== this._assignmentContextRequest) {
+			return;
+		}
+		this.agentHostService.dispatch(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [CopilotCliVSCodeAssignmentContextKey]: context },
+		});
 	}
 }
 
 export class AgentHostPrewarmContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostPrewarm';
+	private prewarmer: AgentHostPrewarmer | undefined;
 
 	constructor(
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
@@ -75,7 +105,7 @@ export class AgentHostPrewarmContribution extends Disposable implements IWorkben
 	}
 
 	private start(): void {
-		this.instantiationService.createInstance(AgentHostPrewarmer);
+		this.prewarmer ??= this._register(this.instantiationService.createInstance(AgentHostPrewarmer));
 	}
 }
 

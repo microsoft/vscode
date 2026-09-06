@@ -14,7 +14,6 @@ import { EditorOption } from '../../../../../../../editor/common/config/editorOp
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
-import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
@@ -25,7 +24,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
-import { dynamicVariableDecorationType } from '../../../attachments/chatDynamicVariables.js';
+import { registerChatInputReferenceDecorationType } from './chatInputReferenceDecorations.js';
 import { NativeEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
@@ -185,12 +184,7 @@ class InputEditorDecorations extends Disposable {
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
 		}));
-		this._register(this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
-			color: themeColorFromId(chatSlashCommandForeground),
-			backgroundColor: themeColorFromId(chatSlashCommandBackground),
-			borderRadius: '3px',
-			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		}));
+		this._register(registerChatInputReferenceDecorationType(this.codeEditorService));
 	}
 
 	private getPlaceholderColor(): string | undefined {

@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { AgentHostSdkSandboxEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
@@ -25,6 +25,7 @@ import { readAgentHostSandboxValues, SANDBOX_SETTING_KEYS } from '../common/sand
 const HOST_POLICY_SETTING_KEYS: readonly string[] = [
 	AgentHostCustomTerminalToolEnabledSettingId,
 	AgentHostSdkSandboxEnabledSettingId,
+	AgentHostSdkSandboxWindowsEnabledSettingId,
 ];
 
 /**
@@ -165,13 +166,14 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 	 *    those values directly.
 	 *
 	 *  - Otherwise (the SDK runs the shell tool), gate on
-	 *    `chat.agentHost.sdkSandbox.enabled`:
-	 *      - `'off'` (the default) — forward an empty object so any
+	 *    `chat.agentHost.sdkSandbox.enabled` and
+	 *    `chat.agentHost.sdkSandbox.enabledWindows` independently:
+	 *      - both `'off'` (the default) — forward an empty object so any
 	 *        previously-pushed values are cleared and the SDK runs commands
 	 *        unsandboxed.
-	 *      - `'on'` / `'allowNetwork'` — forward the user's policy but
-	 *        override both `enabled` and `enabled.windows` with the SDK
-	 *        sandbox value. The SDK sandbox mode is independent of the
+	 *      - either `'on'` — forward the user's policy and
+	 *        set `enabled` and `enabled.windows` from their corresponding SDK
+	 *        settings. The SDK sandbox modes are independent of the
 	 *        engine sandbox mode, so the user can run the SDK sandboxed
 	 *        even when the engine sandbox is off.
 	 */
@@ -182,11 +184,14 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 			return values;
 		}
 		const sdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
-		if (sdkSandbox !== AgentSandboxEnabledValue.On && sdkSandbox !== AgentSandboxEnabledValue.AllowNetwork) {
+		const windowsSdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxWindowsEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
+		const sdkSandboxEnabled = sdkSandbox === AgentSandboxEnabledValue.On;
+		const windowsSdkSandboxEnabled = windowsSdkSandbox === AgentSandboxEnabledValue.On;
+		if (!sdkSandboxEnabled && !windowsSdkSandboxEnabled) {
 			return {};
 		}
-		values[AgentHostSandboxKey.Enabled] = sdkSandbox;
-		values[AgentHostSandboxKey.WindowsEnabled] = sdkSandbox;
+		values[AgentHostSandboxKey.Enabled] = sdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
+		values[AgentHostSandboxKey.WindowsEnabled] = windowsSdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		return values;
 	}
 

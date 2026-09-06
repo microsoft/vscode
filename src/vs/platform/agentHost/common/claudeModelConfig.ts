@@ -97,9 +97,7 @@ export function isClaudeEffortLevel(value: string): value is ClaudeEffortLevel {
  * via {@link isClaudeEffortLevel} before passing it in.
  *
  * The `default` is `'high'` when the model supports it, otherwise omitted
- * — Claude's own server-side default for adaptive thinking is `'high'`,
- * and the extension mirrors the same fallback rule at
- * `extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeModels.ts:230`.
+ * — Claude's own server-side default for adaptive thinking is `'high'`.
  * (Anthropic's `CCAModel` rows don't carry a server-supplied default
  * field; tracked at microsoft/vscode-capi#85.)
  *

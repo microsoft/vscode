@@ -10,14 +10,14 @@ exchanges:
     response:
       content:
         - type: text
-          text: I'll ask the question as requested.
+          text: I'll ask the question now.
         - type: tool_use
           id: toolcall_0
           name: AskUserQuestion
           input:
             questions:
               - question: Continue?
-                header: Continue?
+                header: Continue
                 options:
                   - label: 'Yes'
                     description: Proceed.
@@ -34,13 +34,13 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: I'll ask the question as requested.
+              text: I'll ask the question now.
             - type: tool_use
               name: AskUserQuestion
               input:
                 questions:
                   - question: Continue?
-                    header: Continue?
+                    header: Continue
                     options:
                       - label: 'Yes'
                         description: Proceed.

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { arrayEquals } from '../../../../base/common/equals.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,6 +12,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 // --- Types -------------------------------------------------------------------
@@ -37,11 +39,12 @@ export const enum PRReviewStateKind {
 export type IPRReviewState =
 	| { readonly kind: PRReviewStateKind.None }
 	| { readonly kind: PRReviewStateKind.Loading }
-	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[] }
+	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[]; readonly incompletePullRequests: readonly Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] }
 	| { readonly kind: PRReviewStateKind.Error; readonly reason: string };
 
 export interface IPRReviewComment {
 	readonly id: string;
+	readonly pullRequest: IGitHubPullRequestRef;
 	readonly uri: URI;
 	readonly range: IRange;
 	readonly body: string;
@@ -57,14 +60,14 @@ export interface ICodeReviewService {
 
 	/**
 	 * Get the observable PR review state for a session.
-	 * Returns unresolved review comments from the PR associated with the session.
+	 * Returns unresolved review comments from every PR associated with the session.
 	 */
 	getPRReviewState(sessionResource: URI): IObservable<IPRReviewState>;
 
 	/**
 	 * Resolve a PR review thread on GitHub and remove it from local state.
 	 */
-	resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void>;
+	resolvePRReviewThread(sessionResource: URI, threadId: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<void>;
 
 	/**
 	 * Mark a PR review comment as locally converted to agent feedback.
@@ -90,6 +93,12 @@ interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
 }
 
+interface IActivePRReviewContext {
+	readonly sessionResource: URI;
+	readonly workingDirectory: URI | undefined;
+	readonly pullRequests: readonly IGitHubPullRequestRef[];
+}
+
 export class CodeReviewService extends Disposable implements ICodeReviewService {
 
 	declare readonly _serviceBrand: undefined;
@@ -111,39 +120,59 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		super();
 		this._registerSessionListeners();
 
-		const activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			return this._sessionsService.activeSession.read(reader)?.resource;
+		const activeReviewContext = derivedOpts<IActivePRReviewContext | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a === b || !!a && !!b &&
+				isEqual(a.sessionResource, b.sessionResource) &&
+				isEqual(a.workingDirectory, b.workingDirectory) &&
+				arrayEquals(a.pullRequests, b.pullRequests, (x, y) =>
+					x.owner === y.owner && x.repo === y.repo && x.number === y.number)
+		}, reader => {
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			if (!activeSession) {
+				return undefined;
+			}
+			const workspace = activeSession.workspace.read(reader);
+			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			return {
+				sessionResource: activeSession.resource,
+				workingDirectory: workspace?.folders[0]?.workingDirectory,
+				pullRequests: getGitHubPullRequestRefs(gitHubInfo),
+			};
 		});
 
-		// Subscribe to the active session's PR review threads model and project
-		// review threads into per-session PR review state. The model lifetime is
-		// owned by `IGitHubService.activeSessionPullRequestReviewThreadsObs`; we
-		// only consume it here.
 		this._register(autorun(reader => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
-			if (!activeSessionResource) {
+			const context = activeReviewContext.read(reader);
+			for (const pullRequest of context?.pullRequests ?? []) {
+				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+				void reviewThreadsRef.object.refresh();
+				reader.store.add(reviewThreadsRef.object.startPolling());
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const context = activeReviewContext.read(reader);
+			if (!context || context.pullRequests.length === 0) {
 				return;
 			}
 
-			const reviewThreadsModel = this._gitHubService.activeSessionPullRequestReviewThreadsObs.read(reader);
-			if (!reviewThreadsModel) {
-				return;
-			}
-
-			const data = this._getOrCreatePRReviewData(activeSessionResource);
+			const data = this._getOrCreatePRReviewData(context.sessionResource);
 			if (data.state.read(undefined).kind === PRReviewStateKind.None) {
 				data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 			}
 
-			const session = this._sessionsManagementService.getSession(activeSessionResource);
-			const workspace = session?.workspace.read(undefined);
-
-			// Map review threads -> local state.
-			reader.store.add(autorun(innerReader => {
-				const threads = reviewThreadsModel.reviewThreads.read(innerReader);
-				const converted = this._convertedPRCommentsBySession.get(activeSessionResource.toString());
-				const comments: IPRReviewComment[] = [];
-
+			const converted = this._convertedPRCommentsBySession.get(context.sessionResource.toString());
+			const comments: IPRReviewComment[] = [];
+			const incompletePullRequests: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] = [];
+			let initialRefreshCompleted = true;
+			for (const pullRequest of context.pullRequests) {
+				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+				const reviewThreadsModel = reviewThreadsRef.object;
+				initialRefreshCompleted = reviewThreadsModel.initialRefreshCompleted.read(reader) && initialRefreshCompleted;
+				if (!reviewThreadsModel.hasLoaded.read(reader)) {
+					incompletePullRequests.push(pullRequest);
+				}
+				const threads = reviewThreadsModel.reviewThreads.read(reader);
 				for (const thread of threads) {
 					if (thread.isResolved) {
 						continue;
@@ -152,7 +181,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					if (converted?.has(threadId)) {
 						continue;
 					}
-					const baseUri = workspace?.folders[0]?.workingDirectory;
+					const baseUri = context.workingDirectory;
 					if (!baseUri) {
 						continue;
 					}
@@ -161,15 +190,19 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					const firstComment = thread.comments[0];
 					comments.push({
 						id: String(thread.id),
+						pullRequest,
 						uri: fileUri,
 						range: new Range(line, 1, line, 1),
 						body: firstComment?.body ?? '',
 						author: firstComment?.author.login ?? '',
 					});
 				}
-
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
-			}));
+			}
+			if (!initialRefreshCompleted) {
+				data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
+				return;
+			}
+			data.state.set({ kind: PRReviewStateKind.Loaded, comments, incompletePullRequests }, undefined);
 		}));
 	}
 
@@ -186,11 +219,15 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		return this._getOrCreatePRReviewData(sessionResource).state;
 	}
 
-	async resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void> {
+	async resolvePRReviewThread(sessionResource: URI, threadId: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<void> {
 		const session = this._sessionsManagementService.getSession(sessionResource);
 		const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
-		if (gitHubInfo?.pullRequest) {
-			const modelRef = this._gitHubService.createPullRequestReviewThreadsModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+		const state = this._prReviewBySession.get(sessionResource.toString())?.state.get();
+		const source = pullRequest
+			?? (state?.kind === PRReviewStateKind.Loaded ? state.comments.find(comment => comment.id === threadId)?.pullRequest : undefined)
+			?? getGitHubPullRequestRefs(gitHubInfo)[0];
+		if (source) {
+			const modelRef = this._gitHubService.createPullRequestReviewThreadsModelReference(source.owner, source.repo, source.number);
 			try {
 				await modelRef.object.resolveThread(threadId);
 			} catch (err) {
@@ -206,7 +243,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== threadId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}
@@ -239,7 +276,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== commentId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}

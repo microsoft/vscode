@@ -9,14 +9,16 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 export class WebAgentHostEnablementService extends AgentHostEnablementService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 	) {
-		super(!!environmentService.remoteAuthority, configurationService, contextKeyService);
+		super(!!environmentService.remoteAuthority, configurationService, contextKeyService, managedSettingsService);
 	}
 }
 

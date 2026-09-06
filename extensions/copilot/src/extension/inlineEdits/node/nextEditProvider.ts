@@ -9,8 +9,10 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
+import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
@@ -248,6 +250,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		private readonly _historyContextProvider: IHistoryContextProvider,
 		private readonly _xtabHistoryTracker: NesXtabHistoryTracker,
 		private readonly _debugRecorder: DebugRecorder | undefined,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISnippyService private readonly _snippyService: ISnippyService,
 		@ILogService private readonly _logService: ILogService,
@@ -862,6 +865,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
+		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
 
@@ -883,6 +887,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
+			rejectedEditHistory,
 		);
 		let nextEditResult: StatelessNextEditResult | undefined;
 
@@ -1132,8 +1137,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return 0;
 		}
 
-		const cacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, this._expService);
-		const rebasedCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, this._expService);
+		const modelConfig = this._modelService.selectedModelConfiguration();
+		const cacheDelay = resolveModelConfigValue(this._configService, this._expService, ConfigKey.TeamInternal.InlineEditsCacheDelay, modelConfig.cacheDelay);
+		const rebasedCacheDelay = resolveModelConfigValue(this._configService, this._expService, ConfigKey.TeamInternal.InlineEditsRebasedCacheDelay, modelConfig.rebasedCacheDelay);
 		const subsequentCacheDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSubsequentCacheDelay, this._expService);
 		const speculativeRequestDelay = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequestDelay, this._expService);
 
@@ -1386,7 +1392,13 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		});
 
 		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
-		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, edit: rootedEdit };
+		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
+		// Keep the request-local suggestion last without advancing the tracker's ordinal.
+		const suggestedEditOrdinal = Math.max(
+			xtabEditHistory.at(-1)?.ordinal ?? -1,
+			rejectedEditHistory.at(-1)?.ordinal ?? -1,
+		) + 1;
+		const suggestedEdit: IXtabHistoryEditEntry = { kind: 'edit', docId: curDocId, ordinal: suggestedEditOrdinal, edit: rootedEdit };
 		xtabEditHistory.push(suggestedEdit);
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
@@ -1426,6 +1438,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			undefined, // recordingBookmark
 			recording,
 			undefined, // providerRequestStartDateTime
+			rejectedEditHistory,
 		);
 
 		logContext.setRequestInput(nextEditRequest);
@@ -1602,6 +1615,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// we can argue that the user had the time to review this
 			// so it wasn't an accidental rejection
 			this._rejectionCollector.reject(docId, suggestion.result.edit);
+			if (this._isRejectedEditMemoryEnabled()) {
+				this._xtabHistoryTracker.recordRejectedEdit(suggestion.result.targetDocumentId ?? docId, suggestion.result.documentBeforeEdits, suggestion.result.edit);
+			}
 			this._nextEditCache.rejectedNextEdit(suggestion.source.headerRequestId);
 		}
 
@@ -1636,6 +1652,10 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return;
 		}
 		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
+	}
+
+	private _isRejectedEditMemoryEnabled(): boolean {
+		return isRejectedEditMemoryEnabled(this._modelService.selectedModelConfiguration());
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {

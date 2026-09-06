@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostToolSetEnablementService, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, getToolSetTriState, isToolEnabledInSet } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AgentHostToolSetEnablementService, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, getToolSetTriState, isCopilotCliSessionType, isToolEnabledInSet } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 
 suite('AgentHostToolSetEnablementService', () => {
 
@@ -19,6 +19,18 @@ suite('AgentHostToolSetEnablementService', () => {
 	function createSut(storageService = store.add(new InMemoryStorageService())) {
 		return { storageService, sut: store.add(new AgentHostToolSetEnablementService(storageService)) };
 	}
+
+	test('isCopilotCliSessionType matches local and remote Copilot CLI harnesses', () => {
+		assert.deepStrictEqual(
+			[
+				AGENT_HOST_COPILOT_CLI_SESSION_TYPE,
+				'remote-devbox-copilotcli',
+				'remote-my-dash-box-copilotcli',
+				'remote-devbox-claude',
+				'agent-host-claude',
+			].map(isCopilotCliSessionType),
+			[true, true, true, false, false]);
+	});
 
 	test('default state: everything enabled, set tri-state on', () => {
 		const { sut } = createSut();

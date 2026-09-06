@@ -6,13 +6,23 @@
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 
-export function selectFirstClaudeCustomizationByKey<T>(groups: readonly (readonly T[])[], keyOf: (item: T) => string): readonly T[] {
+/**
+ * First-seen-per-key wins across `groups` (ordered highest precedence first).
+ * `onShadowed` is invoked for each later item dropped because its key was
+ * already claimed, receiving the dropped item and the winning item.
+ */
+export function selectFirstClaudeCustomizationByKey<T>(groups: readonly (readonly T[])[], keyOf: (item: T) => string, onShadowed?: (shadowed: T, winner: T) => void): readonly T[] {
 	const selected = new Map<string, T>();
 	for (const group of groups) {
 		for (const item of group) {
 			const key = keyOf(item);
 			if (!selected.has(key)) {
 				selected.set(key, item);
+				continue;
+			}
+			const winner = selected.get(key);
+			if (winner !== undefined) {
+				onShadowed?.(item, winner);
 			}
 		}
 	}

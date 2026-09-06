@@ -8,12 +8,15 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, ImmortalReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -27,20 +30,28 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
+import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
-import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
+import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -53,6 +64,39 @@ import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } fr
 
 // ---- Helpers ----------------------------------------------------------------
 
+interface IGitHubContextBrowseHarness {
+	readonly commandService: Pick<ICommandService, 'executeCommand'>;
+}
+
+interface IGitHubRepositoryBrowseHarness {
+	readonly commandService: Pick<ICommandService, 'executeCommand'>;
+	readonly notificationService: Pick<INotificationService, 'error'>;
+	resolveWorkspace(uri: URI): ISessionWorkspace | undefined;
+	_labelFromUri(uri: URI): string;
+	_iconFromUri(uri: URI): ThemeIcon;
+	_cloneRepository?(url?: string): Promise<ISessionWorkspace | undefined>;
+}
+
+const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
+	this: IGitHubContextBrowseHarness,
+	commandId: string,
+	icon: ThemeIcon,
+	currentWorkspace: ISessionWorkspace | undefined,
+) => Promise<ISessionWorkspace | undefined>;
+
+const browseForGitHubRepo = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubRepo') as (
+	this: IGitHubRepositoryBrowseHarness,
+) => Promise<ISessionWorkspace | undefined>;
+
+const cloneRepository = Reflect.get(CopilotChatSessionsProvider.prototype, '_cloneRepository') as (
+	this: IGitHubRepositoryBrowseHarness,
+	url?: string,
+) => Promise<ISessionWorkspace | undefined>;
+
+const browseForCloudRepo = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForCloudRepo') as (
+	this: IGitHubRepositoryBrowseHarness,
+) => Promise<ISessionWorkspace | undefined>;
+
 function createMockAgentSession(resource: URI, opts?: {
 	providerType?: string;
 	title?: string;
@@ -60,6 +104,7 @@ function createMockAgentSession(resource: URI, opts?: {
 	read?: boolean;
 	createdAt?: number;
 	status?: ChatSessionStatus;
+	changes?: IAgentSession['changes'];
 	metadata?: Record<string, unknown>;
 	onSetRead?: () => void;
 }): IAgentSession {
@@ -74,6 +119,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly status = opts?.status ?? ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
 		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
+		override readonly changes = opts?.changes;
 		override readonly metadata = opts?.metadata ?? { repositoryPath: '/test/repo' };
 		override isArchived(): boolean { return archived; }
 		override setArchived(value: boolean): void { archived = value; }
@@ -145,14 +191,15 @@ interface IExecutedCommand {
 
 interface ICreateProviderOptions {
 	readonly multiChatEnabled?: boolean;
-	readonly claudeEnabled?: boolean;
-	readonly preferAgentHost?: boolean;
+	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
+	readonly gitService?: IGitService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
+	readonly pathService?: IPathService;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
@@ -238,18 +285,17 @@ function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	opts?: ICreateProviderOptions,
-): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean> } {
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService; agentHostEnabled: ISettableObservable<boolean>; labelService: MockLabelService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
-	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
+	configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, opts?.consolidatedRemoteWorkspaces ?? false);
 	const agentHostEnabled = observableValue('agentHostEnabled', opts?.agentHostEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -299,20 +345,24 @@ function createProviderWithConfig(
 		onDidChangeFocusedSession: Event.None,
 	});
 	instantiationService.stub(ILanguageModelsService, opts?.languageModelsService ?? { lookupLanguageModel: () => undefined });
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override warn(): void { }
+	}());
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});
 	// Stub IInstantiationService so provider can use createInstance for CopilotCLISession
 	instantiationService.stub(IInstantiationService, instantiationService);
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	const labelService = new MockLabelService();
+	instantiationService.stub(ILabelService, labelService);
+	instantiationService.stub(IPathService, opts?.pathService ?? new TestPathService(URI.file('/home/test')));
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return { provider, configService, agentHostEnabled };
+	return { provider, configService, agentHostEnabled, labelService };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -325,17 +375,38 @@ function createProviderWithConfig(
  * The caller can pass a custom `sendRequest` implementation to control the
  * lifecycle of the in-flight request.
  */
+/**
+ * Substitutes the sandbox contribution, which the provider otherwise resolves from the global
+ * workbench contribution registry.
+ */
+class TestSandboxCopilotProvider extends CopilotChatSessionsProvider {
+	sandboxContribution: Pick<CloudSandboxAgentHostContribution, 'provisionSession'> | undefined;
+
+	/** Only the timeout test lowers this; the rest keep the real budget so they cannot race it. */
+	sandboxModelWaitMs: number | undefined;
+
+	protected override _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
+		if (!this.sandboxContribution) {
+			throw new Error('No cloud sandbox contribution was registered');
+		}
+		return this.sandboxContribution;
+	}
+
+	protected override get _sandboxModelWaitMs(): number {
+		return this.sandboxModelWaitMs ?? super._sandboxModelWaitMs;
+	}
+}
+
 function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
-): CopilotChatSessionsProvider {
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[] },
+): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = opts?.configurationService ?? new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
@@ -354,12 +425,11 @@ function createProviderForSendTests(
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
-		getOptionGroupsForSessionType: () => undefined,
+		getOptionGroupsForSessionType: () => opts?.getOptionGroups?.(),
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
 		onDidChangeOptionGroups: Event.None,
-		createNewChatSessionItem: opts?.createNewChatSessionItem ?? (async () => undefined),
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: async () => undefined,
@@ -377,19 +447,21 @@ function createProviderForSendTests(
 		onDidChangeFocusedSession: Event.None,
 	});
 	instantiationService.stub(ILanguageModelsService, { lookupLanguageModel: () => undefined });
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override warn(message: unknown): void { opts?.notifications?.push(String(message)); }
+	}());
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
-	instantiationService.stub(ILabelService, {
-		getUriLabel: (uri: URI) => uri.path,
-	});
+	instantiationService.stub(ILabelService, new MockLabelService());
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
 	instantiationService.stub(IUriIdentityService, { extUri });
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
 
-	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
+	return disposables.add(instantiationService.createInstance(TestSandboxCopilotProvider));
 }
 
 suite('CopilotChatSessionsProvider', () => {
@@ -412,82 +484,402 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 2);
-	});
-
-	test('sessionTypes excludes Claude when setting is disabled', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
-	test('sessionTypes excludes Claude when preferAgentHost is true', () => {
-		// When the user has opted into the agent host implementation of
-		// Claude, this provider must yield so the picker shows a single
-		// Claude entry (the agent host's). Otherwise both register and the
-		// user sees Claude twice.
-		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true });
-		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
-	});
-
-	test('sessionTypes includes Claude when claudeEnabled and preferAgentHost is false', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: false });
-		assert.strictEqual(provider.sessionTypes.length, 2);
-		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
-	});
-
-	test('preferAgentHost is not respected when Agent Host is unavailable', () => {
-		// Yielding to the agent host's Claude only makes sense when the agent
-		// host is available to register it. Without an Agent Host runtime the
-		// preference must be ignored so this provider keeps surfacing Claude;
-		// otherwise Claude would disappear entirely.
-		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true, agentHostEnabled: false });
-		assert.strictEqual(provider.sessionTypes.length, 3);
-		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
-	});
-
-	test('onDidChangeSessionTypes fires when claude setting changes', () => {
-		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 2);
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
-
-		// Disable claude via config change
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
-			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+	test('offers local repository acquisition separately from Cloud', () => {
+		const localProvider = createProvider(disposables, model, { consolidatedRemoteWorkspaces: true });
+		const remoteProvider = createProvider(disposables, model, {
+			consolidatedRemoteWorkspaces: true,
+			pathService: new TestPathService(URI.file('/home/test'), Schemas.vscodeRemote),
 		});
 
-		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 1);
+		assert.deepStrictEqual({
+			local: localProvider.browseActions.map(action => ({ label: action.label, icon: action.icon.id })),
+			remote: remoteProvider.browseActions.map(action => ({ label: action.label, icon: action.icon.id })),
+		}, {
+			local: [
+				...isWeb ? [] : [
+					{ label: 'Add GitHub Repository...', icon: 'github' },
+					{ label: 'Clone Repository...', icon: 'link' },
+				],
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'github' },
+			],
+			remote: [
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'github' },
+			],
+		});
 	});
 
-	test('onDidChangeSessionTypes fires when preferAgentHost setting changes', () => {
-		// Symmetric with the claude-enabled case above. Must respond live so
-		// flipping the EXP-backed preference unregisters this provider's
-		// Claude entry without requiring a window reload.
+	test('preserves the legacy repository action when unified workspaces are disabled', () => {
+		const provider = createProvider(disposables, model);
+
+		assert.deepStrictEqual(provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id })), [
+			{ label: 'Repository...', icon: 'library' },
+			{ label: 'Issue...', icon: 'issues' },
+			{ label: 'Pull Request...', icon: 'git-pull-request' },
+		]);
+	});
+
+	test('updates repository actions when unified workspaces setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		const legacyActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
 
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+		configService.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
+		const unifiedActions = provider.browseActions.map(action => ({ label: action.label, icon: action.icon.id }));
 
-		configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([ClaudePreferAgentHostAgentsSettingId]),
-			change: { keys: [ClaudePreferAgentHostAgentsSettingId], overrides: [] },
-			affectsConfiguration: (key: string) => key === ClaudePreferAgentHostAgentsSettingId,
+		assert.deepStrictEqual({
+			legacyActions,
+			unifiedActions,
+		}, {
+			legacyActions: [
+				{ label: 'Repository...', icon: 'library' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'git-pull-request' },
+			],
+			unifiedActions: [
+				...isWeb ? [] : [
+					{ label: 'Add GitHub Repository...', icon: 'github' },
+					{ label: 'Clone Repository...', icon: 'link' },
+				],
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
+				{ label: 'Issue...', icon: 'issues' },
+				{ label: 'Pull Request...', icon: 'github' },
+			],
 		});
+	});
 
-		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	test('adds a selected GitHub repository by cloning it locally', async () => {
+		const calls: { commandId: string; args: unknown[] }[] = [];
+		const harness: IGitHubRepositoryBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ commandId, args });
+					return (commandId === 'git.clone' ? '/repos/vscode' : 'microsoft/vscode') as T;
+				}
+			}(),
+			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
+			resolveWorkspace: uri => ({
+				uri,
+				label: 'vscode',
+				icon: Codicon.folder,
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				folders: [{ root: uri, workingDirectory: uri, name: 'vscode', description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			}),
+			_labelFromUri: () => 'vscode',
+			_iconFromUri: () => Codicon.repo,
+			_cloneRepository: url => cloneRepository.call(harness, url),
+		};
+
+		const workspace = await browseForGitHubRepo.call(harness);
+
+		assert.deepStrictEqual({
+			calls,
+			workspace: workspace && {
+				uri: workspace.uri.toString(),
+				group: workspace.group,
+				isVirtualWorkspace: workspace.isVirtualWorkspace,
+			},
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', args: [] },
+				{
+					commandId: 'git.clone',
+					args: [
+						'https://github.com/microsoft/vscode.git',
+						undefined,
+						{ postCloneAction: 'none' },
+					],
+				},
+			],
+			workspace: {
+				uri: URI.file('/repos/vscode').toString(),
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				isVirtualWorkspace: false,
+			},
+		});
+	});
+
+	test('clones a repository URL without opening the GitHub picker', async () => {
+		const calls: { commandId: string; args: unknown[] }[] = [];
+		const harness: IGitHubRepositoryBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ commandId, args });
+					return '/repos/vscode' as T;
+				}
+			}(),
+			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
+			resolveWorkspace: uri => ({
+				uri,
+				label: 'vscode',
+				icon: Codicon.folder,
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				folders: [{ root: uri, workingDirectory: uri, name: 'vscode', description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: true,
+				isVirtualWorkspace: false,
+			}),
+			_labelFromUri: () => 'vscode',
+			_iconFromUri: () => Codicon.repo,
+		};
+
+		const workspace = await cloneRepository.call(harness);
+
+		assert.deepStrictEqual({
+			calls,
+			workspace: workspace?.uri.toString(),
+		}, {
+			calls: [
+				{
+					commandId: 'git.clone',
+					args: [undefined, undefined, { postCloneAction: 'none' }],
+				},
+			],
+			workspace: URI.file('/repos/vscode').toString(),
+		});
+	});
+
+	test('keeps Cloud as an explicit repository action', async () => {
+		const calls: { commandId: string; args: unknown[] }[] = [];
+		const harness: IGitHubRepositoryBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ commandId, args });
+					return 'microsoft/vscode' as T;
+				}
+			}(),
+			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
+			resolveWorkspace: () => undefined,
+			_labelFromUri: () => 'microsoft/vscode',
+			_iconFromUri: () => Codicon.repo,
+		};
+
+		const workspace = await browseForCloudRepo.call(harness);
+
+		assert.deepStrictEqual({
+			calls,
+			workspace: workspace && {
+				uri: workspace.uri.toString(),
+				root: workspace.folders[0].root.toString(),
+				group: workspace.group,
+				isVirtualWorkspace: workspace.isVirtualWorkspace,
+			},
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', args: [] },
+			],
+			workspace: {
+				uri: 'https://github.com/microsoft/vscode',
+				root: 'github-remote-file://github/microsoft/vscode/HEAD',
+				group: SESSION_WORKSPACE_GROUP_GITHUB,
+				isVirtualWorkspace: true,
+			},
+		});
+	});
+
+	test('scopes issue and pull request browsing to a selected GitHub repository', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					return {
+						repoId: 'cutelyaware/MC4D',
+						url: `https://github.com/cutelyaware/MC4D/${commandId === 'openIssue' ? 'issues/1' : 'pull/2'}`,
+						label: `cutelyaware/MC4D#${commandId === 'openIssue' ? '1' : '2'}`,
+					} as T;
+				}
+			}(),
+		};
+		const repositoryRoot = URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: '/cutelyaware/MC4D/HEAD',
+		});
+		const workspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com/cutelyaware/MC4D'),
+			label: 'cutelyaware/MC4D',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: [{
+				root: repositoryRoot,
+				workingDirectory: repositoryRoot,
+				name: 'MC4D',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+		const pullRequest = await browseForGitHubContext.call(harness, 'openPullRequest', Codicon.gitPullRequest, workspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label, icon: issue?.icon.id },
+			pullRequest: { uri: pullRequest?.uri.toString(), label: pullRequest?.label, icon: pullRequest?.icon.id },
+		}, {
+			calls: [
+				{ commandId: 'openIssue', repoId: 'cutelyaware/MC4D' },
+				{ commandId: 'openPullRequest', repoId: 'cutelyaware/MC4D' },
+			],
+			issue: { uri: 'https://github.com/cutelyaware/MC4D/issues/1', label: 'cutelyaware/MC4D#1', icon: Codicon.issues.id },
+			pullRequest: { uri: 'https://github.com/cutelyaware/MC4D/pull/2', label: 'cutelyaware/MC4D#2', icon: Codicon.gitPullRequest.id },
+		});
+	});
+
+	test('selects a repository before browsing GitHub context when the repository is ambiguous', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: `https://github.com/microsoft/vscode/${commandId === 'openIssue' ? 'issues/1' : 'pull/2'}`,
+						label: `microsoft/vscode#${commandId === 'openIssue' ? '1' : '2'}`,
+					} as T;
+				}
+			}(),
+		};
+		const repositoryRoot = (repositoryId: string) => URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repositoryId}/HEAD`,
+		});
+		const multiRootWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com'),
+			label: 'Multiple repositories',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: ['microsoft/vscode', 'microsoft/typescript'].map(repositoryId => {
+				const root = repositoryRoot(repositoryId);
+				return {
+					root,
+					workingDirectory: root,
+					name: repositoryId,
+					description: undefined,
+					gitRepository: undefined,
+				};
+			}),
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, undefined);
+		const pullRequest = await browseForGitHubContext.call(harness, 'openPullRequest', Codicon.gitPullRequest, multiRootWorkspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+			pullRequest: { uri: pullRequest?.uri.toString(), label: pullRequest?.label },
+		}, {
+			calls: [
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openIssue', repoId: 'microsoft/vscode' },
+				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', repoId: undefined },
+				{ commandId: 'openPullRequest', repoId: 'microsoft/vscode' },
+			],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+			pullRequest: { uri: 'https://github.com/microsoft/vscode/pull/2', label: 'microsoft/vscode#2' },
+		});
+	});
+
+	test('uses the selected folder without waiting for unresolved local GitHub metadata', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+		};
+		const root = URI.file('/test/vscode');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'vscode',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		const issue = await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual({
+			calls,
+			issue: { uri: issue?.uri.toString(), label: issue?.label },
+		}, {
+			calls: [
+				{ commandId: 'openIssue', repoId: root },
+			],
+			issue: { uri: 'https://github.com/microsoft/vscode/issues/1', label: 'microsoft/vscode#1' },
+		});
+	});
+
+	test('passes the selected folder through when it has no matching Git root', async () => {
+		const calls: { commandId: string; repoId: unknown }[] = [];
+		const harness: IGitHubContextBrowseHarness = {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, repoId?: unknown): Promise<T | undefined> {
+					calls.push({ commandId, repoId });
+					if (commandId === 'github.copilot.chat.cloudSessions.openRepository') {
+						return 'microsoft/vscode' as T;
+					}
+					return {
+						repoId: 'microsoft/vscode',
+						url: 'https://github.com/microsoft/vscode/issues/1',
+						label: 'microsoft/vscode#1',
+					} as T;
+				}
+			}(),
+		};
+		const root = URI.file('/test/new-folder');
+		const workspace: ISessionWorkspace = {
+			uri: root,
+			label: 'new-folder',
+			icon: Codicon.folder,
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			folders: [{ root, workingDirectory: root, name: 'new-folder', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
+		};
+
+		await browseForGitHubContext.call(harness, 'openIssue', Codicon.issues, workspace);
+
+		assert.deepStrictEqual(calls, [
+			{ commandId: 'openIssue', repoId: root },
+		]);
+	});
+
+	test('sessionTypes excludes Local', () => {
+		const provider = createProvider(disposables, model);
+		assert.ok(!provider.sessionTypes.some(type => type.id === SessionType.Local));
 	});
 
 	test('sessionTypes excludes Extension Host Copilot CLI when Agent Host is available', () => {
@@ -500,74 +892,35 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('Agent Host availability is observed after the provider is created', () => {
+	test('Agent Host availability is observed in both directions after the provider is created', () => {
 		const { provider, agentHostEnabled } = createProviderWithConfig(disposables, model, { agentHostEnabled: false });
 		let changeCount = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changeCount++));
 		const visibleBeforeAvailability = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
 
 		agentHostEnabled.set(true, undefined);
+		const visibleWhileAvailable = provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id);
+		agentHostEnabled.set(false, undefined);
 
 		assert.deepStrictEqual({
 			visibleBeforeAvailability,
-			visibleAfterAvailability: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
+			visibleWhileAvailable,
+			visibleAfterDisablement: provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id),
 			changeCount,
 		}, {
 			visibleBeforeAvailability: true,
-			visibleAfterAvailability: false,
-			changeCount: 1,
+			visibleWhileAvailable: false,
+			visibleAfterDisablement: true,
+			changeCount: 2,
 		});
-	});
-
-	test('toggling claude setting refreshes sessions list', () => {
-		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
-		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
-
-		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear when enabled by default');
-
-		// Disable Claude
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
-			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
-		});
-
-		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should disappear after disabling');
-
-		// Re-enable Claude
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
-			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
-		});
-
-		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should reappear after re-enabling');
 	});
 
 	// ---- getSessionTypes -------
 
-	test('getSessionTypes returns Claude for local workspace when enabled', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		const types = provider.getSessionTypes(URI.file('/test/project'));
-		assert.ok(types.some(t => t.id === ClaudeCodeSessionType.id));
-	});
-
-	test('getSessionTypes does not return Claude for local workspace when disabled', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: false });
-		const types = provider.getSessionTypes(URI.file('/test/project'));
-		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
-	});
-
-	test('getSessionTypes returns only Cloud for remote workspace regardless of claude setting', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
+	test('getSessionTypes returns only Cloud for a remote workspace', () => {
+		const provider = createProvider(disposables, model);
 		const types = provider.getSessionTypes(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo' }));
 		assert.strictEqual(types.length, 1);
-		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
 	// ---- Session listing -------
@@ -589,7 +942,51 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('getSessions excludes Local sessions (now owned by LocalChatSessionsProvider)', () => {
+	test('adapts and atomically refreshes aggregate change metadata without synthetic file changes', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
+		model.addSession(createMockAgentSession(resource, {
+			changes: { files: 2, insertions: 12, deletions: 4 },
+		}));
+
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const observed: { readonly changes: readonly ISessionFileChange[]; readonly changesSummary: ISessionChangesSummary | undefined }[] = [];
+		disposables.add(autorun(reader => {
+			observed.push({
+				changes: session.changes.read(reader),
+				changesSummary: session.changesSummary?.read(reader),
+			});
+		}));
+
+		model.replaceSession(createMockAgentSession(resource, {
+			changes: { files: 3, insertions: 20, deletions: 6 },
+		}));
+
+		assert.deepStrictEqual(observed, [
+			{
+				changes: [],
+				changesSummary: { files: 2, additions: 12, deletions: 4 },
+			},
+			{
+				changes: [],
+				changesSummary: { files: 3, additions: 20, deletions: 6 },
+			},
+		]);
+	});
+
+	test('getSessions does not emit session changes while reading the initial cache', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session' });
+		model.addSession(createMockAgentSession(resource));
+		const provider = createProvider(disposables, model, { agentHostEnabled: false });
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		const sessions = provider.getSessions();
+
+		assert.deepStrictEqual({ sessionCount: sessions.length, changes }, { sessionCount: 1, changes: [] });
+	});
+
+	test('getSessions excludes Local sessions', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });
 		model.addSession(createMockAgentSession(bgResource));
@@ -601,21 +998,11 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 1);
 	});
 
-	test('getSessions includes Claude agent sessions when enabled', () => {
-		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
-		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
+	test('getSessions excludes Claude extension-host sessions', () => {
+		const claudeResource = URI.from({ scheme: 'claude-code', path: '/claude-session' });
+		model.addSession(createMockAgentSession(claudeResource, { providerType: 'claude-code' }));
 
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		const sessions = provider.getSessions();
-
-		assert.strictEqual(sessions.length, 1);
-	});
-
-	test('getSessions excludes Claude agent sessions when disabled', () => {
-		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
-		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
-
-		const provider = createProvider(disposables, model, { claudeEnabled: false });
+		const provider = createProvider(disposables, model);
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 0);
@@ -1066,11 +1453,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: beforeLiveUpdate.number,
 				uri: beforeLiveUpdate.uri.toString(),
 				icon: beforeLiveUpdate.icon,
+				title: beforeLiveUpdate.title,
 			},
 			afterLiveUpdate: afterLiveUpdate && {
 				number: afterLiveUpdate.number,
 				uri: afterLiveUpdate.uri.toString(),
 				icon: afterLiveUpdate.icon,
+				title: afterLiveUpdate.title,
 			},
 			lookupCalls: gitHubService.lookupCalls,
 			cachedIcon: iconCache.get('https://github.com/owner/repo/pull/42'),
@@ -1081,11 +1470,13 @@ suite('CopilotChatSessionsProvider', () => {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+				title: undefined,
 			},
 			afterLiveUpdate: {
 				number: 42,
 				uri: 'https://github.com/owner/repo/pull/42',
 				icon: computePullRequestIcon(GitHubPullRequestState.Merged),
+				title: 'Cloud PR',
 			},
 			lookupCalls: 1,
 			cachedIcon: computePullRequestIcon(GitHubPullRequestState.Merged),
@@ -1174,17 +1565,6 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
-	test('claude sessions do not have supportsMultipleChats capability', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/session-1' });
-		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Claude }));
-
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		const sessions = provider.getSessions();
-
-		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
-	});
-
 	// ---- Session listing & grouping -------
 
 	test('each session has exactly one chat initially', () => {
@@ -1205,13 +1585,24 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const provider = createProvider(disposables, model);
 		const session = provider.getSessions()[0];
-		provider.setModel(session.sessionId, 'copilot/gpt-4o');
+		provider.setModel(session.sessionId, session.resource, 'copilot/gpt-4o', ChatModelSource.Chosen);
 
 		assert.strictEqual(session.modelId.get(), 'copilot/gpt-4o');
 
 		const chat = await provider.createNewChat(session.sessionId);
 		try {
-			assert.strictEqual(chat.modelId.get(), 'copilot/gpt-4o');
+			// The model carries where it came from: chosen by the user on the original chat, and
+			// only inherited by the new one. Model selection needs that difference to know whether
+			// `chat.defaultModel` may still seed the new chat.
+			assert.deepStrictEqual({
+				model: chat.modelId.get(),
+				sourceOnOriginalChat: provider.getSessions()[0].mainChat.get().modelSource?.get(),
+				sourceOnNewChat: chat.modelSource?.get(),
+			}, {
+				model: 'copilot/gpt-4o',
+				sourceOnOriginalChat: ChatModelSource.Chosen,
+				sourceOnNewChat: ChatModelSource.CarriedOver,
+			});
 		} finally {
 			await provider.deleteChat(session.sessionId, chat.resource);
 		}
@@ -1634,6 +2025,49 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(workspace.requiresWorkspaceTrust, true);
 	});
 
+	test('resolveWorkspace resolves local GitHub metadata only when requested', async () => {
+		let openRepositoryCalls = 0;
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const gitService = upcastPartial<IGitService>({
+			repositories: [],
+			openRepository: async () => {
+				openRepositoryCalls++;
+				return upcastPartial<IGitRepository>({ state: repositoryState });
+			},
+		});
+		const provider = createProvider(disposables, model, { gitService });
+		const workspace = provider.resolveWorkspace(URI.file('/test/vscode'));
+		const gitRepository = workspace?.folders[0].gitRepository;
+
+		const beforeResolve = {
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		};
+		gitRepository?.resolveGitHubInfo?.();
+		await timeout(0);
+		gitRepository?.resolveGitHubInfo?.();
+
+		assert.deepStrictEqual({
+			beforeResolve,
+			openRepositoryCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			beforeResolve: {
+				openRepositoryCalls: 0,
+				gitHubInfo: undefined,
+			},
+			openRepositoryCalls: 1,
+			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
+		});
+	});
+
 	test('builds an unknown workspace fallback when repository metadata is missing', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/unknown-workspace-session' });
 		model.addSession(createMockAgentSession(resource, { metadata: {} }));
@@ -1652,196 +2086,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.doesNotThrow(() => URI.joinPath(workspace.folders[0].root, '.vscode/extensions.json'));
 	});
 
-	// ---- Claude session creation -------
-
-	function makeClaudeInFlightProvider(): { provider: CopilotChatSessionsProvider; cancelRequest: () => void; realResource: URI; commitSession: () => void } {
-		let resolveComplete!: () => void;
-		let resolveCreated!: (r: IChatResponseModel) => void;
-		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
-		const responseCreatedPromise = new Promise<IChatResponseModel>(r => { resolveCreated = r; });
-
-		// The real resource that createNewChatSessionItem returns
-		const realResource = URI.from({ scheme: AgentSessionProviders.Claude, path: `/claude-session-${Date.now()}` });
-
-		const provider = createProviderForSendTests(disposables, model, async () => ({
-			kind: 'sent' as const,
-			data: {
-				responseCompletePromise,
-				responseCreatedPromise,
-				agent: new class extends mock<IChatAgentData>() { }(),
-			} as IChatSendRequestData,
-		}), {
-			claudeEnabled: true,
-			createNewChatSessionItem: async (_type, request): Promise<IChatSessionItem> => ({
-				resource: realResource,
-				label: request.prompt,
-				timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
-			}),
-		});
-
-		return {
-			provider,
-			realResource,
-			cancelRequest: () => {
-				resolveCreated({ isCanceled: true } as unknown as IChatResponseModel);
-				resolveComplete();
-			},
-			commitSession: () => {
-				// Add the agent session to the model so _waitForSessionInCache resolves
-				model.addSession(createMockAgentSession(realResource, { providerType: AgentSessionProviders.Claude }));
-			},
-		};
-	}
-
-	function waitForSessionAdded(provider: CopilotChatSessionsProvider): Promise<void> {
-		return new Promise<void>(resolve => {
-			const d = provider.onDidChangeSessions(e => {
-				if (e.added.length > 0) {
-					d.dispose();
-					resolve();
-				}
-			});
-		});
-	}
-
-	test('createNewSession with Claude type creates a session', async () => {
-		const { provider, commitSession } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		assert.ok(session);
-		assert.strictEqual(session.sessionType, ClaudeCodeSessionType.id);
-		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
-
-		// Send and commit so the session enters the cache and can be disposed
-		const added = waitForSessionAdded(provider);
-		const chat = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
-		await added;
-		commitSession();
-		await assert.doesNotReject(sendPromise);
-	});
-
-	test('archiveSession archives a Claude temp session', async () => {
-		const { provider, cancelRequest } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const added = waitForSessionAdded(provider);
-		const chat1 = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat1.resource, { query: 'test' });
-		await added;
-
-		await provider.archiveSession(session.sessionId);
-		assert.strictEqual(provider.getSessions()[0].isArchived.get(), true);
-
-		cancelRequest();
-		await assert.doesNotReject(sendPromise);
-
-		// Clean up
-		await provider.deleteSession(session.sessionId);
-	});
-
-	test('unarchiveSession unarchives a Claude temp session', async () => {
-		const { provider, cancelRequest } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const added = waitForSessionAdded(provider);
-		const chat2 = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat2.resource, { query: 'test' });
-		await added;
-
-		await provider.archiveSession(session.sessionId);
-		assert.strictEqual(provider.getSessions()[0].isArchived.get(), true);
-
-		await provider.unarchiveSession(session.sessionId);
-		assert.strictEqual(provider.getSessions()[0].isArchived.get(), false);
-
-		cancelRequest();
-		await assert.doesNotReject(sendPromise);
-
-		// Clean up
-		await provider.deleteSession(session.sessionId);
-	});
-
-	// ---- Claude controller-based send flow -------
-
-	test('sendRequest replaces temp session with committed session on success', async () => {
-		const { provider, commitSession } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const replacements: { from: unknown; to: unknown }[] = [];
-		disposables.add(provider.onDidReplaceSession(e => replacements.push(e)));
-
-		const added = waitForSessionAdded(provider);
-		const chat3 = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat3.resource, { query: 'hello world' });
-		await added;
-
-		assert.strictEqual(provider.getSessions().length, 1, 'temp session should appear while in-flight');
-
-		// Simulate the agent session appearing in the model
-		commitSession();
-		await sendPromise;
-
-		// The temp session should have been replaced by the committed one
-		assert.ok(replacements.length > 0, 'onDidReplaceSessions should have fired');
-	});
-
-	test('sendRequest uses the query as the temp session title', async () => {
-		const { provider, cancelRequest } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const added = waitForSessionAdded(provider);
-		const chat4 = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat4.resource, { query: 'fix the login bug' });
-		await added;
-
-		const sessions = provider.getSessions();
-		assert.strictEqual(sessions[0].title.get(), 'fix the login bug');
-
-		cancelRequest();
-		await assert.doesNotReject(sendPromise);
-		await provider.deleteSession(session.sessionId);
-	});
-
-	test('sendRequest keeps temp session on cancellation', async () => {
-		const { provider, cancelRequest } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const added = waitForSessionAdded(provider);
-		const chat5 = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat5.resource, { query: 'test' });
-		await added;
-
-		// Cancel before the agent session appears
-		cancelRequest();
-		await sendPromise;
-
-		assert.strictEqual(provider.getSessions().length, 1, 'session should remain after cancellation');
-		assert.strictEqual(provider.getSessions()[0].status.get(), SessionStatus.Completed, 'should be marked completed');
-
-		await provider.deleteSession(session.sessionId);
-	});
-
 	// ---- Rename -------
-
-	test('renameChat delegates to claude rename command', async () => {
-		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
-		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
-
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		const sessions = provider.getSessions();
-		assert.strictEqual(sessions.length, 1);
-
-		// Should not throw — delegates to ICommandService.executeCommand
-		await provider.renameChat(sessions[0].sessionId, claudeResource, 'New Title');
-	});
 
 	test('renameChat throws for unsupported session type', async () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/cloud-session' });
@@ -2034,55 +2279,16 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	// ---- In-flight commit protection -------
-
-	test('concurrent model re-resolve does not spuriously remove an in-flight committed session', async () => {
-		// This reproduces the race condition from the smoke test failure:
-		// 1. Claude session is created and committed (added to model)
-		// 2. _sendFirstChat is waiting for the committed adapter in the cache
-		// 3. A concurrent model re-resolve transiently removes the session
-		//    from agentSessionsService.model.sessions
-		// 4. _refreshSessionCache should NOT fire `removed` for the in-flight
-		//    session because it is protected by _inFlightCommits
-
-		const { provider, commitSession, realResource } = makeClaudeInFlightProvider();
-		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
-
-		const removals: string[] = [];
-		disposables.add(provider.onDidChangeSessions(e => {
-			for (const r of e.removed) {
-				removals.push(r.resource.toString());
-			}
-		}));
-
-		const added = waitForSessionAdded(provider);
-		const chat = await provider.createNewChat(session.sessionId);
-		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
-		await added;
-
-		// Commit: adds the real session to the model, triggering
-		// _refreshSessionCache which populates the AgentSessionAdapter.
-		commitSession();
-
-		// Simulate a concurrent model re-resolve transiently dropping the
-		// session: remove it from the model (fires onDidChangeSessions →
-		// _refreshSessionCache). Because _sendFirstChat holds the resource
-		// in _inFlightCommits, _refreshSessionCache must NOT fire `removed`.
-		model.removeSession(realResource);
-
-		// The committed session resource must NOT appear in removals
-		assert.ok(
-			!removals.includes(realResource.toString()),
-			`In-flight committed session ${realResource.toString()} should not be spuriously removed. ` +
-			`Removals seen: [${removals.join(', ')}]`,
-		);
-
-		// Re-add the session so _waitForSessionInCache can resolve
-		model.addSession(createMockAgentSession(realResource, { providerType: AgentSessionProviders.Claude }));
-
-		await sendPromise;
-	});
+	function waitForSessionAdded(provider: CopilotChatSessionsProvider): Promise<void> {
+		return new Promise<void>(resolve => {
+			const disposable = provider.onDidChangeSessions(e => {
+				if (e.added.length > 0) {
+					disposable.dispose();
+					resolve();
+				}
+			});
+		});
+	}
 
 	test('cloud session that commits a new resource resolves without timing out', async () => {
 		// Regression: a cloud session commits a different resource mid-request
@@ -2148,5 +2354,291 @@ suite('CopilotChatSessionsProvider', () => {
 			!removals.includes(untitledResource.toString()),
 			`Cloud session should not be removed after committing. Removals seen: [${removals.join(', ')}]`,
 		);
+	});
+	suite('cloud sandbox send path', () => {
+		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
+		// `repoNwo` has to strip back down to `owner/repo`.
+		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
+
+		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined } = {}) {
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
+			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+
+			const cloudSends: string[] = [];
+			const notifications: string[] = [];
+			const provider = createProviderForSendTests(disposables, model, async (_resource, message) => {
+				cloudSends.push(message);
+				// Never settles: these tests only assert which path the send took.
+				return new Promise<ChatSendResult>(() => { });
+			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications });
+
+			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
+			provider.sandboxContribution = {
+				provisionSession: async request => {
+					provisionRequests.push(request);
+					if (opts.provision) {
+						return opts.provision();
+					}
+					throw new Error('provisioning failed');
+				},
+			};
+			return { provider, provisionRequests, cloudSends, notifications };
+		}
+
+		/**
+		 * A provisioned session whose provider immediately commits the send.
+		 *
+		 * `sandboxModels` is a function so a test can model a catalog that is still arriving:
+		 * resolution reports `pending` until it yields the model, mirroring an agent host that has
+		 * connected but not yet published.
+		 */
+		function provisionedSession(sendRequest?: () => Promise<ISession>, sandboxModels: () => readonly ILanguageModelChatMetadataAndIdentifier[] = () => []): ICloudSandboxProvisionedSession & { published: string[]; modelSelections: { modelId: string; source: ChatModelSource }[]; modelsChanged: Emitter<void> } {
+			const committed = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+			});
+			const sandboxSession = upcastPartial<ISession>({
+				sessionId: 'agenthost:sess-new',
+				resource: URI.parse('agent-host-copilot:/sess-new'),
+				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
+			});
+			const published: string[] = [];
+			const modelSelections: { modelId: string; source: ChatModelSource }[] = [];
+			const modelsChanged = disposables.add(new Emitter<void>());
+			return {
+				taskId: 'task-new',
+				sessionId: 'sess-new',
+				environmentId: 'env-new',
+				session: sandboxSession,
+				published,
+				modelSelections,
+				modelsChanged,
+				provider: upcastPartial<CloudSandboxSessionsProvider>({
+					sendRequest: sendRequest ?? (async () => committed),
+					publishWithheldSession: (rawId: string) => { published.push(rawId); },
+					onDidChangeModels: modelsChanged.event,
+					getModelsSnapshot: (_sessionId: string, desiredModelId?: string) => {
+						const models = sandboxModels();
+						const model = models.find(m => m.identifier === desiredModelId);
+						return {
+							models,
+							desiredModelResolution: !desiredModelId
+								? { kind: 'notRequested' as const }
+								: model
+									? { kind: 'available' as const, model }
+									// An empty catalog is "not yet"; a populated one that lacks the
+									// model is conclusive.
+									: models.length === 0
+										? { kind: 'pending' as const, identifier: desiredModelId }
+										: { kind: 'unavailable' as const, identifier: desiredModelId },
+							modelTarget: 'agent-host-copilot',
+						};
+					},
+					setModel: (_sessionId: string, _chatResource: URI, modelId: string, source: ChatModelSource) => { modelSelections.push({ modelId, source }); },
+				}) as CloudSandboxSessionsProvider,
+			};
+		}
+
+		/** A model as the sandbox advertises it: vendor-prefixed identifier, bare backend id. */
+		function sandboxModel(rawId: string): ILanguageModelChatMetadataAndIdentifier {
+			return upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+				identifier: `agent-host-copilot:${rawId}`,
+				metadata: upcastPartial<ILanguageModelChatMetadata>({ id: rawId, name: rawId }),
+			});
+		}
+
+		/** The `models` option group a cloud composer picks from, whose ids are its own. */
+		function cloudModelOptionGroup(itemId: string, backendModelId: string): IChatSessionProviderOptionGroup[] {
+			return [{
+				id: 'models',
+				name: 'Models',
+				items: [{ id: itemId, name: backendModelId, modelMetadata: { id: backendModelId, name: backendModelId } }],
+			}];
+		}
+
+		test('carries the composer model into the sandbox before the first turn', async () => {
+			// Mission Control starts no run, so a session that has never run has no model to
+			// restore: without this the first turn would silently take the agent host default.
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('claude-sonnet-4.6')]);
+			const { provider, notifications } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			// The id crosses id spaces by backend model id, and arrives as carried over: the user
+			// picked it for the composer, not for the session that replaced it. Applying the pick
+			// is the silent case — nothing to tell the user about.
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notifications },
+				{ selections: [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }], notifications: [] }
+			);
+		});
+
+		test('waits for a sandbox catalog that is still arriving rather than sending without the model', async () => {
+			// A freshly connected sandbox publishes its models asynchronously. Treating that empty
+			// window as a miss would reinstate the very race this carries the model to avoid.
+			let models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
+			const provisioned = provisionedSession(undefined, () => models);
+			const { provider } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			const sent = provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+			// Publish only once the send is already waiting on the pending catalog.
+			await timeout(0);
+			const beforeCatalog = [...provisioned.modelSelections];
+			models = [sandboxModel('claude-sonnet-4.6')];
+			provisioned.modelsChanged.fire();
+			await sent;
+
+			assert.deepStrictEqual(
+				{ beforeCatalog, afterCatalog: provisioned.modelSelections },
+				{ beforeCatalog: [], afterCatalog: [{ modelId: 'agent-host-copilot:claude-sonnet-4.6', source: ChatModelSource.CarriedOver }] }
+			);
+		});
+
+		test('tells the user when the sandbox does not advertise the model they picked', async () => {
+			// Sending an unroutable id would fail the turn outright, so an unmatched pick still
+			// lets the host choose — but an absent `Message.model` means "host decides", so
+			// nothing else would report the substitution.
+			const provisioned = provisionedSession(undefined, () => [sandboxModel('gpt-5')]);
+			const { provider, notifications } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notified: notifications.length, namesModel: notifications[0]?.includes('claude-sonnet-4.6') },
+				{ selections: [], notified: 1, namesModel: true }
+			);
+		});
+
+		test('tells the user when the catalog never arrives before the turn is dispatched', async () => {
+			// The likeliest fallback in practice is a slow sandbox rather than a missing model, so
+			// the timeout has to be as visible as a conclusive miss.
+			const provisioned = provisionedSession(undefined, () => []);
+			const { provider, notifications } = createSandboxProvider({
+				provision: async () => provisioned,
+				getOptionGroups: () => cloudModelOptionGroup('synthetic-cloud-model', 'claude-sonnet-4.6'),
+			});
+			provider.sandboxModelWaitMs = 1;
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+			provider.setModel(sessionInfo.sessionId, session.mainChat.get().resource, 'synthetic-cloud-model', ChatModelSource.Chosen);
+
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(
+				{ selections: provisioned.modelSelections, notified: notifications.length, namesModel: notifications[0]?.includes('claude-sonnet-4.6') },
+				{ selections: [], notified: 1, namesModel: true }
+			);
+		});
+
+		test('provisions a sandbox and replaces the draft with the committed session', async () => {
+			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ provision: async () => provisionedSession() });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			const replacements: { from: string; to: string }[] = [];
+			disposables.add(provider.onDidReplaceSession(e => replacements.push({ from: e.from.sessionId, to: e.to.sessionId })));
+
+			const committed = await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual({
+				committed: committed.sessionId,
+				// The repo comes from the workspace root; no baseRef, matching the Copilot app.
+				provisionRequests,
+				// The prompt must not also go through the server-run cloud agent.
+				cloudSends,
+				replacements: replacements.map(r => ({ from: r.from === sessionInfo.sessionId, to: r.to })),
+			}, {
+				committed: 'agenthost:sess-new',
+				provisionRequests: [{ repoNwo: 'osortega/simple-server', prompt: 'fix it' }],
+				cloudSends: [],
+				replacements: [{ from: true, to: 'agenthost:sess-new' }],
+			});
+		});
+
+		test('falls back to the server-run cloud agent when the feature is disabled', async () => {
+			// A remembered preference must not strand the user with a send that always fails.
+			const { provider, provisionRequests, cloudSends } = createSandboxProvider({ enabled: false });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			void provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ provisionRequests, cloudSends }, { provisionRequests: [], cloudSends: ['fix it'] });
+		});
+
+		test('reveals the withheld sandbox session as it retires the placeholder', async () => {
+			const provisioned = provisionedSession();
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			// The sandbox session is seeded before connecting so a discovery pass reconciles
+			// against it, but it must stay out of the list until the placeholder goes away —
+			// otherwise both rows show for as long as the sandbox takes to wake.
+			await provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' });
+
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed send still reveals the sandbox session it already provisioned', async () => {
+			const provisioned = provisionedSession(async () => { throw new Error('send failed'); });
+			const { provider } = createSandboxProvider({ provision: async () => provisioned });
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			// The sandbox outlives the failed turn, so leaving it withheld would hide a session
+			// that really exists.
+			assert.deepStrictEqual(provisioned.published, ['sess-new']);
+		});
+
+		test('a failed provision removes the placeholder instead of stranding it in the list', async () => {
+			const { provider } = createSandboxProvider();
+			const sessionInfo = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			session.setUseSandbox(true);
+
+			const removed: string[] = [];
+			disposables.add(provider.onDidChangeSessions(e => removed.push(...e.removed.map(s => s.sessionId))));
+
+			await assert.rejects(() => provider.sendRequest(sessionInfo.sessionId, session.mainChat.get().resource, { query: 'fix it' }));
+
+			assert.deepStrictEqual({
+				removed,
+				stillListed: provider.getSessions().some(s => s.sessionId === sessionInfo.sessionId),
+			}, {
+				removed: [sessionInfo.sessionId],
+				stillListed: false,
+			});
+		});
 	});
 });

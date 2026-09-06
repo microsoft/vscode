@@ -202,15 +202,11 @@ export function getSelectedModelVendor(
 }
 
 /**
- * Returns whether the given model is a "bring your own key" (BYOK) model.
- *
- * BYOK models are served using user-supplied credentials and are flagged as
- * such by their provider via {@link ILanguageModelChatMetadata.isBYOK}. All
- * other models (built-in Copilot, Copilot/Claude CLI, and agent-host models)
- * are served through the Copilot (CAPI) service and are therefore not BYOK.
+ * Returns whether the given model is "bring your own key", i.e. served with the user's own
+ * credentials. Agent-host copies carry `byokModelIdentifier` instead of setting `isBYOK`.
  */
 export function isByokModel(metadata: ILanguageModelChatMetadata): boolean {
-	return metadata.isBYOK === true;
+	return metadata.isBYOK === true || metadata.byokModelIdentifier !== undefined;
 }
 
 /**

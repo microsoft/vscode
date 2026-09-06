@@ -12,7 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
-import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
@@ -390,6 +391,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const zshSessionManager = await createTestTerminal('zsh-session-fixups', '/bin/zsh', {
 			kind: TerminalClaimKind.Session,
 			session: 'copilot:/session-1',
+			chat: buildDefaultChatUri('copilot:/session-1'),
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 		}, { preventShellHistory: true });
@@ -405,6 +407,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const bashSessionManager = await createTestTerminal('bash-session-history', '/bin/bash', {
 			kind: TerminalClaimKind.Session,
 			session: 'copilot:/session-1',
+			chat: buildDefaultChatUri('copilot:/session-1'),
 			turnId: 'turn-1',
 			toolCallId: 'tool-2',
 		}, { preventShellHistory: true, nonInteractive: true });
@@ -861,7 +864,12 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 	test('streams appended data, snapshots state with isPty false, and records the exit', () => {
 		const { manager, stateManager } = createManager();
 		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-1';
-		const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1', toolCallId: 'tc-1' };
+		const claim: TerminalClaim = {
+			kind: TerminalClaimKind.Session,
+			session: 'agent-session://copilot/s1',
+			chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			toolCallId: 'tc-1',
+		};
 		const dispatched: StateAction[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.channel === uri) {
@@ -878,7 +886,7 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		assert.deepStrictEqual(manager.getTerminalState(uri), {
 			title: 'Run Shell Command',
 			content: [{ type: 'unclassified', value: 'tick 1\ntick 2\n' }],
-			exitCode: 0,
+			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
 			claim,
 			isPty: false,
 		});
@@ -902,7 +910,14 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			}
 		}));
 
-		manager.createOutputTerminal(uri, { title: 'Bash', claim: { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1' } });
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/s1',
+				chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			},
+		});
 		manager.appendOutputTerminalData(uri, 'old output');
 		manager.resetOutputTerminal(uri);
 		manager.appendOutputTerminalData(uri, 'fresh output');
@@ -913,5 +928,30 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		manager.disposeTerminal(uri);
 		assert.strictEqual(manager.hasTerminal(uri), false);
 		assert.strictEqual(manager.getTerminalState(uri), undefined);
+	});
+
+	test('records an output-only terminal exit without an exit code', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-3';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+		});
+		manager.finalizeOutputTerminal(uri, undefined);
+
+		assert.deepStrictEqual({
+			lifecycle: manager.getTerminalState(uri)?.lifecycle,
+			dispatched,
+		}, {
+			lifecycle: { status: TerminalLifecycleStatus.Exited },
+			dispatched: [{ type: ActionType.TerminalExited }],
+		});
 	});
 });

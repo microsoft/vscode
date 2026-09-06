@@ -6613,6 +6613,11 @@ declare namespace monaco.languages {
 	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
+	 * Compute the score of a language selector against a candidate Uri and language.
+	 */
+	export function score(selector: LanguageSelector | undefined, candidateUri: Uri, candidateLanguage: string): number;
+
+	/**
 	 * An event emitted when a language is associated for the first time with a text model.
 	 * @event
 	 */

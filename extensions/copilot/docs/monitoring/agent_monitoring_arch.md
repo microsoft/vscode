@@ -1,6 +1,6 @@
 # OTel Instrumentation — Developer Guide
 
-This document describes the architecture, code structure, and conventions for the OpenTelemetry instrumentation in the Copilot Chat extension. It covers all four agent execution paths.
+This document describes the architecture, code structure, and conventions for the OpenTelemetry instrumentation in the Copilot Chat extension. It covers all three agent execution paths.
 
 For user-facing configuration and usage, see [agent_monitoring.md](agent_monitoring.md).
 For a visual data flow diagram, see [otel-data-flow.html](otel-data-flow.html).
@@ -9,16 +9,15 @@ For a visual data flow diagram, see [otel-data-flow.html](otel-data-flow.html).
 
 ## Multi-Agent Architecture
 
-The extension has four agent execution paths, each with different OTel strategies:
+The extension has three agent execution paths, each with different OTel strategies:
 
 | Agent | Process Model | Strategy | Debug Panel Source |
 |---|---|---|---|
 | **Foreground** (toolCallingLoop) | Extension host | Direct `IOTelService` spans | Extension spans |
 | **Copilot CLI in-process** | Extension host (same process) | **Bridge SpanProcessor** — SDK creates spans natively; bridge forwards to debug panel | SDK native spans via bridge |
 | **Copilot CLI terminal** | Separate terminal process | Forward OTel env vars | N/A (separate process) |
-| **Claude Code** | Child process (Node fork) | **Synthesized from SDK messages** — extension intercepts the Claude SDK message stream in `claudeMessageDispatch.ts` and emits GenAI spans; LLM calls are proxied through `claudeLanguageModelServer.ts` (which calls `chatMLFetcher`, producing standard `chat` spans). | Extension spans |
 
-> **Why asymmetric?** The CLI SDK runs in-process with full trace hierarchy (subagents, permissions, hooks). A bridge captures this directly. Claude runs as a separate process — internal spans are inaccessible, so the extension synthesizes spans by translating SDK messages and proxying the model API.
+> **Why asymmetric?** The CLI SDK runs in-process with full trace hierarchy (subagents, permissions, hooks), so a bridge captures this directly. Terminal sessions run in a separate process and export independently.
 
 ### Copilot CLI Bridge SpanProcessor
 
@@ -87,23 +86,6 @@ invoke_agent (CLIENT)                    ← standalone copilot binary
 └── (independent root traces, no extension link)
 ```
 
-#### Claude Code (synthesized from SDK messages)
-
-The extension intercepts the Claude SDK's message stream in `claudeMessageDispatch.ts` and emits GenAI spans for tool calls and hooks. LLM calls are proxied through a local HTTP server (`claudeLanguageModelServer.ts`) that calls `chatMLFetcher`, producing standard `chat` spans under the active `invoke_agent` context. Subagent (`Agent` / `Task`) tool calls store their `execute_tool` span's trace context in `state.subagentTraceContexts` so subsequent SDK messages with `parent_tool_use_id` are nested underneath as child `chat` and `execute_tool` spans.
-
-```
-invoke_agent claude (INTERNAL)           ← claudeOTelTracker.ts
-├── chat claude-sonnet-4 (CLIENT)        ← chatMLFetcher.ts via claudeLanguageModelServer
-├── execute_tool Read (INTERNAL)         ← claudeMessageDispatch.ts
-├── execute_tool Agent (INTERNAL)        ← claudeMessageDispatch.ts (subagent)
-│   ├── chat claude-sonnet-4 (CLIENT)    ← parented via subagentTraceContexts
-│   ├── execute_tool Grep (INTERNAL)
-│   └── chat claude-sonnet-4 (CLIENT)
-├── execute_tool Edit (INTERNAL)
-├── chat claude-sonnet-4 (CLIENT)
-└── execute_hook Stop (INTERNAL)         ← claudeMessageDispatch.ts
-```
-
 ---
 
 ## File Structure
@@ -114,7 +96,7 @@ src/platform/otel/
 │   ├── otelService.ts          # IOTelService interface + ISpanHandle + injectCompletedSpan
 │   ├── otelConfig.ts           # Config resolution (env → settings → defaults, kill switch, dbSpanExporter, enabledVia)
 │   ├── noopOtelService.ts      # Zero-cost no-op implementation
-│   ├── agentOTelEnv.ts         # deriveCopilotCliOTelEnv / deriveClaudeOTelEnv
+│   ├── agentOTelEnv.ts         # deriveCopilotCliOTelEnv
 │   ├── genAiAttributes.ts      # GenAI semantic convention attribute keys
 │   ├── genAiEvents.ts          # Event emitter helpers
 │   ├── genAiMetrics.ts         # GenAiMetrics class (metric recording)
@@ -135,12 +117,6 @@ src/extension/chatSessions/copilotcli/node/
 ├── copilotcliSession.ts              # Root invoke_agent span + traceparent + hook event stash
 └── copilotcliSessionService.ts       # Bridge installation + env var setup
 
-src/extension/chatSessions/claude/
-├── common/claudeMessageDispatch.ts   # execute_tool / execute_hook spans + subagent context wiring
-└── node/
-    ├── claudeOTelTracker.ts          # invoke_agent claude span + per-session token/cost rollup
-    └── claudeLanguageModelServer.ts  # Local HTTP proxy → chatMLFetcher (chat spans)
-
 src/extension/chat/vscode-node/
 └── chatHookService.ts                # execute_hook spans for foreground agent hooks
 
@@ -154,7 +130,7 @@ src/extension/trajectory/vscode-node/
 
 | File | What Gets Instrumented |
 |---|---|
-| `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
+| `chatMLFetcher.ts` | `chat` spans — all extension-host LLM API calls |
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
 | `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
@@ -164,9 +140,6 @@ src/extension/trajectory/vscode-node/
 | `copilotCliBridgeSpanProcessor.ts` | Bridge: SDK `ReadableSpan` → `ICompletedSpanData` (with hook-span enrichment) |
 | `copilotcliSessionService.ts` | Bridge installation + OTel env vars for SDK |
 | `copilotCLITerminalIntegration.ts` | OTel env vars forwarded to terminal process |
-| `claudeOTelTracker.ts` | `invoke_agent claude` span + per-session token/cost accumulation |
-| `claudeMessageDispatch.ts` | `execute_tool` and `execute_hook` spans for the Claude agent (incl. subagent nesting) |
-| `claudeLanguageModelServer.ts` | Wraps Claude → CAPI proxy requests in the active trace context (chat spans come from `chatMLFetcher`) |
 | `otelSpanToChatDebugEvent.ts` | Span → debug panel event conversion |
 
 ---
@@ -236,13 +209,13 @@ The resolved config records *how* OTel was enabled in `OTelConfig.enabledVia` (u
 
 Only variables not already present in `process.env` are set; explicit user env vars always win.
 
-| Extension Config | Copilot CLI (`deriveCopilotCliOTelEnv`) | Claude Code (`deriveClaudeOTelEnv`) |
-|---|---|---|
-| `enabled` | `COPILOT_OTEL_ENABLED=true` | `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=otlp`, `OTEL_LOGS_EXPORTER=otlp` |
-| `otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `OTEL_EXPORTER_OTLP_ENDPOINT` |
-| `otlpProtocol` | (CLI runtime is HTTP-only) | `OTEL_EXPORTER_OTLP_PROTOCOL` (`grpc` or `http/json`) |
-| `captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` | `OTEL_LOG_USER_PROMPTS=1`, `OTEL_LOG_TOOL_DETAILS=1` |
-| `fileExporterPath` | `COPILOT_OTEL_FILE_EXPORTER_PATH` (+ `COPILOT_OTEL_EXPORTER_TYPE=file` when `exporterType === 'file'`) | N/A (Claude SDK has no file exporter) |
+| Extension Config | Copilot CLI (`deriveCopilotCliOTelEnv`) |
+|---|---|
+| `enabled` | `COPILOT_OTEL_ENABLED=true` |
+| `otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| `otlpProtocol` | CLI runtime is HTTP-only |
+| `captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` |
+| `fileExporterPath` | `COPILOT_OTEL_FILE_EXPORTER_PATH` (+ `COPILOT_OTEL_EXPORTER_TYPE=file` when `exporterType === 'file'`) |
 
 Standard vars (`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SERVICE_NAME`) flow via process.env inheritance — no explicit forwarding needed.
 
@@ -296,7 +269,6 @@ The CLI SDK uses a single `captureContent` flag (`OTEL_INSTRUMENTATION_GENAI_CAP
 |---|---|
 | Extension (Provider A) | `copilot-chat` |
 | Copilot CLI SDK / terminal | `github-copilot` |
-| Claude Code subprocess | `claude-code` |
 
 ---
 
@@ -392,14 +364,13 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 |---|---|---|
 | `gen_ai.*` | All agents (standard) | `gen_ai.operation.name`, `gen_ai.usage.input_tokens` |
 | `copilot_chat.*` | Extension-specific (legacy; several keys dual-emit alongside `github.copilot.*`) | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
-| `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent, Claude agent, CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
-| `claude_code.*` | Claude subprocess | `claude_code.token.usage`, `claude_code.cost.usage` |
+| `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent and CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
 
 ---
 
 ## Session Correlation
 
-For **extension-emitted** spans (`invoke_agent`, `chat`, `execute_tool`, `execute_hook` produced by the foreground agent, Claude agent, BYOK providers, and `chatMLFetcher`), `gen_ai.conversation.id` carries the **VS Code chat session id** on every exported span, so a vendor-agnostic OTLP backend can group all spans of a session on the standard GenAI key without a traceId → root join. The vendor keys `copilot_chat.session_id` / `copilot_chat.chat_session_id` are dual-emitted for the Agent Debug Log and SQLite span store (`COALESCE(conversation_id, chat_session_id)`).
+For **extension-emitted** spans (`invoke_agent`, `chat`, `execute_tool`, `execute_hook` produced by the foreground agent, BYOK providers, and `chatMLFetcher`), `gen_ai.conversation.id` carries the **VS Code chat session id** on every exported span, so a vendor-agnostic OTLP backend can group all spans of a session on the standard GenAI key without a traceId → root join. The vendor keys `copilot_chat.session_id` / `copilot_chat.chat_session_id` are dual-emitted for the Agent Debug Log and SQLite span store (`COALESCE(conversation_id, chat_session_id)`).
 
 Notes:
 - On `chat` spans, `gen_ai.conversation.id` holds the session id — **not** the per-turn request id. The request id lives on `gen_ai.response.id` / telemetry events.
@@ -425,7 +396,7 @@ The debug panel creates spans with non-standard operation names (`content_event`
 - `DiagnosticSpanExporter` wraps the user-configured exporter (OTLP / file / console) and additionally logs first-success / failure diagnostics.
 - `FilteredSpanExporter` wraps the SQLite span exporter when `dbSpanExporter` is enabled, so the local DB sees the same standard GenAI spans as the user's collector.
 
-The `execute_hook` operation is used by both the foreground agent (`chatHookService.ts`) and the Claude agent (`claudeMessageDispatch.ts`); CLI-SDK hook spans are remapped to `execute_hook` by the bridge processor (`copilotCliBridgeSpanProcessor.ts`). Debug-panel-only spans remain visible via `onDidCompleteSpan` but are excluded from batch export.
+The `execute_hook` operation is used by the foreground agent (`chatHookService.ts`); CLI-SDK hook spans are remapped to `execute_hook` by the bridge processor (`copilotCliBridgeSpanProcessor.ts`). Debug-panel-only spans remain visible via `onDidCompleteSpan` but are excluded from batch export.
 
 ---
 
@@ -456,10 +427,6 @@ src/platform/otel/node/sqlite/test/
 src/extension/chatSessions/copilotcli/node/test/
 └── copilotCliBridgeSpanProcessor.spec.ts   # Bridge processor tests
 
-src/extension/chatSessions/claude/{common,node}/test/
-├── claudeMessageDispatch.spec.ts           # Claude span emission
-└── claudeCodeAgentOTel.spec.ts             # Claude agent end-to-end
-
 src/extension/trajectory/vscode-node/test/
 ├── otelSpanToChatDebugEvent.spec.ts
 └── otlpFormatConversion.spec.ts
@@ -477,5 +444,4 @@ Run with: `npm test -- --grep "OTel\|Bridge"`
 | Two TracerProviders in same process | Span context may not cross provider boundary | Extension stores tracer ref; traceparent propagated explicitly |
 | `process.env` mutation for CLI SDK | Affects extension host globally | Only set OTel-specific vars; set before SDK ctor |
 | Duplicate `invoke_agent` spans in OTLP | Extension root + SDK root both exported | Different `service.name` distinguishes them |
-| Claude file exporter not supported | Claude subprocess can't write to JSON-lines file | Documented limitation |
 | CLI runtime only supports `otlp-http` | Terminal CLI can't use gRPC-only endpoints | Documented limitation |

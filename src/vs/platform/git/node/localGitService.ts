@@ -6,8 +6,9 @@
 import * as cp from 'child_process';
 import { CancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IGitPullOptions, ILocalGitService } from '../common/localGitService.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import { IGitPullOptions, ILocalGitService } from '../common/localGitService.js';
 
 export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
@@ -135,6 +136,24 @@ export class LocalGitService implements ILocalGitService {
 			? ['checkout', '--detach', treeish]
 			: ['checkout', treeish];
 		await this._exec(operationId, args, repoPath);
+	}
+
+	async checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void> {
+		const expectedCommit = commit.trim().toLowerCase();
+		if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
+			throw new Error(localize('pluginsInvalidPinnedCommit', "Pinned plugin commit '{0}' is not a full SHA-1 hash.", commit));
+		}
+
+		const resolvedCommit = (await this._exec(operationId, ['rev-parse', `${expectedCommit}^{commit}`], repoPath)).trim().toLowerCase();
+		if (resolvedCommit !== expectedCommit) {
+			throw new Error(localize('pluginsPinnedCommitResolutionMismatch', "Pinned plugin commit '{0}' resolved to a different commit '{1}'.", commit, resolvedCommit));
+		}
+
+		await this._exec(operationId, ['checkout', '--detach', resolvedCommit], repoPath);
+		const checkedOutCommit = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim().toLowerCase();
+		if (checkedOutCommit !== expectedCommit) {
+			throw new Error(localize('pluginsPinnedCommitCheckoutMismatch', "Pinned plugin commit '{0}' was not checked out. The repository is at commit '{1}'.", commit, checkedOutCommit));
+		}
 	}
 
 	async revParse(repoPath: string, ref: string): Promise<string> {

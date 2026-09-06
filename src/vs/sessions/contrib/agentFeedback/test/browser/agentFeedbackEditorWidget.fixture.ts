@@ -85,7 +85,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
-		replies,
+		replies: replies?.map(text => ({ text, author: 'user' as const })),
 	};
 }
 
@@ -106,12 +106,18 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
+
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 
 		override addFeedback(): IAgentFeedback {
 			throw new Error('Not implemented for fixture');
@@ -274,8 +280,14 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
+		override readonly onDidRevealSessionComment = Event.None;
+
+		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
+			return new Set();
+		}
 
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions

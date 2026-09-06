@@ -20,7 +20,7 @@ import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
-import { OpenCopilotCliStateFileAction } from './openCopilotCliStateFileAction.js';
+import { OpenAgentHostStateFileAction } from './openAgentHostStateFileAction.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -46,7 +46,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(InspectAgentHostSubscriptionsAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 	registerAction2(ResetChatPermissionWarningDialogsAction);
-	registerAction2(OpenCopilotCliStateFileAction);
+	registerAction2(OpenAgentHostStateFileAction);
 }
 
 function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {

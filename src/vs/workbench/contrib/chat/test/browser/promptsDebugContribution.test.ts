@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -47,7 +48,8 @@ suite('PromptsDebugContribution', () => {
 	setup(() => {
 		instaService = disposables.add(new TestInstantiationService());
 
-		chatDebugService = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		chatDebugService = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService));
 		instaService.stub(IChatDebugService, chatDebugService);
 
 		willInvokeAgentEmitter = disposables.add(new Emitter<IChatAgentInvocationEvent>());

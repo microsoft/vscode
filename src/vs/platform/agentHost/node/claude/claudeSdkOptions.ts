@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options, PreToolUseHookInput, Settings, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
-import { delimiter, dirname } from '../../../../base/common/path.js';
+import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
@@ -16,10 +16,22 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
-import { toSdkModelId } from './claudeModelId.js';
+import { toClaudeSdkModelId } from './claudeModelSelection.js';
 import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
+
+type ClaudeSdkDeniedMcpServerSpec = NonNullable<Settings['deniedMcpServers']>[number];
+
+/** The Claude SDK validator accepts exactly one matching strategy per deny entry. */
+export type ClaudeDeniedMcpServerSpec =
+	| { readonly serverName: string; readonly serverCommand?: never; readonly serverUrl?: never }
+	| { readonly serverName?: never; readonly serverCommand: NonNullable<ClaudeSdkDeniedMcpServerSpec['serverCommand']>; readonly serverUrl?: never }
+	| { readonly serverName?: never; readonly serverCommand?: never; readonly serverUrl: string };
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -43,6 +55,7 @@ export interface IBuildOptionsInput {
 	readonly permissionMode: ClaudePermissionMode;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
+	readonly onPreToolUse?: (toolName: string, input: unknown) => SyncHookJSONOutput | undefined;
 	readonly isResume: boolean;
 	/**
 	 * One-shot SDK assistant-message uuid to resume *up to and including*
@@ -50,11 +63,13 @@ export interface IBuildOptionsInput {
 	 * {@link isResume}; truncates the loaded transcript to this anchor so
 	 * the next turn continues from the restored point on the same session
 	 * id. Omitted in the non-resume (`sessionId`) branch and on ordinary
-	 * resumes. Set by `truncateSession` for the rebuild that immediately
+	 * resumes. Set by `truncateChat` for the rebuild that immediately
 	 * precedes the post-restore turn.
 	 */
 	readonly resumeSessionAt?: string;
-	readonly mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined;
+	readonly mcpServers: Record<string, McpServerConfig> | undefined;
+	/** Workspace MCP servers that must be blocked before native project discovery runs. */
+	readonly deniedMcpServers?: readonly ClaudeDeniedMcpServerSpec[];
 	/**
 	 * SDK-prefixed tool names to auto-approve without prompting (projected
 	 * onto `Options.allowedTools`). Used for the agent host's feedback server
@@ -70,7 +85,7 @@ export interface IBuildOptionsInput {
 	 * (no plugins). Built per-session from
 	 * {@link SessionClientCustomizationsDiff.consume}.
 	 */
-	readonly plugins?: readonly URI[];
+	readonly plugins?: readonly { readonly uri: URI; readonly skipMcpDiscovery: boolean }[];
 	/**
 	 * Resolved SDK agent name (matches a key in `Options.agents`, or an
 	 * agent loaded from `~/.claude/agents/**`). Projected onto
@@ -82,6 +97,7 @@ export interface IBuildOptionsInput {
 	readonly agent?: string;
 	readonly telemetry?: IAgentHostNativeOTelConfig;
 	readonly traceContext?: IAgentHostTraceContext;
+	readonly getUserPromptAdditionalContext?: () => string | undefined;
 }
 
 /**
@@ -133,6 +149,25 @@ export async function buildOptions(
 		[AiAgentEnvVar]: AiAgentEnvValue,
 		PATH: `${dirname(resolvedRgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 	};
+	const hooks: NonNullable<Options['hooks']> = {};
+	if (input.onPreToolUse) {
+		hooks.PreToolUse = [{
+			hooks: [async hookInput => {
+				const preToolUse = hookInput as PreToolUseHookInput;
+				return input.onPreToolUse?.(preToolUse.tool_name, preToolUse.tool_input) ?? {};
+			}],
+		}];
+	}
+	if (input.getUserPromptAdditionalContext) {
+		hooks.UserPromptSubmit = [{
+			hooks: [async () => ({
+				hookSpecificOutput: {
+					hookEventName: 'UserPromptSubmit' as const,
+					additionalContext: input.getUserPromptAdditionalContext?.(),
+				},
+			})],
+		}];
+	}
 
 	return {
 		cwd: input.workingDirectory.fsPath,
@@ -149,7 +184,7 @@ export async function buildOptions(
 		includePartialMessages: true,
 		forwardSubagentText: true,
 		enableFileCheckpointing: true,
-		model: toSdkModelId(input.model?.id),
+		model: toClaudeSdkModelId(input.model),
 		effort: resolveClaudeEffort(input.model),
 		permissionMode: input.permissionMode,
 		...(input.isResume
@@ -158,12 +193,18 @@ export async function buildOptions(
 		...(input.mcpServers ? { mcpServers: input.mcpServers } : {}),
 		...(input.allowedTools && input.allowedTools.length > 0 ? { allowedTools: [...input.allowedTools] } : {}),
 		...(input.plugins && input.plugins.length > 0
-			? { plugins: input.plugins.map(p => ({ type: 'local' as const, path: p.fsPath })) }
+			? { plugins: input.plugins.map(plugin => ({ type: 'local' as const, path: plugin.uri.fsPath, skipMcpDiscovery: plugin.skipMcpDiscovery })) }
 			: {}),
 		...(input.agent ? { agent: input.agent } : {}),
 		settingSources: ['user', 'project', 'local'],
-		settings: { env: settingsEnv },
+		settings: {
+			env: settingsEnv,
+			...(input.deniedMcpServers?.length
+				? { deniedMcpServers: [...input.deniedMcpServers] }
+				: {}),
+		},
 		systemPrompt: { type: 'preset', preset: 'claude_code' },
+		...(Object.keys(hooks).length > 0 ? { hooks } : {}),
 		stderr: logStderr,
 	};
 }
@@ -189,6 +230,43 @@ export async function buildClientMcpServers(
 	}
 	const server = await buildClientToolMcpServer(tools, id => registry.register(id), sdkService);
 	return { client: server };
+}
+
+export function toClaudeMcpServers(
+	definitions: readonly IMcpServerDefinition[],
+	primaryCwd: URI,
+): { readonly servers: Record<string, McpServerConfig>; readonly skipped: readonly string[] } {
+	const servers: Record<string, McpServerConfig> = {};
+	const skipped: string[] = [];
+	for (const definition of definitions) {
+		const config = definition.configuration;
+		if (config.type === McpServerType.REMOTE) {
+			servers[definition.name] = {
+				type: config.transport === 'sse' ? 'sse' : 'http',
+				url: config.url,
+				...(config.headers ? { headers: { ...config.headers } } : {}),
+			};
+			continue;
+		}
+
+		const effectiveCwd = resolveMcpServerWorkingDirectory(config.cwd, definition.defaultCwd ?? primaryCwd);
+		const hasRepresentableCwd = effectiveCwd !== undefined && isEqual(URI.file(normalize(effectiveCwd)), URI.file(normalize(primaryCwd.fsPath)));
+		if (!hasRepresentableCwd) {
+			skipped.push(definition.name);
+			continue;
+		}
+		servers[definition.name] = {
+			type: 'stdio',
+			command: config.command,
+			...(config.args ? { args: [...config.args] } : {}),
+			...(config.env ? {
+				env: Object.fromEntries(Object.entries(config.env)
+					.filter((entry): entry is [string, string | number] => entry[1] !== null)
+					.map(([key, value]) => [key, String(value)]))
+			} : {}),
+		};
+	}
+	return { servers, skipped };
 }
 
 /**

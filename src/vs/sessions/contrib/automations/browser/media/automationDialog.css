@@ -142,15 +142,15 @@
 	/* Right padding reserves room for the floating close-X chip. */
 	padding: 8px 36px 8px 14px;
 	text-align: left;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
 	background-color: var(--vscode-editorWidget-background);
 }
 
 .automation-description {
 	padding: 8px 14px;
-	font-size: var(--vscode-agents-fontSize-body2, 12px);
+	font-size: var(--vscode-fontSize-body2, 12px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 }
@@ -214,6 +214,10 @@
 
 .automation-dialog-open .monaco-menu-container {
 	z-index: 2600 !important;
+}
+
+.automation-dialog-open .automation-dialog-editor-overflow {
+	z-index: 2600;
 }
 
 .automation-form {
@@ -514,8 +518,8 @@
  * its control so each form row reads as a discrete section.
  */
 .automation-form-label {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	line-height: 1.4;
 	margin-bottom: 2px;
@@ -523,14 +527,14 @@
 }
 
 .automation-form-hint {
-	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	min-height: 1em;
 }
 
 .automation-form-checkbox-label {
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-foreground);
 	cursor: pointer;
 }
@@ -554,7 +558,7 @@
 .automation-form-select,
 .automation-form-textarea {
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-settings-textInputForeground, var(--vscode-input-foreground));
 	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
 	border: 1px solid var(--vscode-settings-textInputBorder, var(--vscode-input-border, var(--vscode-contrastBorder, transparent)));
@@ -635,7 +639,7 @@
 	gap: var(--vscode-spacing-size40);
 	height: 16px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -671,7 +675,7 @@
 }
 
 .automation-form-prompt-host .automation-form-branch-name {
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .automation-form-prompt-host .automation-form-branch-name {

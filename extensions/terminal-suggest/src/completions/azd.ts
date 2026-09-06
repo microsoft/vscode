@@ -227,7 +227,7 @@ const completionSpec: Fig.Spec = {
 			subcommands: [
 				{
 					name: ['agent'],
-					description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
+					description: 'Ship agents with Microsoft Foundry from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['code'],
@@ -350,7 +350,7 @@ const completionSpec: Fig.Spec = {
 									options: [
 										{
 											name: ['--agent'],
-											description: 'Target agent name',
+											description: 'Agent service name from azure.yaml, or Foundry agent name outside a project',
 											args: [
 												{
 													name: 'agent',
@@ -577,15 +577,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--file', '-f'],
 											description: 'Remote file or directory path to delete',
 											args: [
@@ -608,11 +599,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -628,15 +619,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -668,11 +650,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -688,15 +670,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -720,11 +693,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -740,15 +713,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -771,11 +735,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -791,15 +755,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -823,11 +778,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -843,15 +798,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -883,11 +829,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -919,7 +865,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--deploy-mode'],
-									description: 'Deployment mode: \'container\' (Docker image) or \'code\' (ZIP upload). Defaults to \'container\' in --no-prompt.',
+									description: 'Deployment mode: \'container\' (Docker image) or \'code\' (ZIP upload). Defaults to \'code\' for Python/.NET projects in --no-prompt.',
 									args: [
 										{
 											name: 'deploy-mode',
@@ -941,8 +887,27 @@ const completionSpec: Fig.Spec = {
 									isDangerous: true,
 								},
 								{
+									name: ['--image'],
+									description: 'Pre-built container image URL (e.g., \'myacr.azurecr.io/agent:v1\'). When set without --manifest, skips template/language selection, code scaffolding, Dockerfile generation, and ACR setup, and requires --agent-name. Incompatible with --deploy-mode code.',
+									args: [
+										{
+											name: 'image',
+										},
+									],
+								},
+								{
+									name: ['--infra'],
+									description: 'Eject infrastructure-as-code from azure.yaml. Existing infrastructure is preserved and Foundry files are generated as a separate infra/foundry layer. A bare --infra ejects Bicep; --infra=terraform ejects Terraform and sets the Foundry layer provider to terraform; Bicep keeps the microsoft.foundry provider. --infra=bicep is explicit Bicep. When azure.yaml already declares a Foundry project service, runs as a standalone eject and skips the init prompts; otherwise init runs first and the eject follows it.',
+									args: [
+										{
+											name: 'infra',
+											isOptional: true,
+										},
+									],
+								},
+								{
 									name: ['--manifest', '-m'],
-									description: 'Path or URI to an agent manifest to add to your azd project',
+									description: 'Path or URI to an agent manifest, or to a sample\'s unified azure.yaml to adopt as the project manifest',
 									args: [
 										{
 											name: 'manifest',
@@ -951,7 +916,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--model'],
-									description: 'Name of the AI model to use (e.g., \'gpt-4o\'). If not specified, defaults to \'gpt-4.1-mini\'. Mutually exclusive with --model-deployment, with --model-deployment being used if both are provided',
+									description: 'Name of the AI model to deploy. Defaults to \'gpt-5.4-mini\' during interactive model selection; required to deploy a new model with --no-prompt. If --model-deployment is also provided, --model-deployment takes precedence.',
 									args: [
 										{
 											name: 'model',
@@ -978,7 +943,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--protocol'],
-									description: 'Protocols supported by the agent (e.g., \'responses\', \'invocations\'). Can be specified multiple times.',
+									description: 'Protocols supported by the agent (responses, invocations, invocations_ws, activity). Can be specified multiple times.',
 									isRepeatable: true,
 									args: [
 										{
@@ -1020,11 +985,21 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
-									name: ['--chat-isolation-key'],
-									description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
+									name: ['--call-id'],
+									description: 'Call ID header value (sent as x-agent-foundry-call-id for local invocations only; ignored for remote requests)',
 									args: [
 										{
-											name: 'chat-isolation-key',
+											name: 'call-id',
+										},
+									],
+								},
+								{
+									name: ['--client-header'],
+									description: 'Custom x-client-* request header in "Name: Value" format (repeatable). The responses and invocations protocols forward the x-client-* header family to the agent; other header names are rejected and the flag is not supported with a2a.',
+									isRepeatable: true,
+									args: [
+										{
+											name: 'client-header',
 										},
 									],
 								},
@@ -1079,7 +1054,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--protocol', '-p'],
-									description: 'Protocol to use: responses (default) or invocations',
+									description: 'Protocol to use: responses (default), invocations, or a2a (a2a is remote-only)',
 									args: [
 										{
 											name: 'protocol',
@@ -1105,11 +1080,11 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
-									name: ['--user-isolation-key'],
-									description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+									name: ['--user-identity'],
+									description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 									args: [
 										{
-											name: 'user-isolation-key',
+											name: 'user-identity',
 										},
 									],
 								},
@@ -1128,15 +1103,6 @@ const completionSpec: Fig.Spec = {
 							name: ['monitor'],
 							description: 'Monitor logs from a hosted agent.',
 							options: [
-								{
-									name: ['--chat-isolation-key'],
-									description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-									args: [
-										{
-											name: 'chat-isolation-key',
-										},
-									],
-								},
 								{
 									name: ['--follow', '-f'],
 									description: 'Stream logs in real-time',
@@ -1173,11 +1139,11 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
-									name: ['--user-isolation-key'],
-									description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+									name: ['--user-identity'],
+									description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 									args: [
 										{
-											name: 'user-isolation-key',
+											name: 'user-identity',
 										},
 									],
 								},
@@ -1197,7 +1163,7 @@ const completionSpec: Fig.Spec = {
 									options: [
 										{
 											name: ['--agent'],
-											description: 'Agent service name (auto-detected from azure.yaml)',
+											description: 'Agent service name from azure.yaml (auto-detected if only one exists)',
 											args: [
 												{
 													name: 'agent',
@@ -1263,7 +1229,7 @@ const completionSpec: Fig.Spec = {
 									options: [
 										{
 											name: ['--agent'],
-											description: 'Agent name to deploy to (auto-detected from agent.yaml)',
+											description: 'Agent service name from azure.yaml, or Foundry agent name outside a project',
 											args: [
 												{
 													name: 'agent',
@@ -1355,6 +1321,16 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
+											name: ['--output', '-o'],
+											description: 'The output format',
+											args: [
+												{
+													name: 'output',
+													suggestions: ['json', 'table'],
+												},
+											],
+										},
+										{
 											name: ['--poll-interval'],
 											description: 'Polling interval in seconds',
 											args: [
@@ -1382,7 +1358,7 @@ const completionSpec: Fig.Spec = {
 							options: [
 								{
 									name: ['--agent', '-a'],
-									description: 'Agent name (auto-detected from azd project if omitted)',
+									description: 'Agent service name from azure.yaml, or Foundry agent name outside a project',
 									args: [
 										{
 											name: 'agent',
@@ -1478,12 +1454,115 @@ const completionSpec: Fig.Spec = {
 							],
 						},
 						{
+							name: ['pack'],
+							description: 'Build a ready-to-sideload Teams app package for an activity agent.',
+							options: [
+								{
+									name: ['--app-version'],
+									description: 'Version stamped into the Teams app manifest',
+									args: [
+										{
+											name: 'app-version',
+										},
+									],
+								},
+								{
+									name: ['--display-name'],
+									description: 'Display name for the Teams app (defaults to the agent name)',
+									args: [
+										{
+											name: 'display-name',
+										},
+									],
+								},
+								{
+									name: ['--output-dir'],
+									description: 'Directory to write appPackage.zip to (defaults to the agent source directory)',
+									args: [
+										{
+											name: 'output-dir',
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Publish scope for the package (personal: per-user sideload (no admin approval required); shared: shareable link distribution (no tenant-admin approval required); tenant: organization-wide catalog (requires IT-admin approval))',
+									args: [
+										{
+											name: 'scope',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['publish'],
+							description: 'Publish an activity agent as a Teams app to the Microsoft 365 store.',
+							options: [
+								{
+									name: ['--app-version'],
+									description: 'Version stamped into the Teams app manifest',
+									args: [
+										{
+											name: 'app-version',
+										},
+									],
+								},
+								{
+									name: ['--display-name'],
+									description: 'Display name for the Teams app (defaults to the agent name)',
+									args: [
+										{
+											name: 'display-name',
+										},
+									],
+								},
+								{
+									name: ['--output', '-o'],
+									description: 'The output format',
+									args: [
+										{
+											name: 'output',
+											suggestions: ['json', 'none'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Publish scope (shared: shareable link distribution (no tenant-admin approval required); tenant: organization-wide catalog (requires IT-admin approval; alias: org))',
+									args: [
+										{
+											name: 'scope',
+										},
+									],
+								},
+							],
+						},
+						{
 							name: ['run'],
 							description: 'Run your agent locally for development.',
 							options: [
 								{
-									name: ['--no-inspector'],
-									description: 'Do not open Agent Inspector',
+									name: ['--channel'],
+									description: 'Channel for the Microsoft 365 Agents Playground (activity-protocol agents only)',
+									args: [
+										{
+											name: 'channel',
+										},
+									],
+								},
+								{
+									name: ['--inspector-port'],
+									description: 'Port the Agent Inspector UI listens on (default: 8087)',
+									args: [
+										{
+											name: 'inspector-port',
+										},
+									],
+								},
+								{
+									name: ['--no-client'],
+									description: 'Do not open the local client (Agent Inspector or Playground)',
 								},
 								{
 									name: ['--port', '-p'],
@@ -1538,7 +1617,7 @@ const completionSpec: Fig.Spec = {
 										},
 										{
 											name: ['--type'],
-											description: 'Filter by template type. Supported values: agent, azd.',
+											description: 'Filter by template type. Supported values: agent, azd, azure.yaml.',
 											args: [
 												{
 													name: 'type',
@@ -1567,24 +1646,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
-											name: ['--isolation-key'],
-											description: 'Session ownership isolation key header value (x-session-isolation-key; derived from Entra token by default)',
-											args: [
-												{
-													name: 'isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -1604,11 +1665,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -1637,29 +1698,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
-											name: ['--isolation-key'],
-											description: 'Session ownership isolation key header value (x-session-isolation-key; derived from Entra token by default)',
-											args: [
-												{
-													name: 'isolation-key',
-												},
-											],
-										},
-										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -1675,15 +1718,6 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'agent-name',
-												},
-											],
-										},
-										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
 												},
 											],
 										},
@@ -1716,11 +1750,11 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
 												},
 											],
 										},
@@ -1740,15 +1774,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--chat-isolation-key'],
-											description: 'Foundry chat isolation key header value (x-agent-chat-isolation-key); independent of --isolation-key (session ownership)',
-											args: [
-												{
-													name: 'chat-isolation-key',
-												},
-											],
-										},
-										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -1759,11 +1784,35 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--user-isolation-key'],
-											description: 'Foundry user isolation key header value (x-agent-user-isolation-key); independent of --isolation-key (session ownership)',
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
 											args: [
 												{
-													name: 'user-isolation-key',
+													name: 'user-identity',
+												},
+											],
+										},
+									],
+								},
+								{
+									name: ['stop'],
+									description: 'Stop a running session.',
+									options: [
+										{
+											name: ['--agent-name', '-n'],
+											description: 'Agent name (matches azure.yaml service name; auto-detected when only one exists)',
+											args: [
+												{
+													name: 'agent-name',
+												},
+											],
+										},
+										{
+											name: ['--user-identity'],
+											description: 'User identity header value (sent as x-agent-user-id for local invocations and x-ms-user-identity for remote requests)',
+											args: [
+												{
+													name: 'user-identity',
 												},
 											],
 										},
@@ -1795,7 +1844,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['connection'],
-					description: 'Manage Microsoft Foundry Connections from your terminal. (Preview)',
+					description: 'Manage Microsoft Foundry Connections from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['context'],
@@ -2101,6 +2150,16 @@ const completionSpec: Fig.Spec = {
 							name: ['version'],
 							description: 'Display the extension version',
 							options: [
+								{
+									name: ['--output', '-o'],
+									description: 'The output format',
+									args: [
+										{
+											name: 'output',
+											suggestions: ['json'],
+										},
+									],
+								},
 								{
 									name: ['--project-endpoint', '-p'],
 									description: 'Foundry project endpoint URL (overrides env var and config)',
@@ -2573,7 +2632,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['inspector'],
-					description: 'Browser-based inspector UI for locally running Foundry agents. (Preview)',
+					description: 'Browser-based inspector UI for locally running Foundry agents. (Beta)',
 					subcommands: [
 						{
 							name: ['launch'],
@@ -3424,7 +3483,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['project'],
-					description: 'Manage Microsoft Foundry Project resources from your terminal. (Preview)',
+					description: 'Manage Microsoft Foundry Project resources from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['context'],
@@ -3481,12 +3540,24 @@ const completionSpec: Fig.Spec = {
 						{
 							name: ['version'],
 							description: 'Display the extension version',
+							options: [
+								{
+									name: ['--output', '-o'],
+									description: 'The output format',
+									args: [
+										{
+											name: 'output',
+											suggestions: ['json'],
+										},
+									],
+								},
+							],
 						},
 					],
 				},
 				{
 					name: ['routine'],
-					description: 'Manage Microsoft Foundry Routines from your terminal. (Preview)',
+					description: 'Manage Microsoft Foundry Routines from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['context'],
@@ -3498,6 +3569,15 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
 										},
 									],
 								},
@@ -3689,6 +3769,15 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
+								{
 									name: ['--trigger'],
 									description: 'Trigger type: timer, recurring, github-issue, or custom (required unless --file is used)',
 									args: [
@@ -3727,6 +3816,15 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
 							],
 						},
 						{
@@ -3749,6 +3847,15 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
 										},
 									],
 								},
@@ -3790,6 +3897,15 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
 							],
 						},
 						{
@@ -3815,6 +3931,15 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
 							],
 						},
 						{
@@ -3837,6 +3962,15 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
 										},
 									],
 								},
@@ -3879,6 +4013,15 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
+											name: ['--timeout'],
+											description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+											args: [
+												{
+													name: 'timeout',
+												},
+											],
+										},
+										{
 											name: ['--top'],
 											description: 'Maximum total number of runs to return (0 = no cap)',
 											args: [
@@ -3897,6 +4040,15 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
 										},
 									],
 								},
@@ -3922,6 +4074,15 @@ const completionSpec: Fig.Spec = {
 									args: [
 										{
 											name: 'project-endpoint',
+										},
+									],
+								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
 										},
 									],
 								},
@@ -4094,12 +4255,31 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
 							],
 						},
 						{
 							name: ['version'],
 							description: 'Display the extension version',
 							options: [
+								{
+									name: ['--output', '-o'],
+									description: 'The output format',
+									args: [
+										{
+											name: 'output',
+											suggestions: ['json'],
+										},
+									],
+								},
 								{
 									name: ['--project-endpoint', '-p'],
 									description: 'Foundry project endpoint URL (overrides env var and config)',
@@ -4109,13 +4289,22 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+								{
+									name: ['--timeout'],
+									description: 'HTTP request timeout override (for example, 2m or 90s). Defaults to 30s for reads and 2m0s for writes.',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
 							],
 						},
 					],
 				},
 				{
 					name: ['skill'],
-					description: 'Manage Microsoft Foundry skills (reusable agent behavioral guidelines) from your terminal. (Preview)',
+					description: 'Manage Microsoft Foundry skills (reusable agent behavioral guidelines) from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['context'],
@@ -4401,7 +4590,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['toolbox'],
-					description: 'Manage Microsoft Foundry Toolboxes from your terminal. (Preview)',
+					description: 'Manage Microsoft Foundry Toolboxes from your terminal. (Beta)',
 					subcommands: [
 						{
 							name: ['connection'],
@@ -4417,6 +4606,15 @@ const completionSpec: Fig.Spec = {
 											args: [
 												{
 													name: 'from-file',
+												},
+											],
+										},
+										{
+											name: ['--from-version'],
+											description: 'Version to branch the new version from (defaults to the latest version).',
+											args: [
+												{
+													name: 'from-version',
 												},
 											],
 										},
@@ -4492,6 +4690,15 @@ const completionSpec: Fig.Spec = {
 											name: ['--force'],
 											description: 'Skip confirmation prompts and apply the removal immediately.',
 											isDangerous: true,
+										},
+										{
+											name: ['--from-version'],
+											description: 'Version to branch the new version from (defaults to the latest version).',
+											args: [
+												{
+													name: 'from-version',
+												},
+											],
 										},
 										{
 											name: ['--output', '-o'],
@@ -4702,6 +4909,15 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
+											name: ['--from-version'],
+											description: 'Version to branch the new version from (defaults to the latest version).',
+											args: [
+												{
+													name: 'from-version',
+												},
+											],
+										},
+										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -4757,6 +4973,15 @@ const completionSpec: Fig.Spec = {
 											isDangerous: true,
 										},
 										{
+											name: ['--from-version'],
+											description: 'Version to branch the new version from (defaults to the latest version).',
+											args: [
+												{
+													name: 'from-version',
+												},
+											],
+										},
+										{
 											name: ['--output', '-o'],
 											description: 'The output format',
 											args: [
@@ -4794,6 +5019,16 @@ const completionSpec: Fig.Spec = {
 							name: ['version'],
 							description: 'Display the extension version',
 							options: [
+								{
+									name: ['--output', '-o'],
+									description: 'The output format',
+									args: [
+										{
+											name: 'output',
+											suggestions: ['json'],
+										},
+									],
+								},
 								{
 									name: ['--project-endpoint'],
 									description: 'Foundry project endpoint URL. When unset, falls back to the active azd environment, azd user config, then FOUNDRY_PROJECT_ENDPOINT.',
@@ -5386,6 +5621,52 @@ const completionSpec: Fig.Spec = {
 					description: 'Get the context of the azd project & environment.',
 				},
 				{
+					name: ['copilot'],
+					description: 'Interactive Copilot chat loop demonstrating the CopilotService gRPC API.',
+					options: [
+						{
+							name: ['--mode'],
+							description: 'Agent mode (autopilot, interactive, plan)',
+							args: [
+								{
+									name: 'mode',
+								},
+							],
+						},
+						{
+							name: ['--model'],
+							description: 'Model to use (empty = default)',
+							args: [
+								{
+									name: 'model',
+								},
+							],
+						},
+						{
+							name: ['--reasoning-effort'],
+							description: 'Reasoning effort level (low, medium, high)',
+							args: [
+								{
+									name: 'reasoning-effort',
+								},
+							],
+						},
+						{
+							name: ['--resume'],
+							description: 'Resume an existing session',
+						},
+						{
+							name: ['--system-message'],
+							description: 'Custom system message',
+							args: [
+								{
+									name: 'system-message',
+								},
+							],
+						},
+					],
+				},
+				{
 					name: ['gh-url-parse'],
 					description: 'Parse a GitHub URL and extract repository information.',
 				},
@@ -5674,8 +5955,12 @@ const completionSpec: Fig.Spec = {
 							isDangerous: true,
 						},
 						{
+							name: ['--no-dependencies'],
+							description: 'Install only the specified extension(s) without installing their declared dependencies',
+						},
+						{
 							name: ['--source', '-s'],
-							description: 'The extension source to use for installs',
+							description: 'The extension source to use for installs. Accepts a registered source name or a registry location (URL or file path) to register and install from.',
 							args: [
 								{
 									name: 'source',
@@ -5706,8 +5991,8 @@ const completionSpec: Fig.Spec = {
 							description: 'List installed extensions',
 						},
 						{
-							name: ['--source'],
-							description: 'Filter extensions by source',
+							name: ['--source', '-s'],
+							description: 'Filter extensions by registered source name or registry location (URL or file path).',
 							args: [
 								{
 									name: 'source',
@@ -5732,7 +6017,7 @@ const completionSpec: Fig.Spec = {
 					options: [
 						{
 							name: ['--source', '-s'],
-							description: 'The extension source to use.',
+							description: 'The registered source name or registry location (URL or file path) to use.',
 							args: [
 								{
 									name: 'source',
@@ -5764,7 +6049,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--name', '-n'],
-									description: 'The name of the extension source',
+									description: 'The source name: 1-64 lowercase letters, digits, hyphens, or underscores.',
 									args: [
 										{
 											name: 'name',
@@ -5824,20 +6109,20 @@ const completionSpec: Fig.Spec = {
 					},
 				},
 				{
-					name: ['upgrade'],
-					description: 'Upgrade installed extensions to the latest version.',
+					name: ['update', 'upgrade'],
+					description: 'Update installed extensions to the latest version.',
 					options: [
 						{
 							name: ['--all'],
-							description: 'Upgrade all installed extensions',
+							description: 'Update all installed extensions',
 						},
 						{
-							name: ['--no-dependency-upgrades'],
-							description: 'Do not upgrade dependencies when upgrading an extension that has dependencies',
+							name: ['--no-dependency-updates'],
+							description: 'Do not update dependencies when updating an extension that has dependencies',
 						},
 						{
 							name: ['--source', '-s'],
-							description: 'The extension source to use for upgrades',
+							description: 'The registered source name or registry location (URL or file path) to use for updates.',
 							args: [
 								{
 									name: 'source',
@@ -5846,7 +6131,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--version', '-v'],
-							description: 'The version of the extension to upgrade to',
+							description: 'The version of the extension to update to',
 							args: [
 								{
 									name: 'version',
@@ -6075,7 +6360,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--auth-type'],
-							description: 'The authentication type used between the pipeline provider and Azure for deployment (Only valid for GitHub provider). Valid values: federated, client-credentials.',
+							description: 'The authentication type used between the pipeline provider and Azure for deployment. Valid values: federated, client-credentials. Both the GitHub and Azure DevOps providers default to federated (OIDC) credentials.',
 							args: [
 								{
 									name: 'auth-type',
@@ -6337,22 +6622,22 @@ const completionSpec: Fig.Spec = {
 					description: 'Install specified tools.',
 					options: [
 						{
+							name: ['--agent'],
+							description: 'Install the skill for the specified agent(s): copilot, claude. Use --agent all for every detected agent (skill tools only)',
+							isRepeatable: true,
+							args: [
+								{
+									name: 'agent',
+								},
+							],
+						},
+						{
 							name: ['--all'],
 							description: 'Install all recommended tools',
 						},
 						{
 							name: ['--dry-run'],
 							description: 'Preview what would be installed without making changes',
-						},
-						{
-							name: ['--host'],
-							description: 'Install the skill for the specified agent host(s): copilot, claude. Use --host all for every detected host (skill tools only)',
-							isRepeatable: true,
-							args: [
-								{
-									name: 'host',
-								},
-							],
 						},
 					],
 					args: {
@@ -6376,22 +6661,22 @@ const completionSpec: Fig.Spec = {
 					description: 'Uninstall installed tools.',
 					options: [
 						{
+							name: ['--agent'],
+							description: 'Uninstall the skill from the specified agent(s): copilot, claude. Use --agent all (or omit --agent) to remove the skill from every agent it is installed through (skill tools only)',
+							isRepeatable: true,
+							args: [
+								{
+									name: 'agent',
+								},
+							],
+						},
+						{
 							name: ['--all'],
 							description: 'Uninstall all installed tools',
 						},
 						{
 							name: ['--dry-run'],
 							description: 'Preview what would be uninstalled without making changes',
-						},
-						{
-							name: ['--host'],
-							description: 'Uninstall the skill from the specified agent host(s): copilot, claude. Use --host all (or omit --host) to remove the skill from every host it is installed through (skill tools only)',
-							isRepeatable: true,
-							args: [
-								{
-									name: 'host',
-								},
-							],
 						},
 					],
 					args: {
@@ -6400,22 +6685,26 @@ const completionSpec: Fig.Spec = {
 					},
 				},
 				{
-					name: ['upgrade'],
-					description: 'Upgrade installed tools.',
+					name: ['update', 'upgrade'],
+					description: 'Update installed tools.',
 					options: [
 						{
-							name: ['--dry-run'],
-							description: 'Preview what would be upgraded without making changes',
-						},
-						{
-							name: ['--host'],
-							description: 'Upgrade the skill for the specified agent host(s): copilot, claude. Use --host all for every detected host (skill tools only)',
+							name: ['--agent'],
+							description: 'Update the skill for the specified agent(s): copilot, claude. Use --agent all for every detected agent (skill tools only)',
 							isRepeatable: true,
 							args: [
 								{
-									name: 'host',
+									name: 'agent',
 								},
 							],
+						},
+						{
+							name: ['--all'],
+							description: 'Update all installed tools',
+						},
+						{
+							name: ['--dry-run'],
+							description: 'Preview what would be updated without making changes',
 						},
 					],
 					args: {
@@ -6510,7 +6799,7 @@ const completionSpec: Fig.Spec = {
 					options: [
 						{
 							name: ['--capabilities'],
-							description: 'The list of capabilities for the extension (e.g., custom-commands,lifecycle-events,mcp-server,service-target-provider,framework-service-provider,metadata,provisioning-provider).',
+							description: 'The list of capabilities for the extension (e.g., custom-commands,lifecycle-events,mcp-server,service-target-provider,framework-service-provider,metadata,provisioning-provider,validation-provider).',
 							isRepeatable: true,
 							args: [
 								{
@@ -6543,7 +6832,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--language'],
-							description: 'The programming language for the extension (go, dotnet, javascript, python).',
+							description: 'The programming language for the extension (go (recommended), dotnet, javascript, python).',
 							args: [
 								{
 									name: 'language',
@@ -6775,7 +7064,7 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: ['--no-prompt'],
-			description: 'Runs without prompts. Uses existing values; fails if any required value or decision cannot be resolved automatically.',
+			description: 'Runs without prompts. Uses existing values; fails if any required value or decision cannot be resolved automatically. Automatically enabled when azd detects a CI/CD or AI-agent environment; set AZD_NON_INTERACTIVE=false to opt out of that automatic enablement.',
 			isPersistent: true,
 		},
 		{

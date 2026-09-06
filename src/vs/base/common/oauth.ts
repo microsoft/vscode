@@ -811,6 +811,9 @@ export interface IAuthorizationJWTClaims {
 	 */
 	roles?: string[];
 
+	/** Entra ID tenant id; absent on non-Entra tokens. Distinguishes work/school from personal accounts. */
+	tid?: string;
+
 	/**
 	 * OPTIONAL. Handles optional claims that are not explicitly defined in the standard.
 	 */

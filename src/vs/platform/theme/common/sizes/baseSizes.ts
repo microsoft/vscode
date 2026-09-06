@@ -28,10 +28,9 @@ export const bodyFontSizeXSmall = registerSize('bodyFontSize.xSmall',
 
 // ------ Font ramp
 //
-// A generic font-size ramp (headings, body and labels) mirroring the agents
-// window ramp. "Strong" variants are NOT separate size tokens: reuse the
-// matching size token paired with `fontWeight.semiBold` (600). Regular text
-// pairs with `fontWeight.regular` (400).
+// A generic font-size ramp for headings, body text and labels. "Strong" variants
+// are NOT separate size tokens: reuse the matching size token paired with
+// `fontWeight.semiBold` (600). Regular text pairs with `fontWeight.regular` (400).
 
 export const fontSizeHeading1 = registerSize('fontSize.heading1',
 	sizeForAllThemes(26, 'px'),

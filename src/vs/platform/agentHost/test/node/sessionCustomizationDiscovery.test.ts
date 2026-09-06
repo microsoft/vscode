@@ -18,6 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
+import { CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
 import { DiscoveredType, SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../../node/shared/sessionPluginBundler.js';
 import { mapToParsedPlugin, toDiscoveredDirectoryCustomizations } from '../../node/copilot/copilotAgent.js';
@@ -315,6 +316,82 @@ suite('SessionCustomizationDiscovery', () => {
 			{ contents: 'rule', uri: '/workspace/.github/instructions', writable: true, children: ['/workspace/.github/instructions/baz.instructions.md'] },
 			{ contents: 'skill', uri: '/workspace/.github/skills', writable: true, children: ['/workspace/.github/skills/bar/SKILL.md'] },
 		]);
+	});
+
+	test('discover preserves SDK skill visibility and file-backed model invocation metadata', async () => {
+		await seed('/workspace/.github/skills/bar/SKILL.md', '---\nname: bar\ndisable-model-invocation: true\n---\nskill body');
+		await seed('/workspace/.github/skills/default/SKILL.md', '---\nname: default\n---\nskill body');
+		await seed('/workspace/.github/skills/visible/SKILL.md', '---\nname: visible\nuser-invocable: true\ndisable-model-invocation: false\n---\nskill body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ agents: [] }),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/workspace/.github/skills' }] }),
+					discover: async () => ({
+						skills: [{
+							name: 'bar',
+							description: 'skill description',
+							path: '/workspace/.github/skills/bar/SKILL.md',
+							enabled: false,
+							userInvocable: false,
+						}, {
+							name: 'default',
+							description: 'default skill',
+							path: '/workspace/.github/skills/default/SKILL.md',
+							enabled: true,
+						}, {
+							name: 'visible',
+							description: 'visible skill',
+							path: '/workspace/.github/skills/visible/SKILL.md',
+							enabled: true,
+							userInvocable: true,
+						}],
+					}),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const skills = customizations
+			.flatMap(customization => customization.children ?? [])
+			.filter((child): child is SkillCustomization => child.type === CustomizationType.Skill)
+			.map(skill => ({
+				name: skill.name,
+				description: skill.description,
+				enabled: skill.enabled,
+				disableModelInvocation: skill.disableModelInvocation,
+				disableUserInvocation: skill.disableUserInvocation,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		assert.deepStrictEqual(skills, [{
+			name: 'bar',
+			description: 'skill description',
+			enabled: false,
+			disableModelInvocation: true,
+			disableUserInvocation: true,
+		}, {
+			name: 'default',
+			description: 'default skill',
+			enabled: true,
+			disableModelInvocation: undefined,
+			disableUserInvocation: undefined,
+		}, {
+			name: 'visible',
+			description: 'visible skill',
+			enabled: true,
+			disableModelInvocation: undefined,
+			disableUserInvocation: undefined,
+		}]);
 	});
 
 	test('discover groups case-variant instructions and nested skills under their roots', async () => {
@@ -835,7 +912,7 @@ suite('SessionCustomizationDiscovery', () => {
 
 	test('maps discovered files to parsed plugin preserving source URIs', async () => {
 		const agent = await seed('/workspace/.github/agents/foo.agent.md', '---\nname: Workspace Agent\ndescription: Agent description\n---\nbody');
-		const skill = await seed('/workspace/.github/skills/bar/SKILL.md', '---\nname: Workspace Skill\ndescription: Skill description\n---\nbody');
+		const skill = await seed('/workspace/.github/skills/bar/SKILL.md', '---\nname: Workspace Skill\ndescription: Skill description\nuser-invocable: false\ndisable-model-invocation: true\n---\nbody');
 		const instruction = await seed('/workspace/.github/instructions/baz.instructions.md', '---\nname: Workspace Rule\ndescription: Rule description\nglobs:\n  - src/**\n---\nbody');
 
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, URI.file));
@@ -853,6 +930,10 @@ suite('SessionCustomizationDiscovery', () => {
 				agentDescription: plugin.agents[0].description,
 				skillUri: plugin.skills[0].uri.toString(),
 				skillDescription: plugin.skills[0].description,
+				skillDisableModelInvocation: plugin.skills[0].disableModelInvocation,
+				skillDisableUserInvocation: plugin.skills[0].disableUserInvocation,
+				skillCustomizationDisableModelInvocation: plugin.skills[0].customization.disableModelInvocation,
+				skillCustomizationDisableUserInvocation: plugin.skills[0].customization.disableUserInvocation,
 				ruleUri: plugin.instructions[0].uri.toString(),
 				ruleDescription: plugin.instructions[0].description,
 			},
@@ -861,6 +942,10 @@ suite('SessionCustomizationDiscovery', () => {
 				agentDescription: 'Agent description',
 				skillUri: skill.toString(),
 				skillDescription: 'Skill description',
+				skillDisableModelInvocation: true,
+				skillDisableUserInvocation: true,
+				skillCustomizationDisableModelInvocation: true,
+				skillCustomizationDisableUserInvocation: true,
 				ruleUri: instruction.toString(),
 				ruleDescription: 'Rule description',
 			}

@@ -270,7 +270,7 @@
 	display: none;
 }
 
-/* Intentionally low specificity so the Modern UI style override, which renders this as a pill background, wins without !important. */
+/* Intentionally low specificity so the Modern UI treatment, which renders this as a pill background, wins without !important. */
 .tabs-container > .tab > .tab-fill {
 	display: none;
 }

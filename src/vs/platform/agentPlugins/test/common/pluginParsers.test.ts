@@ -19,7 +19,7 @@ import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpApp
 import { customizationId } from '../../../agentHost/common/state/sessionState.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', state: { kind: McpServerStatus.Starting } };
 }
 import {
 	IParsedHookCommand,
@@ -183,8 +183,55 @@ suite('pluginParsers', () => {
 				url: 'https://example.com',
 				headers: { 'X-Key': 'val' },
 			});
-			assert.ok(result);
-			assert.strictEqual(result!.type, McpServerType.REMOTE);
+			assert.deepStrictEqual(result, {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com',
+				headers: { 'X-Key': 'val' },
+				dev: undefined,
+			});
+		});
+
+		test('preserves canonical SSE transport', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				transport: 'sse',
+				url: 'https://example.com/sse',
+			}), {
+				type: McpServerType.REMOTE,
+				transport: 'sse',
+				url: 'https://example.com/sse',
+				headers: undefined,
+				dev: undefined,
+			});
+		});
+
+		test('preserves VS Code OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauth: { clientId: 'vscode-client-id' },
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'vscode-client-id' },
+				dev: undefined,
+			});
+		});
+
+		test('normalizes Copilot SDK OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauthClientId: 'sdk-client-id',
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'sdk-client-id' },
+				dev: undefined,
+			});
 		});
 
 		test('infers remote type from url without explicit type', () => {
@@ -255,9 +302,11 @@ suite('pluginParsers', () => {
 	suite('interpolateMcpPluginRoot', () => {
 
 		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const defaultCwd = URI.file('/plugin');
 			const result = interpolateMcpPluginRoot({
 				name: 'test',
 				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd,
 				configuration: {
 					type: McpServerType.LOCAL,
 					command: '${PLUGIN_ROOT}/bin/server',
@@ -272,6 +321,7 @@ suite('pluginParsers', () => {
 				args: ['--data', '/plugin/data'],
 				env: { PLUGIN_ROOT: '/plugin' },
 			});
+			assert.strictEqual(result.defaultCwd, defaultCwd);
 		});
 	});
 
@@ -390,17 +440,21 @@ suite('pluginParsers', () => {
 			});
 		});
 
-		test('toParsedSkill pairs the resource with a SkillCustomization and omits an absent description', () => {
+		test('toParsedSkill pairs invocation metadata with a SkillCustomization', () => {
 			const uri = URI.file('/home/.claude/skills/mapper/SKILL.md');
-			const parsed = toParsedSkill({ uri, name: 'mapper' });
+			const parsed = toParsedSkill({ uri, name: 'mapper', disableModelInvocation: true, disableUserInvocation: true });
 			assert.deepStrictEqual(parsed, {
 				uri,
 				name: 'mapper',
+				disableModelInvocation: true,
+				disableUserInvocation: true,
 				customization: {
 					type: CustomizationType.Skill,
 					id: customizationId(uri.toString()),
 					uri: uri.toString(),
 					name: 'mapper',
+					disableModelInvocation: true,
+					disableUserInvocation: true,
 				},
 			});
 		});
@@ -416,7 +470,6 @@ suite('pluginParsers', () => {
 				id: `${customizationId(uri.toString())}#mcp=${encodeURIComponent('fs server')}`,
 				uri: uri.toString(),
 				name: 'fs server',
-				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
 			});
@@ -592,6 +645,57 @@ suite('pluginParsers', () => {
 				assert.deepStrictEqual((await parse()).skills.map(skill => skill.name), ['other', 'valid']);
 			});
 
+			test('projects skill invocation frontmatter', async () => {
+				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
+				await write('/plugins/example/skills/both/SKILL.md', '---\nname: both\nuser-invocable: false\ndisable-model-invocation: true\n---');
+				await write('/plugins/example/skills/default/SKILL.md', '---\nname: default\n---');
+				await write('/plugins/example/skills/explicit-defaults/SKILL.md', '---\nname: explicit-defaults\nuser-invocable: true\ndisable-model-invocation: false\n---');
+				await write('/plugins/example/skills/model-disabled/SKILL.md', '---\nname: model-disabled\ndisable-model-invocation: true\n---');
+				await write('/plugins/example/skills/user-disabled/SKILL.md', '---\nname: user-disabled\nuser-invocable: false\n---');
+
+				const plugin = await parse();
+				assert.deepStrictEqual(plugin.skills.map(skill => ({
+					name: skill.name,
+					disableModelInvocation: skill.disableModelInvocation,
+					disableUserInvocation: skill.disableUserInvocation,
+					customization: {
+						disableModelInvocation: skill.customization.disableModelInvocation,
+						disableUserInvocation: skill.customization.disableUserInvocation,
+					},
+				})), [
+					{
+						name: 'both',
+						disableModelInvocation: true,
+						disableUserInvocation: true,
+						customization: { disableModelInvocation: true, disableUserInvocation: true },
+					},
+					{
+						name: 'default',
+						disableModelInvocation: undefined,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: undefined },
+					},
+					{
+						name: 'explicit-defaults',
+						disableModelInvocation: undefined,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: undefined },
+					},
+					{
+						name: 'model-disabled',
+						disableModelInvocation: true,
+						disableUserInvocation: undefined,
+						customization: { disableModelInvocation: true, disableUserInvocation: undefined },
+					},
+					{
+						name: 'user-disabled',
+						disableModelInvocation: undefined,
+						disableUserInvocation: true,
+						customization: { disableModelInvocation: undefined, disableUserInvocation: true },
+					},
+				]);
+			});
+
 			test('reads known MCP fields and leaves harness placeholders unresolved', async () => {
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/mcp.json', JSON.stringify({
@@ -604,16 +708,18 @@ suite('pluginParsers', () => {
 							env: { ROOT: '${PLUGIN_ROOT}' },
 							cwd: './work',
 						},
+						implicit: { type: 'stdio', command: 'implicit-server' },
 						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
 						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
 					},
 				}));
 
-				const servers = new Map((await parse()).mcpServers.map(server => [server.name, server.configuration]));
-				assert.deepStrictEqual([...servers.keys()], ['http', 'sse', 'stdio']);
-				assert.strictEqual(servers.get('http')?.type, McpServerType.REMOTE);
-				assert.strictEqual(servers.get('sse')?.type, McpServerType.REMOTE);
-				const stdio = servers.get('stdio');
+				const parsed = await parse();
+				const servers = new Map(parsed.mcpServers.map(server => [server.name, server]));
+				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'sse', 'stdio']);
+				assert.strictEqual(servers.get('http')?.configuration.type, McpServerType.REMOTE);
+				assert.strictEqual(servers.get('sse')?.configuration.type, McpServerType.REMOTE);
+				const stdio = servers.get('stdio')?.configuration;
 				assert.ok(stdio?.type === McpServerType.LOCAL);
 				assert.deepStrictEqual({
 					command: stdio.command,
@@ -626,6 +732,11 @@ suite('pluginParsers', () => {
 					env: { ROOT: '${PLUGIN_ROOT}' },
 					cwd: './work',
 				});
+				const implicit = servers.get('implicit');
+				assert.ok(implicit);
+				assert.strictEqual(implicit?.configuration.type, McpServerType.LOCAL);
+				assert.strictEqual(implicit.configuration.type === McpServerType.LOCAL ? implicit.configuration.cwd : undefined, undefined);
+				assert.strictEqual(implicit.defaultCwd, undefined);
 			});
 
 			test('rejects filesystem-resolved component escapes', async () => {

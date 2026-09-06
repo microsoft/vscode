@@ -25,6 +25,7 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
+	readProfileEnabled(key: string, reader?: IReader): boolean;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
 	remove(key: string): void;
 }
@@ -77,6 +78,10 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
 		return this.readEnabledWithWorkspaceKey(key, key, reader);
+	}
+
+	readProfileEnabled(key: string, reader?: IReader): boolean {
+		return this._profileState.read(reader).get(key) ?? true;
 	}
 
 	readEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, reader?: IReader): ContributionEnablementState {
@@ -194,6 +199,10 @@ export class CollisionEnablementModel implements IEnablementModel {
 			}
 		}
 		return baseState;
+	}
+
+	readProfileEnabled(key: string, reader?: IReader): boolean {
+		return this._base.readProfileEnabled(key, reader);
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {

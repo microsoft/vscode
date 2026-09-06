@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,6 +32,7 @@ import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 
@@ -140,12 +143,19 @@ suite('CodeReviewService', () => {
 
 	class MockReviewThreadsFetcher {
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
+		nextError: Error | undefined;
+		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
 
 		async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
-			return this.nextThreads;
+			const result = this.nextThreads;
+			await this.getReviewThreadsGate?.p;
+			if (this.nextError) {
+				throw this.nextError;
+			}
+			return result;
 		}
 
 		async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
@@ -244,28 +254,122 @@ suite('CodeReviewService', () => {
 		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
 		await tick();
 
-		// Polling is owned by GitHubPullRequestPollingContribution; refresh
-		// manually here to seed the review threads model with data.
-		await gitHubService.getReviewThreadsModel('owner', 'repo', 1).refresh();
-		await tick();
-
 		const state = service.getPRReviewState(session).get();
 		assert.strictEqual(state.kind, PRReviewStateKind.Loaded);
 		if (state.kind === PRReviewStateKind.Loaded) {
 			assert.deepStrictEqual({
-				comments: state.comments.map(comment => ({ id: comment.id, uri: comment.uri.toString(), body: comment.body, author: comment.author })),
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number, uri: comment.uri.toString(), body: comment.body, author: comment.author })),
 				getPullRequestCalls: gitHubService.getPullRequestCalls,
-				getPullRequestReviewThreadsCalls: gitHubService.getPullRequestReviewThreadsCalls,
 				legacyThreadRefreshes: gitHubService.legacyFetcher.getReviewThreadsCalls,
 				reviewThreadRefreshes: gitHubService.reviewThreadsFetcher.getReviewThreadsCalls,
 			}, {
-				comments: [{ id: 'thread-100', uri: 'file:///workspace/src/a.ts', body: 'Comment on src/a.ts', author: 'reviewer' }],
+				comments: [{ id: 'thread-100', prNumber: 1, uri: 'file:///workspace/src/a.ts', body: 'Comment on src/a.ts', author: 'reviewer' }],
 				getPullRequestCalls: 0,
-				getPullRequestReviewThreadsCalls: 0,
 				legacyThreadRefreshes: 0,
 				reviewThreadRefreshes: 1,
 			});
 		}
+	});
+
+	test('PR review state combines comments from every associated pull request', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextThreads = [makePRThread('thread-200', 'src/b.ts')];
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number }))
+			: state.kind, [
+			{ id: 'thread-100', prNumber: 1 },
+			{ id: 'thread-200', prNumber: 2 },
+		]);
+	});
+
+	test('PR review state stays loading until every pull request completes its initial refresh', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		const firstFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 1);
+		const secondFetcher = gitHubService.getReviewThreadsFetcher('owner', 'repo', 2);
+		firstFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		secondFetcher.nextThreads = [makePRThread('thread-200', 'src/b.ts')];
+		firstFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+		secondFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+		const beforeRefresh = service.getPRReviewState(session).get().kind;
+
+		firstFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterFirstRefresh = service.getPRReviewState(session).get().kind;
+
+		secondFetcher.getReviewThreadsGate.complete();
+		await tick();
+		const afterAllRefreshes = service.getPRReviewState(session).get();
+
+		assert.deepStrictEqual({
+			beforeRefresh,
+			afterFirstRefresh,
+			afterAllRefreshes: afterAllRefreshes.kind === PRReviewStateKind.Loaded
+				? afterAllRefreshes.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number }))
+				: afterAllRefreshes.kind,
+		}, {
+			beforeRefresh: PRReviewStateKind.Loading,
+			afterFirstRefresh: PRReviewStateKind.Loading,
+			afterAllRefreshes: [
+				{ id: 'thread-100', prNumber: 1 },
+				{ id: 'thread-200', prNumber: 2 },
+			],
+		});
+	});
+
+	test('PR review state exposes healthy comments when another pull request fails to load', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextError = new Error('not found');
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? {
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number })),
+				incompletePullRequests: state.incompletePullRequests.map(pullRequest => pullRequest.number),
+			}
+			: state.kind, {
+			comments: [{ id: 'thread-100', prNumber: 1 }],
+			incompletePullRequests: [2],
+		});
 	});
 
 	test('resolvePRReviewThread uses dedicated review threads model', async () => {
@@ -311,50 +415,37 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is right-inline when visible and first in overflow when collapsed', () => {
-		const primaryItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
+	test('Run Code Review is contributed to the editor header layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
-		const rightItems = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'sessions.codeReview.run');
-		const inlineItem = rightItems.find(item => item.group === '0_codeReview');
-		const overflowItem = rightItems.find(item => item.group === 'secondary/1_codeReview');
 
-		assert.strictEqual(primaryItem, undefined, 'Run Code Review should not render inline in the primary header');
-		assert.ok(inlineItem, 'expected Run Code Review inline on the right while the editor is visible');
-		assert.ok(overflowItem, 'expected Run Code Review in overflow while the editor is collapsed');
-		const inlineWhen = inlineItem.when?.serialize() ?? '';
-		const overflowWhen = overflowItem.when?.serialize() ?? '';
+		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+		const when = headerItem.when?.serialize() ?? '';
+		const enablementContext = new Context(1, null);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+		enablementContext.setValue(SessionHasChangesContext.key, true);
+		const enabledFromSessionChanges = headerItem.command.precondition?.evaluate(enablementContext);
+		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
+		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			inline: {
-				group: inlineItem.group,
-				order: inlineItem.order,
-				editorAreaGate: inlineWhen.includes(MainEditorAreaVisibleContext.key),
-			},
-			overflow: {
-				group: overflowItem.group,
-				order: overflowItem.order,
-				editorAreaGate: overflowWhen.includes(`!${MainEditorAreaVisibleContext.key}`),
-			},
-			hasSessionsWindowGate: inlineWhen.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: inlineWhen.includes(ActiveEditorContext.key) && inlineWhen.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: inlineWhen.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: inlineWhen.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: inlineWhen.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: inlineWhen.includes(SessionHasChangesContext.key),
-			hasCreatedGate: inlineWhen.includes(SessionIsCreatedContext.key),
+			group: headerItem.group,
+			order: headerItem.order,
+			enabledFromSessionChanges,
+			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
+			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
+			hasChangesGate: when.includes(SessionHasChangesContext.key),
+			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			inline: {
-				group: '0_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
-			overflow: {
-				group: 'secondary/1_codeReview',
-				order: 10,
-				editorAreaGate: true,
-			},
+			group: 'navigation',
+			order: 10,
+			enabledFromSessionChanges: true,
+			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneLayoutGate: true,
@@ -362,6 +453,7 @@ suite('Code Review Contributions', () => {
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
+			hasEditorAreaVisibleGate: false,
 		});
 	});
 

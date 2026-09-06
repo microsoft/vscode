@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isGpt56Model } from './modelIdentifiers.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 
@@ -15,6 +16,7 @@ export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<strin
 	'runTests',
 	'rename',
 	'usages',
+	SEMANTIC_SEARCH_TOOL_NAME,
 ]);
 
 /** Mirrors the Copilot extension's string-form `modelSupportsToolSearch`. */

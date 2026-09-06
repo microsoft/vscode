@@ -37,7 +37,7 @@
 		"input.border": "#D8D8D866",
 		"input.foreground": "#202020",
 		"input.placeholderForeground": "#999999",
-		"inputOption.activeBackground": "#0069CC26",
+		"inputOption.activeBackground": "#D6D6D6",
 		"inputOption.activeForeground": "#202020",
 		"inputOption.activeBorder": "#F0F1F2FF",
 		"inputValidation.infoBackground": "#E6F2FA",
@@ -292,7 +292,7 @@
 		"agents.background": "#FAFAFD",
 		"agentsPanel.background": "#FFFFFF",
 		"agentsPanel.foreground": "#202020",
-		"agentsPanel.border": "#E4E5E6FF",
+		"agentsPanel.border": "#E4E5E6AA",
 		"surface.background": "#FFFFFF",
 		"surface.foreground": "#202020",
 		"surface.border": "#E4E5E6FF",
@@ -309,7 +309,7 @@
 		"agentsBadge.background": "#0069CC",
 		"agentsBadge.foreground": "#FFFFFF",
 		"agentsUnreadBadge.background": "#0069CC",
-		"agentsUnreadBadge.foreground": "#FFFFFF"
+		"agentsUnreadBadge.foreground": "#FFFFFF",
 	},
 	"tokenColors": [
 		{

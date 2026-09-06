@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 
 /**
  * Shared controller state that single-pane layout strategies read/coordinate
@@ -28,33 +24,32 @@ export interface ISinglePaneLayoutContext {
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
-}
-
-/** Base class for a single-pane layout behaviour, owning its own disposables. */
-export abstract class SinglePaneLayoutStrategy extends Disposable {
-	constructor(protected readonly _ctx: ISinglePaneLayoutContext) {
-		super();
-	}
+	hasSavedWorkingSet(sessionResource: URI): boolean;
 }
 
 /**
- * Shared state for the two docked-tab strategies (managed Changes/Files tabs and
- * editor-area tab collapse): they serialize on one sequencer and share the
- * captured collapsed editors.
+ * Base class for a single-pane layout behaviour, owning its own disposables.
+ *
+ * Exactly three concrete strategies extend this — one per session lifecycle stage:
+ * {@link import('./singlePaneNewSessionStrategy.js').SinglePaneNewSessionStrategy} (an
+ * uncreated, workspace-backed draft), {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}
+ * (a created, workspace-backed session), and {@link import('./singlePaneQuickChatStrategy.js').SinglePaneQuickChatStrategy}
+ * (a workspace-less quick chat). Each owns the full vertical slice of behaviour for its stage:
+ * side-pane visibility, the detail-panel (Changes/Files) mapping, and — for the two workspace
+ * stages — the managed docked tabs and detail-only editor-area collapse.
+ *
+ * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
+ * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
+ * folder — see `singlePaneDockedTabsCoordinator.ts`, `singlePaneDetailPanelCoordinator.ts`, and
+ * `singlePaneVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
+ * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
+ * {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}
+ * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
+ * submit transition) or by the controller (the visibility-profile store, since it backs one
+ * combined storage blob for both workspace stages).
  */
-export class SinglePaneDockedTabsCoordinator extends Disposable {
-
-	readonly sequencer = new Sequencer();
-
-	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
-	collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
-
-	constructor(private readonly _sessionChangesService: ISessionChangesService) {
+export abstract class SinglePaneLayoutStrategy extends Disposable {
+	constructor(protected readonly _ctx: ISinglePaneLayoutContext) {
 		super();
-	}
-
-	getChangesEditorResource(editor: EditorInput): URI | undefined {
-		const resource = editor.resource;
-		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
 	}
 }

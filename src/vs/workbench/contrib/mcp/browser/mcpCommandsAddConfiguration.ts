@@ -37,7 +37,7 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { allDiscoverySources, DiscoverySource, mcpDiscoverySection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
+import { allDiscoverySources, ExternalDiscoverySource, mcpDiscoverySection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -196,7 +196,7 @@ export class McpAddConfigurationCommand {
 
 		items.push({ type: 'separator' });
 
-		const discovery = this._configurationService.getValue<{ [K in DiscoverySource]: boolean }>(mcpDiscoverySection);
+		const discovery = this._configurationService.getValue<{ [K in ExternalDiscoverySource]: boolean }>(mcpDiscoverySection);
 		if (discovery && typeof discovery === 'object' && allDiscoverySources.some(d => !discovery[d])) {
 			items.push({
 				kind: 'discovery',

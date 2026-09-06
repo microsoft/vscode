@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.2.14",
+    "@types/node": "24.12.4",
     "axe-playwright": "^2.1.0",
     "chai": "^4.2.0",
     "css-loader": "^6.9.1",

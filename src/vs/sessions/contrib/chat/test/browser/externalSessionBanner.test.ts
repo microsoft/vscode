@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
+import { getExternalSessionBannerSelectedMode, getExternalSessionVisibilityConfirmation, shouldConfirmExternalSessionVisibilityChange } from '../../browser/externalSessionBanner.js';
+
+suite('Sessions - External Session Banner', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects the configured external session visibility mode', () => {
+		assert.deepStrictEqual({
+			configuredRecent: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Recent),
+			configuredLast7Days: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Last7Days),
+			initialMode: getExternalSessionBannerSelectedMode(ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Recent),
+		}, {
+			configuredRecent: ChatExternalSessionsMode.Recent,
+			configuredLast7Days: ChatExternalSessionsMode.Last7Days,
+			initialMode: ChatExternalSessionsMode.Last24Hours,
+		});
+	});
+
+	test('matches external session visibility time boundaries', () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.UTC(2026, 7, 16, 12);
+
+		assert.deepStrictEqual({
+			recent: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Recent, new Date(now), now),
+			none: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.None, new Date(now), now),
+			at30Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last30Days, new Date(now - 30 * day), now),
+			olderThan30Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last30Days, new Date(now - 30 * day - 1), now),
+			at24Hours: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last24Hours, new Date(now - day), now),
+			olderThan24Hours: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last24Hours, new Date(now - day - 1), now),
+			at7Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last7Days, new Date(now - 7 * day), now),
+			olderThan7Days: shouldConfirmExternalSessionVisibilityChange(ChatExternalSessionsMode.Last7Days, new Date(now - 7 * day - 1), now),
+		}, {
+			recent: true,
+			none: true,
+			at30Days: false,
+			olderThan30Days: true,
+			at24Hours: false,
+			olderThan24Hours: true,
+			at7Days: false,
+			olderThan7Days: true,
+		});
+	});
+
+	test('describes why a time-filtered open session will disappear', () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.UTC(2026, 7, 16, 12);
+
+		assert.deepStrictEqual(
+			getExternalSessionVisibilityConfirmation(ChatExternalSessionsMode.Last7Days, new Date(now - 7 * day - 1), now, 'Code - OSS'),
+			{
+				type: 'warning',
+				message: 'This session will no longer appear in Code - OSS',
+				detail: 'Only external sessions updated in the last 7 days will be shown. This session was last updated 8 days ago. Are you sure you want to save this change?',
+				primaryButton: '&&Save Anyway',
+			}
+		);
+	});
+
+	test('warns that recent may hide the open session', () => {
+		const now = Date.UTC(2026, 7, 16, 12);
+
+		assert.deepStrictEqual(
+			getExternalSessionVisibilityConfirmation(ChatExternalSessionsMode.Recent, new Date(now), now, 'Code - OSS'),
+			{
+				type: 'warning',
+				message: 'This session may no longer appear in Code - OSS',
+				detail: 'Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?',
+				primaryButton: '&&Save Anyway',
+			}
+		);
+	});
+});

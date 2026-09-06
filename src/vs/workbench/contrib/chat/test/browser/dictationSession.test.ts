@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -15,7 +16,7 @@ import { createTestCodeEditor } from '../../../../../editor/test/browser/testCod
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatDictationSurface, ChatSpeechToTextState, IChatDictationTranscript, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../browser/speechToText/chatSpeechToTextService.js';
-import { isDictating, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
+import { isDictating, isDictationActiveForEditor, onDidChangeDictationEditor, startDictation, stopDictation, stopDictationForEditor } from '../../browser/speechToText/dictationSession.js';
 
 suite('DictationSession', () => {
 
@@ -120,6 +121,29 @@ suite('DictationSession', () => {
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
 	});
 
+	test('stops and inserts the final transcript after 20 minutes', async () => {
+		const transcript = 'hello world';
+		const { service } = createService(transcript, false);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+		const clock = sinon.useFakeTimers();
+
+		try {
+			await startDictation(service, editor, mainWindow, new NullLogService());
+			await clock.tickAsync(20 * 60 * 1000);
+
+			assert.deepStrictEqual({
+				isDictating: isDictating(),
+				value: editor.getValue(),
+			}, {
+				isDictating: false,
+				value: transcript,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('stops only when the submitted editor owns dictation', async () => {
 		const { service } = createService('hello world', true);
 		const dictationEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
@@ -145,13 +169,18 @@ suite('DictationSession', () => {
 		const { service, onDidUpdateTranscript, blockStop } = createService('hello world', true);
 		const model = store.add(createTextModel(''));
 		const editor = store.add(createTestCodeEditor(model));
+		const otherEditor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
 
 		await startDictation(service, editor, mainWindow, new NullLogService());
 		onDidUpdateTranscript.fire({ text: 'hello world', finalizedText: '' });
+		const ownershipChanges: boolean[] = [];
+		store.add(onDidChangeDictationEditor(() => ownershipChanges.push(isDictationActiveForEditor(editor))));
 
 		// The first submit begins finalizing but blocks inside stopAndTranscribe.
 		const release = blockStop();
 		const firstStop = stopDictationForEditor(editor);
+		const ownsFinalizingDictation = isDictationActiveForEditor(editor);
+		const otherOwnsFinalizingDictation = isDictationActiveForEditor(otherEditor);
 		// A second submit for the same editor arrives mid-finalization; it must
 		// await the in-flight finalization rather than returning early.
 		let secondResolved = false;
@@ -163,12 +192,20 @@ suite('DictationSession', () => {
 		await Promise.all([firstStop, secondStop]);
 
 		assert.deepStrictEqual({
+			ownsFinalizingDictation,
+			otherOwnsFinalizingDictation,
+			ownershipChanges,
 			secondResolvedWhileBlocked,
 			secondResolvedAfterFinal: secondResolved,
+			ownsCompletedDictation: isDictationActiveForEditor(editor),
 			value: editor.getValue(),
 		}, {
+			ownsFinalizingDictation: true,
+			otherOwnsFinalizingDictation: false,
+			ownershipChanges: [false, true, false],
 			secondResolvedWhileBlocked: false,
 			secondResolvedAfterFinal: true,
+			ownsCompletedDictation: false,
 			value: 'hello world',
 		});
 	});

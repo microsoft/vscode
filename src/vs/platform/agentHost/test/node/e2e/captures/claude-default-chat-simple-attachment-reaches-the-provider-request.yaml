@@ -8,9 +8,9 @@ exchanges:
         - role: user
           content:
             - type: text
-              text: Reply with only the value from the attachment.
+              text: Reply with only the value provided directly in the attachment. Do not inspect the workspace or use tools.
             - type: text
               text: ATTACHMENT_SIMPLE_VALUE
     response:
-      content: I don't see an attachment in this conversation — only the literal text `ATTACHMENT_SIMPLE_VALUE`. Could you re-send it?
+      content: ATTACHMENT_SIMPLE_VALUE
       stopReason: end_turn

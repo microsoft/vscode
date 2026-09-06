@@ -8,7 +8,7 @@ import { Disposable, IReference, ReferenceCollection } from '../../../../../base
 import { IObservable, ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason } from '../constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
 
@@ -21,6 +21,7 @@ export interface IStartSessionProps {
 	readonly disableBackgroundKeepAlive?: boolean;
 	readonly inputState?: ISerializableChatModelInputState;
 	readonly isReadOnly?: IObservable<boolean>;
+	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 
 export interface ChatModelStoreDelegate {

@@ -39,6 +39,10 @@ suite('copilot', () => {
 			'node_modules/@github/copilot-linux-x64/**',
 			'!node_modules/@github/copilot-linux-x64/copilot',
 			'!node_modules/@github/copilot-linux-x64/copilot.exe',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/copilot-runtime',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/copilot-runtime-bin',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/copilot-runtime.exe',
+			'!node_modules/@github/copilot-linux-x64/prebuilds/*/copilot-runtime-bin.exe',
 			'!node_modules/@github/copilot-linux-x64/clipboard/**',
 			'!node_modules/@github/copilot-linux-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linux-x64/mxc-bin/**',
@@ -57,6 +61,7 @@ suite('copilot', () => {
 			'prebuilds/linux-x64/pty.node',
 		]);
 		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linux-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-linux-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linux-x64');
 	});
 
@@ -67,6 +72,10 @@ suite('copilot', () => {
 			'node_modules/@github/copilot-linuxmusl-x64/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/copilot',
 			'!node_modules/@github/copilot-linuxmusl-x64/copilot.exe',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/copilot-runtime',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/copilot-runtime-bin',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/copilot-runtime.exe',
+			'!node_modules/@github/copilot-linuxmusl-x64/prebuilds/*/copilot-runtime-bin.exe',
 			'!node_modules/@github/copilot-linuxmusl-x64/clipboard/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-linuxmusl-x64/mxc-bin/**',
@@ -84,6 +93,7 @@ suite('copilot', () => {
 			'prebuilds/linuxmusl-x64/runtime.node',
 		]);
 		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-linuxmusl-x64');
 	});
 
@@ -92,6 +102,10 @@ suite('copilot', () => {
 			'node_modules/@github/copilot-win32-x64/**',
 			'!node_modules/@github/copilot-win32-x64/copilot',
 			'!node_modules/@github/copilot-win32-x64/copilot.exe',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/copilot-runtime',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/copilot-runtime-bin',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/copilot-runtime.exe',
+			'!node_modules/@github/copilot-win32-x64/prebuilds/*/copilot-runtime-bin.exe',
 			'!node_modules/@github/copilot-win32-x64/clipboard/**',
 			'!node_modules/@github/copilot-win32-x64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-x64/mxc-bin/**',
@@ -113,11 +127,16 @@ suite('copilot', () => {
 			'prebuilds/win32-x64/conpty/conpty.dll',
 		]);
 		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 
 		assert.deepStrictEqual(getCopilotRuntimePrebuildFiles('win32', 'arm64'), [
 			'node_modules/@github/copilot-win32-arm64/**',
 			'!node_modules/@github/copilot-win32-arm64/copilot',
 			'!node_modules/@github/copilot-win32-arm64/copilot.exe',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/copilot-runtime',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/copilot-runtime-bin',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/copilot-runtime.exe',
+			'!node_modules/@github/copilot-win32-arm64/prebuilds/*/copilot-runtime-bin.exe',
 			'!node_modules/@github/copilot-win32-arm64/clipboard/**',
 			'!node_modules/@github/copilot-win32-arm64/foundry-local-sdk/**',
 			'!node_modules/@github/copilot-win32-arm64/mxc-bin/**',
@@ -130,6 +149,7 @@ suite('copilot', () => {
 		]);
 		assertOptionalCopilotNativeDependenciesExcluded(getCopilotRuntimePrebuildFiles('win32', 'x64'), 'node_modules/@github/copilot-win32-x64');
 		assertCopilotStandaloneExecutableExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(getCopilotRuntimePrebuildFiles('win32', 'arm64'), 'node_modules/@github/copilot-win32-arm64');
 	});
 
 	test('keeps macOS runtime prebuilds in the selected platform package', () => {
@@ -145,6 +165,7 @@ suite('copilot', () => {
 			'prebuilds/darwin-arm64/spawn-helper',
 		]);
 		assertCopilotStandaloneExecutableExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
+		assertCopilotOutOfProcessRuntimeExecutablesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 		assertOptionalCopilotNativeDependenciesExcluded(files, 'node_modules/@github/copilot-darwin-arm64');
 	});
 
@@ -186,6 +207,12 @@ suite('copilot', () => {
 		assert(files.includes('**'));
 		assert(files.includes('!**/node_modules/@github/copilot-*/copilot'));
 		assert(files.includes('!**/node_modules/@github/copilot-*/copilot.exe'));
+		assert.deepStrictEqual(files.filter(file => file.includes('/prebuilds/*/copilot-runtime')), [
+			'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime',
+			'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime-bin',
+			'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime.exe',
+			'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime-bin.exe',
+		]);
 	});
 
 	test('materializes target Copilot SDK prebuilds and tgrep for the built-in extension', () => {
@@ -203,6 +230,9 @@ suite('copilot', () => {
 			fs.writeFileSync(path.join(platformPackageDir, 'package.json'), JSON.stringify({ version: '1.0.73' }));
 			fs.mkdirSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'MediaRemoteAdapter.framework'), { recursive: true });
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'runtime.node'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime.exe'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe'), '');
+			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'OneAuthInterop.dll'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty.node'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'), '');
 			fs.writeFileSync(path.join(platformPackageDir, 'prebuilds', 'win32-x64', 'mediaremote-adapter', 'mediaremote-adapter.pl'), '');
@@ -215,6 +245,9 @@ suite('copilot', () => {
 			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir);
 
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'runtime.node')));
+			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime.exe')));
+			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'copilot-runtime-bin.exe')));
+			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'OneAuthInterop.dll')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty.node')));
 			assert(fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe')));
 			assert(!fs.existsSync(path.join(extensionCopilotDir, 'sdk', 'prebuilds', 'win32-x64', 'mediaremote-adapter')));
@@ -316,6 +349,10 @@ suite('copilot', () => {
 				...copilotPlatforms.map(platform => `!**/node_modules/@github/copilot-${platform}/**`),
 				'!**/node_modules/@github/copilot-*/copilot',
 				'!**/node_modules/@github/copilot-*/copilot.exe',
+				'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime',
+				'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime-bin',
+				'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime.exe',
+				'!**/node_modules/@github/copilot-*/prebuilds/*/copilot-runtime-bin.exe',
 			]
 		);
 	});
@@ -360,6 +397,13 @@ function assertCopilotStandaloneExecutableExcluded(patterns: string[], packageDi
 	for (const executable of ['copilot', 'copilot.exe']) {
 		assert(patterns.includes(`!${packageDir}/${executable}`), executable);
 		assert(!matchesGlob(`${packageDir}/${executable}`, patterns), executable);
+	}
+}
+
+function assertCopilotOutOfProcessRuntimeExecutablesExcluded(patterns: string[], packageDir: string): void {
+	for (const executable of ['copilot-runtime', 'copilot-runtime-bin', 'copilot-runtime.exe', 'copilot-runtime-bin.exe']) {
+		assert(patterns.includes(`!${packageDir}/prebuilds/*/${executable}`), executable);
+		assert(!matchesGlob(`${packageDir}/prebuilds/test-platform/${executable}`, patterns), executable);
 	}
 }
 

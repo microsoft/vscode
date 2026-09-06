@@ -5,11 +5,37 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { cleanRemoteAuthority } from '../../common/telemetryUtils.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
+import { cleanRemoteAuthority, getTelemetryLevel } from '../../common/telemetryUtils.js';
 
 suite('TelemetryUtils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getTelemetryLevel fails closed for invalid configuration', () => {
+		assert.deepStrictEqual([
+			getTelemetryLevel(new TestConfigurationService()),
+			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ON })),
+			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ERROR })),
+			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.CRASH })),
+			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.OFF })),
+			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': 'invalid' })),
+			getTelemetryLevel(new class extends TestConfigurationService {
+				override getValue<T>(): T {
+					return null!;
+				}
+			}()),
+		], [
+			TelemetryLevel.USAGE,
+			TelemetryLevel.USAGE,
+			TelemetryLevel.ERROR,
+			TelemetryLevel.CRASH,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+			TelemetryLevel.NONE,
+		]);
+	});
 
 	suite('cleanRemoteAuthority', () => {
 

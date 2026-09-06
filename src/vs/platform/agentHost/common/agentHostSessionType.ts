@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type AgentProvider } from './agentService.js';
+import { type AgentProvider } from './agent.js';
 
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
 

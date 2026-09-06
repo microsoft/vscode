@@ -122,7 +122,7 @@ function quotaSnapshots(): Record<string, unknown> {
 	return { chat: { ...snapshot, quota_id: 'chat' }, completions: { ...snapshot, quota_id: 'completions' }, premium_interactions: { ...snapshot, quota_id: 'premium_interactions' } };
 }
 
-/** A fake Copilot token pointing back at the proxy (used only by title/utility calls on replay). */
+/** A fake Copilot token pointing back at the proxy. */
 function tokenStubBody(): string {
 	return JSON.stringify({
 		token: 'replay-copilot-token',
@@ -132,13 +132,24 @@ function tokenStubBody(): string {
 	});
 }
 
+function utilityChatCompletionStubBody(): string {
+	return JSON.stringify({
+		choices: [{ message: { role: 'assistant', content: 'Generated utility response' }, finish_reason: 'stop', index: 0 }],
+	});
+}
+
 const JSON_HEADERS: Readonly<Record<string, string>> = { 'content-type': 'application/json' };
 
 /**
  * Returns a stub response for an ancillary bootstrap endpoint, or undefined if
  * the path is a model endpoint that should be recorded/replayed normally.
  */
-export function getAncillaryStub(method: string, path: string): IStubResponse | undefined {
+export function getAncillaryStub(method: string, path: string, body?: string): IStubResponse | undefined {
+	if (path === '/chat/completions' && method === 'POST' && isNonStreamingChatCompletion(body)) {
+		return isCommitMessageCompletion(body)
+			? { status: 200, headers: JSON_HEADERS, body: utilityChatCompletionStubBody() }
+			: { status: 403, headers: JSON_HEADERS, body: 'Forbidden' };
+	}
 	if (path === '/models' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
 	}
@@ -166,6 +177,19 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 	if (path === '/copilot/mcp_registry' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ mcp_registries: [] }) };
 	}
+	// The built-in GitHub MCP server shares the CAPI origin and starts alongside
+	// each provider. These E2E scenarios do not exercise its tools, so keep it
+	// unavailable in replay instead of recording unrelated MCP bootstrap traffic
+	// or changing the model-visible tool inventory.
+	if ((path === '/mcp' || path === '/mcp/readonly') && method === 'POST') {
+		return { status: 404, headers: { 'content-type': 'text/plain', 'x-should-retry': 'false' }, body: 'GitHub MCP is not available in replay' };
+	}
+	// Codex follows an unavailable MCP response with standard OAuth protected
+	// resource and authorization-server discovery. Keep those probes ancillary
+	// and unavailable as well; they do not participate in model replay.
+	if (method === 'GET' && (path === '/mcp' || path.startsWith('/.well-known/') || path.includes('/.well-known/'))) {
+		return { status: 404, headers: { 'content-type': 'text/plain' }, body: 'OAuth metadata is not available in replay' };
+	}
 	if (path.startsWith('/copilot_internal/')) {
 		if (path.includes('/token') || path.includes('/nltoken')) {
 			return { status: 200, headers: JSON_HEADERS, body: tokenStubBody() };
@@ -179,4 +203,31 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 		return { status: 200, headers: JSON_HEADERS, body: '{}' };
 	}
 	return undefined;
+}
+
+function isNonStreamingChatCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		return JSON.parse(body).stream === false;
+	} catch {
+		return false;
+	}
+}
+
+function isCommitMessageCompletion(body: string | undefined): boolean {
+	if (!body) {
+		return false;
+	}
+	try {
+		const messages = JSON.parse(body).messages;
+		return Array.isArray(messages) && messages.some(message =>
+			message?.role === 'system'
+			&& typeof message.content === 'string'
+			&& message.content.includes('You generate concise Git commit messages.')
+		);
+	} catch {
+		return false;
+	}
 }

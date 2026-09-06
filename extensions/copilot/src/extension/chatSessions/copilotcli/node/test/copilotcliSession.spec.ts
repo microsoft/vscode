@@ -927,7 +927,7 @@ describe('CopilotCLISession', () => {
 		expect(sdkSession.lastSandboxConfig).toEqual({ enabled: true, userPolicy: { filesystem: {}, network: { allowOutbound: false } } });
 	});
 
-	it('disables the sandbox for a request running with bypass approvals', async () => {
+	it('applies the configured sandbox for a request running with bypass approvals', async () => {
 		for (const level of ['autopilot', 'autoApprove'] as const) {
 			sdkSession = new MockSdkSession();
 			const session = await createSession({ sandboxEnabled: true });
@@ -935,7 +935,7 @@ describe('CopilotCLISession', () => {
 			session.attachStream(new MockChatResponseStream());
 			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
 
-			expect(sdkSession.lastSandboxConfig, level).toEqual({ enabled: false });
+			expect(sdkSession.lastSandboxConfig, level).toEqual({ enabled: true, userPolicy: { filesystem: {}, network: { allowOutbound: false } } });
 		}
 	});
 

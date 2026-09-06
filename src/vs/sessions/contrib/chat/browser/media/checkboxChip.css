@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip .action-label {
+	cursor: pointer;
+}
+
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip .monaco-checkbox {
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip .sessions-chat-dropdown-label {
+	margin-left: 0;
+	cursor: pointer;
+}
+
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.disabled .action-label,
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.disabled .sessions-chat-dropdown-label {
+	cursor: default;
+}
+
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.hidden {
+	display: none;
+}

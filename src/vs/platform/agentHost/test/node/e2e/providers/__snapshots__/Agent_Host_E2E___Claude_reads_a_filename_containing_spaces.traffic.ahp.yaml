@@ -31,7 +31,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: I'll read that file for you.
+            content: I'll read that file.
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart

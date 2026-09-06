@@ -19,7 +19,6 @@ import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotificat
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
-import type * as urlTypes from 'url';
 
 /**
  * Options for creating a {@link WebSocketProtocolServer}.
@@ -106,7 +105,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
  * as an {@link IProtocolTransport}.
  *
  * Use the static {@link create} method to construct — it dynamically imports
- * `ws` and `http`/`url` so the modules are only loaded when needed.
+ * `ws` and `http` so the modules are only loaded when needed.
  */
 export class WebSocketProtocolServer extends Disposable implements IProtocolServer {
 
@@ -148,20 +147,19 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	}
 
 	/**
-	 * Creates a new WebSocket protocol server. Dynamically imports `ws`,
-	 * `http`, and `url` so callers don't pay the cost when unused.
+	 * Creates a new WebSocket protocol server. Dynamically imports `ws` and
+	 * `http` so callers don't pay the cost when unused.
 	 */
 	static async create(
 		options: IWebSocketServerOptions | number,
 		logService: ILogService,
 		ahpLogOptions?: { readonly instantiationService: IInstantiationService; readonly logsHome: URI },
 	): Promise<WebSocketProtocolServer> {
-		const [ws, http, url] = await Promise.all([
+		const [ws, http] = await Promise.all([
 			import('ws'),
 			import('http'),
-			import('url'),
 		]);
-		return new WebSocketProtocolServer(options, logService, ahpLogOptions, ws, http, url);
+		return new WebSocketProtocolServer(options, logService, ahpLogOptions, ws, http);
 	}
 
 	private constructor(
@@ -170,7 +168,6 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		private readonly _ahpLogOptions: { readonly instantiationService: IInstantiationService; readonly logsHome: URI } | undefined,
 		ws: typeof wsTypes,
 		http: typeof httpTypes,
-		url: typeof urlTypes,
 	) {
 		super();
 
@@ -182,8 +179,15 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 
 		const verifyClient = opts.connectionTokenValidate
 			? (info: { req: httpTypes.IncomingMessage }, cb: (res: boolean, code?: number, message?: string) => void) => {
-				const parsedUrl = url.parse(info.req.url ?? '', true);
-				const token = parsedUrl.query[connectionTokenQueryName];
+				let tokens: string[];
+				try {
+					tokens = new URL(info.req.url ?? '', 'http://localhost').searchParams.getAll(connectionTokenQueryName);
+				} catch {
+					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid request URL');
+					cb(false, 400, 'Bad Request');
+					return;
+				}
+				const token = tokens.length > 1 ? tokens : tokens[0];
 				if (!opts.connectionTokenValidate!(token)) {
 					this._logService.warn('[WebSocketProtocol] Connection rejected: invalid connection token');
 					cb(false, 403, 'Forbidden');

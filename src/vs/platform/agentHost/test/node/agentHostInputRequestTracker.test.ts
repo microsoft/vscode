@@ -6,9 +6,12 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ActionType, type ChatInputCompletedAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type ChatInputAnswer, type ChatInputRequest, type ChatState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type ChatInputAnswer, type ChatInputRequest, type ChatState } from '../../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from '../../node/agentHostInputRequestTracker.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 
@@ -40,11 +43,11 @@ suite('AgentHostInputRequestTracker', () => {
 	const rootChat = buildDefaultChatUri(rootSession);
 	const subagentChat = buildSubagentChatUri(rootSession, 'subagent-tool');
 
-	function createTracker(): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
+	function createTracker(clientContext?: IAgentHostClientTelemetryContext): { telemetry: CapturingTelemetryService; tracker: AgentHostInputRequestTracker } {
 		const telemetry = new CapturingTelemetryService();
 		return {
 			telemetry,
-			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 })),
+			tracker: new AgentHostInputRequestTracker(new AgentHostTelemetryReporter(telemetry), () => ({ elapsed: () => 25 }), () => clientContext),
 		};
 	}
 
@@ -75,10 +78,16 @@ suite('AgentHostInputRequestTracker', () => {
 	}
 
 	test('emits accepted metrics from reduced state with standard root identifiers', () => {
-		const { telemetry, tracker } = createTracker();
-		const request: ChatInputRequest = {
+		const { telemetry, tracker } = createTracker({
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		});
+		const request: ChatInputRequest = withChatInputRequestPurpose({
 			id: 'request-1',
-			purpose: ChatInputRequestPurpose.AskUser,
 			questions: [
 				{ id: 'text', kind: ChatInputQuestionKind.Text, message: 'Text?' },
 				{ id: 'selected', kind: ChatInputQuestionKind.SingleSelect, message: 'Select?', options: [{ id: 'recommended', label: 'Recommended', recommended: true }] },
@@ -88,7 +97,7 @@ suite('AgentHostInputRequestTracker', () => {
 				{ id: 'skipped', kind: ChatInputQuestionKind.Text, message: 'Skip?' },
 				{ id: 'missing', kind: ChatInputQuestionKind.Text, message: 'Missing?' },
 			],
-		};
+		}, ChatInputRequestPurpose.AskUser);
 		const answers: Record<string, ChatInputAnswer> = {
 			text: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'value' } },
 			selected: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'recommended' } },
@@ -104,6 +113,12 @@ suite('AgentHostInputRequestTracker', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => ({ eventName: event.eventName, data: event.data })), [{
 			eventName: 'askQuestionsToolInvoked',
 			data: {
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
 				requestId: 'turn-1',
 				questionCount: 7,
 				answeredCount: 5,
@@ -126,19 +141,17 @@ suite('AgentHostInputRequestTracker', () => {
 			const startedAt = now;
 			return { elapsed: () => now - startedAt };
 		});
-		const initial: ChatInputRequest = {
+		const initial: ChatInputRequest = withChatInputRequestPurpose({
 			id: 'request-1',
-			purpose: ChatInputRequestPurpose.AskUser,
 			questions: [{ id: 'old', kind: ChatInputQuestionKind.Text, message: 'Old?' }],
-		};
-		const replacement: ChatInputRequest = {
+		}, ChatInputRequestPurpose.AskUser);
+		const replacement: ChatInputRequest = withChatInputRequestPurpose({
 			id: 'request-1',
-			purpose: ChatInputRequestPurpose.AskUser,
 			questions: [
 				{ id: 'new-1', kind: ChatInputQuestionKind.Text, message: 'New?' },
 				{ id: 'new-2', kind: ChatInputQuestionKind.Text, message: 'Another?' },
 			],
-		};
+		}, ChatInputRequestPurpose.AskUser);
 
 		tracker.inputRequested('mock', rootChat, 'turn-1', initial);
 		now = 5;
@@ -164,18 +177,18 @@ suite('AgentHostInputRequestTracker', () => {
 		}]);
 	});
 
-	test('decline, cancellation, non-ask purposes, missing active turns, and duplicate completion do not emit', () => {
+	test('decline, cancellation, non-ask requests, missing active turns, and duplicate completion do not emit', () => {
 		const { telemetry, tracker } = createTracker();
-		const ask: ChatInputRequest = { id: 'ask', purpose: ChatInputRequestPurpose.AskUser, questions: [] };
+		const ask: ChatInputRequest = withChatInputRequestPurpose({ id: 'ask', questions: [] }, ChatInputRequestPurpose.AskUser);
 		const state = completedState(rootChat, 'turn-1', ask);
 
 		tracker.inputRequested('mock', rootChat, 'turn-1', ask);
 		tracker.inputCompleted(rootChat, { ...accept(ask.id), response: ChatInputResponseKind.Decline }, state);
 		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'cancel' });
 		tracker.inputCompleted(rootChat, { ...accept('cancel'), response: ChatInputResponseKind.Cancel }, state);
-		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'elicitation', purpose: ChatInputRequestPurpose.Elicitation });
-		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'plan', purpose: ChatInputRequestPurpose.PlanReview });
-		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'legacy', purpose: undefined });
+		tracker.inputRequested('mock', rootChat, 'turn-1', withChatInputRequestPurpose({ ...ask, id: 'elicitation' }, ChatInputRequestPurpose.Elicitation));
+		tracker.inputRequested('mock', rootChat, 'turn-1', withChatInputRequestPurpose({ ...ask, id: 'plan' }, ChatInputRequestPurpose.PlanReview));
+		tracker.inputRequested('mock', rootChat, 'turn-1', { id: 'legacy', questions: [] });
 		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'missing-turn' });
 		tracker.inputCompleted(rootChat, accept('missing-turn'), { ...state, activeTurn: undefined });
 		tracker.inputRequested('mock', rootChat, 'turn-1', { ...ask, id: 'duplicate' });
@@ -187,7 +200,7 @@ suite('AgentHostInputRequestTracker', () => {
 
 	test('turn, session, and tracker cleanup drop pending requests', () => {
 		const { telemetry, tracker } = createTracker();
-		const request: ChatInputRequest = { id: 'request-1', purpose: ChatInputRequestPurpose.AskUser, questions: [] };
+		const request: ChatInputRequest = withChatInputRequestPurpose({ id: 'request-1', questions: [] }, ChatInputRequestPurpose.AskUser);
 
 		tracker.inputRequested('mock', rootChat, 'turn-1', request);
 		tracker.clearTurn(rootChat, 'turn-1');
@@ -210,7 +223,7 @@ suite('AgentHostInputRequestTracker', () => {
 
 	test('emits subagent identifiers', () => {
 		const { telemetry, tracker } = createTracker();
-		const request: ChatInputRequest = { id: 'request-1', purpose: ChatInputRequestPurpose.AskUser, questions: [] };
+		const request: ChatInputRequest = withChatInputRequestPurpose({ id: 'request-1', questions: [] }, ChatInputRequestPurpose.AskUser);
 
 		tracker.inputRequested('mock', subagentChat, 'turn-1', request);
 		tracker.inputCompleted(subagentChat, accept(request.id), completedState(subagentChat, 'turn-1', request));

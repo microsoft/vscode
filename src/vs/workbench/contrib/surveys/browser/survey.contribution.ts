@@ -63,7 +63,7 @@ registerAction2(OpenSurveyAction);
 // Known survey source prefixes (validated for telemetry safety)
 const KNOWN_SOURCE_PREFIXES = [
 	'completions', 'panel.', 'inline.', 'terminal',
-	'agent.', 'sessions', 'nps', 'churn', 'dev-command',
+	'agent.', 'agents', 'sessions', 'nps', 'churn', 'dev-command',
 ];
 
 function sanitizeSurveySource(source: unknown): string {
@@ -87,13 +87,14 @@ function openSurveyEditor(accessor: ServicesAccessor, source?: string): Promise<
 	const editorService = accessor.get(IEditorService);
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const surveySource = environmentService.isSessionsWindow ? 'agents' : source;
 
-	const input = instantiationService.createInstance(SurveyEditorInput, CopilotPMFSurvey, source);
+	const input = instantiationService.createInstance(SurveyEditorInput, CopilotPMFSurvey, surveySource);
 
 	// If the same survey is already open (singleton match), update its source
 	for (const editor of editorService.editors) {
 		if (editor instanceof SurveyEditorInput && editor.matches(input)) {
-			editor.updateSource(source);
+			editor.updateSource(surveySource);
 			break;
 		}
 	}

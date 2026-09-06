@@ -22,7 +22,7 @@
 	padding: 0 var(--vscode-spacing-size100, 10px);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 4%, var(--vscode-editorWidget-background));
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
@@ -72,3 +72,16 @@
 	border-radius: var(--vscode-cornerRadius-small, 2px);
 }
 
+
+/*
+ * Announced by the banner's live region; the visible text is aria-hidden so a
+ * ticking countdown does not queue an utterance per update.
+ */
+.session-readonly-banner .session-readonly-banner-announcement {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

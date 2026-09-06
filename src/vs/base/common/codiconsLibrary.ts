@@ -761,4 +761,12 @@ export const codiconsLibrary = {
 	arrowUpCompact: register('arrow-up-compact', 0xeceb),
 	xai: register('xai', 0xecec),
 	arrowCircleUpSparkle: register('arrow-circle-up-sparkle', 0xeced),
+	closeSmall: register('close-small', 0xecee),
+	bookCompact: register('book-compact', 0xecef),
+	micOff: register('mic-off', 0xecf0),
+	micOffCompact: register('mic-off-compact', 0xecf1),
+	copilotDot: register('copilot-dot', 0xecf2),
+	copilotDotCompact: register('copilot-dot-compact', 0xecf3),
+	layoutDensityCompact: register('layout-density-compact', 0xecf4),
+	layoutDensityDefault: register('layout-density-default', 0xecf5),
 } as const;
