@@ -247,6 +247,12 @@ or deliverable, sharing its workspace, lifecycle, and aggregate diff;
 its own workspace, provider, or lifecycle. A title is required for both
 relationships and is applied before the initial prompt starts.
 
+Model IDs are scoped to their agent provider. `create_session` accepts an
+optional `provider` qualifier alongside an explicit `model` to disambiguate
+independent-session selection. For `currentSession`, an explicit provider must
+match the invoking session's provider. Omitting both preserves model inheritance.
+Ambiguous independent selections report provider/model pairs for retry.
+
 Sessions created by the `create_session` server tool record only the creating
 session, chat, and turn as immutable, provider-neutral creation provenance in
 the initial session summary `_meta` bag, before the session is published or its

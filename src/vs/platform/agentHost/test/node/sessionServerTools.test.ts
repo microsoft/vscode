@@ -120,6 +120,7 @@ suite('SessionServerTools', () => {
 				prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 				workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
+				provider: { type: 'string', description: 'Optional agent provider ID to disambiguate the model. Requires an explicit model. For `currentSession`, it must match the current session\'s provider.' },
 				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
 			required: ['relationship', 'prompt', 'title'],
@@ -677,8 +678,58 @@ suite('SessionServerTools', () => {
 		);
 		assert.throws(
 			() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task', model: 'Shared Model' }, [], models),
-			/model "Shared Model" is ambiguous; use one of these model ids: copilot-shared, claude-shared/,
+			{ message: 'Invalid create_session input: model "Shared Model" is ambiguous; specify one of these provider/model pairs: {"provider":"copilot","model":"copilot-shared"}, {"provider":"claude","model":"claude-shared"}.' },
 		);
+	});
+
+	test('getCreateSessionArgs disambiguates shared model ids and names by provider', () => {
+		const copilotModel: IAgentModelInfo = { provider: 'copilot', id: 'shared-model', name: 'Shared Model', supportsVision: false };
+		const claudeModel: IAgentModelInfo = { ...copilotModel, provider: 'claude' };
+		const models = [copilotModel, claudeModel];
+		const args = { relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task' };
+
+		assert.deepStrictEqual({
+			byId: getCreateSessionArgs({ ...args, provider: 'claude', model: 'shared-model' }, [], models).model,
+			byName: getCreateSessionArgs({ ...args, provider: 'copilot', model: 'Shared Model' }, [], models).model,
+			currentSession: getCreateSessionArgs({ relationship: 'currentSession', prompt: 'hi', title: 'Task', provider: 'claude', model: 'shared-model' }, [], models, 'claude').model,
+		}, {
+			byId: claudeModel,
+			byName: copilotModel,
+			currentSession: claudeModel,
+		});
+	});
+
+	test('getCreateSessionArgs reports actionable choices for duplicate model ids', () => {
+		const copilotModel: IAgentModelInfo = { provider: 'copilot', id: 'shared-model', name: 'Shared Model', supportsVision: false };
+		const models = [copilotModel, { ...copilotModel, provider: 'claude' }];
+		assert.throws(
+			() => getCreateSessionArgs({ relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task', model: 'shared-model' }, [], models),
+			{ message: 'Invalid create_session input: model "shared-model" is ambiguous; specify one of these provider/model pairs: {"provider":"copilot","model":"shared-model"}, {"provider":"claude","model":"shared-model"}.' },
+		);
+	});
+
+	test('getCreateSessionArgs validates the provider qualifier', () => {
+		const args = { relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task', model: model.id };
+		assert.throws(() => getCreateSessionArgs({ ...args, provider: 'missing' }, [], [model]), /model must match an available model id or name for provider "missing"/);
+		assert.throws(() => getCreateSessionArgs({ ...args, provider: 'copilot', model: undefined }, [], [model]), /provider requires an explicit model/);
+		assert.throws(() => getCreateSessionArgs({ ...args, provider: 1 }, [], [model]), /provider/);
+		assert.throws(() => getCreateSessionArgs({ ...args, provider: ' ' }, [], [model]), /provider/);
+		assert.throws(() => getCreateSessionArgs({ relationship: 'currentSession', prompt: 'hi', title: 'Task', provider: 'claude', model: model.id }, [], [model], 'copilot'), /provider must match the current session provider "copilot"/);
+	});
+
+	test('create_session routes a shared model id to the explicitly selected provider', async () => {
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			getModels: () => [model, { ...model, provider: 'claude' }],
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: model.id }, config: { autoApprove: 'autoApprove' } }),
+			onCreate: config => { created = config; },
+		});
+		await applyCreateSessionTool(accessor, {
+			relationship: 'independent', workspace: workspace.toString(), prompt: 'hi', title: 'Task', provider: 'claude', model: model.id,
+		}, URI.parse('copilot:/source'));
+		assert.deepStrictEqual({ provider: created?.provider, model: created?.model, config: created?.config }, {
+			provider: 'claude', model: { id: model.id }, config: { [SessionConfigKey.Isolation]: 'worktree' },
+		});
 	});
 
 	test('getCreateSessionArgs resolves a unique project name to its configured root', () => {

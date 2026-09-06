@@ -78,6 +78,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
+		provider: { type: 'string', description: 'Optional agent provider ID to disambiguate the model. Requires an explicit model. For `currentSession`, it must match the current session\'s provider.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['relationship', 'prompt', 'title'],
@@ -214,6 +215,7 @@ export function currentSessionUri(toolCallChannel: ProtocolURI): URI {
 }
 
 interface ICreateSessionArgs {
+	readonly provider?: unknown;
 	readonly relationship?: unknown;
 	readonly workspace?: unknown;
 	readonly prompt?: unknown;
@@ -492,7 +494,10 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.`);
 	}
 	if (matches.length > 1) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${modelName}" is ambiguous; use one of these model ids: ${matches.map(model => model.id).join(', ')}.`);
+		const choices = provider === undefined
+			? `specify one of these provider/model pairs: ${matches.map(model => JSON.stringify({ provider: model.provider, model: model.id })).join(', ')}`
+			: `use one of these model ids: ${matches.map(model => model.id).join(', ')}`;
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${modelName}" is ambiguous; ${choices}.`);
 	}
 	return matches[0];
 }
@@ -515,7 +520,14 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	validateRenameTitle(title, SessionServerToolName.CreateSession);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
-	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
+	const provider = getOptionalString(args.provider, 'provider', SessionServerToolName.CreateSession);
+	if (provider !== undefined && modelName === undefined) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: provider requires an explicit model.`);
+	}
+	if (relationship === 'currentSession' && provider !== undefined && provider !== currentProvider) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: provider must match the current session provider "${currentProvider}".`);
+	}
+	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : provider);
 	if (relationship === 'currentSession') {
 		if (workspace !== undefined) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace is only valid when relationship is "independent".`);
