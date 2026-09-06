@@ -783,10 +783,10 @@ export class CodeApplication extends Disposable {
 		if (updateCliRequest) {
 			const result = await appInstantiationService.invokeFunction(accessor => accessor.get(ICliControlMainService).runUpdateCommand(updateCliRequest));
 			if (result.stdout) {
-				console.log(result.stdout);
+				process.stdout.write(result.stdout);
 			}
 			if (result.stderr) {
-				console.error(result.stderr);
+				process.stderr.write(result.stderr);
 			}
 			this.lifecycleMainService.kill(result.exitCode);
 			return;

@@ -476,10 +476,10 @@ class CodeMain {
 					}
 				}
 				if (result.stdout) {
-					console.log(result.stdout);
+					process.stdout.write(result.stdout);
 				}
 				if (result.stderr) {
-					console.error(result.stderr);
+					process.stderr.write(result.stderr);
 				}
 				throw new ExpectedExitError(result.exitCode, 'Update CLI command completed in running instance. Terminating...');
 			}
