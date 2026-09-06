@@ -49,7 +49,7 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 	touch-action: manipulation;
-	font-size: var(--vscode-agents-fontSize-heading2);
+	font-size: var(--vscode-fontSize-heading2);
 	padding: 0;
 }
 
@@ -75,7 +75,7 @@
 	padding: 0 10px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
@@ -115,7 +115,7 @@
 	min-width: 0;
 	text-align: center;
 	font-size: 16px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -392,38 +392,13 @@
 	background-image: url('../../media/sessions-logo-dark.svg');
 }
 
-/* Center the picker text */
-.agent-sessions-workbench.phone-layout .session-workspace-picker {
-	display: flex !important;
-	flex-direction: column !important;
-	align-items: center !important;
-	gap: 12px !important;
-	font-size: 16px !important;
-}
-
-.agent-sessions-workbench.phone-layout .session-workspace-picker-label {
-	font-size: 17px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.85;
-}
-
-/* Promote the central workspace picker into a prominent pill so the empty
- * state has a clearly tappable hero affordance, mirroring the inspiration
- * design's "<icon> workspace v" chip. */
-.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
-	height: auto;
-	min-height: 36px;
-	padding: 2px 6px;
-	font-size: 17px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground, transparent);
-	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
-	gap: 4px;
-	touch-action: manipulation;
-}
-
-.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:active {
-	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
+.agent-sessions-workbench.phone-layout .sessions-workspace-category-picker {
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	max-width: 100%;
+	overflow-x: auto;
+	padding: var(--vscode-spacing-size20);
+	scrollbar-width: none;
 }
 
 /* Input slot pinned to the bottom. Flex `order` puts the chip row
@@ -632,8 +607,7 @@
 
 /* The chip row scrolls horizontally, so we never want to collapse labels
  * to icon-only — keep them visible regardless of viewport width. This
- * overrides the desktop `@container (max-width: 330px)` query that
- * hides `.sessions-chat-dropdown-label` to make icon-only chips. */
+ * overrides the desktop collision-driven compact state. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .action-label .sessions-chat-dropdown-label {
 	display: inline;
 	margin-left: 4px;

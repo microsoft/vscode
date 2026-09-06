@@ -13,7 +13,10 @@ on:
       remote_tests:
         type: boolean
         default: false
-      unit_and_integration_tests:
+      unit_tests:
+        type: boolean
+        default: true
+      integration_tests:
         type: boolean
         default: true
       smoke_tests:
@@ -25,24 +28,24 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (!inputs.unit_and_integration_tests && inputs.smoke_tests) && '-smoke' || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
         id: agent-host-e2e-changes
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -96,7 +99,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -112,7 +115,8 @@ jobs:
         shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
 
-      - name: Download Electron and Playwright
+      - name: Download Electron
+        if: ${{ inputs.electron_tests || inputs.remote_tests }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -120,7 +124,7 @@ jobs:
 
           for ($i = 1; $i -le 3; $i++) {
             try {
-              exec { npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install" }
+              exec { npm run electron -- ${{ env.VSCODE_ARCH }} }
               break
             }
             catch {
@@ -135,8 +139,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compile browser integration test runner
+        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        working-directory: test/integration/browser
+        run: npm run compile
+
+      - name: Install Playwright Chromium
+        if: ${{ inputs.browser_tests }}
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              exec { npm exec -- playwright install --only-shell chromium }
+              break
+            }
+            catch {
+              if ($i -eq 3) {
+                Write-Error "Install failed after 3 attempts"
+                throw
+              }
+              Write-Host "Install failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests"
@@ -144,13 +175,13 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
@@ -158,6 +189,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
+        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -183,13 +215,13 @@ jobs:
           }
 
       - name: Diagnostics before integration test runs
-        if: ${{ inputs.unit_and_integration_tests && always() }}
+        if: ${{ inputs.integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
@@ -198,13 +230,13 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-web-integration.bat --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
+        if: ${{ inputs.remote_tests && inputs.integration_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-remote-integration.bat
@@ -212,7 +244,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
-        if: ${{ inputs.unit_and_integration_tests && always() }}
+        if: ${{ inputs.integration_tests && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true

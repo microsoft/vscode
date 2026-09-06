@@ -450,7 +450,7 @@ export class TestContext {
 		}
 
 		const files: string[] = [];
-		this.collectFiles(artifactDir, files);
+		this.collectFiles(artifactDir, files, true);
 		if (files.length !== 1) {
 			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
 		}
@@ -460,15 +460,14 @@ export class TestContext {
 	}
 
 	/**
-	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
-	 * that 1ES injects into every published artifact.
+	 * Collects all files from the specified directory recursively.
 	 */
-	private collectFiles(dir: string, files: string[]): void {
+	private collectFiles(dir: string, files: string[], skipInjectedManifest = false): void {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const filePath = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (entry.name !== '_manifest') {
-					this.collectFiles(filePath, files);
+				if (!skipInjectedManifest || entry.name !== '_manifest') {
+					this.collectFiles(filePath, files, skipInjectedManifest);
 				}
 			} else {
 				files.push(filePath);
@@ -961,7 +960,10 @@ export class TestContext {
 
 		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
-			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+			const remainingFiles: string[] = [];
+			this.collectFiles(appDir, remainingFiles);
+			const remainingFileList = remainingFiles.map(file => path.relative(appDir, file)).sort().join('\n') || '(no files)';
+			this.error(`Installation directory still exists after uninstall: ${appDir}\nRemaining files:\n${remainingFileList}`);
 		}
 	}
 

@@ -88,8 +88,18 @@
 	min-height: 0;
 }
 
-.monaco-dialog-box.automation-dialog > .dialog-buttons-row {
+.monaco-dialog-box.automation-dialog > .dialog-buttons-row:not(.automation-dialog-footer-row) {
+	display: none;
+}
+
+.monaco-dialog-box.automation-dialog > .automation-dialog-footer-row {
+	flex-grow: 0;
+	margin-top: 0;
 	padding: 8px 10px 10px;
+}
+
+.monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
+	margin-left: 0;
 }
 
 /*
@@ -142,15 +152,15 @@
 	/* Right padding reserves room for the floating close-X chip. */
 	padding: 8px 36px 8px 14px;
 	text-align: left;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
 	background-color: var(--vscode-editorWidget-background);
 }
 
 .automation-description {
 	padding: 8px 14px;
-	font-size: var(--vscode-agents-fontSize-body2, 12px);
+	font-size: var(--vscode-fontSize-body2, 12px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 }
@@ -216,11 +226,27 @@
 	z-index: 2600 !important;
 }
 
+.automation-dialog-open .automation-dialog-editor-overflow {
+	z-index: 2600;
+}
+
 .automation-form {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: var(--vscode-spacing-size100);
 	padding: 2px 2px 4px;
+}
+
+.automation-form-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.automation-prompt-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
 }
 
 /*
@@ -294,36 +320,75 @@
 	min-width: 0;
 }
 
-/*
- * Hide chips from the embedded chat input's primary toolbar that don't fit
- * the automation dialog's reduced surface:
- *  - "Configure Tools" (`workbench.action.chat.configureTools`,
- *    `.codicon-settings-compact`) — tool selection is not relevant for a
- *    scheduled prompt.
- *  - "Add Context" (`workbench.action.chat.attachContext`,
- *    `.codicon-add-compact`, the `+`) — the dialog doesn't support
- *    attachments; the prompt is the only payload sent at run time.
- *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`) —
- *    MCP server management belongs in the live chat surface, not a one-off
- *    prompt definition.
- *
- * We hide the `.action-label` (which carries the codicon class) rather than
- * the parent `.action-item`. Targeting the `.action-item` would require a
- * `:has()` selector, whose invalidation bookkeeping is paid across every
- * `.action-item` in the workbench (see microsoft/vscode#324985). Since
- * `.action-item` has no intrinsic padding/margin (actionbar.css), hiding the
- * label collapses the slot to zero width, so there is no visual gap.
- *
- * Known limitation: the hidden chips remain in the toolbar's arrow-key focus
- * rotation (the action bar skips only disabled/separator items, not
- * `display:none` ones). This is an accepted temporary trade-off — the dialog
- * will migrate to `newChatInput.ts`, which builds its own toolbars and never
- * renders these `MenuId.ChatInput` chips at all.
- */
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings-compact,
-.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add-compact,
-.automation-form-prompt-host .chat-input-toolbar .action-item.chat-mcp {
+.automation-session-configuration {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	min-height: 22px;
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.automation-session-configuration.controls-unavailable .automation-session-config,
+.automation-session-configuration.controls-unavailable .automation-session-controls {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.automation-session-config,
+.automation-session-controls {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.automation-session-configuration-unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-session-configuration-error {
+	flex-basis: 100%;
+	color: var(--vscode-inputValidation-errorForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-form-save-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-session-config .monaco-toolbar,
+.automation-session-controls .monaco-toolbar,
+.automation-session-config .monaco-action-bar,
+.automation-session-controls .monaco-action-bar,
+.automation-session-config .actions-container,
+.automation-session-controls .actions-container {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.automation-session-configuration .compact-picker .sessions-chat-dropdown-label,
+.automation-session-configuration .compact-picker .chat-input-picker-label,
+.automation-session-configuration .compact-picker .chat-session-option-label {
 	display: none;
+}
+
+.automation-session-controls .action-item.compact-picker,
+.automation-session-controls .action-item.compact-picker .action-label {
+	box-sizing: border-box;
+	width: 22px;
+	min-width: 22px;
+}
+
+.automation-session-controls .action-item.compact-picker {
+	padding: 0;
+}
+
+.automation-session-controls .action-item.compact-picker .action-label {
+	justify-content: flex-start;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 }
 
 /*
@@ -514,8 +579,8 @@
  * its control so each form row reads as a discrete section.
  */
 .automation-form-label {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	line-height: 1.4;
 	margin-bottom: 2px;
@@ -523,14 +588,14 @@
 }
 
 .automation-form-hint {
-	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	min-height: 1em;
 }
 
 .automation-form-checkbox-label {
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-foreground);
 	cursor: pointer;
 }
@@ -554,7 +619,7 @@
 .automation-form-select,
 .automation-form-textarea {
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-fontSize-body1, 13px);
 	color: var(--vscode-settings-textInputForeground, var(--vscode-input-foreground));
 	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
 	border: 1px solid var(--vscode-settings-textInputBorder, var(--vscode-input-border, var(--vscode-contrastBorder, transparent)));
@@ -635,7 +700,7 @@
 	gap: var(--vscode-spacing-size40);
 	height: 16px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -671,7 +736,7 @@
 }
 
 .automation-form-prompt-host .automation-form-branch-name {
-	font-size: var(--vscode-agents-fontSize-label2);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .automation-form-prompt-host .automation-form-branch-name {

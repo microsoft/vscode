@@ -4,16 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { stableStringify } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
 /** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
 export type AutomationMutationGuard = () => void;
+
+/** Signals that Automation ownership cannot move while one of its runs is active. */
+export class AutomationActiveRunError extends Error {
+	constructor(
+		readonly automationId: string,
+		readonly runId: string,
+	) {
+		super(`Automation '${automationId}' has active run '${runId}'.`);
+	}
+}
+
+export function isAutomationActiveRunError(error: unknown): boolean {
+	return error instanceof AutomationActiveRunError
+		|| (error instanceof AggregateError && error.errors.length > 0 && error.errors.every(isAutomationActiveRunError));
+}
+
+/** Signals that deprecated configuration aliases cannot modify an explicit provider template. */
+export class AutomationSessionTemplateAuthorityError extends Error {
+	constructor() {
+		super('A canonical Automation session template cannot be updated through legacy configuration aliases.');
+	}
+}
+
+export function assertAutomationSessionTemplateAuthority(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): void {
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	if (current.sessionTemplate && patch.sessionTemplate === undefined && !targetAuthorityChanged && legacyConfigurationPatched) {
+		throw new AutomationSessionTemplateAuthorityError();
+	}
+}
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
@@ -24,8 +56,12 @@ export interface ICreateAutomationOptions {
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
 	readonly target: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
 }
@@ -39,8 +75,12 @@ export interface IUpdateAutomationOptions {
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
 	readonly target?: AutomationTarget;
+	readonly sessionTemplate?: IAutomationSessionTemplate | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly modelId?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly mode?: string | null;
+	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
 }
@@ -74,7 +114,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 				? { kind: automation.target.isolation.kind, branch: automation.target.isolation.branch }
 				: { kind: automation.target.isolation.kind },
 		};
-	return JSON.stringify({
+	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: {
@@ -84,6 +124,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleDay: automation.schedule.scheduleDay,
 		},
 		target,
+		sessionTemplate: automation.sessionTemplate,
 		modelId: automation.modelId,
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
@@ -101,10 +142,16 @@ export interface IUpdateAutomationRunOptions {
 
 /** Outcome of an attempt to claim an automation's single active-run slot. */
 export interface IAutomationRunClaim {
-	/** `false` when another run already held the slot, in which case nothing was recorded. */
+	/** `false` when another run held the slot or an external authority recorded and dispatched the returned run. */
 	readonly claimed: boolean;
 	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
 	readonly run: IAutomationRun;
+	/** Present when the backing authority already dispatched execution for this claim. */
+	readonly externalDispatch?: {
+		readonly sessionResource?: URI;
+		readonly whenCompleted: Promise<void>;
+		cancel?(): void;
+	};
 }
 
 /**
@@ -160,6 +207,11 @@ export interface IAutomationStore {
 
 export interface IAutomationService extends IAutomationStore {
 	readonly _serviceBrand: undefined;
+	canRunAutomation?(automationId: string): boolean;
+	canUpdateAutomation?(automationId: string): boolean;
+	canDeleteAutomation?(automationId: string): boolean;
+	/** Whether the target authority, rather than this window's scheduler, evaluates this Automation. */
+	isSchedulingOwnedByHost?(automationId: string): boolean;
 	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
 	startStaleRunRecovery(reason: string): Promise<void>;
 	/** Stops leader-scoped stale-run recovery. */

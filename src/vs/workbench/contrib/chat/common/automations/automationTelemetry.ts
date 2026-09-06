@@ -24,7 +24,7 @@ type AutomationCreateEvent = {
 
 type AutomationCreateClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence the user picked (manual/hourly/daily/weekly).' };
-	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level chosen (default/autoApprove/autopilot).' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Legacy permission-level alias when available (default/assisted/autoApprove/autopilot).' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode chosen (workspace/worktree).' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation was created in the enabled state.' };
 	owner: 'benvillalobos';
@@ -98,7 +98,7 @@ type AutomationRunClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence of the automation that ran.' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the run completed without error.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the run kickoff (recordRunStart through completed/failed).' };
-	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level applied to the run (default/autoApprove/autopilot).' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Legacy permission-level alias applied to the run when available (default/assisted/autoApprove/autopilot).' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode applied to the run (workspace/worktree).' };
 	owner: 'benvillalobos';
 	comment: 'Tracks Automations run outcomes and timing.';
@@ -150,4 +150,26 @@ export function publishAutomationRunError(telemetryService: ITelemetryService, a
 		trigger: args.trigger,
 		intervalKind: args.automation.schedule.interval,
 	});
+}
+
+type AutomationMigrationEvent = {
+	outcome: 'started' | 'completed' | 'deferred' | 'failed';
+	discoveredCount: number;
+	migratedCount: number;
+	failedCount: number;
+	durationMs: number;
+};
+
+type AutomationMigrationClassification = {
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the migration started, completed, deferred for an active run, or failed.' };
+	discoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of legacy Automation definitions discovered.' };
+	migratedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions durably present in the Agent Host catalogue.' };
+	failedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of Automation definitions that failed migration.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration duration in milliseconds, or zero for the started event.' };
+	owner: 'ulugbekna';
+	comment: 'Tracks reliability of the one-time migration to Agent Host-owned Automations without collecting definition content or resource identifiers.';
+};
+
+export function publishAutomationMigration(telemetryService: ITelemetryService, event: AutomationMigrationEvent): void {
+	telemetryService.publicLog2<AutomationMigrationEvent, AutomationMigrationClassification>('automation.migration', event);
 }

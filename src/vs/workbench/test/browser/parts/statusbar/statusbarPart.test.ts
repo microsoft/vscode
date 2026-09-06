@@ -29,6 +29,19 @@ suite('StatusbarPart', () => {
 		}
 	}
 
+	class TestFloatingPanelsLayoutService extends TestLayoutService {
+		floatingPanelsEnabled = false;
+		modernUICompact = false;
+
+		override isFloatingPanelsEnabled(): boolean {
+			return this.floatingPanelsEnabled;
+		}
+
+		override isModernUICompact(): boolean {
+			return this.modernUICompact;
+		}
+	}
+
 	function fireConfigChange(configurationService: TestConfigurationService, key: string): void {
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.DEFAULT,
@@ -73,6 +86,37 @@ suite('StatusbarPart', () => {
 			afterCreate: 1,
 			afterUnrelatedChange: 1,
 			afterModernUIChange: 2,
+		});
+	});
+
+	test('modern UI reserves compact vertical status bar padding', () => {
+		const configurationService = new TestConfigurationService();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		const layoutService = new TestFloatingPanelsLayoutService();
+		const part = store.add(new TestMainStatusbarPart(
+			instantiationService,
+			new TestThemeService(),
+			new TestContextService(),
+			store.add(new TestStorageService()),
+			layoutService,
+			new TestContextMenuService(),
+			contextKeyService,
+			configurationService,
+		));
+
+		const defaultConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
+		layoutService.floatingPanelsEnabled = true;
+		const modernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
+		layoutService.modernUICompact = true;
+		const compactModernUIConstraints = { minimumHeight: part.minimumHeight, maximumHeight: part.maximumHeight };
+
+		assert.deepStrictEqual({ defaultConstraints, modernUIConstraints, compactModernUIConstraints }, {
+			defaultConstraints: { minimumHeight: 22, maximumHeight: 22 },
+			modernUIConstraints: { minimumHeight: 28, maximumHeight: 28 },
+			compactModernUIConstraints: { minimumHeight: 26, maximumHeight: 26 },
 		});
 	});
 });

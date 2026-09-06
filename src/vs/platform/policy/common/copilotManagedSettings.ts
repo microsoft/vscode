@@ -16,6 +16,11 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
+/** Whether a raw managed-settings document contains at least one top-level setting. */
+export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
+	return data !== undefined && Object.keys(data).length > 0;
+}
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -56,11 +61,25 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
 
 /**
+ * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
+ * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
+ * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * and deliberately declares no configuration policy for it: the control is runtime-owned, and
+ * mirroring it as a VS Code policy would invert ownership.
+ */
+export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
+
+/** Managed-settings key that permits explicitly bypassing the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -140,16 +159,42 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+export type IForceRemoteSettingsRefreshResolution =
+	| { readonly effective: true; readonly source: ManagedSettingsChannel }
+	| { readonly effective: false };
+
 /**
- * Resolves the startup refresh control with native MDM taking precedence over the cached server
- * response. A malformed native value is treated as absent, matching the managed-settings schema.
+ * Resolve the fail-closed startup refresh control across every delivery channel, reusing
+ * {@link pickManagedSettings} precedence rather than re-implementing it. A non-boolean value is
+ * treated as absent, so a malformed high-precedence value cannot mask a well-formed lower one.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
-	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
-	if (typeof nativeValue === 'boolean') {
-		return nativeValue;
+export function resolveForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IForceRemoteSettingsRefreshResolution {
+	const resolution = pickManagedSettings(nativeMdm, server, file).resolutions.get(COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY);
+	const contribution = resolution?.contributions.find(candidate => typeof candidate.value === 'boolean');
+	if (!contribution) {
+		return { effective: false };
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	return contribution.value === true
+		? { effective: true, source: contribution.channel }
+		: { effective: false };
+}
+
+export const IManagedSettingsService = createDecorator<IManagedSettingsService>('managedSettingsService');
+
+/** Read-only access to effective managed settings after channel resolution. */
+export interface IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
+}
+
+export class NullManagedSettingsService implements IManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeManagedSettings = Event.None;
+
+	getManagedSettingValue(): ManagedSettingValue | undefined {
+		return undefined;
+	}
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -175,6 +220,24 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 		};
 	}
 	return managedModelValueCallback;
+}
+
+/** Forces a boolean setting off while the user is governed by managed settings. */
+export function managedSettingsDisabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.managedSettingsActive === true ? false : undefined;
+}
+
+/**
+ * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
+ * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
+ * or when the user is governed by managed settings at all.
+ *
+ * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
+ * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
+ * every managed control the enterprise set.
+ */
+export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
@@ -323,9 +386,9 @@ export interface IManagedSettingsContribution {
 export interface IManagedSettingResolution {
 	/** The effective (winning) value applied for the key. */
 	readonly value: ManagedSettingValue;
-	/** The channel whose value won (always the first {@link contributions} entry's channel). */
+	/** The highest-precedence channel supplying the effective value. */
 	readonly source: ManagedSettingsChannel;
-	/** Every channel that supplied this key, in precedence order (winner first, overridden after). */
+	/** Every channel that supplied this key, in delivery precedence order. */
 	readonly contributions: readonly IManagedSettingsContribution[];
 }
 
@@ -345,8 +408,8 @@ export interface IManagedSettingsPick {
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the
- * server or a file, while keys those higher channels leave unset remain available to lower ones.
+ * a lower channel. The runtime-owned `sandbox.enabled` control is the exception: any managed
+ * `true` wins, so harness selection cannot discard a sandbox requirement from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -357,8 +420,7 @@ export interface IManagedSettingsPick {
 export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
 	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
 
-	// Walk channels highest-precedence first: the first channel to supply a key wins, and later
-	// channels are appended as overridden contributions for provenance.
+	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
@@ -375,6 +437,10 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			const existing = resolutions.get(key);
 			if (existing) {
 				existing.contributions.push({ channel, value });
+				if (key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true) {
+					existing.value = value;
+					existing.source = channel;
+				}
 			} else {
 				resolutions.set(key, { value, source: channel, contributions: [{ channel, value }] });
 			}
@@ -638,6 +704,7 @@ export interface IFileManagedSettingsService {
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	initialize(): Promise<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
@@ -646,4 +713,6 @@ export class NullFileManagedSettingsService implements IFileManagedSettingsServi
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
+
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }

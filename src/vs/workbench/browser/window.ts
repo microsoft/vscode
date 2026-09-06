@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from '../../base/browser/browser.js';
+import { isSafari, isMobileStandalone, setFullscreen } from '../../base/browser/browser.js';
 import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
@@ -154,9 +154,8 @@ export abstract class BaseWindow extends Disposable {
 					didClear = true;
 					(window as { vscodeOriginalClearTimeout?: typeof window.clearTimeout }).vscodeOriginalClearTimeout?.apply(this, [handle]);
 					timeoutDisposables.delete(timeoutDisposable);
-					// Remove from the window's DisposableStore. Re-disposal is a no-op and
-					// avoids re-registering the already-disposed timeout as a leak.
-					disposables.delete(timeoutDisposable);
+					// Remove from the window's DisposableStore without re-disposing (we're already inside dispose)
+					disposables.deleteAndLeak(timeoutDisposable);
 				});
 
 				disposables.add(timeoutDisposable);
@@ -356,7 +355,9 @@ export class BrowserWindow extends BaseWindow {
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					if (isSafari) {
+					// Both block popups opened outside a user gesture, so use the
+					// open-then-navigate path, which can pick up a reserved window.
+					if (isSafari || isMobileStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							await this.dialogService.prompt({

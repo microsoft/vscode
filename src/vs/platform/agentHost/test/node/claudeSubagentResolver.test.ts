@@ -45,7 +45,7 @@ class FakeSdkService implements IClaudeAgentSdkService {
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> { return []; }
 	async canLoadWithoutDownload(): Promise<boolean> { return true; }
-	async ensureAvailableForDiscovery(): Promise<void> { }
+	async ensureAvailable(): Promise<void> { }
 	async getSessionInfo(_id: string): Promise<SDKSessionInfo | undefined> { return undefined; }
 	async startup(_p: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> { throw new Error('not used'); }
 	async query(_params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> { throw new Error('not used'); }

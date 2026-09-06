@@ -5,6 +5,7 @@
 
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -17,6 +18,8 @@ const MARKDOWN_EDITOR_VIEW_TYPES = new Set([
 	'vscode.markdown.editor',
 	'vscode.markdown.preview.editor',
 ]);
+const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
+const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';
 
 /** Whether every group in the main editor part is empty (used by both the detail-panel and side-pane-visibility logic to detect an empty side pane). */
 export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): boolean {
@@ -43,4 +46,14 @@ export function isFileEditorInput(editor: EditorInput): boolean {
 		return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType) || MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '');
 	}
 	return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput;
+}
+
+/** Whether `editor` owns its full presentation and must hide the docked Details panel. */
+export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
+	return editor instanceof BrowserEditorInput
+		|| (editor instanceof WebviewInput
+			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE
+				|| editor.providerId === PULL_REQUEST_OVERVIEW_VIEW_TYPE
+				|| editor.viewType === ISSUE_OVERVIEW_VIEW_TYPE
+				|| editor.providerId === ISSUE_OVERVIEW_VIEW_TYPE));
 }

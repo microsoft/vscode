@@ -27,12 +27,15 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - template: ../../copilot/pull-test-cache.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - ${{ if eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true) }}:
+  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
     - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
       displayName: Disable Foundry Local Native Install
 
@@ -100,6 +103,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: prepare
+
   - script: |
       set -e
 
@@ -159,6 +167,11 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: install
+
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
 
@@ -194,6 +207,9 @@ steps:
       displayName: Pull CG NOTICE (background)
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
 
   - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
     - template: ../../common/agent-sdk-produce.yml@self

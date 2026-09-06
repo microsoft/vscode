@@ -140,7 +140,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
-		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`);
+		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
 		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
 	});
@@ -354,7 +354,13 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		// Filter out skills shipped inside the Copilot CLI package (node_modules/@github/copilot-<target>/builtin/<skill>),
 		// e.g. `customize-cloud-agent` and `github-pr-media`. These vary with the bundled CLI version and are not part of
 		// the workspace/user customizations under test.
-		return !(customization.type === CustomizationType.Directory && customization.contents === CustomizationType.Skill && /\/builtin\/[^/]+$/.test(customization.uri));
+		const isBuiltInSkill = customization.type === CustomizationType.Directory
+			&& customization.contents === CustomizationType.Skill
+			&& /\/builtin\/[^/]+$/.test(customization.uri);
+		const isBuiltInGitHubMcpServer = customization.type === CustomizationType.McpServer
+			&& customization.uri.startsWith('mcp-top-level:copilotcli:')
+			&& customization.uri.endsWith(':github-mcp-server');
+		return !isBuiltInSkill && !isBuiltInGitHubMcpServer;
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -501,7 +507,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
 				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+				children: [URI.file(userInstructionFile).toString()],
 			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);

@@ -288,12 +288,12 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		service.sendPttStart('turn-1');
+		service.sendPttStart('turn-1', { hasActiveSession: false });
 		service.sendPttAudioChunk('cGNt');
 		service.sendPttEnd();
 
 		assert.deepStrictEqual(socket().sent, [
-			{ type: 'ptt_start', turn_id: 'turn-1' },
+			{ type: 'ptt_start', turn_id: 'turn-1', has_active_session: false },
 			{ type: 'ptt_audio_chunk', audio: 'cGNt' },
 			{ type: 'ptt_end' },
 		]);
@@ -488,14 +488,14 @@ suite('VoiceClientService', () => {
 		const { service } = createService();
 
 		await service.connect(createTestWindow());
-		service.sendPttStart('turn-passive', true);
-		service.sendPttStart('turn-real', false);
-		service.sendPttStart('turn-default');
+		service.sendPttStart('turn-passive', { hasActiveSession: true, passive: true });
+		service.sendPttStart('turn-real', { hasActiveSession: true, passive: false });
+		service.sendPttStart('turn-default', { hasActiveSession: false });
 
 		assert.deepStrictEqual(socket().sent, [
-			{ type: 'ptt_start', turn_id: 'turn-passive', passive: true },
-			{ type: 'ptt_start', turn_id: 'turn-real' },
-			{ type: 'ptt_start', turn_id: 'turn-default' },
+			{ type: 'ptt_start', turn_id: 'turn-passive', has_active_session: true, passive: true },
+			{ type: 'ptt_start', turn_id: 'turn-real', has_active_session: true },
+			{ type: 'ptt_start', turn_id: 'turn-default', has_active_session: false },
 		]);
 	});
 
@@ -511,45 +511,6 @@ suite('VoiceClientService', () => {
 			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'question', text: 'Which region?', narration_id: questionId, pending_id: 'p1' },
 			{ type: 'request_narration', coding_session_id: 'cs1', kind: 'response', text: 'Done.', narration_id: replyId },
 		]);
-	});
-
-	test('prepares for narration audio before sending the request', async () => {
-		const { service } = createService();
-		await service.connect(createTestWindow());
-		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
-		const sentBeforeNarration = socket().sent.length;
-		let sentWhenPrepared = -1;
-
-		const narrationId = service.requestNarration('cs1', 'response', 'Done.', undefined, undefined, undefined, undefined, () => {
-			sentWhenPrepared = socket().sent.length;
-			return true;
-		});
-
-		assert.deepStrictEqual({
-			sentBeforeNarration,
-			sentWhenPrepared,
-			sentAfterNarration: socket().sent.length,
-			narrationId: typeof narrationId,
-		}, {
-			sentBeforeNarration: 1,
-			sentWhenPrepared: 1,
-			sentAfterNarration: 2,
-			narrationId: 'string',
-		});
-	});
-
-	test('links a tool result to its resolved coding session', async () => {
-		const { service } = createService();
-		await service.connect(createTestWindow());
-
-		service.sendToolResult('call-1', 'ok', 'copilotcli:/session-1');
-
-		assert.deepStrictEqual(socket().sent.at(-1), {
-			type: 'tool_result',
-			call_id: 'call-1',
-			result: 'ok',
-			coding_session_id: 'copilotcli:/session-1',
-		});
 	});
 
 	test('drops a narration requested before the session starts', async () => {

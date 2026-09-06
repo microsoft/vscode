@@ -29,6 +29,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
@@ -59,6 +60,7 @@ import { RootState } from '../../../../../platform/agentHost/common/state/sessio
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -203,6 +205,12 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override acceptRequest() { }
 				override acceptResponse() { }
 			}());
+			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+				override readonly onDidChangeState = Event.None;
+				override readonly onDidChangePreparingModel = Event.None;
+				override readonly state = ChatSpeechToTextState.Idle;
+				override readonly isPreparingModel = false;
+			}());
 			reg.defineInstance(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() {
 				override readonly onDidChangeCommands = Event.None;
 				override getCommands() { return []; }
@@ -297,6 +305,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly onDidChangeFolder = Event.None;
 				override getFolder() { return undefined; }
 			}());
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getFolderPickerDecision() { return undefined; }
+			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
 			reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
@@ -324,6 +336,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(IChatEditingService, new class extends mock<IChatEditingService>() {
 				override editingSessionsObs = observableValue('editingSessionsObs', []);
+				override getEditingSession() { return undefined; }
 			}());
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;

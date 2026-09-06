@@ -30,6 +30,13 @@ export function getPullRequestKey(owner: string, repo: string, prNumber: number)
 	return `${owner}/${repo}/${prNumber}`;
 }
 
+/** Parses a canonical `github.com` pull request URL into its parts, or `undefined`. */
+export function parseGitHubPullRequestUrl(url: string): { readonly owner: string; readonly repo: string; readonly number: number } | undefined {
+	const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+	const groups = match?.groups;
+	return groups ? { owner: groups['owner'], repo: groups['repo'], number: Number(groups['number']) } : undefined;
+}
+
 export function getGitHubRepositoryFromUri(uri: URI): { readonly owner: string; readonly repo: string } | undefined {
 	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 		return undefined;

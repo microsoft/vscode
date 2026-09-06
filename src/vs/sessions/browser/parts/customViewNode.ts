@@ -16,7 +16,7 @@ import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
-import { SessionHeaderMetaActionViewItem } from './sessionHeaderMetaActionViewItem.js';
+import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
 
 /**
  * A leaf of the custom view grid. Owns the shared chrome — a header with the
@@ -81,7 +81,7 @@ export class CustomViewNode extends Disposable {
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: buttonBar
 					? (action, options) => action instanceof MenuItemAction
-						? instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options)
+						? instantiationService.createInstance(ChatPillActionViewItem, undefined, action, options)
 						: undefined
 					: undefined,
 			}));

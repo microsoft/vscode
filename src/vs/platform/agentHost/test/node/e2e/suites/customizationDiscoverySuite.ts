@@ -18,9 +18,8 @@ import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
-	const enabled = context.tier === 'parity' && config.provider === 'copilotcli';
 
-	function copilotTest(title: string, run: Mocha.AsyncFunc): void {
+	function customizationDiscoveryTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsCustomizationDiscoveryE2E === true): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
@@ -86,54 +85,68 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		return (found?.children ?? []).map(child => child.uri).sort();
 	}
 
-	function writeWorkspaceCustomizations(workspace: string): {
-		readonly agent: string;
-		readonly instruction: string;
-		readonly skill: string;
-		readonly hook: string;
-	} {
+	function writeWorkspaceCustomizations(workspace: string): readonly { readonly type: CustomizationType; readonly path: string }[] {
 		const agent = join(workspace, '.github', 'agents', 'hello.agent.md');
-		const instruction = join(workspace, '.github', 'instructions', 'policy.instructions.md');
+		mkdirSync(join(workspace, '.github', 'agents'), { recursive: true });
+		writeFileSync(agent, '---\nname: Hello Agent\ndescription: Handles hello requests\n---\nYou are a test agent.');
+		if (config.provider === 'codex') {
+			return [{ type: CustomizationType.Agent, path: agent }];
+		}
 		const skill = join(workspace, '.github', 'skills', 'hello-skill', 'SKILL.md');
+		const instruction = join(workspace, '.github', 'instructions', 'policy.instructions.md');
 		const hook = join(workspace, '.github', 'hooks', 'pre-tool.json');
-		for (const directory of [join(workspace, '.github', 'agents'), join(workspace, '.github', 'instructions'), join(workspace, '.github', 'skills', 'hello-skill'), join(workspace, '.github', 'hooks')]) {
+		for (const directory of [join(workspace, '.github', 'instructions'), join(workspace, '.github', 'skills', 'hello-skill'), join(workspace, '.github', 'hooks')]) {
 			mkdirSync(directory, { recursive: true });
 		}
-		writeFileSync(agent, '---\nname: Hello Agent\ndescription: Handles hello requests\n---\nYou are a test agent.');
 		writeFileSync(instruction, '---\napplyTo:\n  - "**/*"\n---\nPrefer short answers.');
 		writeFileSync(skill, '---\nname: hello-skill\ndescription: Says hello\n---\nReturn a greeting.');
 		writeFileSync(hook, JSON.stringify({ PreToolUse: [] }));
-		return { agent, instruction, skill, hook };
+		return [
+			{ type: CustomizationType.Agent, path: agent },
+			{ type: CustomizationType.Rule, path: instruction },
+			{ type: CustomizationType.Skill, path: skill },
+			{ type: CustomizationType.Hook, path: hook },
+		];
+	}
+
+	function discoveredFixtureFiles(customizations: readonly Customization[], files: readonly { readonly type: CustomizationType; readonly path: string }[]): readonly { readonly type: CustomizationType; readonly uri: string }[] {
+		const expectedUris = new Set(files.map(file => URI.file(file.path).toString()));
+		return customizations
+			.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory)
+			.flatMap(customization => customization.children ?? [])
+			.filter(child => expectedUris.has(child.uri))
+			.map(child => ({ type: child.type, uri: child.uri }))
+			.sort((a, b) => a.uri.localeCompare(b.uri));
 	}
 
 	for (const mode of ['scan', 'discover'] as const) {
-		copilotTest(`customization discovery: ${mode} finds workspace agents instructions skills and hooks`, async function () {
+		const supportedCustomizations = config.provider === 'copilotcli'
+			? 'workspace agents instructions skills and hooks'
+			: 'provider-supported workspace customizations';
+		customizationDiscoveryTest(`customization discovery: ${mode} finds ${supportedCustomizations}`, async function () {
 			const workspace = createWorkspace(`all-${mode}`);
 			const files = writeWorkspaceCustomizations(workspace);
 			const sessionUri = await createDiscoverySession(`all-${mode}`, workspace, mode);
 			const customizations = await sessionCustomizations(sessionUri);
 
-			assert.deepStrictEqual({
-				agents: directoryChildren(customizations, join(workspace, '.github', 'agents')),
-				instructions: directoryChildren(customizations, join(workspace, '.github', 'instructions')),
-				skills: directoryChildren(customizations, join(workspace, '.github', 'skills')),
-				hooks: directoryChildren(customizations, join(workspace, '.github', 'hooks')),
-			}, {
-				agents: [URI.file(files.agent).toString()],
-				instructions: [URI.file(files.instruction).toString()],
-				skills: [URI.file(files.skill).toString()],
-				hooks: [URI.file(files.hook).toString()],
-			});
+			assert.deepStrictEqual(discoveredFixtureFiles(customizations, files), files
+				.map(file => ({ type: file.type, uri: URI.file(file.path).toString() }))
+				.sort((a, b) => a.uri.localeCompare(b.uri)));
 		});
 	}
 
-	copilotTest('customization discovery: discover groups fixed agent instruction files at the workspace root', async function () {
+	const fixedInstructionTitle = config.provider === 'copilotcli'
+		? 'customization discovery: discover groups fixed agent instruction files at the workspace root'
+		: 'customization discovery: discover groups provider-supported fixed instruction files at the workspace root';
+	customizationDiscoveryTest(fixedInstructionTitle, async function () {
 		const workspace = createWorkspace('agent-instructions');
-		const files = [
-			join(workspace, 'AGENTS.md'),
-			join(workspace, 'CLAUDE.md'),
-			join(workspace, '.github', 'copilot-instructions.md'),
-		];
+		const files = config.provider === 'codex'
+			? [join(workspace, 'AGENTS.md')]
+			: [
+				join(workspace, 'AGENTS.md'),
+				join(workspace, 'CLAUDE.md'),
+				join(workspace, '.github', 'copilot-instructions.md'),
+			];
 		mkdirSync(join(workspace, '.github'), { recursive: true });
 		for (const file of files) {
 			writeFileSync(file, `Instructions from ${file}`);
@@ -143,9 +156,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		const customizations = await sessionCustomizations(sessionUri);
 
 		assert.deepStrictEqual(directoryChildren(customizations, workspace), files.map(file => URI.file(file).toString()).sort());
-	});
+	}, config.supportsFixedInstructionDiscoveryE2E === true);
 
-	copilotTest('customization discovery: configured plugin exposes its agent rule and skill children', async function () {
+	customizationDiscoveryTest('customization discovery: configured plugin exposes its agent rule and skill children', async function () {
 		const workspace = createWorkspace('plugin');
 		const plugin = join(workspace, 'plugin');
 		mkdirSync(join(plugin, '.plugin'), { recursive: true });
@@ -184,9 +197,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 				{ type: CustomizationType.Skill, name: 'plugin-skill' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
-	});
+	}, config.supportsPluginCustomizationDiscoveryE2E === true);
 
-	copilotTest('customization discovery: filesystem watcher publishes a newly added agent', async function () {
+	customizationDiscoveryTest('customization discovery: filesystem watcher publishes a newly added agent', async function () {
 		const workspace = createWorkspace('watch-agent');
 		const agentsDirectory = join(workspace, '.github', 'agents');
 		const initial = join(agentsDirectory, 'initial.agent.md');
@@ -213,9 +226,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			URI.file(added).toString(),
 			URI.file(initial).toString(),
 		].sort());
-	});
+	}, config.supportsWorkspaceAgentWatchE2E === true);
 
-	copilotTest('customization discovery: filesystem watcher removes a deleted agent', async function () {
+	customizationDiscoveryTest('customization discovery: filesystem watcher removes a deleted agent', async function () {
 		const workspace = createWorkspace('watch-agent-delete');
 		const agentsDirectory = join(workspace, '.github', 'agents');
 		const retained = join(agentsDirectory, 'retained.agent.md');
@@ -241,9 +254,9 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 		}, 60_000);
 
 		assert.deepStrictEqual(directoryChildren(await sessionCustomizations(sessionUri), agentsDirectory), [URI.file(retained).toString()]);
-	});
+	}, config.supportsWorkspaceAgentWatchE2E === true);
 
-	copilotTest('customization discovery: filesystem watcher updates an edited agent', async function () {
+	customizationDiscoveryTest('customization discovery: filesystem watcher updates an edited agent', async function () {
 		const workspace = createWorkspace('watch-agent-update');
 		const agentsDirectory = join(workspace, '.github', 'agents');
 		const agentFile = join(agentsDirectory, 'editable.agent.md');
@@ -271,5 +284,5 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			uri: URI.file(agentFile).toString(),
 			name: 'After Agent',
 		}]);
-	});
+	}, config.supportsWorkspaceAgentWatchE2E === true);
 }

@@ -11,31 +11,30 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from './singlePaneDetailPanelCoordinator.js';
 import { SinglePaneDockedTabsCoordinator } from './singlePaneDockedTabsCoordinator.js';
-import { isChangesEditorInput, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
+import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 10;
+const singlePaneHeaderToggleDetailsOrder = 9;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -55,6 +54,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
 	private _detailHiddenTransiently = false;
+	private _detailHiddenByEditor = false;
 	private _changingDetailTransiently = false;
 
 	constructor(
@@ -270,6 +270,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		let activeSessionKey: string | undefined;
 		let pendingSessionKey: string | undefined;
 		let pendingOutgoingEditor: EditorInput | undefined;
+		let previousActiveEditor: EditorInput | undefined;
+		let previousEditorPartVisible = false;
+		let previousEditorSessionKey: string | undefined;
 
 		const sync = (reader: IReader | undefined) => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -278,6 +281,9 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				|| !activeSession.workspace.read(reader)
 				|| !activeSession.isCreated.read(reader)) {
 				wasExistingActive = false;
+				previousActiveEditor = undefined;
+				previousEditorPartVisible = false;
+				previousEditorSessionKey = undefined;
 				return;
 			}
 
@@ -305,9 +311,15 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				return;
 			}
 
+			const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
+				&& editorPartVisible
+				&& (activeEditor !== previousActiveEditor || !previousEditorPartVisible || sessionKey !== previousEditorSessionKey);
+			previousActiveEditor = activeEditor;
+			previousEditorPartVisible = editorPartVisible;
+			previousEditorSessionKey = sessionKey;
 			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
 			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
-			this._syncDetailVisibility(target, revealOnly);
+			this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 			this._detailPanel.sync(target);
 		};
 
@@ -324,28 +336,37 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
 				this._detailHiddenTransiently = false;
+				this._detailHiddenByEditor = false;
 			}
 		}));
 	}
 
-	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean): void {
+	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
+		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		if (emptyFilesShown && !detailVisible) {
+			this._detailHiddenTransiently = false;
+			this._detailHiddenByEditor = false;
+			this._setDetailHiddenTransiently(false);
+			return;
+		}
 		if (this._ctx.isRestoringSessionLayout || target === DetailPanelTarget.Preserve) {
 			return;
 		}
 
-		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.BrowserHidden) {
-			if (!revealOnly && detailVisible) {
+		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden) {
+			if ((target === DetailPanelTarget.EditorHidden || !revealOnly) && detailVisible) {
 				this._detailHiddenTransiently = true;
+				this._detailHiddenByEditor = target === DetailPanelTarget.EditorHidden;
 				this._setDetailHiddenTransiently(true);
 			}
 			return;
 		}
 
-		if (!this._detailHiddenTransiently || revealOnly || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (!this._detailHiddenTransiently || (revealOnly && !this._detailHiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return;
 		}
 		this._detailHiddenTransiently = false;
+		this._detailHiddenByEditor = false;
 		this._setDetailHiddenTransiently(false);
 	}
 
@@ -363,20 +384,15 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
 
+		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
+			return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Changes;
+		}
+
 		if (editorMaximized) {
 			return DetailPanelTarget.Changes;
 		}
 
 		if (!activeEditor) {
-			return DetailPanelTarget.Changes;
-		}
-
-		if (activeEditor instanceof BrowserEditorInput) {
-			// Browser has no detail of its own, so it only hides the panel while the editor
-			// area is visible; once hidden, fall back to Changes instead of leaving it blank.
-			if (editorPartVisible) {
-				return DetailPanelTarget.BrowserHidden;
-			}
 			return DetailPanelTarget.Changes;
 		}
 
@@ -450,7 +466,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 							SinglePaneLayoutEnabledContext)
 					},
 					menu: {
-						id: Menus.SessionsEditorHeaderLayout,
+						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: singlePaneHeaderToggleDetailsOrder,
 						// Not every tab type has a detail panel to show/hide (e.g. browser and

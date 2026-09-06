@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -35,6 +35,19 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
 
 /**
+ * Maps resource URIs between the Agent Host and its client.
+ */
+export interface IAgentHostResourceUriMapper {
+	fromAgentHost(resource: URI): URI;
+	toAgentHost(resource: URI): URI;
+}
+
+export const identityAgentHostResourceUriMapper: IAgentHostResourceUriMapper = {
+	fromAgentHost: resource => resource,
+	toAgentHost: resource => resource,
+};
+
+/**
  * Query parameter that carries the {@link IAgentHostUriMeta} payload.
  */
 const AGENT_HOST_META_PARAM = '_ah';
@@ -50,6 +63,12 @@ interface IAgentHostUriMeta {
 	readonly authority?: string;
 	/** Original URI query, omitted when empty. */
 	readonly query?: string;
+	/**
+	 * Set when the wrapped URI came from a protocol `ContentRef` rather than
+	 * from the host's filesystem. Omitted otherwise. See
+	 * {@link toAgentHostContentUri}.
+	 */
+	readonly contentRef?: true;
 }
 
 /**
@@ -62,6 +81,31 @@ interface IAgentHostUriMeta {
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, false);
+}
+
+/**
+ * Wraps a protocol `ContentRef` URI, marking it so the filesystem provider
+ * reads it with `resourceRead` instead of resolving it as a filesystem entry.
+ * Hosts choose their own content URI shapes, so the scheme cannot identify one.
+ *
+ * A content ref that is already a plain `file:` URI on the local connection
+ * stays unwrapped: it addresses a real file and resolves normally.
+ */
+export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, true);
+}
+
+/**
+ * Maps a host-side URI into client space.
+ *
+ * `options.contentRef` marks a URI read out of a protocol `ContentRef`, so it
+ * is wrapped with {@link toAgentHostContentUri} rather than
+ * {@link toAgentHostUri}.
+ */
+export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean }) => URI;
+
+function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean): URI {
 	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
 		return originalUri;
 	}
@@ -70,6 +114,7 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
+		...(contentRef ? { contentRef: true } as const : {}),
 	};
 	const params = new URLSearchParams();
 	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
@@ -83,6 +128,35 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 }
 
 /**
+ * Reads the {@link IAgentHostUriMeta} payload off a {@link AGENT_HOST_SCHEME}
+ * URI, or `undefined` when it is absent or malformed.
+ */
+function readAgentHostUriMeta(agentHostUri: URI): Partial<IAgentHostUriMeta> | undefined {
+	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether the URI wraps a protocol `ContentRef` — content read with
+ * `resourceRead`, never resolved with `resourceResolve`.
+ *
+ * See {@link toAgentHostContentUri}.
+ */
+export function isAgentHostContentRefUri(agentHostUri: URI): boolean {
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return false;
+	}
+	return readAgentHostUriMeta(agentHostUri)?.contentRef === true;
+}
+
+/**
  * Extracts the original URI from a {@link AGENT_HOST_SCHEME} URI.
  *
  * The inverse of {@link toAgentHostUri}.
@@ -92,15 +166,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
-	let meta: Partial<IAgentHostUriMeta> | undefined;
-	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
-	if (encoded) {
-		try {
-			meta = JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
-		} catch {
-			meta = undefined;
-		}
-	}
+	const meta = readAgentHostUriMeta(agentHostUri);
 
 	if (!meta || typeof meta.scheme !== 'string') {
 		// Missing/invalid metadata — fall back to treating the path as a
@@ -117,6 +183,13 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	});
 }
 
+export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
+	return {
+		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
+		toAgentHost: resource => fromAgentHostUri(resource),
+	};
+}
+
 /**
  * Strips the redundant `ws://` scheme from an address. The transport layer
  * already defaults to `ws://`, so only `wss://` needs to be preserved.
@@ -129,32 +202,28 @@ export function normalizeRemoteAgentHostAddress(address: string): string {
 }
 
 const REMOTE_LOCAL_AGENT_HOST_AUTHORITY = 'remote_local';
+const HEX_AGENT_HOST_AUTHORITY_PREFIX = 'hex-';
 
 /**
  * Encode a remote address into an identifier that is safe for use in
- * both URI schemes and URI authorities, and is collision-free.
+ * both URI schemes and case-insensitive URI authorities without collisions.
  *
- * Four tiers:
- * 1. The reserved ambient authority `local` is escaped for remote hosts.
- * 2. Purely alphanumeric addresses are returned as-is.
- * 3. "Normal" addresses containing only `[a-zA-Z0-9.:-]` get colons
- *    replaced with `__` (double underscore) for human readability.
- *    Addresses containing `_` skip this tier to keep the encoding
- *    collision-free (`__` can only appear from colon replacement).
- * 4. Everything else is url-safe base64-encoded with a `b64-` prefix.
+ * The reserved `local` name becomes `remote_local`; lowercase alphanumeric
+ * addresses pass through; lowercase host-like addresses replace `:` with `__`;
+ * all other values use lowercase hex with a reserved `hex-` prefix.
  */
 export function agentHostAuthority(address: string): string {
 	const normalized = normalizeRemoteAgentHostAddress(address);
 	if (normalized === 'local') {
 		return REMOTE_LOCAL_AGENT_HOST_AUTHORITY;
 	}
-	if (/^[a-zA-Z0-9]+$/.test(normalized)) {
+	if (/^[a-z0-9]+$/.test(normalized)) {
 		return normalized;
 	}
-	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
+	if (/^[a-z0-9.:\-]+$/.test(normalized) && !/^hex-/i.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
+	return `${HEX_AGENT_HOST_AUTHORITY_PREFIX}${encodeHex(VSBuffer.fromString(normalized))}`;
 }
 
 /**

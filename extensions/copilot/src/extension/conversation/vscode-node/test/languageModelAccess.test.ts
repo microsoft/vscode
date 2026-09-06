@@ -11,7 +11,8 @@ import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockCha
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../../platform/authentication/common/copilotTokenManager';
 import { IAutomodeService } from '../../../../platform/endpoint/node/automodeService';
-import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
+import { ChatEndpointFamily, IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { CopilotChatEndpoint } from '../../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService } from '../../../../platform/env/common/envService';
@@ -25,7 +26,8 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
-import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { buildAutoModeTierSchemaProperty, buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { defaultAutoModeTier, selectableAutoModeTiers } from '../../../../platform/endpoint/common/autoModeTiers';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -434,6 +436,120 @@ suite('LanguageModelAccess model info', () => {
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);
 		}
 	});
+
+	test('publishes core-only dictation cleanup models without exposing them in the picker', async () => {
+		const makeHiddenEndpoint = (model: string): IChatEndpoint => ({
+			model,
+			name: model,
+			family: model,
+			version: '1',
+			modelProvider: 'copilot',
+			modelMaxPromptTokens: 128_000,
+			maxOutputTokens: 4_096,
+			supportsToolCalls: true,
+			supportsVision: false,
+			supportsPrediction: false,
+			showInModelPicker: false,
+			isFallback: false,
+			tokenizer: TokenizerType.O200K,
+			urlOrRequestMetadata: '',
+		} as unknown as IChatEndpoint);
+		const nanoEndpoint = makeHiddenEndpoint('gpt-5.4-nano');
+		const lunaEndpoint = makeHiddenEndpoint('gpt-5.6-luna');
+		const otherEndpoint = makeHiddenEndpoint('some-hidden-model');
+		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(ICopilotTokenManager, {
+			_serviceBrand: undefined,
+			onDidCopilotTokenRefresh: Event.None,
+			getCopilotToken: async () => copilotToken,
+			resetCopilotToken: () => { },
+		} as unknown as ICopilotTokenManager);
+		const autoPickerEndpoint = new DeferredPromise<IChatEndpoint>();
+		testingServiceCollection.define(IAutomodeService, {
+			_serviceBrand: undefined,
+			resolveAutoModeEndpoint: async () => lunaEndpoint,
+			resolveAutoModePickerEndpoint: () => autoPickerEndpoint.p,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
+			consumeLastRoutingDecision: () => undefined,
+			invalidateRouterCache: () => { },
+		} as unknown as IAutomodeService);
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [nanoEndpoint, lunaEndpoint, otherEndpoint],
+			getChatEndpoint: async (family: ChatEndpointFamily) => family === 'copilot-dictation-cleanup-nano' ? nanoEndpoint : lunaEndpoint,
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		autoPickerEndpoint.complete(accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 }));
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
+		const version = accessor.get(IEnvService).getVersion();
+		await extensionContext.globalState.update('lmBaseCount/gpt-5.4-nano', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/some-hidden-model', { extensionVersion: version, baseCount: 0 });
+		await extensionContext.globalState.update('lmBaseCount/auto', { extensionVersion: version, baseCount: 0 });
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		try {
+			const testAccess = languageModelAccess as unknown as {
+				_refreshUtilityOverrides(): Promise<void>;
+				_provideLanguageModelChatInfo(options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]>;
+				_provideLanguageModelChatResponse(
+					model: vscode.LanguageModelChatInformation,
+					messages: vscode.LanguageModelChatMessage[],
+					options: vscode.ProvideLanguageModelChatResponseOptions,
+					progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
+					token: vscode.CancellationToken,
+				): Promise<void>;
+			};
+			await testAccess._refreshUtilityOverrides();
+			const modelInfo = await raceTimeout(testAccess._provideLanguageModelChatInfo({ silent: true }, CancellationToken.None), 2_000);
+			assert.ok(modelInfo, 'provideLanguageModelChatInfo did not resolve');
+			const nanoAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-nano');
+			const lunaAlias = modelInfo.find(m => m.id === 'copilot-dictation-cleanup-luna');
+			const lunaModel = modelInfo.find(m => m.id === 'gpt-5.6-luna');
+			assert.deepStrictEqual({
+				nanoAliasPublished: Boolean(nanoAlias),
+				nanoAliasUserSelectable: nanoAlias?.isUserSelectable,
+				lunaAliasPublished: Boolean(lunaAlias),
+				lunaAliasUserSelectable: lunaAlias?.isUserSelectable,
+				nanoPublishedDirectly: modelInfo.some(m => m.id === 'gpt-5.4-nano'),
+				lunaPublishedDirectly: Boolean(lunaModel),
+				lunaDirectlyUserSelectable: lunaModel?.isUserSelectable,
+				otherPublished: modelInfo.some(m => m.id === 'some-hidden-model'),
+			}, {
+				nanoAliasPublished: true,
+				nanoAliasUserSelectable: false,
+				lunaAliasPublished: true,
+				lunaAliasUserSelectable: false,
+				nanoPublishedDirectly: false,
+				lunaPublishedDirectly: true,
+				lunaDirectlyUserSelectable: false,
+				otherPublished: false,
+			});
+			for (const model of [nanoAlias!, lunaAlias!, lunaModel!]) {
+				await assert.rejects(
+					testAccess._provideLanguageModelChatResponse(
+						model,
+						[],
+						{ requestInitiator: 'publisher.extension' } as vscode.ProvideLanguageModelChatResponseOptions,
+						{ report: () => { } },
+						CancellationToken.None,
+					),
+					/only available to VS Code core/,
+				);
+			}
+		} finally {
+			languageModelAccess.dispose();
+			await extensionContext.globalState.update('lmBaseCount/gpt-5.4-nano', undefined);
+			await extensionContext.globalState.update('lmBaseCount/gpt-5.6-luna', undefined);
+			await extensionContext.globalState.update('lmBaseCount/some-hidden-model', undefined);
+			await extensionContext.globalState.update('lmBaseCount/auto', undefined);
+		}
+	});
 });
 
 suite('buildUtilityAliasModelInfo', () => {
@@ -574,6 +690,29 @@ suite('reasoning effort schema', () => {
 		assert.strictEqual(prop.default, 'low', 'expected first advertised level, never undefined');
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
+	});
+
+	test('buildReasoningEffortSchemaProperty honors a default override only when advertised', () => {
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', 'medium').default, 'medium');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'high'], 'claude-opus-4.5', 'medium').default, 'high');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', undefined).default, 'high');
+	});
+});
+
+suite('auto mode tier schema', () => {
+	// The picker renders `title` as the group header and `enumItemLabels` as the
+	// rows, so this descriptor is the user-visible wording for Auto routing. The
+	// tier values stay the wire enum the service expects.
+	test('names the group "Optimize for" and labels the selectable tiers', () => {
+		assert.deepStrictEqual(buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier), {
+			type: 'string',
+			title: 'Optimize for',
+			enum: ['efficiency', 'balance', 'intelligence'],
+			enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'],
+			enumDescriptions: ['Cheaper models for everyday tasks', 'Balances capability and cost', 'Most capable models, higher cost'],
+			default: 'balance',
+			group: 'navigation',
+		});
 	});
 });
 

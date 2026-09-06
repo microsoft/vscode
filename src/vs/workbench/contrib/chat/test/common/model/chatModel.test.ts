@@ -662,6 +662,24 @@ suite('Response', () => {
 		await assertSnapshot(response.value);
 	});
 
+	test('resolved Auto routing replaces the row that is still routing', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'autoModeResolution' });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Working on it.') });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+		// Later routes each start their own row, including a switch back to a
+		// model used earlier in the turn.
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } });
+		response.updateContent({ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind === 'autoModeResolution' ? part : { kind: part.kind }), [
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			{ kind: 'markdownContent' },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+			{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+		]);
+	});
+
 	test('system notification remains distinct from later response content', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });
@@ -1637,6 +1655,59 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.isInProgress.get(), false);
 			assert.strictEqual(response.isIncomplete.get(), false);
 			assert.strictEqual(response.state, ResponseModelState.Complete);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('reopen clears terminal error state and keeps the request pending', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('partial') });
+		model.setResponse(request, { errorDetails: { message: 'failed' } });
+		request.response!.complete();
+
+		request.response!.reopen();
+
+		assert.deepStrictEqual({
+			state: request.response!.state,
+			isIncomplete: request.response!.isIncomplete.get(),
+			errorDetails: request.response!.result?.errorDetails,
+			response: request.response!.response.value,
+		}, {
+			state: ResponseModelState.Pending,
+			isIncomplete: true,
+			errorDetails: undefined,
+			response: [],
+		});
+	});
+
+	test('reopen excludes time spent failed from cumulative elapsed generation time', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			const response = request.response!;
+
+			clock.tick(1000);
+			model.setResponse(request, { errorDetails: { message: 'failed' } });
+			response.complete();
+			const firstElapsedMs = response.elapsedMs;
+
+			clock.tick(5000);
+			response.reopen();
+			clock.tick(2000);
+			response.complete();
+
+			assert.deepStrictEqual({
+				firstElapsedMs,
+				finalElapsedMs: response.elapsedMs,
+			}, {
+				firstElapsedMs: 1000,
+				finalElapsedMs: 3000,
+			});
 		} finally {
 			clock.restore();
 		}

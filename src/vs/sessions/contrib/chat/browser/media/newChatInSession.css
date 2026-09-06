@@ -43,7 +43,7 @@
 		var(--vscode-cornerRadius-large, 8px);
 }
 
-.new-chat-in-session .new-chat-input-area:focus-within {
+.new-chat-in-session .new-chat-input-area.focused {
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
@@ -86,7 +86,7 @@
 .new-chat-in-session .sessions-chat-toolbar .action-label {
 	height: 16px;
 	padding: 3px 6px;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 

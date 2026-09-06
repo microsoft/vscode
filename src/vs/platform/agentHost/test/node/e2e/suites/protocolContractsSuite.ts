@@ -1192,32 +1192,6 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		}), { code: AhpErrorCodes.SessionAlreadyExists });
 	}, context.runHostOnlyKnownIssueTests);
 
-	conformanceTest(context, 'a session cannot fork onto its own resource', async function () {
-		const { sessionUri } = await createSession('self-fork');
-
-		await assert.rejects(context.client.call('createSession', {
-			channel: sessionUri,
-			provider: config.provider,
-			fork: { session: sessionUri, turnId: 'irrelevant' },
-		}), { code: AhpErrorCodes.SessionAlreadyExists });
-	});
-
-	conformanceTest(context, 'forking from a missing session is rejected', async function () {
-		const target = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		const missingSource = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		await context.client.call('initialize', {
-			channel: ROOT_STATE_URI,
-			protocolVersions: [PROTOCOL_VERSION],
-			clientId: `missing-fork-source-${config.provider}`,
-		});
-
-		await assert.rejects(context.client.call('createSession', {
-			channel: target,
-			provider: config.provider,
-			fork: { session: missingSource, turnId: 'missing-turn' },
-		}), { code: AhpErrorCodes.SessionNotFound });
-	});
-
 	conformanceTest(context, 'createSession rejects an active client owned by another connection', async function () {
 		const client = await context.connectClient();
 		try {

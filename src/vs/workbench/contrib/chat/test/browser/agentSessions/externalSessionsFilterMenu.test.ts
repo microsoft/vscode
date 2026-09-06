@@ -40,10 +40,10 @@ suite('External Sessions Filter Menu', () => {
 			},
 			options: options.map(item => ({
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-				checkedForLast7Days: getToggledExpression(item.command.toggled)?.evaluate({
+				checkedForRecent: getToggledExpression(item.command.toggled)?.evaluate({
 					getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (
 						key === `config.${ChatConfiguration.ShowExternalAgentSessions}`
-							? ChatExternalSessionsMode.Last7Days
+							? ChatExternalSessionsMode.Recent
 							: undefined
 					) as T,
 				}),
@@ -55,10 +55,11 @@ suite('External Sessions Filter Menu', () => {
 				submenu: submenuId.id,
 			},
 			options: [
-				{ title: 'None', checkedForLast7Days: false },
-				{ title: 'Last 24 Hours', checkedForLast7Days: false },
-				{ title: 'Last 7 Days', checkedForLast7Days: true },
-				{ title: 'All', checkedForLast7Days: false },
+				{ title: 'None', checkedForRecent: false },
+				{ title: 'Recent', checkedForRecent: true },
+				{ title: 'Last 24 Hours', checkedForRecent: false },
+				{ title: 'Last 7 Days', checkedForRecent: false },
+				{ title: 'Last 30 Days', checkedForRecent: false },
 			],
 		});
 	});

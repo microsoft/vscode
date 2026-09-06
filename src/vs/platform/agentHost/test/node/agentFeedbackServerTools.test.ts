@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationEntryAuthor, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
+import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -34,7 +34,7 @@ suite('AgentFeedbackServerTools', () => {
 	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
@@ -72,7 +72,7 @@ suite('AgentFeedbackServerTools', () => {
 	test('listComments reports unknown provenance rather than assuming the user', () => {
 		const orphan: Annotation = {
 			id: 'a',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -329,7 +329,7 @@ suite('AgentFeedbackServerTools', () => {
 		// than mutating it.
 		const foreign: Annotation = {
 			id: 'foreign',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -386,7 +386,7 @@ suite('AgentFeedbackServerTools', () => {
 		teardown(() => disposables.dispose());
 
 		test('executeTool round-trips a comment into the annotation state', () => {
-			host.executeTool(sessionResource, addCommentToolName, {
+			host.executeTool(buildDefaultChatUri(sessionResource), addCommentToolName, {
 				resourceUri: fileUri,
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
 				text: 'hello',
@@ -404,7 +404,7 @@ suite('AgentFeedbackServerTools', () => {
 				annotation: annotation('reply-target', 'accepted', false, 'original'),
 			});
 
-			await host.executeTool(sessionResource, replyToCommentToolName, {
+			await host.executeTool(buildDefaultChatUri(sessionResource), replyToCommentToolName, {
 				commentId: 'reply-target',
 				text: 'agent reply',
 			});
@@ -442,7 +442,7 @@ suite('AgentFeedbackServerTools', () => {
 				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
 			});
 
-			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
+			const result = await host.executeTool(buildDefaultChatUri(sessionResource), viewUnreviewedCommentsToolName, {});
 			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
 			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
 
@@ -486,29 +486,30 @@ suite('AgentFeedbackServerTools', () => {
 		test('requiresConfirmation only prompts when comments can be revealed', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
 			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
-			const empty = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const defaultChatUri = buildDefaultChatUri(sessionResource);
+			const empty = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
 			});
-			const acceptedOnly = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const acceptedOnly = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
 			});
-			const created = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const created = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 			const peerChat = host.requiresConfirmation(chatUri, viewUnreviewedCommentsToolName);
 
-			await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
-			const delivered = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			await host.executeTool(defaultChatUri, viewUnreviewedCommentsToolName, {});
+			const delivered = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
 			});
-			const pendingSelection = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const pendingSelection = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			assert.deepStrictEqual({
 				empty,
