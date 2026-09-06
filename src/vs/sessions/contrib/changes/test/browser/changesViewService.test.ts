@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -23,8 +25,8 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean }): IActiveSession {
-		const workspace = options?.baseBranchProtected === undefined
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+		const workspace = options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -35,7 +37,17 @@ suite('ChangesViewService', () => {
 						workTreeUri: URI.file('/repo.worktrees/session'),
 						baseBranchName: 'main',
 						baseBranchProtected: options.baseBranchProtected,
-						gitHubInfo: constObservable(undefined),
+						gitHubInfo: constObservable(options.pullRequestState || options.livePullRequestState || options.pullRequestIcon ? {
+							owner: 'microsoft',
+							repo: 'vscode',
+							pullRequest: {
+								number: 1,
+								uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+								icon: options.pullRequestIcon ?? Codicon.gitPullRequest,
+								state: options.pullRequestState,
+								liveState: options.livePullRequestState,
+							},
+						} : undefined),
 					}),
 				})],
 			});
@@ -44,6 +56,7 @@ suite('ChangesViewService', () => {
 			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: constObservable(false),
+			changes: constObservable([]),
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
 		});
@@ -304,6 +317,26 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('hides checkout from generic changeset operations', () => {
+		const changeset = createChangeset([
+			{
+				id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+				label: 'Checkout',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+			{
+				id: 'create-pr',
+				label: 'Create PR',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+		]);
+		const { service } = createHarness(createSession('draft', { changesets: [changeset] }));
+
+		assert.deepStrictEqual(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id), ['create-pr']);
+	});
+
 	test('hides the Agent Host merge operation when the base branch is protected', () => {
 		const operations: readonly ISessionChangesetOperation[] = [
 			{
@@ -336,5 +369,23 @@ suite('ChangesViewService', () => {
 			['create-pr'],
 			['merge', 'create-pr'],
 		]);
+	});
+
+	test('reconciles host pull request state with the live icon', () => {
+		const openSession = createSession('open', { pullRequestState: 'open' });
+		const mergedSession = createSession('merged', { pullRequestState: 'merged', livePullRequestState: 'open' });
+		const cachedTerminalSession = createSession('cached-terminal', { pullRequestState: 'open', pullRequestIcon: Codicon.gitPullRequestDone });
+		const liveTerminalSession = createSession('live-terminal', { pullRequestState: 'open', livePullRequestState: 'merged', pullRequestIcon: Codicon.gitPullRequestDone });
+		const { activeSession, service } = createHarness(openSession);
+
+		const hasOpenPullRequest = [service.activeSessionStateObs.get()?.hasOpenPullRequest];
+		activeSession.set(mergedSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(cachedTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+		activeSession.set(liveTerminalSession, undefined);
+		hasOpenPullRequest.push(service.activeSessionStateObs.get()?.hasOpenPullRequest);
+
+		assert.deepStrictEqual(hasOpenPullRequest, [true, false, true, false]);
 	});
 });

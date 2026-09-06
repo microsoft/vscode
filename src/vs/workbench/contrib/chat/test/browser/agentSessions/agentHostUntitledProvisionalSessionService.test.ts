@@ -1494,6 +1494,26 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('retains working directories after rebinding a provisional session', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		workspaceFolders = [folderA, folderB];
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const untitled = untitledChatUri('rebind-roots');
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-roots' });
+
+		await provisional.getOrCreate(untitled, 'copilot', folderA);
+		await provisional.tryRebind(untitled, real, 'copilot');
+
+		assert.deepStrictEqual({
+			untitled: provisional.getProvisionalWorkingDirectories(untitled),
+			real: provisional.getProvisionalWorkingDirectories(real)?.map(directory => directory.toString()),
+		}, {
+			untitled: undefined,
+			real: [folderA.toString(), folderB.toString()],
+		});
+	});
+
 	test('sends only the primary when the provider does not advertise multiple working directories', async () => {
 		const folderA = URI.file('/repoA');
 		const folderB = URI.file('/repoB');

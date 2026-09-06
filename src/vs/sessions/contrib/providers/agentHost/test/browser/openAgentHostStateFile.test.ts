@@ -204,7 +204,7 @@ suite('Open Agent Host State File', () => {
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
 			override resolveSessionResource(session: URI) {
 				calls.resolved.push(session.toString());
-				return { connection, backendSession };
+				return { connection, connectionAuthority: 'local', backendSession };
 			}
 		}();
 		const editorService = new class extends mock<IEditorService>() {

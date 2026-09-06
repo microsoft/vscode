@@ -84,6 +84,16 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		return true;
 	}
 
+	async updateSessionModifiedTimes(updates: readonly { readonly session: string; readonly modifiedTime: number }[]): Promise<void> {
+		this._throwWriteFailure();
+		for (const { session, modifiedTime } of updates) {
+			const existing = this.sessions.get(session);
+			if (existing && Number.isFinite(modifiedTime) && existing.modifiedTime < modifiedTime) {
+				this.sessions.set(session, { ...existing, modifiedTime });
+			}
+		}
+	}
+
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
 		this._throwReadFailure();
 		this.listCalls++;

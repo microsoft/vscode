@@ -572,6 +572,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 	}
 
+	private logSessionChange(source: 'secret-storage' | 'interactive-login', added: number, removed: number, changed: number): void {
+		const kind = added > 0 && removed > 0 ? 'replacement' : added > 0 ? 'addition' : removed > 0 ? 'removal' : 'change';
+		const message = `Session change: source=${source}, kind=${kind}, added=${added}, removed=${removed}, changed=${changed}.`;
+		if (kind === 'replacement') {
+			this._logger.info(message);
+		} else {
+			this._logger.trace(message);
+		}
+	}
+
 	private async checkForUpdates() {
 		// Only the persisted sessions are reconciled against the Keychain: transient sessions do not
 		// exist there, so they must never be diffed against it and reported as removed.
@@ -601,6 +611,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		});
 
 		if (added.length || removed.length) {
+			this.logSessionChange('secret-storage', added.length, removed.length, 0);
 			this._sessionChangeEmitter.fire({ added, removed, changed: [] });
 		}
 	}
@@ -748,6 +759,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 			await this.storeSessions(sessions);
 
+			this.logSessionChange('interactive-login', 1, removed.length, 0);
 			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');

@@ -6,10 +6,12 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type INotification, type StateAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type AgentCustomization, type AgentInfo, type Customization, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -22,15 +24,25 @@ import { PromptsType } from '../../../../../../workbench/contrib/chat/common/pro
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { MockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
+import { MockPromptsService as BaseMockPromptsService } from '../../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IAgentHostCustomizationService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentCustomizationItemProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
+
+class MockPromptsService extends BaseMockPromptsService {
+	override getDisabledPromptFiles(): ResourceSet {
+		return new ResourceSet();
+	}
+
+	override async listPromptFilesForStorage(): Promise<[]> {
+		return [];
+	}
+}
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 
@@ -236,6 +248,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginA, pluginB]),
+			new MockPromptsService(),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -253,6 +266,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
 			type: CustomizationType.Agent,
@@ -294,6 +308,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostScoped]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -336,6 +351,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [hostPlugin]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -424,6 +440,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -469,6 +486,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -515,6 +533,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -553,6 +572,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [pluginRef]),
+			new MockPromptsService(),
 		));
 
 		let changeCount = 0;
@@ -635,6 +655,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -656,6 +677,52 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.ok(items.find(i => i.name === 'Client B'), 'should have Client B');
 		const keys = items.map(i => i.itemKey);
 		assert.strictEqual(new Set(keys).size, 2, 'all item keys should be unique');
+	});
+
+	test('provider classifies agent host synthetic customizations as built-in', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const containerUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' }).toString();
+		const skillUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/code-review' }).toString();
+		const container: Customization = {
+			type: CustomizationType.Directory,
+			id: containerUri,
+			uri: containerUri,
+			name: 'builtin',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [{
+				type: CustomizationType.Skill,
+				id: skillUri,
+				uri: skillUri,
+				name: 'code-review',
+				description: 'Review the current diff.',
+			}],
+		};
+		connection.setRootState({ agents: [createAgentInfo([container])] });
+
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'test-authority',
+			() => { },
+			undefined,
+			new class extends mock<IFileService>() { }(),
+			new NullLogService(),
+			createTestCustomAgentsService(connection, [container]),
+			new MockPromptsService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({
+			name: item.name,
+			source: item.source,
+			uri: item.uri.toString(),
+		})), [{
+			name: 'code-review',
+			source: AICustomizationSources.builtin,
+			uri: 'vscode-agent-host://test-authority/skill/code-review?_ah%3DeyJzY2hlbWUiOiJhZ2VudC1idWlsdGluIn0',
+		}]);
 	});
 
 	test('provider parses skill metadata, rewrites folder URIs to SKILL.md, and skips unreadable folder skills', async () => {
@@ -703,6 +770,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
+			new MockPromptsService(),
 		));
 
 		const items = await provider.provideChatSessionCustomizations(testSessionResource, CancellationToken.None);
@@ -761,6 +829,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -811,6 +880,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 		connection.fireAction({
 			channel: agentHostSessionId,
@@ -870,6 +940,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, []),
+			new MockPromptsService(),
 		));
 
 		connection.fireAction({
@@ -928,6 +999,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			fileService,
 			new NullLogService(),
 			createTestCustomAgentsService(connection, [plugin]),
+			new MockPromptsService(),
 		));
 
 		const harnessId = 'remote-agent-host-test';

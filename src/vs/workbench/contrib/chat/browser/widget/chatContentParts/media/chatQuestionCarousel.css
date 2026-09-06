@@ -63,15 +63,6 @@
 			-webkit-user-select: text;
 
 			.rendered-markdown {
-				a {
-					color: var(--vscode-textLink-foreground);
-				}
-
-				a:hover,
-				a:active {
-					color: var(--vscode-textLink-activeForeground);
-				}
-
 				p {
 					margin: 0;
 				}
@@ -93,6 +84,15 @@
 			flex-shrink: 0;
 		}
 	}
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .chat-question-carousel-container .rendered-markdown a:hover,
+.interactive-session .chat-question-carousel-container .rendered-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {

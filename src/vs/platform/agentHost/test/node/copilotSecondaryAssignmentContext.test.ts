@@ -39,8 +39,8 @@ suite('CopilotSecondaryAssignmentContext', () => {
 		context.update(notification('secondary:2'));
 
 		assert.deepStrictEqual(telemetryService.experimentProperties, [
-			{ name: 'secondary_assignment_context', value: 'secondary:1' },
-			{ name: 'secondary_assignment_context', value: 'secondary:2' },
+			{ name: 'secondary.assignmentcontext', value: 'secondary:1' },
+			{ name: 'secondary.assignmentcontext', value: 'secondary:2' },
 		]);
 	});
 
@@ -52,7 +52,7 @@ suite('CopilotSecondaryAssignmentContext', () => {
 		context.update(notification('secondary:1'));
 
 		assert.deepStrictEqual(telemetryService.experimentProperties, [
-			{ name: 'secondary_assignment_context', value: 'secondary:1' },
+			{ name: 'secondary.assignmentcontext', value: 'secondary:1' },
 		]);
 	});
 });

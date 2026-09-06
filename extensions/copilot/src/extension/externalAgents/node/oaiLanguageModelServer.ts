@@ -459,8 +459,8 @@ class StreamingPassThroughEndpoint implements IChatEndpoint {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 			const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-			const { serverExperiments } = getRequestId(response.headers);
-			const processor = this.instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, getResponsesApiCompactionThresholdFromBody(this.requestBody));
+			const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+			const processor = this.instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, getResponsesApiCompactionThresholdFromBody(this.requestBody));
 			const parser = new SSEParser((ev) => {
 				try {
 					logService.trace(`[StreamingPassThroughEndpoint] SSE: ${ev.data}`);

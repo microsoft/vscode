@@ -101,23 +101,24 @@ class DockBadgeManager {
 	private readonly counts = new Map<number, number>();
 
 	acquireBadge(window: IBaseWindow): IDisposable {
-		this.attention.add(window.id);
+		const windowId = window.id;
+		this.attention.add(windowId);
 
 		this.update();
 
 		return {
 			dispose: () => {
-				this.attention.delete(window.id);
+				this.attention.delete(windowId);
 
 				this.update();
 			}
 		};
 	}
 
-	setCount(window: IBaseWindow, count: number): void {
+	setCount(windowId: number, count: number): void {
 		if (count > 0) {
-			this.counts.set(window.id, count);
-		} else if (!this.counts.delete(window.id)) {
+			this.counts.set(windowId, count);
+		} else if (!this.counts.delete(windowId)) {
 			return; // window had no count to begin with
 		}
 
@@ -141,6 +142,8 @@ class DockBadgeManager {
 }
 
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	private applicationBadgeWindowId: number | undefined;
 
 	//#region Events
 
@@ -295,7 +298,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// Release this window's share of the application wide badge, so that a
 		// closed or crashed window cannot leave a phantom count behind.
-		this._register(toDisposable(() => DockBadgeManager.INSTANCE.setCount(this, 0)));
+		this._register(toDisposable(() => {
+			if (this.applicationBadgeWindowId !== undefined) {
+				DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, 0);
+			}
+		}));
 	}
 
 	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
@@ -394,7 +401,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// macOS (dock) and Linux (Unity launcher) render the count themselves,
 		// on a badge shared by the whole application.
 		else {
-			DockBadgeManager.INSTANCE.setCount(this, count);
+			this.applicationBadgeWindowId ??= this.id;
+			DockBadgeManager.INSTANCE.setCount(this.applicationBadgeWindowId, count);
 		}
 	}
 

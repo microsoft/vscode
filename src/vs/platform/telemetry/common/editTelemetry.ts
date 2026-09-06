@@ -9,6 +9,7 @@ export type EditTelemetryMode = 'longterm' | '10minFocusWindow' | '20minFocusWin
 export type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
 
 export interface IEditSourcesDetailsTelemetryData {
+	copilotSku?: string;
 	mode: EditTelemetryMode;
 	sourceKey: string;
 	sourceKeyCleaned: string;
@@ -28,6 +29,7 @@ export interface IEditSourcesDetailsTelemetryData {
 }
 
 type EditSourcesDetailsTelemetryClassification = {
+	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
 	owner: 'hediet';
 	comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either longterm, 10minFocusWindow, or 20minFocusWindow.' };
@@ -53,6 +55,7 @@ export function sendEditSourcesDetailsTelemetry(telemetryService: ITelemetryServ
 }
 
 export interface IEditSourcesStatsTelemetryData {
+	copilotSku?: string;
 	attributionSchemaVersion: 2;
 	mode: EditTelemetryMode;
 	languageId?: string;
@@ -78,6 +81,7 @@ export interface IEditSourcesStatsTelemetryData {
 }
 
 type EditSourcesStatsTelemetryClassification = {
+	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
 	owner: 'hediet';
 	comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
 

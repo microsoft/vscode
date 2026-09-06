@@ -18,7 +18,7 @@ import { ResourceLabelFormatter } from '../../../../../platform/label/common/lab
 import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceLabelHomeStore } from '../../common/resourceLabelHomeStore.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -123,15 +123,278 @@ suite('URI Label', () => {
 		mismatchedRegistration.dispose();
 	});
 
+	test('preserves resource label home authority and priority precedence', () => {
+		const resource = URI.parse('test://current/sessions/session-id/file.md');
+		const withoutAuthority = labelService.registerFormatter({
+			scheme: 'test',
+			home: '/sessions/session-id',
+			formatting: { label: 'No Authority', separator: '/' },
+		});
+		const globAuthority = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'cur*',
+			home: '/sessions/session-id',
+			formatting: { label: 'Glob Authority', separator: '/' },
+		});
+		const exactAuthority = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'current',
+			home: '/sessions/session-id',
+			formatting: { label: 'Exact Authority', separator: '/' },
+		});
+		const priorityExactAuthority = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'CURRENT',
+			home: '/sessions/session-id',
+			priority: true,
+			formatting: { label: 'Priority Exact Authority', separator: '/' },
+		});
+
+		assert.strictEqual(labelService.getUriLabel(resource), 'Priority Exact Authority/file.md');
+		priorityExactAuthority.dispose();
+		assert.strictEqual(labelService.getUriLabel(resource), 'Exact Authority/file.md');
+		exactAuthority.dispose();
+		assert.strictEqual(labelService.getUriLabel(resource), 'Glob Authority/file.md');
+		globAuthority.dispose();
+		assert.strictEqual(labelService.getUriLabel(resource), 'No Authority/file.md');
+		withoutAuthority.dispose();
+	});
+
+	test('resource label home paths are case-sensitive', () => {
+		const registration = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'current',
+			home: '/Sessions/session-id',
+			formatting: { label: 'Session', separator: '/' },
+		});
+
+		assert.deepStrictEqual({
+			matching: labelService.getUriLabel(URI.parse('test://current/Sessions/session-id/file.md')),
+			differentCase: labelService.getUriLabel(URI.parse('test://current/sessions/session-id/file.md')),
+		}, {
+			matching: 'Session/file.md',
+			differentCase: `${sep}sessions${sep}session-id${sep}file.md`,
+		});
+
+		registration.dispose();
+	});
+
+	test('resolves URI home templates to concrete formatting', () => {
+		let resolverCalls = 0;
+		const staticRegistration = labelService.registerFormatter({
+			scheme: 'test',
+			authority: 'current',
+			home: '/sessions/session-id',
+			formatting: { label: 'Static Session', separator: '/' },
+		});
+		const registration = labelService.registerFormatter({
+			home: URI.from({ scheme: 'test', authority: 'current', path: '/sessions/${sessionId}' }),
+			onDidChangeFormatting: Event.None,
+			formatting: context => {
+				resolverCalls++;
+				const sessionId = context.parameters.get('sessionId');
+				return sessionId === 'session-id' ? { label: 'Session ${path}', separator: '/' } : undefined;
+			},
+		});
+		const resource = URI.parse('test://current/sessions/session-id/files/result.md');
+
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.toString(),
+			label: labelService.getUriLabel(resource),
+			unrelated: labelService.getUriLabel(URI.parse('test://current/unrelated/file.md')),
+			resolverCalls,
+		}, {
+			home: 'test://current/sessions/session-id',
+			label: 'Session ${path}/files/result.md',
+			unrelated: `${sep}unrelated${sep}file.md`,
+			resolverCalls: 2,
+		});
+		registration.dispose();
+		assert.strictEqual(labelService.getUriLabel(resource), 'Static Session/files/result.md');
+		staticRegistration.dispose();
+	});
+
+	test('URI home templates without an authority match any authority', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.from({ scheme: 'test', path: '/sessions/${sessionId}' }),
+			onDidChangeFormatting: Event.None,
+			formatting: context => ({ label: context.parameters.get('sessionId') ?? '', separator: '/' }),
+		});
+
+		assert.strictEqual(labelService.getUriLabel(URI.parse('test://remote/sessions/session-id/file.md')), 'session-id/file.md');
+
+		registration.dispose();
+	});
+
+	test('URI home formatters support authority roots', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.from({ scheme: 'test', authority: 'current' }),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Root', separator: '/' }),
+		});
+		const resource = URI.parse('test://current/file.md');
+
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.toString(),
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: 'test://current',
+			label: 'Root/file.md',
+		});
+
+		registration.dispose();
+	});
+
+	test('URI home templates do not capture dot path segments', () => {
+		let resolverCalls = 0;
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => {
+				resolverCalls++;
+				return { label: 'Session', separator: '/' };
+			},
+		});
+
+		const current = URI.parse('test://current/sessions/./file.md');
+		const parent = URI.parse('test://current/sessions/../file.md');
+		assert.deepStrictEqual({
+			currentHome: labelService.getUriHome(current),
+			current: labelService.getUriLabel(current),
+			parentHome: labelService.getUriHome(parent),
+			parent: labelService.getUriLabel(parent),
+			dotPrefixed: labelService.getUriLabel(URI.parse('test://current/sessions/.session/file.md')),
+			resolverCalls,
+		}, {
+			currentHome: undefined,
+			current: `${sep}sessions${sep}file.md`,
+			parentHome: undefined,
+			parent: `${sep}file.md`,
+			dotPrefixed: 'Session/file.md',
+			resolverCalls: 1,
+		});
+
+		registration.dispose();
+	});
+
+	test('URI home templates resolve all parameters', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/orgs/${org}/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: context => ({
+				label: `${context.parameters.get('org')}/${context.parameters.get('sessionId')}`,
+				separator: '/',
+			}),
+		});
+		const resource = URI.parse('test://current/orgs/acme/sessions/session-id/file.md');
+
+		assert.deepStrictEqual({
+			home: labelService.getUriHome(resource)?.path,
+			label: labelService.getUriLabel(resource),
+		}, {
+			home: '/orgs/acme/sessions/session-id',
+			label: 'acme/session-id/file.md',
+		});
+
+		registration.dispose();
+	});
+
+	test('URI home templates support trailing separators', () => {
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/sessions/${sessionId}/'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		});
+
+		assert.deepStrictEqual({
+			exact: labelService.getUriLabel(URI.parse('test://current/sessions/session-id')),
+			descendant: labelService.getUriLabel(URI.parse('test://current/sessions/session-id/file.md')),
+		}, {
+			exact: 'Session',
+			descendant: 'Session/file.md',
+		});
+
+		registration.dispose();
+	});
+
+	test('equally specific URI home templates use registration order', () => {
+		const formatter = {
+			home: URI.parse('test://current/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'First', separator: '/' as const }),
+		};
+		const first = labelService.registerFormatter(formatter);
+		const second = labelService.registerFormatter({
+			...formatter,
+			formatting: () => ({ label: 'Second', separator: '/' }),
+		});
+		const resource = URI.parse('test://current/sessions/session-id/file.md');
+
+		assert.strictEqual(labelService.getUriLabel(resource), 'First/file.md');
+		first.dispose();
+		assert.strictEqual(labelService.getUriLabel(resource), 'Second/file.md');
+
+		second.dispose();
+	});
+
+	test('one URI home template formats all known sessions without resolving unrelated resources', () => {
+		let formatterChanges = 0;
+		let resolverCalls = 0;
+		const listener = labelService.onDidChangeFormatters(() => formatterChanges++);
+		const onDidChange = new Emitter<void>();
+		const labels = new Map(Array.from({ length: 100 }, (_, index) => [`session-${index}`, `Session ${index}`]));
+		const registration = labelService.registerFormatter({
+			home: URI.parse('test://current/sessions/${sessionId}'),
+			onDidChangeFormatting: onDidChange.event,
+			formatting: context => {
+				resolverCalls++;
+				const label = labels.get(context.parameters.get('sessionId') ?? '');
+				return label === undefined ? undefined : { label, separator: '/' };
+			},
+		});
+
+		assert.deepStrictEqual({
+			formatterChanges,
+			home: labelService.getUriHome(URI.parse('test://current/sessions/session-42/file.md'))?.toString(),
+			label: labelService.getUriLabel(URI.parse('test://current/sessions/session-42/file.md')),
+			unrelated: labelService.getUriLabel(URI.parse('test://current/unrelated/file.md')),
+			resolverCalls,
+		}, {
+			formatterChanges: 1,
+			home: 'test://current/sessions/session-42',
+			label: 'Session 42/file.md',
+			unrelated: `${sep}unrelated${sep}file.md`,
+			resolverCalls: 2,
+		});
+
+		labels.set('session-42', 'Renamed Session');
+		onDidChange.fire();
+		assert.deepStrictEqual({
+			formatterChanges,
+			label: labelService.getUriLabel(URI.parse('test://current/sessions/session-42/file.md')),
+		}, {
+			formatterChanges: 2,
+			label: 'Renamed Session/file.md',
+		});
+
+		registration.dispose();
+		onDidChange.fire();
+		assert.strictEqual(formatterChanges, 3);
+		onDidChange.dispose();
+		listener.dispose();
+	});
+
 	test('resource label homes take precedence over ordinary formatter changes', () => {
 		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
-		const root = URI.file('/home/test/.agent/sessions/session-id');
 		const first = labelService.registerFormatter({
 			scheme: 'file',
 			formatting: { label: 'FIRST${path}', separator: '/' },
 		});
-		const homes = new ResourceLabelHomeStore(labelService);
-		homes.set([{ uri: root, label: 'Session' }]);
+		const home = labelService.registerFormatter({
+			home: URI.file('/home/test/.agent/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Session', separator: '/' }),
+		});
 
 		assert.strictEqual(labelService.getUriLabel(resource), 'Session/file.md');
 
@@ -142,18 +405,21 @@ suite('URI Label', () => {
 		});
 		assert.strictEqual(labelService.getUriLabel(resource), 'Session/file.md');
 
-		homes.dispose();
+		home.dispose();
 		second.dispose();
 	});
 
 	test('noPrefix skips resource label homes', () => {
 		const resource = URI.file('/home/test/.agent/sessions/session-id/file.md');
-		const homes = new ResourceLabelHomeStore(labelService);
-		homes.set([{ uri: URI.file('/home/test/.agent/sessions/session-id'), label: 'Agent/Session' }]);
+		const home = labelService.registerFormatter({
+			home: URI.file('/home/test/.agent/sessions/${sessionId}'),
+			onDidChangeFormatting: Event.None,
+			formatting: () => ({ label: 'Agent/Session', separator: '/' }),
+		});
 
 		assert.strictEqual(labelService.getUriLabel(resource, { noPrefix: true }), resource.fsPath);
 
-		homes.dispose();
+		home.dispose();
 	});
 
 	test('keeps equivalent resource label home registrations until all are disposed', () => {

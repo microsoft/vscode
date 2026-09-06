@@ -35,7 +35,8 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 	}
 
 	getOperations({ sessionKey, changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		if ((gitState?.uncommittedChanges ?? 0) <= 0) {
+		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
+		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
 			return [];
 		}
 

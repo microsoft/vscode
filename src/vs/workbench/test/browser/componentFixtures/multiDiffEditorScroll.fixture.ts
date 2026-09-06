@@ -1473,9 +1473,13 @@ function appendNumberField(
 		}
 	}));
 	store.add(autorun(reader => {
+		const formattedValue = formatNumber(value.read(reader));
 		if (dom.getActiveElement() !== input) {
-			input.value = formatNumber(value.read(reader));
+			input.value = formattedValue;
 		}
+	}));
+	store.add(dom.addDisposableListener(input, dom.EventType.BLUR, () => {
+		input.value = formatNumber(value.get());
 	}));
 }
 

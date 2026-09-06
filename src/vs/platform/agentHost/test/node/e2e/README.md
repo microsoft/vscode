@@ -437,10 +437,11 @@ File-operation capability and coverage are separate concerns. A provider with no
 
 ### Interpreting Codex pending tests
 
-On platforms where Codex unified-shell replay is stable, the baseline suite has 11 intentionally pending registrations:
+On platforms where Codex unified-shell replay is stable, the baseline suite has 12 intentionally pending registrations:
 
 - freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
 - native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
+- client-plugin discovery, because plugin synchronization can race the first turn and leave it incomplete;
 - the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
 - mid-turn abort, which is record-only for every provider;
 - worktree include-file coverage, which remains behind its documented known-issue gate; and

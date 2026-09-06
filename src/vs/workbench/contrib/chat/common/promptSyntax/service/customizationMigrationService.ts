@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from './promptsService.js';
@@ -13,6 +14,7 @@ export const ICustomizationMigrationService = createDecorator<ICustomizationMigr
 export enum CustomizationMigrationType {
 	UserData = 'userData',
 	PromptFiles = 'promptFiles',
+	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 }
 
@@ -39,7 +41,12 @@ export function isUserDataMigrationCandidate(customization: MigratableConfigurat
 		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions);
 }
 
-export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles;
+export function isConfiguredLocationMigrationCandidate(customization: MigratableConfiguration): boolean {
+	return (customization.source === PromptFileSource.ConfigWorkspace || customization.source === PromptFileSource.ConfigPersonal)
+		&& (customization.type === PromptsType.agent || customization.type === PromptsType.instructions || customization.type === PromptsType.skill);
+}
+
+export type FileCustomizationMigrationType = CustomizationMigrationType.UserData | CustomizationMigrationType.PromptFiles | CustomizationMigrationType.ConfiguredLocations;
 
 export interface FileCustomizationMigration {
 	readonly type: FileCustomizationMigrationType;
@@ -72,11 +79,21 @@ export interface McpServerCustomizationMigration {
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
+export const enum CustomizationMigrationHintTarget {
+	FileMigrations = 'fileMigrations',
+	McpServers = 'mcpServers',
+}
+
+export interface ICustomizationMigrationHint {
+	readonly message: string;
+	readonly target: CustomizationMigrationHintTarget;
+}
+
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 
-	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
-	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
-	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
-	computeMigrationHint(sessionResource: URI): Promise<string | undefined>;
+	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
+	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
+	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }

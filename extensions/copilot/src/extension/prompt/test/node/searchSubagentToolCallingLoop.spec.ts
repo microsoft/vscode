@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CancellationToken, ChatRequest } from 'vscode';
+import type { CancellationToken, ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -12,6 +12,7 @@ import { IChatModelInformation } from '../../../../platform/endpoint/common/endp
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -26,6 +27,19 @@ import {
 	isContextOverflowBadRequest,
 } from '../../../prompt/node/searchSubagentToolCallingLoop';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+
+class TestToolsService extends mock<IToolsService>() {
+	override getEnabledTools(): LanguageModelToolInformation[] {
+		return [
+			{ name: ToolName.Codebase },
+			{ name: ToolName.FindFiles },
+			{ name: ToolName.FindTextInFiles },
+			{ name: ToolName.ReadFile },
+		] as LanguageModelToolInformation[];
+	}
+}
 
 class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 	public buildPromptCalls = 0;
@@ -73,6 +87,10 @@ class TestSearchSubagentToolCallingLoop extends SearchSubagentToolCallingLoop {
 			},
 			token,
 		);
+	}
+
+	public callGetAvailableTools(): Promise<LanguageModelToolInformation[]> {
+		return this.getAvailableTools();
 	}
 }
 
@@ -312,6 +330,63 @@ describe('SearchSubagentToolCallingLoop.shouldAutoRetry', () => {
 	it('still auto-retries on unrelated BadRequest in autopilot mode', () => {
 		const loop = createAutopilotLoop();
 		expect((loop as any).shouldAutoRetry(badRequest('invalid_tool_schema'))).toBe(true);
+	});
+});
+
+describe('SearchSubagentToolCallingLoop.getAvailableTools', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+	let configurationService: IConfigurationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		serviceCollection.define(IToolsService, new TestToolsService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		configurationService = accessor.get(IConfigurationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	function createLoop(): TestSearchSubagentToolCallingLoop {
+		const options: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request: createMockChatRequest(),
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(TestSearchSubagentToolCallingLoop, options);
+		(loop as any).getEndpoint = async () => loop.fakeEndpoint;
+		disposables.add(loop);
+		return loop;
+	}
+
+	it('includes semantic_search when enabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SubagentSemanticSearchEnabled, true);
+		const tools = await createLoop().callGetAvailableTools();
+
+		expect(tools.map(tool => tool.name)).toEqual([
+			ToolName.Codebase,
+			ToolName.FindFiles,
+			ToolName.FindTextInFiles,
+			ToolName.ReadFile,
+		]);
+	});
+
+	it('excludes only semantic_search when disabled', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SubagentSemanticSearchEnabled, false);
+		const tools = await createLoop().callGetAvailableTools();
+
+		expect(tools.map(tool => tool.name)).toEqual([
+			ToolName.FindFiles,
+			ToolName.FindTextInFiles,
+			ToolName.ReadFile,
+		]);
 	});
 });
 

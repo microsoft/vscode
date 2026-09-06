@@ -61,6 +61,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 	private readonly backgroundLayer: HTMLElement;
 	private readonly codiconLayer: HTMLElement;
+	private readonly codiconCells = new Map<string, HTMLElement>();
 	private background: ISessionsChatBackground | undefined;
 	private codiconGridSize: string | undefined;
 
@@ -112,6 +113,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 			this.renderCodicons(this.element.clientWidth, this.element.clientHeight);
 		} else {
 			this.codiconGridSize = undefined;
+			this.codiconCells.clear();
 			clearNode(this.codiconLayer);
 		}
 	}
@@ -130,24 +132,39 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		this.codiconGridSize = gridSize;
 
 		const fragment = this.element.ownerDocument.createDocumentFragment();
+		const visibleCells = new Set<string>();
 		for (let row = 0; row < rows; row++) {
 			for (let column = 0; column < columns; column++) {
 				if (hashCodiconCell(row, column, 0) % 9 === 0) {
 					continue;
 				}
+
+				const cell = `${row}:${column}`;
+				visibleCells.add(cell);
+				if (this.codiconCells.has(cell)) {
+					continue;
+				}
+
 				const icon = renderIcon(codiconChoices[hashCodiconCell(row, column, 1) % codiconChoices.length]);
 				icon.ariaHidden = 'true';
 				const horizontalOffset = ((hashCodiconCell(row, column, 2) % 71) - 35) / 100;
 				const verticalOffset = ((hashCodiconCell(row, column, 3) % 65) - 32) / 100;
 				const rotation = (hashCodiconCell(row, column, 4) % 71) - 35;
-				icon.style.left = `${((column + 0.5 + horizontalOffset) / columns) * 100}%`;
-				icon.style.top = `${((row + 0.5 + verticalOffset) / rows) * 100}%`;
+				icon.style.left = `${(column + 0.5 + horizontalOffset) * codiconCellSize}px`;
+				icon.style.top = `${(row + 0.5 + verticalOffset) * codiconCellSize}px`;
 				icon.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
 				icon.style.opacity = `${0.65 + (hashCodiconCell(row, column, 5) % 36) / 100}`;
+				this.codiconCells.set(cell, icon);
 				fragment.append(icon);
 			}
 		}
-		clearNode(this.codiconLayer);
+
+		for (const [cell, icon] of this.codiconCells) {
+			if (!visibleCells.has(cell)) {
+				icon.remove();
+				this.codiconCells.delete(cell);
+			}
+		}
 		this.codiconLayer.append(fragment);
 	}
 }

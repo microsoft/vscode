@@ -11,6 +11,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
+import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
 
@@ -300,6 +301,41 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 });
 
 /**
+ * Scripts the client generated for this session, sourced before every built-in
+ * shell tool command (see `common/shellInitScript.ts`). Written by the
+ * workbench and consumed by the Copilot provider; `readOnly` because no user
+ * edits it directly, `sessionMutable` because the selected Python environment
+ * can change while a session is live. The value is transient and omitted from
+ * persisted session config.
+ *
+ * Deliberately has no `default`: an absent value means "nothing to apply",
+ * which must stay distinguishable from an explicit empty array (clear).
+ */
+const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.shellInitScripts', "Shell Init Script"),
+	description: localize('agentHost.sessionConfig.shellInitScriptsDescription', "A script sourced before each built-in shell tool command."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.shellInitScripts.item', "Shell Init Script"),
+		properties: {
+			shell: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitScripts.shell', "Shell"),
+				enum: ['bash', 'powershell'],
+			},
+			script: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.shellInitScripts.script', "Script"),
+			},
+		},
+		required: ['shell', 'script'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
+/**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
  *
@@ -345,6 +381,7 @@ export const platformSessionSchema = createSchema({
 		default: 'interactive',
 		sessionMutable: true,
 	}),
+	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
 });
 
 /**
@@ -824,7 +861,7 @@ export const platformRootSchema = createSchema({
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		enumDescriptions: [
 			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
-			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
+			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. At startup, external sessions older than the second-most-recently updated local session are hidden."),
 			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
 			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),

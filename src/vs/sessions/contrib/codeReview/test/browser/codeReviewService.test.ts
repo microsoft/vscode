@@ -143,6 +143,7 @@ suite('CodeReviewService', () => {
 
 	class MockReviewThreadsFetcher {
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
+		nextError: Error | undefined;
 		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
@@ -151,6 +152,9 @@ suite('CodeReviewService', () => {
 			this.getReviewThreadsCalls++;
 			const result = this.nextThreads;
 			await this.getReviewThreadsGate?.p;
+			if (this.nextError) {
+				throw this.nextError;
+			}
 			return result;
 		}
 
@@ -339,6 +343,35 @@ suite('CodeReviewService', () => {
 		});
 	});
 
+	test('PR review state exposes healthy comments when another pull request fails to load', async () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, {
+			...makeGitHubInfo(),
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 1).nextThreads = [makePRThread('thread-100', 'src/a.ts')];
+		gitHubService.getReviewThreadsFetcher('owner', 'repo', 2).nextError = new Error('not found');
+
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
+		await tick();
+
+		const state = service.getPRReviewState(session).get();
+		assert.deepStrictEqual(state.kind === PRReviewStateKind.Loaded
+			? {
+				comments: state.comments.map(comment => ({ id: comment.id, prNumber: comment.pullRequest.number })),
+				incompletePullRequests: state.incompletePullRequests.map(pullRequest => pullRequest.number),
+			}
+			: state.kind, {
+			comments: [{ id: 'thread-100', prNumber: 1 }],
+			incompletePullRequests: [2],
+		});
+	});
+
 	test('resolvePRReviewThread uses dedicated review threads model', async () => {
 		sessionsManagement.addSession(session);
 		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
@@ -382,24 +415,24 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the editor title bar', () => {
-		const titleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Run Code Review is contributed to the editor header layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
-		const when = titleItem.when?.serialize() ?? '';
+		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
 		enablementContext.setValue(SessionHasChangesContext.key, true);
-		const enabledFromSessionChanges = titleItem.command.precondition?.evaluate(enablementContext);
+		const enabledFromSessionChanges = headerItem.command.precondition?.evaluate(enablementContext);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			group: titleItem.group,
-			order: titleItem.order,
+			group: headerItem.group,
+			order: headerItem.order,
 			enabledFromSessionChanges,
-			enabledFromChatChanges: titleItem.command.precondition?.evaluate(enablementContext),
+			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
