@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createTimeout, timeout } from '../../../../../base/common/async.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
@@ -63,7 +63,10 @@ function renderMultiDiffEditorHideOriginalLineNumbers({ container, disposableSto
 	const textModels = disposableStackStore.add(new DisposableStore());
 	const original = textModels.add(createTextModel(instantiationService, ORIGINAL_HIDDEN, URI.parse('inmemory://original/settings.ts'), 'typescript'));
 	const modified = textModels.add(createTextModel(instantiationService, MODIFIED_HIDDEN, URI.parse('inmemory://modified/settings.ts'), 'typescript'));
-	const doc = RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
+	const doc = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: new DiffItemSource(original.uri, original),
+		modified: new DiffItemSource(modified.uri, modified),
+	}, { dispose() { } });
 
 	const widget = disposableStackStore.add(createMultiDiffEditorFixtureWidget(instantiationService, container, {
 		hideOriginalLineNumbers: true,
@@ -162,7 +165,10 @@ function renderMultiDiffEditorDocumentSwap() {
 		const makeDoc = (origText: string, modText: string, name: string) => {
 			const original = textModels.add(createTextModel(instantiationService, origText, URI.parse(`inmemory://original/${name}`), 'typescript'));
 			const modified = textModels.add(createTextModel(instantiationService, modText, URI.parse(`inmemory://modified/${name}`), 'typescript'));
-			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
+			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(original.uri, original),
+				modified: new DiffItemSource(modified.uri, modified),
+			}, { dispose() { } });
 		};
 
 		// Each document has exactly one line change.

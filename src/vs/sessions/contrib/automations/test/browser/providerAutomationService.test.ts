@@ -414,6 +414,9 @@ suite('ProviderAutomationService', () => {
 			prompt: 'prompt',
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: legacyTarget,
+			modelId: 'legacy-model',
+			mode: 'ask',
+			permissionLevel: 'autopilot',
 		});
 
 		await assert.rejects(service.updateAutomation(created.id, {
@@ -446,9 +449,9 @@ suite('ProviderAutomationService', () => {
 			legacyPrompt: 'prompt',
 			legacySchedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			legacyTarget: { ...legacyTarget, folderUri: FOLDER.toString() },
-			legacyModelId: undefined,
-			legacyMode: undefined,
-			legacyPermissionLevel: undefined,
+			legacyModelId: 'legacy-model',
+			legacyMode: 'ask',
+			legacyPermissionLevel: 'autopilot',
 			legacyEnabled: true,
 			legacyRunStatuses: ['pending'],
 		});
@@ -560,7 +563,7 @@ suite('ProviderAutomationService', () => {
 			},
 			acknowledgedAutomationIds: ['automation-1'],
 			runIds: ['run-1'],
-			legacy: { schemaVersion: 3, revision: 2, automations: [], runs: [] },
+			legacy: { schemaVersion: 4, revision: 2, automations: [], runs: [] },
 		});
 	});
 

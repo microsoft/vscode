@@ -547,8 +547,8 @@ describe('ToolCallingLoop autopilot', () => {
 	});
 
 	describe('shouldAutoRetry', () => {
-		function mockResponse(type: ChatFetchResponseType): ChatResponse {
-			return { type, reason: 'test', requestId: 'req-1', serverRequestId: undefined } as any;
+		function mockResponse(type: ChatFetchResponseType, reason = 'test', reasonDetail?: string): ChatResponse {
+			return { type, reason, reasonDetail, requestId: 'req-1', serverRequestId: undefined } as any;
 		}
 
 		it('should retry on network error in autoApprove mode', () => {
@@ -616,6 +616,16 @@ describe('ToolCallingLoop autopilot', () => {
 			}
 			// 2 retries done, still under the cap of 3
 			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.Failed))).toBe(true);
+		});
+
+		it('should not retry BadRequest with vision code in reason', () => {
+			const loop = createLoop('autoApprove');
+			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.BadRequest, 'vision_attachment_not_accessible'))).toBe(false);
+		});
+
+		it('should not retry Failed with vision code in reasonDetail', () => {
+			const loop = createLoop('autopilot');
+			expect(loop.testShouldAutoRetry(mockResponse(ChatFetchResponseType.Failed, 'request failed', 'Vision_attachment_Not_Accessible'))).toBe(false);
 		});
 	});
 

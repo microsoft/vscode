@@ -74,7 +74,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._watchProviders(this._sessionsProvidersService.getProviders());
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 		this._containerElement = container;
 
@@ -104,6 +104,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}));
 
 		this._updateTrigger();
+		return trigger;
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {

@@ -66,8 +66,8 @@ function expectedSandboxConfig(options?: {
 		addCurrentWorkingDirectory: true,
 		allowDevToolAccess: true,
 		auth: {
-			git: false,
-			gh: false,
+			git: true,
+			gh: true,
 		},
 		userPolicy: {
 			filesystem: {
@@ -78,7 +78,7 @@ function expectedSandboxConfig(options?: {
 			},
 			network: {
 				allowOutbound: options?.allowOutbound === true,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			},
 		},
 	};
@@ -117,6 +117,12 @@ suite('buildSandboxConfigForSdk', () => {
 		test('enables outbound network through the separate allowNetwork policy', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, true)), expectedSandboxConfig({ allowOutbound: true }));
+			}
+		});
+
+		test('preserves an explicit outbound network restriction', () => {
+			for (const platform of ['darwin', 'linux', 'win32'] as const) {
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, undefined, false)), expectedSandboxConfig({ allowOutbound: false }));
 			}
 		});
 
@@ -228,7 +234,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
 					allowOutbound: false,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -237,7 +243,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
-					allowLocalNetwork: true,
+					allowLocalNetwork: false,
 				}, platform);
 			}
 		});
@@ -245,8 +251,42 @@ suite('buildSandboxConfigForSdk', () => {
 		test('ignores empty host lists', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
 				allowOutbound: false,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			});
+		});
+	});
+
+	suite('extraReadonlyPaths', () => {
+
+		test('grants read access to host-generated paths', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				readonlyPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('keeps user denyRead winning over a host-generated path', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { denyRead: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+				deniedPaths: ['/data/shellInit/s1'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('does not downgrade a path the user already made readwrite', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowWrite: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
+				readwritePaths: ['/work'],
+				clearPolicyOnExit: true,
+			});
+		});
+
+		test('changes nothing when omitted or empty', () => {
+			const base = buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }));
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), []), base);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), undefined), base);
+		});
+
+		test('stays undefined when sandboxing is off, regardless of extra paths', () => {
+			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), ['/data/shellInit/s1']), undefined);
 		});
 	});
 });

@@ -47,6 +47,8 @@ export const Menus = {
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 	/** Context menu for session-backed Automation history rows. */
 	AutomationsHistoryItemContext: new MenuId('SessionsAutomationsHistoryItemContext'),
+	/** Input toolbar actions in the Automation dialog prompt editor. */
+	AutomationsDialogInputToolbar: new MenuId('AutomationsDialogInputToolbar'),
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
@@ -60,18 +62,20 @@ export const Menus = {
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
+	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
-	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
-
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
-	 * related actions and takes over the button when it applies.
+	 * related actions, takes over the button when it applies, and uses its first
+	 * entry as the primary invocation.
 	 */
 	ChangesOperationsDropdown: new MenuId('SessionsChangesOperationsDropdown'),
-	/** Agent Merge's own entries, opened as a context menu from its button. */
+	/** Agent Merge entries whose first visible action is invoked by its primary button. */
 	ChangesAgentMerge: new MenuId('SessionsChangesAgentMerge'),
+	/** Per-session Agent Merge configuration. */
+	ChangesAgentMergeConfigure: new MenuId('SessionsChangesAgentMergeConfigure'),
 	/** Choices for when Agent Merge may merge the pull request. */
 	ChangesAgentMergeMergePullRequest: new MenuId('SessionsChangesAgentMergeMergePullRequest'),
 

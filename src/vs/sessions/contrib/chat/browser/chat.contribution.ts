@@ -15,6 +15,9 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import product from '../../../../platform/product/common/product.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService, inheritableSessionTarget } from '../../../services/sessions/common/sessionsManagement.js';
@@ -45,22 +48,20 @@ import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contr
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext, SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackground';
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID = 'workbench.action.chat.clearAgentSessionsBackground';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_COMMAND_ID = 'workbench.action.chat.changeAgentSessionsBackgroundLayout';
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(IsSessionsWindowContext, SessionsChatBackgroundAvailableContext);
-const CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundConfiguredContext);
 const CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN = ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, SessionsChatBackgroundImageConfiguredContext);
 
 type RecentChatBackgroundTypeItem = IQuickPickItem & {
@@ -69,10 +70,14 @@ type RecentChatBackgroundTypeItem = IQuickPickItem & {
 };
 
 type ChatBackgroundTypeItem = IQuickPickItem & ({
-	readonly kind: 'codicons' | 'image';
+	readonly kind: 'none' | 'codicons' | 'image';
 }) | RecentChatBackgroundTypeItem;
 
 const chatBackgroundTypeItems: ChatBackgroundTypeItem[] = [{
+	kind: 'none',
+	label: localize('chat.agentSessions.backgroundType.none.label', "No Background"),
+	detail: localize('chat.agentSessions.backgroundType.none.detail', "Remove the current chat background."),
+}, {
 	kind: 'codicons',
 	label: localize('chat.agentSessions.backgroundType.codicons.label', "Codicons"),
 	detail: localize('chat.agentSessions.backgroundType.codicons.detail', "Use a theme-aware pattern of built-in VS Code icons."),
@@ -137,6 +142,12 @@ const chatBackgroundImageLayoutItems = chatBackgroundImageLayoutValues.map(layou
 	layout,
 	...chatBackgroundImageLayoutMetadata[layout],
 }));
+
+const chatBackgroundImageLayoutEnumConfiguration = {
+	enum: [...chatBackgroundImageLayoutValues],
+	enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
+	enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+};
 
 class NewChatInSessionsWindowAction extends Action2 {
 
@@ -223,7 +234,7 @@ class SetChatBackgroundAction extends Action2 {
 		const backgroundService = accessor.get(ISessionsChatBackgroundService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const backgroundKind = backgroundService.getBackground()?.kind;
+		const backgroundKind = backgroundService.getBackground()?.kind ?? 'none';
 		const recentImages = backgroundService.getRecentBackgroundImages();
 		const recentItems: RecentChatBackgroundTypeItem[] = recentImages.map(image => ({
 			kind: 'recentImage',
@@ -247,6 +258,11 @@ class SetChatBackgroundAction extends Action2 {
 				: chatBackgroundTypeItems.find(item => item.kind === backgroundKind),
 		});
 		if (!backgroundType) {
+			return;
+		}
+		if (backgroundType.kind === 'none') {
+			await backgroundService.clearBackground();
+			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
@@ -327,35 +343,6 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 
 registerAction2(ChangeChatBackgroundLayoutAction);
 
-class ClearChatBackgroundAction extends Action2 {
-
-	constructor() {
-		super({
-			id: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_COMMAND_ID,
-			title: localize2('chat.agentSessions.clearBackground', "Clear Background"),
-			category: CHAT_CATEGORY,
-			precondition: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			menu: [{
-				id: MenuId.CommandPalette,
-				when: CLEAR_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
-			}, {
-				id: Menus.SessionChatBackgroundContext,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext),
-			}],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ISessionsChatBackgroundService).clearBackground();
-		status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
-	}
-}
-
-registerAction2(ClearChatBackgroundAction);
-
-
 // register actions
 registerAction2(BranchChatSessionAction);
 
@@ -384,6 +371,20 @@ AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the unified workspace picker setting instead."),
+		},
+		[UNIFIED_WORKSPACE_PICKER_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -414,15 +415,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			ignoreSync: true,
 		},
-		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
 			type: 'string',
-			enum: [...chatBackgroundImageLayoutValues],
-			enumItemLabels: chatBackgroundImageLayoutItems.map(item => item.label),
-			enumDescriptions: chatBackgroundImageLayoutItems.map(item => item.detail),
+			...chatBackgroundImageLayoutEnumConfiguration,
 			default: 'repeat',
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('chat.agentSessions.backgroundImageLayout', "Controls how the dark and light chat background images are laid out in the Agents Window."),
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredDarkBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a dark color theme."),
 			tags: ['experimental'],
+			ignoreSync: true,
+		},
+		[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: {
+			type: 'string',
+			...chatBackgroundImageLayoutEnumConfiguration,
+			default: 'repeat',
+			scope: ConfigurationScope.MACHINE,
+			markdownDescription: localize('chat.agentSessions.preferredLightBackgroundImageLayout', "Controls how the chat background image is laid out in the Agents Window when using a light color theme."),
+			tags: ['experimental'],
+			ignoreSync: true,
 		},
 	},
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([unifiedWorkspacePickerConfigurationMigration]);

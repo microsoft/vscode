@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, type IDisposable } from '../../../base/com
 import { autorun } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
+import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
 import type { GitHubCredentialInvalidation } from '../../github/common/githubCredentialService.js';
 import type { GitHubAccountHandle } from '../../github/common/githubTypes.js';
 import { IGitHubService } from '../../github/common/githubService.js';
@@ -19,6 +19,7 @@ import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSes
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { parsePullRequestUrl } from './agentMergeController.js';
+import { isAgentMergePullRequestReadyForReview, readAgentMergeSessionState } from '../common/agentMerge.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -42,6 +43,8 @@ export interface IAgentHostPullRequestStatus {
 	readonly draft: boolean;
 	/** True once the pull request is open and can be merged as-is. */
 	readonly mergeReady: boolean;
+	/** Whether Agent Merge has observed all required checks and review feedback as ready. */
+	readonly agentMergeReadyForReview?: boolean;
 	readonly viewerCanEnableAutoMerge: boolean;
 	readonly autoMergeEnabled: boolean;
 	readonly allowedMergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
@@ -55,10 +58,10 @@ export const IAgentHostPullRequestStatusService = createDecorator<IAgentHostPull
  *
  * A pull request subscription costs GitHub API budget, so the watcher is scoped
  * to sessions that have at least one changeset subscriber — in practice the
- * session whose changes the user has open. It also deliberately subscribes to
- * the `core` and `mergeability` fragments only: everything the pull request
- * button bar needs is in those two, and the expensive conversation and check
- * fragments stay reserved for Agent Merge.
+ * session whose changes the user has open. It normally subscribes only to the
+ * `core` and `mergeability` fragments. While Agent Merge is enabled it adds
+ * the required-check and review fragments already needed by Agent Merge so the
+ * host can advertise the correct draft pull request operation.
  */
 export interface IAgentHostPullRequestStatusService extends IDisposable {
 	readonly _serviceBrand: undefined;
@@ -74,6 +77,9 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 */
 	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined;
 
+	/** Records a successful direct merge before the next GitHub refresh completes. */
+	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void;
+
 	/**
 	 * Re-reads the pull request from GitHub, bypassing cached fragments. Used
 	 * after a mutation so the advertised operations reflect the new state
@@ -85,6 +91,7 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 interface IWatch extends IDisposable {
 	readonly ref: PullRequestRef;
 	readonly subscription: PullRequestSubscription;
+	awaitingAuthoritativeRefresh: boolean;
 	status?: IAgentHostPullRequestStatus;
 }
 
@@ -118,7 +125,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopWatch(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionIsArchivedChanged) {
+			if (envelope.action.type === ActionType.SessionIsArchivedChanged || envelope.action.type === ActionType.SessionConfigChanged) {
 				this._sync(envelope.channel);
 			}
 		}));
@@ -152,6 +159,32 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	getPullRequestStatus(sessionKey: string): IAgentHostPullRequestStatus | undefined {
 		return this._watches.get(sessionKey)?.status;
+	}
+
+	markPullRequestMerged(sessionKey: string, pullRequestUrl: string): void {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const currentPullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0] ?? gitHubState?.pullRequestUrls?.[0];
+		const mergedPullRequest = parsePullRequestUrl(pullRequestUrl);
+		const currentPullRequest = currentPullRequestUrl ? parsePullRequestUrl(currentPullRequestUrl) : undefined;
+		if (!mergedPullRequest || !currentPullRequest || !sameParsedRef(mergedPullRequest, currentPullRequest)) {
+			return;
+		}
+
+		const watch = this._watches.get(sessionKey);
+		const status = watch?.status;
+		if (!watch || !status || !sameRefAndHost(watch.ref, mergedPullRequest)) {
+			this._publishPullRequestState(sessionKey, pullRequestUrl, 'merged');
+			this._onDidChangePullRequestStatus.fire(sessionKey);
+			return;
+		}
+		this._setStatus(sessionKey, watch, {
+			...status,
+			state: 'merged',
+			draft: false,
+			mergeReady: false,
+			viewerCanEnableAutoMerge: false,
+			autoMergeEnabled: false,
+		});
 	}
 
 	async refresh(sessionKey: string): Promise<void> {
@@ -228,7 +261,9 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 
 		const existing = this._watches.get(sessionKey);
-		if (existing && sameRef(existing.ref, parsed)) {
+		if (existing && sameRefAndHost(existing.ref, parsed)) {
+			existing.subscription.update(this._getSubscriptionOptions(sessionKey));
+			this._updateStatus(sessionKey, existing, existing.subscription.resource.snapshot.get());
 			return;
 		}
 
@@ -258,22 +293,65 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 		this._stopWatch(sessionKey, `replaced by ${describeRef(ref)}`);
 		const store = new DisposableStore();
-		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
-			priority: 'visible',
-			core: true,
-			mergeability: true,
-		}));
+		const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, this._getSubscriptionOptions(sessionKey)));
 		const watch: IWatch = {
 			ref,
 			subscription,
+			awaitingAuthoritativeRefresh: this._hasPersistedMergedState(sessionKey, ref),
 			dispose: () => store.dispose(),
 		};
 		this._watches.set(sessionKey, watch);
 		store.add(autorun(reader => {
 			const snapshot = subscription.resource.snapshot.read(reader);
+			if (watch.awaitingAuthoritativeRefresh) {
+				return;
+			}
 			this._updateStatus(sessionKey, watch, snapshot);
 		}));
+		if (watch.awaitingAuthoritativeRefresh) {
+			void this._refreshRecreatedMergedWatch(sessionKey, watch);
+		}
 		this._logService.debug(`[AgentHostPullRequestStatusService] Watching pull request: session=${sessionKey}, pr=${describeRef(ref)}`);
+	}
+
+	private _getSubscriptionOptions(sessionKey: string): PullRequestSubscriptionOptions {
+		const agentMergeEnabled = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values)?.enabled === true;
+		return {
+			priority: 'visible',
+			core: true,
+			mergeability: true,
+			...(agentMergeEnabled ? {
+				conversation: {
+					topLevelComments: true,
+					submittedReviews: true,
+					reviewThreads: true,
+					includeBodies: true,
+				},
+				checks: { required: true },
+			} : {}),
+		};
+	}
+
+	private _hasPersistedMergedState(sessionKey: string, ref: PullRequestRef): boolean {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
+		return gitHubState?.pullRequestState === 'merged'
+			&& persistedPullRequest !== undefined
+			&& sameRefAndHost(ref, persistedPullRequest);
+	}
+
+	private async _refreshRecreatedMergedWatch(sessionKey: string, watch: IWatch): Promise<void> {
+		try {
+			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+		} catch (error) {
+			this._logService.warn(`[AgentHostPullRequestStatusService] Failed to refresh recreated merged pull request watch: session=${sessionKey}, pr=${describeRef(watch.ref)}, error=${error}`);
+			return;
+		}
+		if (this._watches.get(sessionKey) !== watch) {
+			return;
+		}
+		watch.awaitingAuthoritativeRefresh = false;
+		this._updateStatus(sessionKey, watch, watch.subscription.resource.snapshot.get());
 	}
 
 	/**
@@ -304,7 +382,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 	}
 
 	private _updateStatus(sessionKey: string, watch: IWatch, snapshot: PullRequestSnapshot): void {
-		const status = toPullRequestStatus(snapshot);
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const persistedPullRequest = gitHubState?.pullRequestStateUrl ? parsePullRequestUrl(gitHubState.pullRequestStateUrl) : undefined;
+		const persistedMergedStateApplies = gitHubState?.pullRequestState === 'merged'
+			&& persistedPullRequest !== undefined
+			&& sameRefAndHost(watch.ref, persistedPullRequest);
+		if (snapshot.core.status !== 'ready' && (watch.status?.state === 'merged' || persistedMergedStateApplies)) {
+			return;
+		}
+		const agentMerge = readAgentMergeSessionState(this._stateManager.getSessionState(sessionKey)?.config?.values);
+		this._setStatus(sessionKey, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
+	}
+
+	private _setStatus(sessionKey: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
 		if (structuralEquals(watch.status, status)) {
 			return;
 		}
@@ -316,7 +406,21 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		// The single most useful line when a button bar shows the "wrong"
 		// action: it names every flag the operation provider branches on.
 		this._logService.debug(`[AgentHostPullRequestStatusService] Status changed: session=${sessionKey}, pr=${describeRef(watch.ref)}, from=[${describeStatus(previous)}], to=[${describeStatus(status)}]`);
+		if (status) {
+			this._publishPullRequestState(sessionKey, status.url, status.state);
+		}
 		this._onDidChangePullRequestStatus.fire(sessionKey);
+	}
+
+	private _publishPullRequestState(sessionKey: string, pullRequestUrl: string, state: IAgentHostPullRequestStatus['state']): void {
+		const gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		if (gitHubState?.pullRequestState === state && gitHubState.pullRequestStateUrl === pullRequestUrl) {
+			return;
+		}
+		void this._gitStateService.setSessionGitHubState(sessionKey, {
+			pullRequestState: state,
+			pullRequestStateUrl: pullRequestUrl,
+		}).catch(error => this._logService.warn(`[AgentHostPullRequestStatusService] Failed to publish pull request state: session=${sessionKey}, pr=${pullRequestUrl}, state=${state}, error=${error}`));
 	}
 
 	private _stopWatch(sessionKey: string, reason?: string): void {
@@ -345,6 +449,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
 		`state=${status.state}`,
 		`draft=${status.draft}`,
 		`mergeReady=${status.mergeReady}`,
+		`agentMergeReadyForReview=${status.agentMergeReadyForReview ?? 'unknown'}`,
 		`autoMergeEnabled=${status.autoMergeEnabled}`,
 		`canEnableAutoMerge=${status.viewerCanEnableAutoMerge}`,
 		`allowedMergeMethods=${status.allowedMergeMethods.join('|') || 'none'}`,
@@ -356,7 +461,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
  * while either fragment the button bar depends on is still unresolved. Holding
  * back on partial data keeps the client from flashing a wrong primary button.
  */
-function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullRequestStatus | undefined {
+function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string): IAgentHostPullRequestStatus | undefined {
 	const core = snapshot.core.value;
 	if (!core) {
 		return undefined;
@@ -383,6 +488,9 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullReque
 	if (!mergeability || snapshot.mergeability.headSha !== core.headSha) {
 		return undefined;
 	}
+	const agentMergeReadyForReview = agentMergeCommentWatermark !== undefined
+		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark)
+		: undefined;
 
 	return {
 		...(core.id ? { pullRequestId: core.id } : {}),
@@ -395,16 +503,27 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot): IAgentHostPullReque
 			&& mergeability.mergeable === 'MERGEABLE'
 			&& mergeability.viewerCanMerge
 			&& MERGEABLE_STATES.has(mergeability.mergeStateStatus?.toUpperCase() ?? 'CLEAN'),
+		...(agentMergeReadyForReview !== undefined ? { agentMergeReadyForReview } : {}),
 		viewerCanEnableAutoMerge: mergeability.viewerCanEnableAutoMerge,
 		autoMergeEnabled: mergeability.autoMergeEnabled,
 		allowedMergeMethods: mergeability.allowedMergeMethods,
 	};
 }
 
-function sameRef(left: PullRequestRef, right: { readonly owner: string; readonly repo: string; readonly number: number }): boolean {
+function sameRef(left: { readonly owner: string; readonly repo: string; readonly number: number }, right: { readonly owner: string; readonly repo: string; readonly number: number }): boolean {
 	return left.owner.toLowerCase() === right.owner.toLowerCase()
 		&& left.repo.toLowerCase() === right.repo.toLowerCase()
 		&& left.number === right.number;
+}
+
+type ParsedPullRequestUrl = NonNullable<ReturnType<typeof parsePullRequestUrl>>;
+
+function sameParsedRef(left: ParsedPullRequestUrl, right: ParsedPullRequestUrl): boolean {
+	return left.apiHost.toLowerCase() === right.apiHost.toLowerCase() && sameRef(left, right);
+}
+
+function sameRefAndHost(left: PullRequestRef, right: ParsedPullRequestUrl): boolean {
+	return left.host.toLowerCase() === right.apiHost.toLowerCase() && sameRef(left, right);
 }
 
 function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {

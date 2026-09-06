@@ -2111,6 +2111,7 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 			TelemetryData.createAndMarkAsIssued(),
 			'req-1',
 			'gh-req-1',
+			'svc-req-1',
 			'',
 			logService,
 			new NullTelemetryService(),

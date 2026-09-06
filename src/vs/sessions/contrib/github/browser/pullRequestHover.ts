@@ -17,7 +17,7 @@ export interface IPullRequestHoverData {
 	readonly repo: string;
 	readonly number: number;
 	readonly repositoryHref: string;
-	readonly pullRequest: IGitHubPullRequest | undefined;
+	readonly pullRequest: IGitHubPullRequest;
 	readonly onDidClickRepository?: () => void;
 }
 
@@ -39,21 +39,21 @@ export function createPullRequestHoverElement(data: IPullRequestHoverData): HTML
 		};
 	}
 
-	const date = formatPullRequestDate(data.pullRequest?.createdAt);
+	const date = formatPullRequestDate(data.pullRequest.createdAt);
 	if (date) {
 		append(header, $('span.sessions-pr-hover-date', undefined, localize('agentSessions.pullRequestHover.onDate', "on {0}", date)));
 	}
 
-	append(hoverElement, $('.sessions-pr-hover-title', undefined, data.pullRequest?.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number)));
+	append(hoverElement, $('.sessions-pr-hover-title', undefined, data.pullRequest.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number)));
 
-	const body = data.pullRequest?.body.trim() || localize('agentSessions.pullRequestHover.bodyFallback', "No description provided.");
+	const body = data.pullRequest.body.trim() || localize('agentSessions.pullRequestHover.bodyFallback', "No description provided.");
 	const description = append(hoverElement, $('.sessions-pr-hover-description'));
 	append(description, $('.sessions-pr-hover-description-content', undefined, body));
 
 	const branchRow = append(hoverElement, $('.sessions-pr-hover-branches'));
-	appendBranchPill(branchRow, data.pullRequest?.baseRef || localize('agentSessions.pullRequestHover.baseFallback', "target"));
+	appendBranchPill(branchRow, data.pullRequest.baseRef || localize('agentSessions.pullRequestHover.baseFallback', "target"));
 	append(branchRow, $('span.sessions-pr-hover-branch-arrow', undefined, '\u2190'));
-	appendBranchPill(branchRow, data.pullRequest?.headRef || localize('agentSessions.pullRequestHover.headFallback', "source"));
+	appendBranchPill(branchRow, data.pullRequest.headRef || localize('agentSessions.pullRequestHover.headFallback', "source"));
 
 	return hoverElement;
 }

@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import * as fs from 'fs/promises';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
-import { FileEditKind, MessageKind } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
 import type { IReviewedFileRecord } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -58,6 +59,9 @@ suite('SessionDatabase', () => {
 	 * Database instance, enabling reopen tests with :memory: databases.
 	 */
 	class TestableSessionDatabase extends SessionDatabase {
+		private nextMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
+		private nextMetadataAndTurnUsageMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
+
 		static override async open(path: string, migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations): Promise<TestableSessionDatabase> {
 			const inst = new TestableSessionDatabase(path, migrations);
 			await inst._ensureDb();
@@ -76,6 +80,62 @@ suite('SessionDatabase', () => {
 			await new Promise<void>((resolve, reject) => {
 				rawDb.exec(sql, err => err ? reject(err) : resolve());
 			});
+		}
+
+		async waitForRaw(): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>(resolve => rawDb.wait(() => resolve()));
+		}
+
+		async hasRawTurn(turnId: string): Promise<boolean> {
+			const rawDb = await this._ensureDb();
+			return new Promise<boolean>((resolve, reject) => {
+				rawDb.get('SELECT 1 AS present FROM turns WHERE id = ?', [turnId], (err: Error | null, row: Record<string, unknown> | undefined) => {
+					if (err) {
+						reject(err);
+						return;
+					}
+					resolve(row?.present === 1);
+				});
+			});
+		}
+
+		blockNextMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+			const gate = {
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			};
+			this.nextMutationGate = gate;
+			return gate;
+		}
+
+		protected override _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+			const gate = this.nextMutationGate;
+			this.nextMutationGate = undefined;
+			return super._queueMutation(gate ? async db => {
+				gate.started.complete();
+				await gate.release.p;
+				return operation(db);
+			} : operation);
+		}
+
+		blockNextMetadataAndTurnUsageMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+			const gate = {
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			};
+			this.nextMetadataAndTurnUsageMutationGate = gate;
+			return gate;
+		}
+
+		protected override _mutateMetadataAndTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
+			const gate = this.nextMetadataAndTurnUsageMutationGate;
+			this.nextMetadataAndTurnUsageMutationGate = undefined;
+			return super._mutateMetadataAndTurnUsage(gate ? async db => {
+				gate.started.complete();
+				await gate.release.p;
+				await operation(db);
+			} : operation);
 		}
 
 		/** Extract the raw db connection; this instance becomes inert. */
@@ -660,6 +720,209 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Workspace transitions -----------------------------------------
+
+	suite('workspace transitions', () => {
+
+		test('restores transitions by host or provider turn id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('host-turn', '{"content":"Now working in vscode"}');
+			await db.setTurnEventId('host-turn', 'provider-turn');
+
+			assert.deepStrictEqual({
+				transitions: [...(await db.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [
+					['host-turn', '{"content":"Now working in vscode"}'],
+					['provider-turn', '{"content":"Now working in vscode"}'],
+				],
+				hasTransitions: 'true',
+			});
+		});
+
+		test('transition reads wait for earlier turn event ID mappings', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.setTurnWorkspaceTransition('host-turn', '{"content":"Now working in vscode"}');
+			const gate = testDatabase.blockNextMutation();
+			const eventIdWrite = testDatabase.setTurnEventId('host-turn', 'provider-turn');
+			await gate.started.p;
+
+			const transitionsRead = testDatabase.getTurnWorkspaceTransitions();
+			let readSettled = false;
+			void transitionsRead.then(
+				() => readSettled = true,
+				() => readSettled = true,
+			);
+			await new Promise<void>(resolve => setImmediate(resolve));
+			await testDatabase.waitForRaw();
+			const readSettledBeforeWrite = readSettled;
+			gate.release.complete();
+			const transitions = await transitionsRead;
+			await eventIdWrite;
+
+			assert.deepStrictEqual({
+				readSettledBeforeWrite,
+				transitions: [...transitions.entries()],
+			}, {
+				readSettledBeforeWrite: false,
+				transitions: [
+					['host-turn', '{"content":"Now working in vscode"}'],
+					['provider-turn', '{"content":"Now working in vscode"}'],
+				],
+			});
+		});
+
+		test('truncation and remapping bound transitions to their owning turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('old-1', '{"content":"Now working in one"}');
+			await db.setTurnWorkspaceTransition('old-2', '{"content":"Now working in two"}');
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual([...(await db.getTurnWorkspaceTransitions()).entries()], [
+				['new-1', '{"content":"Now working in one"}'],
+			]);
+		});
+
+		test('migration v11 creates the workspace transition table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('turn_workspace_transition'));
+		});
+
+		test('migration v12 backfills the transition history marker', async () => {
+			const v11Migrations = sessionDatabaseMigrations.filter(migration => migration.version <= 11);
+			const v11Database = await TestableSessionDatabase.open(':memory:', v11Migrations);
+			await v11Database.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+			await v11Database.deleteMetadata([AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]);
+			const rawDb = await v11Database.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDb));
+
+			assert.strictEqual(await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY), 'true');
+		});
+
+		test('deleting the last transition clears the history marker', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+
+			await db.deleteTurn('turn-1');
+
+			assert.deepStrictEqual({
+				transitions: [...(await db.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [],
+				hasTransitions: undefined,
+			});
+		});
+
+		test('workspace conversion metadata rolls back when transition persistence fails', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_insert
+				BEFORE INSERT ON turn_workspace_transition
+				BEGIN
+					SELECT RAISE(ABORT, 'transition write failed');
+				END`);
+
+			await assert.rejects(() => testDatabase.setWorkspaceConversion(
+				'turn-1',
+				'{"content":"Now working in vscode"}',
+				{ [AH_META_WORKSPACELESS_DB_KEY]: 'false' },
+			), /transition write failed/);
+
+			assert.deepStrictEqual({
+				transitions: [...(await testDatabase.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+				workspaceless: await testDatabase.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				transitions: [],
+				hasTransitions: undefined,
+				workspaceless: undefined,
+			});
+		});
+
+		test('failed workspace conversion excludes concurrent unrelated mutations', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_insert
+				BEFORE INSERT ON turn_workspace_transition
+				BEGIN
+					SELECT RAISE(ABORT, 'transition write failed');
+				END`);
+			const gate = testDatabase.blockNextMetadataAndTurnUsageMutation();
+			const conversionFailure = assert.rejects(() => testDatabase.setWorkspaceConversion(
+				'turn-1',
+				'{"content":"Now working in vscode"}',
+				{ [AH_META_WORKSPACELESS_DB_KEY]: 'false' },
+			), /transition write failed/);
+			await gate.started.p;
+
+			const unrelatedTurnWrite = testDatabase.createTurn('unrelated-turn');
+			const unrelatedMetadataWrite = testDatabase.setMetadata('unrelated', 'persists');
+			let unrelatedTurnSettled = false;
+			let unrelatedMetadataSettled = false;
+			void unrelatedTurnWrite.then(
+				() => unrelatedTurnSettled = true,
+				() => unrelatedTurnSettled = true,
+			);
+			void unrelatedMetadataWrite.then(
+				() => unrelatedMetadataSettled = true,
+				() => unrelatedMetadataSettled = true,
+			);
+			await new Promise<void>(resolve => setImmediate(resolve));
+			await testDatabase.waitForRaw();
+			const unrelatedTurnInsideConversion = await testDatabase.hasRawTurn('unrelated-turn');
+			const unrelatedInsideConversion = await testDatabase.getMetadata('unrelated');
+			const unrelatedTurnSettledInsideConversion = unrelatedTurnSettled;
+			const unrelatedMetadataSettledInsideConversion = unrelatedMetadataSettled;
+			gate.release.complete();
+			await Promise.all([conversionFailure, unrelatedTurnWrite, unrelatedMetadataWrite]);
+
+			assert.deepStrictEqual({
+				unrelatedTurnSettledInsideConversion,
+				unrelatedMetadataSettledInsideConversion,
+				unrelatedTurnInsideConversion,
+				unrelatedInsideConversion,
+				unrelatedTurn: await testDatabase.hasRawTurn('unrelated-turn'),
+				unrelated: await testDatabase.getMetadata('unrelated'),
+				workspaceless: await testDatabase.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				unrelatedTurnSettledInsideConversion: false,
+				unrelatedMetadataSettledInsideConversion: false,
+				unrelatedTurnInsideConversion: false,
+				unrelatedInsideConversion: undefined,
+				unrelatedTurn: true,
+				unrelated: 'persists',
+				workspaceless: undefined,
+				hasTransitions: undefined,
+			});
+		});
+
+		test('marker cleanup failure rolls back turn deletion', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_marker_delete
+				BEFORE DELETE ON session_metadata
+				WHEN OLD.key = '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}'
+				BEGIN
+					SELECT RAISE(ABORT, 'marker cleanup failed');
+				END`);
+
+			await assert.rejects(() => testDatabase.deleteTurn('turn-1'), /marker cleanup failed/);
+
+			assert.deepStrictEqual({
+				transitions: [...(await testDatabase.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [['turn-1', '{"content":"Now working in vscode"}']],
+				hasTransitions: 'true',
+			});
+		});
+	});
+
 	// ---- Turn checkpoint refs -------------------------------------------
 
 	suite('turn checkpoint refs', () => {
@@ -761,6 +1024,27 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'First');
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('deleteMetadata removes only the requested keys', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				customTitle: 'Title',
+				customTitleSource: 'user',
+				unrelated: 'preserved',
+			});
+
+			await db.deleteMetadata(['customTitle', 'customTitleSource']);
+
+			assert.deepStrictEqual(await db.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+				unrelated: true,
+			}), {
+				customTitle: undefined,
+				customTitleSource: undefined,
+				unrelated: 'preserved',
+			});
 		});
 
 		test('setMetadataValues rolls back every key when one write fails', async () => {

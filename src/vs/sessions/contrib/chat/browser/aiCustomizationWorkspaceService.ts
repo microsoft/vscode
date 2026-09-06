@@ -19,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -34,6 +35,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -50,6 +52,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
 
@@ -65,6 +68,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return undefined;
 			}
 			return root;
+		});
+
+		this.activeProjectLabel = derived(reader => {
+			const override = this._overrideRoot.read(reader);
+			if (override) {
+				return this.labelService.getUriBasenameLabel(override);
+			}
+			const session = this.sessionsService.activeSession.read(reader);
+			return session?.workspace.read(reader)?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {

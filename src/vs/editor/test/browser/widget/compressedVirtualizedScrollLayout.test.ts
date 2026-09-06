@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -507,13 +508,13 @@ suite('CompressedVirtualizedScrollLayout', () => {
 		});
 	});
 
-	test('uses the viewport bottom only while actively scrolling up', () => {
+	test('anchors geometry edits based on recent scroll direction', async () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
 
 		const itemA = new TestCompressedScrollItem(500);
-		const itemB = new TestCompressedScrollItem(500);
+		const itemB = new TestCompressedScrollItem(1000);
 		const view = disposables.add(new CompressedVirtualizedScrollView(
 			container,
 			constObservable(new Dimension(800, 400)),
@@ -522,32 +523,66 @@ suite('CompressedVirtualizedScrollLayout', () => {
 		));
 		container.appendChild(view.domNode);
 		view.setScrollPosition({ scrollTop: 600 });
-		view.setScrollPosition({ scrollTop: 500 }, true);
+		itemA.onNextRender = () => itemA.setSize(40);
+		view.setScrollPosition({ scrollTop: 499 });
 
-		itemA.setSize(700);
-		const whileScrolling = view.layout.get();
-		itemB.setSize(40);
-		const afterScrolling = view.layout.get();
+		const afterShrinkWhileScrollingUp = view.layout.get();
+		const afterShrinkEdit = view.lastGeometryEdit.get();
+		itemA.setSize(500);
+		const afterRestoreWhileScrollingUp = view.layout.get();
+		const afterRestoreEdit = view.lastGeometryEdit.get();
+		await timeout(60);
+		view.setScrollPosition({ scrollTop: 498 });
+		await timeout(60);
+		itemA.setSize(600);
+		const afterGrowthWithinRetentionPeriod = view.layout.get();
+		const afterGrowthWithinRetentionPeriodEdit = view.lastGeometryEdit.get();
+		await timeout(50);
+		itemB.setSize(900);
+		const afterChangeAfterScrollingEnded = view.layout.get();
+		const afterChangeAfterScrollingEndedEdit = view.lastGeometryEdit.get();
 
 		assert.deepStrictEqual({
-			whileScrolling: {
-				scrollTop: whileScrolling.scrollTop,
-				viewportBottom: whileScrolling.contentViewport.endExclusive,
-				itemBOffsetAtViewportBottom: whileScrolling.contentViewport.endExclusive - whileScrolling.items[1].contentRange.start,
+			afterShrinkWhileScrollingUp: {
+				scrollTop: afterShrinkWhileScrollingUp.scrollTop,
+				itemBOffsetAtViewportBottom: afterShrinkWhileScrollingUp.contentViewport.endExclusive - afterShrinkWhileScrollingUp.items[1].contentRange.start,
+				anchorKind: afterShrinkEdit?.anchorKind,
 			},
-			afterScrolling: {
-				scrollTop: afterScrolling.scrollTop,
-				itemBOffsetAtViewportTop: afterScrolling.contentViewport.start - afterScrolling.items[1].contentRange.start,
+			afterRestoreWhileScrollingUp: {
+				scrollTop: afterRestoreWhileScrollingUp.scrollTop,
+				itemBOffsetAtViewportBottom: afterRestoreWhileScrollingUp.contentViewport.endExclusive - afterRestoreWhileScrollingUp.items[1].contentRange.start,
+				anchorKind: afterRestoreEdit?.anchorKind,
+			},
+			afterGrowthWithinRetentionPeriod: {
+				scrollTop: afterGrowthWithinRetentionPeriod.scrollTop,
+				itemBOffsetAtViewportBottom: afterGrowthWithinRetentionPeriod.contentViewport.endExclusive - afterGrowthWithinRetentionPeriod.items[1].contentRange.start,
+				anchorKind: afterGrowthWithinRetentionPeriodEdit?.anchorKind,
+			},
+			afterChangeAfterScrollingEnded: {
+				scrollTop: afterChangeAfterScrollingEnded.scrollTop,
+				itemBOffsetAtViewportTop: afterChangeAfterScrollingEnded.contentViewport.start - afterChangeAfterScrollingEnded.items[1].contentRange.start,
+				anchorKind: afterChangeAfterScrollingEndedEdit?.anchorKind,
 			},
 		}, {
-			whileScrolling: {
-				scrollTop: 800,
-				viewportBottom: 1200,
-				itemBOffsetAtViewportBottom: 500,
+			afterShrinkWhileScrollingUp: {
+				scrollTop: 39,
+				itemBOffsetAtViewportBottom: 399,
+				anchorKind: 'viewportBottom',
 			},
-			afterScrolling: {
-				scrollTop: 700,
-				itemBOffsetAtViewportTop: 0,
+			afterRestoreWhileScrollingUp: {
+				scrollTop: 499,
+				itemBOffsetAtViewportBottom: 399,
+				anchorKind: 'viewportBottom',
+			},
+			afterGrowthWithinRetentionPeriod: {
+				scrollTop: 598,
+				itemBOffsetAtViewportBottom: 398,
+				anchorKind: 'viewportBottom',
+			},
+			afterChangeAfterScrollingEnded: {
+				scrollTop: 598,
+				itemBOffsetAtViewportTop: -2,
+				anchorKind: 'viewportTop',
 			},
 		});
 	});
@@ -557,6 +592,7 @@ class TestCompressedScrollItem implements ICompressedVirtualizedScrollItem {
 	readonly size;
 	readonly maxScroll: IObservable<{ readonly maxScroll: number }> = constObservable({ maxScroll: 0 });
 	renderContext: ICompressedVirtualizedScrollItemContext | undefined;
+	onNextRender: (() => void) | undefined;
 
 	constructor(contentHeight: number) {
 		this.size = observableValue(this, contentHeight);
@@ -572,6 +608,9 @@ class TestCompressedScrollItem implements ICompressedVirtualizedScrollItem {
 
 	render(_renderedRange: OffsetRange, _scrollOffset: number, _width: number, _renderedViewport: OffsetRange, context: ICompressedVirtualizedScrollItemContext): void {
 		this.renderContext = context;
+		const onNextRender = this.onNextRender;
+		this.onNextRender = undefined;
+		onNextRender?.();
 	}
 
 	hide(): void { }

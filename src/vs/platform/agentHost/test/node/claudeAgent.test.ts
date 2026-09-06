@@ -888,6 +888,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
+	updateSettings(): never { throw new Error('FakeQuery: updateSettings not modeled'); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
 	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
@@ -1304,8 +1305,17 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0 },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+		);
+	});
+
+	test('setWorkingDirectory rejects because Claude does not advertise workspace conversion', async () => {
+		const { agent } = createTestContext(disposables);
+
+		await assert.rejects(
+			() => agent.setWorkingDirectory(URI.parse('claude:/chat'), URI.parse('claude:/session'), URI.file('/workspace')),
+			/Claude does not support changing the working directory/,
 		);
 	});
 
@@ -5218,18 +5228,10 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('neither restore nor cold discovery pulls the SDK down', async () => {
-		// Regression: when a materialized Claude session is restored on
-		// startup (the renderer subscribes to the last-active session), the
-		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
-		// and `chats.getMessages`, both of which dynamically import the SDK.
-		// Before the fix that eagerly triggered a cold SDK download (with no
-		// progress interest registered, so no notification) purely from
-		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Discovery used to be exempt and fetch in the
-		// background; it no longer is, since the download is the user's call.
+	test('restoring chat history downloads a cold SDK while passive metadata and discovery stay cold', async () => {
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
+		sdk.ensureAvailableGate = Promise.resolve().then(() => { sdk.canLoadWithoutDownloadResult = true; });
 		sdk.sessionList = [
 			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
 		];
@@ -5250,29 +5252,31 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 		const discoveredChats: number[] = [];
 		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
+		void agent.startChatDiscovery();
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
-		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const passiveMetadata = await agent.getChatMetadata(chat, chatContext(chat));
+		const restoredMetadata = await agent.getChatMetadata(chat, chatContext(chat), undefined, { activation: 'restore' });
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			metadata,
-			messages,
-			// Nothing reachable from restore or discovery may touch the SDK
-			// while it is absent, whether to read it or to fetch it.
+			passiveMetadata,
+			restoredSummary: restoredMetadata?.summary,
+			messageCount: messages.length,
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
 			availabilityRequests: sdk.ensureAvailableCalls,
 			discoveredChats,
 		}, {
-			metadata: undefined,
-			messages: [],
-			getSessionInfoCalls: [],
-			getSessionMessagesCalls: [],
-			availabilityRequests: 0,
+			passiveMetadata: undefined,
+			restoredSummary: 'Materialized Session',
+			messageCount: 2,
+			getSessionInfoCalls: ['materialized'],
+			getSessionMessagesCalls: [{ sessionId: 'materialized', options: { includeSystemMessages: true } }],
+			availabilityRequests: 1,
 			discoveredChats: [],
 		});
 	});
@@ -6228,9 +6232,9 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		const ctx = createTestContext(disposables);
 		ctx.sdk.canLoadWithoutDownloadResult = false;
 		ctx.sdk.sessionList = [{ sessionId: 'from-claude-code', summary: 'An existing chat', lastModified: 1000, createdAt: 900 }];
-		// Subscribing is what starts discovery.
 		const discovered: number[] = [];
 		disposables.add(ctx.agent.onDidDiscoverChats(chats => discovered.push(chats.length)));
+		void ctx.agent.startChatDiscovery();
 		await settle();
 		const cold = {
 			discovered: [...discovered],
@@ -6878,6 +6882,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			name: 'viewUnreviewedComments',
 			description: 'View unreviewed comments',
 			inputSchema: { type: 'object', properties: {} },
+		}, {
+			name: 'set_workspace',
+			description: 'Set workspace',
+			inputSchema: { type: 'object', properties: {} },
 		}];
 		readonly toolNames = this.definitions.map(definition => definition.name);
 		confirmationRequiredForSession = false;
@@ -6991,6 +6999,40 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: {} },
 			pendingConfirmations: 0,
+		});
+	});
+
+	test('set_workspace uses a plain-language confirmation without raw input', async () => {
+		const host = new FakeServerToolHost();
+		host.confirmationRequiredForSession = true;
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { workspaceFolder: '/workspace/app', isolation: true };
+		const resultPromise = canUseTool('mcp__host__set_workspace', input, makeOptions('tu_set_workspace'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_set_workspace', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			confirmation: confirmation?.kind === 'pending_confirmation' ? {
+				displayName: confirmation.state.displayName,
+				invocationMessage: confirmation.state.invocationMessage,
+				toolInput: confirmation.state.toolInput,
+				confirmationTitle: confirmation.state.confirmationTitle,
+				permissionKind: confirmation.permissionKind,
+			} : undefined,
+		}, {
+			result: { behavior: 'allow', updatedInput: input },
+			confirmation: {
+				displayName: 'Set Workspace',
+				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				toolInput: undefined,
+				confirmationTitle: 'Continue in app?',
+				permissionKind: 'mcp',
+			},
 		});
 	});
 
@@ -7760,14 +7802,14 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
+	test('Options carries enableFileCheckpointing and host hooks', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
 		// must be on (a startup option, not user-bypassable). File-edit
 		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop; the only SDK hook
-		// adds transient host context to a submitted prompt.
+		// `_observeUserMessage` in the message-pump loop; SDK hooks add
+		// transient host context and enforce Agent Merge tool restrictions.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
@@ -7778,7 +7820,7 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hookNames: ['UserPromptSubmit'],
+			hookNames: ['PreToolUse', 'UserPromptSubmit'],
 			userPromptSubmitHooks: 1,
 		});
 	});

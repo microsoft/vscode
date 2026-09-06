@@ -42,6 +42,10 @@ export function getModelPickerControlModels(
 		for (const [id, entry] of Object.entries(tier)) {
 			if (entry.featured && availableModelIds.has(id)) {
 				controlModels[id] = { ...entry, exists: true };
+			} else if (entry.demoted && !controlModels[id]) {
+				// A demotion holds whoever is signed in, so it is not filtered away with
+				// the curated list the way a recommendation is.
+				controlModels[id] = { ...entry, exists: false };
 			}
 		}
 	}

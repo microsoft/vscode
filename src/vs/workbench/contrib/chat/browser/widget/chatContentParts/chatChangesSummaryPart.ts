@@ -33,6 +33,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { openChatFileChanges, toChatFileChangeEditorResource } from '../../editorChatResponseFileChangesService.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
@@ -80,7 +81,7 @@ export function renderChangesSummaryFileList(
 
 		const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
 		const openInDiffEditorByDefault = configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
-		const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+		const openInDiffEditor = diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
 
 		if (!openInDiffEditor) {
 			const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
@@ -92,9 +93,14 @@ export function renderChangesSummaryFileList(
 			// fall back to the diff editor.
 		}
 
+		const editorResource = toChatFileChangeEditorResource(diff);
+		if (!editorResource.original.resource || !editorResource.modified.resource) {
+			openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff]);
+			return;
+		}
 		editorService.openEditor({
-			original: { resource: diff.originalURI },
-			modified: { resource: diff.modifiedURI },
+			original: editorResource.original,
+			modified: editorResource.modified,
 			options: { preserveFocus: true }
 		});
 	}));

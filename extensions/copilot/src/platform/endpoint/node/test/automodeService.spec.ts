@@ -870,6 +870,32 @@ describe('AutomodeService', () => {
 
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'efficiency' }]);
 		});
+
+		// A picker value stored before the rename can be restored unfiltered while its model's
+		// schema is still loading, so it must upgrade rather than silently fall back.
+		it('maps a retired tier name in a persisted picker value to its current one', async () => {
+			enableTiers();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto(autoResponse('gpt-4o'));
+
+			automodeService = createService();
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt: 'panel turn',
+				sessionId: 'session-persisted-retired',
+				modelConfiguration: { tier: 'max' },
+			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+			// `balanced` upgrades to the current default, which reads as "never picked", so the inline
+			// pin applies instead of being treated as an explicit selection.
+			await automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Editor,
+				prompt: 'inline turn',
+				sessionId: 'session-persisted-retired-default',
+				modelConfiguration: { tier: 'balanced' },
+			} as unknown as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect(autoRequestBodies().map(b => b.tier)).toEqual(['intelligence', 'fast']);
+		});
 	});
 
 	describe('session cache', () => {

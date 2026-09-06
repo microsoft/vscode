@@ -25,6 +25,8 @@ import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
+import { defineAutomationsTests } from './automationsSuite.js';
+import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -144,6 +146,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			}
 		});
 
+		defineAutomationsTests(context);
+
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
 			defineHostFeaturesTests(context);
@@ -152,6 +156,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientHostedFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
+			defineDetachedWorktreeTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

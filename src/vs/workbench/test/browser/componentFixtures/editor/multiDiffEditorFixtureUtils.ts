@@ -10,7 +10,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
+import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -128,7 +129,7 @@ export function createMultiDiffEditorFixtureWidget(instantiationService: IInstan
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-		diffEditorOptions,
+		{ variant: MultiDiffEditorVariant.Compact, diffEditorOptions },
 	);
 }
 
@@ -140,8 +141,17 @@ export function createMultiDiffEditorFixtureDocuments(instantiationService: Test
 	const original3 = textModels.add(createTextModel(instantiationService, originalCode3, URI.parse('inmemory://original/server.ts'), 'typescript'));
 	const modified3 = textModels.add(createTextModel(instantiationService, modifiedCode3, URI.parse('inmemory://modified/server.ts'), 'typescript'));
 	return {
-		doc1: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original1, modified: modified1 }, { dispose() { } }),
-		doc2: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original2, modified: modified2 }, { dispose() { } }),
-		doc3: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original3, modified: modified3 }, { dispose() { } }),
+		doc1: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original1.uri, original1),
+			modified: new DiffItemSource(modified1.uri, modified1),
+		}, { dispose() { } }),
+		doc2: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original2.uri, original2),
+			modified: new DiffItemSource(modified2.uri, modified2),
+		}, { dispose() { } }),
+		doc3: RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(original3.uri, original3),
+			modified: new DiffItemSource(modified3.uri, modified3),
+		}, { dispose() { } }),
 	};
 }

@@ -9,6 +9,7 @@ import { autorun, observableValue } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDataChannelService, ILinkPresentation, ILinkPresentationProvider, ILinkPresentationService, ILinkPresentationWatcher, LinkPresentationKind, parseLinkPresentation } from '../../../platform/dataChannel/common/dataChannel.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostDataChannelsShape, MainContext, MainThreadDataChannelsShape } from '../common/extHost.protocol.js';
 
@@ -25,6 +26,7 @@ export class MainThreadDataChannels extends Disposable implements MainThreadData
 		extHostContext: IExtHostContext,
 		@IDataChannelService private readonly _dataChannelService: IDataChannelService,
 		@ILinkPresentationService private readonly _linkPresentationService: ILinkPresentationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDataChannels);
@@ -47,6 +49,7 @@ export class MainThreadDataChannels extends Disposable implements MainThreadData
 	$createLinkPresentationWatcher(handle: number, providerId: string, kind: LinkPresentationKind, resource: UriComponents): void {
 		const watcher = this._linkPresentationService.createLinkPresentationWatcher(providerId, URI.revive(resource));
 		if (!watcher) {
+			this._logService.warn(`[MainThreadDataChannels] Link presentation provider '${providerId}' does not accept '${URI.revive(resource).toString(true)}'`);
 			this._proxy.$acceptLinkPresentation(handle, {
 				kind,
 				status: { kind: 'error', label: localize('linkPresentation.unavailable', "Not available") },

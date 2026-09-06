@@ -4,19 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
-import { getSessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
+import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
 suite('Sessions - Account Menu', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('labels the signed-out Copilot account action', () => {
 		const signIn = MenuRegistry.getMenuItems(Menus.AccountMenu)
@@ -96,6 +105,68 @@ suite('Sessions - Account Menu', () => {
 				{ id: ChatPetAchievementIds.UsefulOutputCopied, unlocked: false },
 				{ id: ChatPetAchievementIds.AutopilotEnabled, unlocked: false },
 			],
+		});
+	});
+
+	test('selects an unlocked pet hat from its profile badge', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const selectedAccessory = observableValue<ChatPetAccessoryId | undefined>(store, undefined);
+		const variant = observableValue<ChatPetVariant>(store, 'stable');
+		let selected: ChatPetAccessoryId | undefined;
+		const chatPetService = new class extends mock<IChatPetService>() {
+			override readonly enabled = constObservable(true);
+			override readonly unlockedAchievements = constObservable<readonly ChatPetAchievementId[]>([ChatPetAchievementIds.FirstChatMessage]);
+			override readonly selectedAccessory = selectedAccessory;
+			override readonly variant = variant;
+
+			override setAccessory(accessory: ChatPetAccessoryId | undefined): void {
+				selected = accessory;
+				selectedAccessory.set(accessory, undefined);
+			}
+		}();
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupManagedHover(): IManagedHover {
+				return {
+					dispose() { },
+					show() { },
+					hide() { },
+					update() { },
+				};
+			}
+		}();
+		store.add(new SessionsChatPetAchievementBadges(
+			parent,
+			() => { },
+			chatPetService,
+			new TestThemeService(),
+			hoverService,
+			store.add(new NullLogService()),
+		));
+
+		const cowboyHatBadge = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.CowboyHat}"]`);
+		assert.ok(cowboyHatBadge);
+		cowboyHatBadge.click();
+
+		const selectedBadge = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.CowboyHat}"]`);
+		const viewAchievements = parent.querySelector<HTMLElement>('.sessions-chat-pet-achievement-badges-actions .monaco-button');
+		assert.ok(viewAchievements);
+		viewAchievements.focus();
+		variant.set('insiders', undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			selected,
+			unlockedButtonCount: parent.querySelectorAll('.sessions-chat-pet-achievement-badge.monaco-button').length,
+			pressed: selectedBadge?.getAttribute('aria-pressed'),
+			label: selectedBadge?.getAttribute('aria-label'),
+			focusedAction: mainWindow.document.activeElement?.getAttribute('aria-label'),
+		}, {
+			selected: ChatPetAccessoryIds.CowboyHat,
+			unlockedButtonCount: 1,
+			pressed: 'true',
+			label: 'Welcome to the Wild West achievement badge: Cowboy Hat, wearing',
+			focusedAction: 'View Pet Achievements',
 		});
 	});
 });

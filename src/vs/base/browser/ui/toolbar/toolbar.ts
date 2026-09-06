@@ -523,6 +523,13 @@ export class ToolBar extends Disposable {
 
 			// Hide actions from the right
 			while (minimumWidth > containerWidth && this.actionBar.length() > 0) {
+				if (
+					this.options.responsiveBehavior?.minItems !== undefined
+					&& getVisiblePrimaryActionIndexes().length <= this.options.responsiveBehavior.minItems
+				) {
+					break;
+				}
+
 				const index = getVisiblePrimaryActionIndexes().at(-1);
 				if (index === undefined) {
 					break;

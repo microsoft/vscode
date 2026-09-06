@@ -415,24 +415,24 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the editor title bar', () => {
-		const titleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+	test('Run Code Review is contributed to the editor header layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(titleItem, 'expected Run Code Review in the editor title bar');
-		const when = titleItem.when?.serialize() ?? '';
+		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
 		enablementContext.setValue(SessionHasChangesContext.key, true);
-		const enabledFromSessionChanges = titleItem.command.precondition?.evaluate(enablementContext);
+		const enabledFromSessionChanges = headerItem.command.precondition?.evaluate(enablementContext);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
-			group: titleItem.group,
-			order: titleItem.order,
+			group: headerItem.group,
+			order: headerItem.order,
 			enabledFromSessionChanges,
-			enabledFromChatChanges: titleItem.command.precondition?.evaluate(enablementContext),
+			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),

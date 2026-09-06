@@ -10,13 +10,15 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import type { IGitHubService } from '../../../github/common/githubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { SessionStatus, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 
@@ -77,24 +79,59 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 	} as PullRequestSnapshot;
 }
 
+function agentMergeReadySnapshot(ref: PullRequestRef): PullRequestSnapshot {
+	const result = snapshot(ref, { draft: true });
+	const ready = { status: 'ready', complete: true } as const;
+	return {
+		...result,
+		topLevelComments: { ...ready, value: [] },
+		submittedReviews: { ...ready, value: [] },
+		reviewThreads: { ...ready, headSha: 'sha1', value: [] },
+		checks: {
+			...ready,
+			headSha: 'sha1',
+			value: {
+				headSha: 'sha1',
+				requirednessComplete: true,
+				expectedSuites: [],
+				expectedSuitesComplete: true,
+				checks: [],
+			},
+		},
+	};
+}
+
 /** Records subscription lifecycle so tests can assert nothing is leaked. */
 class TestPullRequestResources implements IPullRequestResources {
 
 	readonly subscribed: PullRequestRef[] = [];
+	readonly subscriptionOptions: PullRequestSubscriptionOptions[] = [];
 	disposedCount = 0;
 	private _snapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', undefined);
+	private _nextSubscriptionSnapshot: PullRequestSnapshot | undefined;
+	refreshHandler: (() => Promise<void>) | undefined;
 
 	get liveSubscriptions(): number { return this.subscribed.length - this.disposedCount; }
 
-	subscribePullRequest(ref: PullRequestRef): PullRequestSubscription {
+	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		this.subscribed.push(ref);
-		this._snapshot.set(snapshot(ref), undefined);
+		this.subscriptionOptions.push(options);
+		this._snapshot.set(this._nextSubscriptionSnapshot ?? snapshot(ref), undefined);
+		this._nextSubscriptionSnapshot = undefined;
 		return {
 			resource: { ref, snapshot: this._snapshot as never },
-			update: () => { },
-			refresh: async () => { },
+			update: next => this.subscriptionOptions.push(next),
+			refresh: async () => this.refreshHandler?.(),
 			dispose: () => { this.disposedCount++; },
 		} as PullRequestSubscription;
+	}
+
+	setSnapshot(value: PullRequestSnapshot): void {
+		this._snapshot.set(value, undefined);
+	}
+
+	setNextSubscriptionSnapshot(value: PullRequestSnapshot): void {
+		this._nextSubscriptionSnapshot = value;
 	}
 
 	invalidatePullRequest(): void { }
@@ -180,6 +217,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const subscriptions = disposables.add(new TestChangesetSubscriptions());
 		const credentials = disposables.add(new TestCredentials());
 		const resources = new TestPullRequestResources();
+		const gitHubStates: ISessionGitHubState[] = [];
 		const gitHubService = new class extends mock<IGitHubService>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
@@ -187,6 +225,14 @@ suite('AgentHostPullRequestStatusService', () => {
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
+				gitHubStates.push(state);
+				const currentMeta = stateManager.getSessionState(sessionKey)?._meta;
+				stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, {
+					...readSessionGitHubState(currentMeta),
+					...state,
+				}));
+			}
 		}();
 		const service = disposables.add(new AgentHostPullRequestStatusService(
 			stateManager,
@@ -205,7 +251,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, session };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, session };
 	}
 
 	test('watches only while a client is subscribed to the session changes', async () => {
@@ -229,6 +275,177 @@ suite('AgentHostPullRequestStatusService', () => {
 			afterUnsubscribe: 0,
 			statusAfterUnsubscribe: undefined,
 		});
+	});
+
+	test('tracks review readiness in the host only while Agent Merge is enabled', async () => {
+		const { service, stateManager, subscriptions, resources, session } = createHarness();
+		stateManager.setSessionConfig(session, {
+			schema: { type: 'object', properties: {} },
+			values: {
+				[SessionConfigKey.AgentMerge]: { enabled: true },
+				[SessionConfigKey.AgentMergeController]: {
+					target: {
+						branchName: 'feature',
+						pullRequestUrl,
+						enabledAt: new Date(1).toISOString(),
+						commentWatermark: '',
+					},
+				},
+			},
+		});
+		resources.setNextSubscriptionSnapshot(agentMergeReadySnapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 }));
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+		const enabled = {
+			options: resources.subscriptionOptions.at(-1),
+			readyForReview: service.getPullRequestStatus(session)?.agentMergeReadyForReview,
+		};
+
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: false } },
+			replace: true,
+		});
+		await pump();
+
+		assert.deepStrictEqual({
+			enabled,
+			disabled: {
+				options: resources.subscriptionOptions.at(-1),
+				readyForReview: service.getPullRequestStatus(session)?.agentMergeReadyForReview,
+			},
+		}, {
+			enabled: {
+				options: {
+					priority: 'visible',
+					core: true,
+					mergeability: true,
+					conversation: {
+						topLevelComments: true,
+						submittedReviews: true,
+						reviewThreads: true,
+						includeBodies: true,
+					},
+					checks: { required: true },
+				},
+				readyForReview: true,
+			},
+			disabled: {
+				options: {
+					priority: 'visible',
+					core: true,
+					mergeability: true,
+				},
+				readyForReview: undefined,
+			},
+		});
+	});
+
+	test('optimistically records a successful merge in host pull request state', async () => {
+		const { service, subscriptions, resources, gitHubStates, session } = createHarness();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+
+		service.markPullRequestMerged(session, pullRequestUrl);
+
+		assert.deepStrictEqual({
+			status: service.getPullRequestStatus(session)?.state,
+			gitHubState: gitHubStates.at(-1),
+		}, {
+			status: 'merged',
+			gitHubState: {
+				pullRequestState: 'merged',
+				pullRequestStateUrl: pullRequestUrl,
+			},
+		});
+	});
+
+	test('records a successful merge after its pull request watch was disposed', async () => {
+		const { service, gitHubStates, session } = createHarness();
+
+		service.markPullRequestMerged(session, pullRequestUrl);
+
+		assert.deepStrictEqual({
+			status: service.getPullRequestStatus(session),
+			gitHubState: gitHubStates.at(-1),
+		}, {
+			status: undefined,
+			gitHubState: {
+				pullRequestState: 'merged',
+				pullRequestStateUrl: pullRequestUrl,
+			},
+		});
+	});
+
+	test('does not downgrade a merged pull request from a retained loading snapshot', async () => {
+		const { service, subscriptions, resources, session } = createHarness();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+		service.markPullRequestMerged(session, pullRequestUrl);
+
+		const retainedOpenSnapshot = snapshot(resources.subscribed[0]);
+		resources.setSnapshot({
+			...retainedOpenSnapshot,
+			core: { ...retainedOpenSnapshot.core, status: 'loading', complete: false },
+		});
+		const whileLoading = service.getPullRequestStatus(session)?.state;
+		resources.setSnapshot(retainedOpenSnapshot);
+
+		assert.deepStrictEqual({
+			whileLoading,
+			afterRefresh: service.getPullRequestStatus(session)?.state,
+		}, {
+			whileLoading: 'merged',
+			afterRefresh: 'open',
+		});
+	});
+
+	test('waits for a fresh refresh before reconciling a recreated merged watch', async () => {
+		const { service, subscriptions, resources, session } = createHarness();
+		const channel = `${session}/changes`;
+		subscriptions.addSubscription(session, channel);
+		await waitForWatch(resources);
+		service.markPullRequestMerged(session, pullRequestUrl);
+		subscriptions.removeSubscription(session, channel);
+
+		const refresh = new DeferredPromise<void>();
+		resources.refreshHandler = () => refresh.p;
+		subscriptions.addSubscription(session, channel);
+		await waitForWatch(resources);
+		const whileRefreshing = service.getPullRequestStatus(session);
+		refresh.complete();
+		await pump();
+
+		assert.deepStrictEqual({
+			whileRefreshing,
+			afterRefresh: service.getPullRequestStatus(session)?.state,
+		}, {
+			whileRefreshing: undefined,
+			afterRefresh: 'open',
+		});
+	});
+
+	test('does not apply persisted merged state from another GitHub host', async () => {
+		const { service, stateManager, subscriptions, resources, session } = createHarness();
+		const retainedOpenSnapshot = snapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 });
+		resources.setNextSubscriptionSnapshot({
+			...retainedOpenSnapshot,
+			core: { ...retainedOpenSnapshot.core, status: 'loading', complete: false },
+		});
+		stateManager.setSessionMeta(session, withSessionGitHubState(
+			stateManager.getSessionState(session)?._meta,
+			{
+				pullRequestUrls: [pullRequestUrl],
+				pullRequestBranchName: 'feature',
+				pullRequestState: 'merged',
+				pullRequestStateUrl: 'https://github.example.com/octo/repo/pull/7',
+			},
+		));
+
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+
+		assert.strictEqual(service.getPullRequestStatus(session)?.state, 'open');
 	});
 
 	test('does not install a watch when the session stopped being eligible mid-sync', async () => {

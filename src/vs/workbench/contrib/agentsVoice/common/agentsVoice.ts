@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../base/common/event.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
@@ -33,6 +34,10 @@ export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ContextKeyExpr.equals('config.agents.voice.enabled', true),
 	AGENTS_VOICE_ENTITLED,
 )!;
+
+export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | undefined {
+	return policyData.chat_preview_features_enabled === false ? false : undefined;
+}
 
 export const enum AgentsVoiceSettingId {
 	ShowButton = 'agents.voice.showButton',

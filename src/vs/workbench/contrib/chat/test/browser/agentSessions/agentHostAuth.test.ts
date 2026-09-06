@@ -18,10 +18,10 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
@@ -51,6 +51,8 @@ function createMockAuthService(overrides: {
 	createDynamicAuthenticationProvider?: (...args: Parameters<IAuthenticationService['createDynamicAuthenticationProvider']>) => Promise<{ readonly id: string } | undefined>;
 	getProvider?: IAuthenticationService['getProvider'];
 	isDynamicAuthenticationProvider?: (providerId: string) => boolean;
+	isAuthenticationProviderRegistered?: (providerId: string) => boolean;
+	declaredProviders?: IAuthenticationService['declaredProviders'];
 	unregisterAuthenticationProvider?: (providerId: string) => void;
 }): IAuthenticationService {
 	return {
@@ -60,6 +62,8 @@ function createMockAuthService(overrides: {
 		createDynamicAuthenticationProvider: overrides.createDynamicAuthenticationProvider ?? (() => Promise.resolve(undefined)),
 		getProvider: overrides.getProvider ?? (() => { throw new Error('Unexpected getProvider call'); }),
 		isDynamicAuthenticationProvider: overrides.isDynamicAuthenticationProvider ?? (() => false),
+		isAuthenticationProviderRegistered: overrides.isAuthenticationProviderRegistered ?? (() => true),
+		declaredProviders: overrides.declaredProviders ?? [],
 		unregisterAuthenticationProvider: overrides.unregisterAuthenticationProvider ?? (() => { }),
 	} as unknown as IAuthenticationService;
 }
@@ -452,7 +456,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		assert.strictEqual(commandService.calls.length, 2);
 	});
 
-	test('forwards credential removal and resets escalation when the current token disappears', async () => {
+	test('does not forward credential removal and resets escalation when the current token disappears', async () => {
 		const token = { value: 'tok-1' as string | undefined };
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
@@ -484,7 +488,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 			authenticateCalls,
 		}, {
 			commandCalls: 0,
-			authenticateCalls: ['tok-1', '', 'tok-1'],
+			authenticateCalls: ['tok-1', 'tok-1'],
 		});
 	});
 });
@@ -1119,6 +1123,13 @@ suite('authenticateProtectedResources', () => {
 		scopes_supported: ['read'],
 	};
 
+	const removedSession = (scopes: readonly string[]): AuthenticationSession => ({
+		id: `session-${scopes.join('-')}`,
+		accessToken: 'removed-token',
+		account: { id: 'account-1', label: 'Account' },
+		scopes,
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('skips authenticate when the cached token is unchanged', async () => {
@@ -1155,7 +1166,7 @@ suite('authenticateProtectedResources', () => {
 		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' }]);
 	});
 
-	test('forwards credential removal when a previously available token disappears', async () => {
+	test('does not infer credential removal when a previously available token disappears', async () => {
 		let token: string | undefined = 'cached-token';
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
@@ -1186,8 +1197,148 @@ suite('authenticateProtectedResources', () => {
 
 		assert.deepStrictEqual(requests, [
 			{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' },
-			{ resource: protectedResource.resource, scopes: ['read'], token: '' },
 		]);
+	});
+
+	test('does not clear shared authentication while the provider is not ready', async () => {
+		let providerReady = false;
+		let sharedHostToken: string | undefined = 'other-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve(providerReady ? 'provider-1' : undefined),
+			isAuthenticationProviderRegistered: () => providerReady,
+			declaredProviders: [{
+				id: 'provider-1',
+				label: 'Provider',
+				authorizationServerGlobs: ['https://auth.example.com/*'],
+			}],
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'healthy-client-token' }]),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		providerReady = true;
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' }],
+			sharedHostToken: 'healthy-client-token',
+		});
+	});
+
+	test('clears shared authentication after an explicit session removal', async () => {
+		let sharedHostToken: string | undefined = 'healthy-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['read'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: '' }],
+			sharedHostToken: undefined,
+		});
+	});
+
+	test('forwards the surviving token instead of revoking when another account remains', async () => {
+		let sharedHostToken: string | undefined = 'removed-account-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'surviving-account-token' }]),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['read'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'surviving-account-token' }],
+			sharedHostToken: 'surviving-account-token',
+		});
+	});
+
+	test('leaves resources the removed session could not satisfy untouched', async () => {
+		// One provider commonly serves several resources with different scope sets.
+		// Signing out of an account that never covered a resource must not make this
+		// client re-evaluate -- and possibly revoke -- a credential another client owns.
+		let sharedHostToken: string | undefined = 'other-client-token';
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+		});
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'provider-1', [removedSession(['repo'])], {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		});
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, { requests: [], sharedHostToken: 'other-client-token' });
+	});
+
+	test('repairs host authentication after an external clear without replacing the cache', async () => {
+		let sharedHostToken: string | undefined;
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: () => Promise.resolve([{ scopes: ['read'], accessToken: 'healthy-client-token' }]),
+		});
+		const cache = new AgentHostAuthTokenCache();
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push(request);
+				sharedHostToken = request.token || undefined;
+			},
+		};
+
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		sharedHostToken = undefined;
+		cache.clear();
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+
+		assert.deepStrictEqual({ requests, sharedHostToken }, {
+			requests: [
+				{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' },
+				{ resource: protectedResource.resource, scopes: ['read'], token: 'healthy-client-token' },
+			],
+			sharedHostToken: 'healthy-client-token',
+		});
 	});
 });
 

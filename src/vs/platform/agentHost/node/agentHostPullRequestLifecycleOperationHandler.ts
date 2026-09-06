@@ -38,6 +38,7 @@ export type PullRequestLifecycleAction = 'mark-ready' | 'merge' | 'enable-auto-m
 export class AgentHostPullRequestLifecycleOperationHandler implements IChangesetOperationHandler {
 
 	public static readonly OPERATION_MARK_READY = AgentHostPullRequestOperationId.MarkReady;
+	public static readonly OPERATION_MARK_READY_WITH_AGENT_MERGE = AgentHostPullRequestOperationId.MarkReadyWithAgentMerge;
 	public static readonly OPERATION_MERGE = AgentHostPullRequestOperationId.Merge;
 	public static readonly OPERATION_ENABLE_AUTO_MERGE = AgentHostPullRequestOperationId.EnableAutoMerge;
 	public static readonly OPERATION_DISABLE_AUTO_MERGE = AgentHostPullRequestOperationId.DisableAutoMerge;
@@ -147,6 +148,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 
 		const method = this._requireMergeMethod(mergeability?.allowedMergeMethods ?? []);
 		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, signal);
+		this._statusService.markPullRequestMerged(sessionUri, status.url);
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Pull request merged: session=${sessionUri}, pr=${status.url}, method=${method}, outcome=${result.outcome}`);
 		return localize('agentHost.changeset.pr.merged', "Pull request was merged.");
 	}

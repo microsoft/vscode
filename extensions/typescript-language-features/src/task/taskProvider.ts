@@ -6,9 +6,9 @@
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
+import { raceTimeout } from '../utils/async';
 import { readUnifiedConfig } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { exists } from '../utils/fs';
@@ -157,13 +157,11 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 		const getConfigsTimeout = new vscode.CancellationTokenSource();
 		token.onCancellationRequested(() => getConfigsTimeout.cancel());
 
-		return Promise.race([
+		return (await raceTimeout(
 			this.tsconfigProvider.getConfigsForWorkspace(getConfigsTimeout.token).then(x => Array.from(x)),
-			wait(this.findConfigFilesTimeout).then(() => {
-				getConfigsTimeout.cancel();
-				return [];
-			}),
-		]);
+			this.findConfigFilesTimeout,
+			() => getConfigsTimeout.cancel(),
+		)) ?? [];
 	}
 
 	private static async getCommand(project: TSConfig): Promise<string> {

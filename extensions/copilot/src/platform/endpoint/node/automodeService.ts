@@ -404,11 +404,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
 		if (override) {
-			// Normalized because the override is a raw string setting, so unlike a picker value it never
-			// passes through the schema filter that drops retired names.
 			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if ((autoModeTiers as readonly string[]).includes(normalized)) {
+			if (autoModeTiers.some(tier => tier === normalized)) {
 				return normalized as AutoModeTier;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
@@ -416,7 +414,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (!this.areAutoModeTiersSupported()) {
 			return undefined;
 		}
-		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
+		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
 			return configured;
 		}
