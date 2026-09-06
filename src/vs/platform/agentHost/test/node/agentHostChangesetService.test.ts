@@ -17,7 +17,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -1881,6 +1881,78 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			files: [URI.file('/wd/edited.ts').toString()],
 		});
 	});
+
+	for (const hidden of [true, false]) {
+		test(`session changeset selects ${hidden ? 'the peer checkpoint after a host notice' : 'a newer real Agent Merge repair checkpoint'}`, async () => {
+			const mainDiff = gitDiff('/wd/a.ts');
+			const peerDiff = gitDiff('/wd/b.ts');
+			const repairDiff = gitDiff('/wd/c.ts');
+			const diffsByCheckpoint = new Map([
+				['main-checkpoint', [mainDiff]],
+				['peer-checkpoint', [mainDiff, peerDiff]],
+				['repair-checkpoint', [mainDiff, peerDiff, repairDiff]],
+			]);
+			const git = createNoopGitService();
+			const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
+			git.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+				diffCalls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+				return diffsByCheckpoint.get(opts.toRef);
+			};
+			const checkpoints = new Map([
+				['main-edit', 'main-checkpoint'],
+				['peer-edit', 'peer-checkpoint'],
+				['repair', 'repair-checkpoint'],
+			]);
+			const checkpoint: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				getBaselineCheckpoint: async () => 'baseline',
+				getTurnCheckpointPair: async (_session, turnId) => {
+					const current = checkpoints.get(turnId);
+					return current ? { parent: 'baseline', current } : undefined;
+				},
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+			const mainChat = buildDefaultChatUri(sessionStr);
+			const peerChat = buildChatUri(sessionStr, 'peer-1');
+			stateManager.addChat(sessionStr, peerChat);
+
+			for (const [chat, turnId, startedAt] of [
+				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
+				[peerChat, 'peer-edit', '2026-09-05T10:01:00.000Z'],
+			]) {
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt, message: { text: 'Edit a file', origin: { kind: MessageKind.User } } });
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+			}
+
+			const changesetUri = buildSessionChangesetUri(sessionStr);
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, changesetUri);
+
+			stateManager.dispatchServerAction(mainChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: hidden ? 'notice' : 'repair',
+				startedAt: '2026-09-05T10:02:00.000Z',
+				message: withMessageRequestHiddenFromTranscript({
+					text: hidden ? 'Agent Merge is enabled.' : 'Fix the failing checks.',
+					origin: { kind: MessageKind.SystemNotification },
+				}, hidden),
+			});
+			stateManager.dispatchServerAction(mainChat, { type: ActionType.ChatTurnComplete, turnId: hidden ? 'notice' : 'repair', duration: 1000 });
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, changesetUri);
+
+			assert.deepStrictEqual({
+				diffCalls,
+				files: stateManager.getChangesetState(changesetUri)?.files.map(file => file.id),
+			}, {
+				diffCalls: [
+					{ fromRef: 'baseline', toRef: 'peer-checkpoint' },
+					{ fromRef: 'baseline', toRef: hidden ? 'peer-checkpoint' : 'repair-checkpoint' },
+				],
+				files: (hidden ? ['/wd/a.ts', '/wd/b.ts'] : ['/wd/a.ts', '/wd/b.ts', '/wd/c.ts']).map(path => URI.file(path).toString()),
+			});
+		});
+	}
 
 	/**
 	 * All-folder branch summary (AC-3). In a multi-folder session the
