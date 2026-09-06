@@ -9318,6 +9318,135 @@ Use the attached image as context.
 			]);
 		});
 
+		test('completes a resumed subagent when its stop hook identifies the agent only in the input', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			const completion = {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				durationMs: 1,
+				totalTokens: 0,
+				totalToolCalls: 0,
+			};
+			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Review the follow-up',
+				source: 'agent-parent',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'agent-stop',
+				hookType: 'agentStop',
+				success: true,
+			});
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+
+			const completions = () => signals
+				.filter(signal => signal.kind === 'subagent_completed')
+				.map(signal => signal.toolCallId);
+			const beforeHookEnd = completions();
+
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+			const afterHookEnd = completions();
+			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				beforeHookEnd,
+				afterHookEnd,
+				afterDuplicateCompletion: completions(),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+				parentCompleted: signals.some(signal => isAction(signal, ActionType.ChatTurnComplete)),
+			}, {
+				beforeHookEnd: ['tc-subagent'],
+				afterHookEnd: ['tc-subagent', 'tc-subagent'],
+				afterDuplicateCompletion: ['tc-subagent', 'tc-subagent'],
+				resumed: ['tc-subagent'],
+				parentCompleted: false,
+			});
+		});
+
+		test('ignores subagent stop hook inputs without a string agent ID', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+
+			const inputs: SessionEventPayload<'hook.start'>['data']['input'][] = [
+				undefined, null, true, 1, 'agent-1', [], {}, { agentId: 1 }, { agentId: null }, { agentId: ['agent-1'] },
+			];
+			for (const input of inputs) {
+				mockSession.fire('hook.start', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					input,
+				});
+				mockSession.fire('hook.end', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					success: true,
+				});
+			}
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+		});
+
+		test('matches overlapping subagent stop hooks to their own agents', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+
+			for (const id of ['first', 'second']) {
+				mockSession.fire('subagent.started', {
+					toolCallId: `tc-${id}`,
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: `agent-${id}` });
+				mockSession.fire('hook.start', {
+					hookInvocationId: `stop-${id}`,
+					hookType: 'subagentStop',
+					input: { agentId: `agent-${id}` },
+				});
+			}
+
+			for (const id of ['second', 'first']) {
+				mockSession.fire('hook.end', {
+					hookInvocationId: `stop-${id}`,
+					hookType: 'subagentStop',
+					success: true,
+				});
+			}
+			mockSession.fire('user.message', { content: 'Another turn' }, { agentId: 'agent-first' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'stop-first',
+				hookType: 'subagentStop',
+				success: true,
+			});
+
+			assert.deepStrictEqual(
+				signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				['tc-second', 'tc-first'],
+			);
+		});
+
 		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {
 			// Regression test: fork / truncate look up the SDK boundary
 			// event id via `getNextTurnEventId(turnId)`, which keys on
