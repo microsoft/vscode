@@ -392,38 +392,13 @@
 	background-image: url('../../media/sessions-logo-dark.svg');
 }
 
-/* Center the picker text */
-.agent-sessions-workbench.phone-layout .session-workspace-picker {
-	display: flex !important;
-	flex-direction: column !important;
-	align-items: center !important;
-	gap: 12px !important;
-	font-size: 16px !important;
-}
-
-.agent-sessions-workbench.phone-layout .session-workspace-picker-label {
-	font-size: 17px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.85;
-}
-
-/* Promote the central workspace picker into a prominent pill so the empty
- * state has a clearly tappable hero affordance, mirroring the inspiration
- * design's "<icon> workspace v" chip. */
-.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
-	height: auto;
-	min-height: 36px;
-	padding: 2px 6px;
-	font-size: 17px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-toolbar-hoverBackground, transparent);
-	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
-	gap: 4px;
-	touch-action: manipulation;
-}
-
-.agent-sessions-workbench.phone-layout .session-workspace-picker .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:active {
-	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
+.agent-sessions-workbench.phone-layout .sessions-workspace-category-picker {
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	max-width: 100%;
+	overflow-x: auto;
+	padding: var(--vscode-spacing-size20);
+	scrollbar-width: none;
 }
 
 /* Input slot pinned to the bottom. Flex `order` puts the chip row

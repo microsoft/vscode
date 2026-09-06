@@ -111,6 +111,37 @@ export class AutomationRunner implements IAutomationRunner {
 			// gets the winner's run back instead of dispatching a duplicate session.
 			const claim = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
 			if (!claim.claimed) {
+				if (claim.externalDispatch) {
+					let cancellationForwarded = false;
+					const forwardCancellation = () => {
+						if (!cancellationForwarded) {
+							cancellationForwarded = true;
+							try {
+								claim.externalDispatch?.cancel?.();
+							} catch (error) {
+								this.logService.error(`[AutomationRunner] Failed to forward cancellation for ${automation.id}`, error);
+							}
+						}
+					};
+					const cancellationListener = claim.externalDispatch.cancel
+						? token.onCancellationRequested(forwardCancellation)
+						: undefined;
+					const sessionResource = claim.externalDispatch.sessionResource;
+					try {
+						if (sessionResource) {
+							await dispatched.complete({ kind: 'started', run: claim.run, sessionResource });
+						} else {
+							await dispatched.complete({ kind: 'notStarted', reason: 'error', run: claim.run });
+						}
+						if (token.isCancellationRequested) {
+							forwardCancellation();
+						}
+						await claim.externalDispatch.whenCompleted;
+					} finally {
+						cancellationListener?.dispose();
+					}
+					return;
+				}
 				this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: claim.run });
 				return;

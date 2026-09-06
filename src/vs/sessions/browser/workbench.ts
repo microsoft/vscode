@@ -82,8 +82,19 @@ import { ICustomViewGridPartService } from '../services/customView/browser/custo
 import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
+
+type SessionsWindowLayoutEvent = {
+	layout: string;
+};
+
+type SessionsWindowLayoutClassification = {
+	owner: 'sandy081';
+	comment: 'Tracks the layout selected when an Agents window opens.';
+	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agents window layout selected at startup: classic or sidePane.' };
+};
 
 //#region Workbench Options
 
@@ -604,6 +615,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				}));
 
 				SinglePaneLayoutEnabledContext.bindTo(contextKeyService).set(this.isSinglePaneLayoutEnabled);
+				this.logWindowLayout(accessor.get(ITelemetryService));
 
 				// Virtual keyboard tracking (visualViewport): publishes the
 				// keyboard height as an observable, mirrors it onto the
@@ -650,6 +662,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			throw error; // rethrow because this is a critical issue we cannot handle properly here
 		}
+	}
+
+	private logWindowLayout(telemetryService: ITelemetryService): void {
+		telemetryService.publicLog2<SessionsWindowLayoutEvent, SessionsWindowLayoutClassification>('agents/windowLayout', {
+			layout: this.isSinglePaneLayoutEnabled ? 'sidePane' : 'classic'
+		});
 	}
 
 	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
@@ -774,7 +792,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean; panel?: boolean } {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return {};
 		}
@@ -803,6 +821,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
 		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+		// The single-pane layout governs the bottom panel at the workbench level
+		// (like the side pane), so its visibility is restored here. The classic
+		// layout remembers the panel per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this.partVisibility.panel = savedPartVisibility.panel ?? this.partVisibility.panel;
+		}
 	}
 
 	protected _savePartVisibility(): void {
@@ -814,6 +838,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			editor: this.partVisibility.editor,
 			auxiliaryBar: this.partVisibility.auxiliaryBar,
 			sidebar: this.partVisibility.sidebar,
+			// Only the single-pane layout persists panel visibility at the workbench
+			// level; the classic layout tracks it per session instead.
+			panel: this.isSinglePaneLayoutEnabled ? this.partVisibility.panel : undefined,
 		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -1186,10 +1213,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	//#region Initialization
 
+	private registerEditorTabHeightClass(): void {
+		const updateCompactHeight = () => this.mainContainer.classList.toggle('editor-tabs-compact-height', this.editorGroupService.partOptions.tabHeight === 'compact');
+		updateCompactHeight();
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions(updateCompactHeight));
+	}
+
 	initLayout(accessor: ServicesAccessor): void {
 		// Services - accessing these triggers their instantiation
 		// which creates and registers the parts
 		this.editorGroupService = accessor.get(IEditorGroupsService);
+		this.registerEditorTabHeightClass();
 		this.editorService = accessor.get(IEditorService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
@@ -1867,9 +1901,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		// Keep in sync with the desktop grid margin in workbench.css.
+		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 0 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
@@ -2465,6 +2499,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.focusPart(Parts.PANEL_PART);
 			}
 		}
+
+		// The single-pane layout governs the panel at the workbench level, so its
+		// visibility persists across reloads (like the side pane). The classic
+		// layout remembers it per session and never persists it here.
+		if (this.isSinglePaneLayoutEnabled) {
+			this._savePartVisibility();
+		}
 	}
 
 	private setSessionsHidden(hidden: boolean): void {
@@ -2510,11 +2551,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			};
 		}
 
+		// Suspend chat content before any custom view transition can trigger layout.
+		this.sessionsPartService.setContentVisible(false);
 		this.customViewGridPartService.setView(descriptor);
 		this.partVisibility.customViewGrid = visible;
 		this._customViewVisibleKey.set(visible);
 
 		if (!this.workbenchGrid) {
+			this.sessionsPartService.setContentVisible(!visible);
 			return; // still starting up; the grid descriptor picks this state up
 		}
 
@@ -2534,6 +2578,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				}
 			});
 		} finally {
+			this.sessionsPartService.setContentVisible(!visible);
 			this._applyingCustomViewGridVisibility = false;
 		}
 

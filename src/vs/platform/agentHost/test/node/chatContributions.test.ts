@@ -18,14 +18,15 @@ import { IAgentHostChangesetService } from '../../common/agentHostChangesetServi
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IObservedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
+import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -36,10 +37,14 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentH
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
@@ -53,6 +58,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import '../../node/localCommands/localChatCommands.contribution.js';
 
 let calls: string[] = [];
+let envelopeRejectionReasons: (string | undefined)[] = [];
 
 abstract class TestContribution extends Disposable implements IAgentHostChatContribution {
 	constructor(protected readonly _context: IAgentHostChatContributionContext, ..._services: BrandedService[]) {
@@ -232,7 +238,7 @@ class ThrowingActionContribution extends TestContribution {
 	static readonly id = 'throwingAction';
 	readonly order = 20;
 
-	onAction(): void {
+	onDidApplyClientAction(): void {
 		throw new Error('expected');
 	}
 }
@@ -241,8 +247,61 @@ class FollowingActionContribution extends TestContribution {
 	static readonly id = 'followingAction';
 	readonly order = 21;
 
-	onAction(): void {
+	onDidApplyClientAction(): void {
 		calls.push('followingAction');
+	}
+}
+
+class OrderedFirstEnvelopeContribution extends TestContribution {
+	static readonly id = 'orderedFirstEnvelope';
+	readonly order = 10;
+
+	onDidDispatchAction(): void {
+		calls.push('first');
+	}
+}
+
+class OrderedSecondEnvelopeContribution extends TestContribution {
+	static readonly id = 'orderedSecondEnvelope';
+	readonly order = 0;
+
+	onDidDispatchAction(): void {
+		calls.push('second');
+	}
+}
+
+class OrderedThirdEnvelopeContribution extends TestContribution {
+	static readonly id = 'orderedThirdEnvelope';
+	readonly order = 10;
+
+	onDidDispatchAction(): void {
+		calls.push('third');
+	}
+}
+
+class ThrowingEnvelopeContribution extends TestContribution {
+	static readonly id = 'throwingEnvelope';
+	readonly order = 20;
+
+	onDidDispatchAction(): void {
+		throw new Error('expected');
+	}
+}
+
+class FollowingEnvelopeContribution extends TestContribution {
+	static readonly id = 'followingEnvelope';
+	readonly order = 21;
+
+	onDidDispatchAction(): void {
+		calls.push('followingEnvelope');
+	}
+}
+
+class RejectionReasonEnvelopeContribution extends TestContribution {
+	static readonly id = 'rejectionReasonEnvelope';
+
+	onDidDispatchAction(envelope: IDispatchedAction): void {
+		envelopeRejectionReasons.push(envelope.rejectionReason);
 	}
 }
 
@@ -374,6 +433,80 @@ class EmptyOutgoingTurnContribution extends TestContribution {
 			return {};
 		}
 		return undefined;
+	}
+}
+
+class UndefinedIncomingRequestContribution extends TestContribution {
+	static readonly id = 'undefinedIncomingRequest';
+
+	onIncomingRequest(): undefined {
+		return undefined;
+	}
+}
+
+class AcceptingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'acceptingIncomingRequest';
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		return { kind: 'accept' };
+	}
+}
+
+class HandlingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'handlingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('handled');
+		return { kind: 'handled' };
+	}
+}
+
+class SourceRecordingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'sourceRecordingIncomingRequest';
+
+	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition {
+		calls.push(request.source);
+		return { kind: 'accept' };
+	}
+}
+
+class FirstRejectingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'firstRejectingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('first');
+		return { kind: 'reject', error: { errorType: 'first', message: 'first rejection' }, stage: 'validation' };
+	}
+}
+
+class SecondRejectingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'secondRejectingIncomingRequest';
+	readonly order = 20;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('second');
+		return { kind: 'reject', error: { errorType: 'second', message: 'second rejection' }, stage: 'validation' };
+	}
+}
+
+class ThrowingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'throwingIncomingRequest';
+	readonly order = 10;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		throw new Error('expected');
+	}
+}
+
+class FollowingIncomingRequestContribution extends TestContribution {
+	static readonly id = 'followingIncomingRequest';
+	readonly order = 20;
+
+	onIncomingRequest(): IncomingRequestDisposition {
+		calls.push('following');
+		return { kind: 'accept' };
 	}
 }
 
@@ -568,11 +701,11 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 	return service;
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean }) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
-	const sourceChat = buildDefaultChatUri(session);
+	const sourceChat = options?.sourceIsToolChat ? buildSubagentChatUri(session, 'source-tool') : buildDefaultChatUri(session);
 	const sideChat = buildChatUri(session, 'side');
 	stateManager.createSession({
 		resource: session,
@@ -582,6 +715,12 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 	});
+	if (options?.sourceIsToolChat) {
+		stateManager.addChat(session, sourceChat, {
+			title: 'Source Tool',
+			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'source-tool' },
+		});
+	}
 	stateManager.addChat(session, sideChat, {
 		title: 'Side Chat',
 		origin: {
@@ -649,14 +788,14 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead): { readonly service: AgentHostChatContributions; readonly stateManager: AgentHostStateManager; readonly database: TestSessionDatabase; readonly session: string } {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	stateManager.createSession({
 		resource: 'agent-host-session://test',
 		provider: 'test',
 		title: 'Test',
-		status: SessionStatus.IsRead,
+		status: sessionStatus,
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined),
@@ -695,6 +834,13 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostWorktreeIsolation, new RecordingWorktreeIsolation(observed)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
+	services.set(ISessionWorkspaceConversionService, {
+		_serviceBrand: undefined,
+		requestSessionWorkspaceUpdate: () => { },
+		isPending: () => false,
+		cancel: () => { },
+		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
+	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
@@ -705,6 +851,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
+	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const host: IAgentHostChatContributionHost = {
@@ -737,6 +884,14 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
+	let conversionPending = false;
+	services.set(ISessionWorkspaceConversionService, {
+		_serviceBrand: undefined,
+		requestSessionWorkspaceUpdate: () => { },
+		isPending: () => conversionPending,
+		cancel: () => { },
+		updateSessionWorkspace: async () => { },
+	});
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
@@ -753,6 +908,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
 	services.set(IAgentHostTurnTracker, turnTracker);
+	services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const admitted: { channel: string; message: Message; clientId: string | undefined; hostLaunchKind: AgentHostLaunchKind }[] = [];
@@ -760,17 +916,28 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
 	}));
+	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined };
+	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
 }
 
-function observedAction(channel: string, session: string, action: IObservedAction['action'], clientId = 'client'): IObservedAction {
+function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
 	return {
 		channel,
 		session,
 		action,
 		clientId,
 		clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+	};
+}
+
+function dispatchedAction(channel: string, session: string, action: IDispatchedAction['action'], rejectionReason?: string): IDispatchedAction {
+	return {
+		channel,
+		session,
+		action,
+		rejectionReason,
 	};
 }
 
@@ -788,6 +955,19 @@ function outgoingTurn(turnId: string, text = turnId): IOutgoingTurn {
 		chat: 'agent-host-session://test',
 		message: { text, origin: { kind: MessageKind.User } },
 		turnId,
+	};
+}
+
+function incomingRequest(session = 'agent-host-session://test', chat = buildDefaultChatUri(session), source: IIncomingRequest['source'] = 'direct'): IIncomingRequest {
+	return {
+		session,
+		chat,
+		turnChannel: chat,
+		message: { text: 'incoming request', origin: { kind: MessageKind.User } },
+		turnId: 'incoming-request',
+		source,
+		clientId: 'client',
+		clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
 	};
 }
 
@@ -811,6 +991,7 @@ suite('AgentHostChatContributions', () => {
 
 	setup(() => {
 		calls = [];
+		envelopeRejectionReasons = [];
 		FirstMementoContribution.context = undefined;
 		SecondMementoContribution.context = undefined;
 	});
@@ -935,6 +1116,32 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual([active.admitted, steering.admitted, empty.admitted], [[], [], []]);
 	});
 
+	test('queue drain waits while session workspace conversion is pending', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, queuedMessage('queued', 'queued'));
+		queue.setConversionPending(true);
+
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'conversion-turn', reason: { kind: 'success' } });
+		const admission = queue.service.incomingRequest(incomingRequest(queue.session, queue.chat));
+
+		assert.deepStrictEqual({
+			admitted: queue.admitted,
+			queuedMessages: queue.stateManager.getSessionState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+			admission,
+		}, {
+			admitted: [],
+			queuedMessages: ['queued'],
+			admission: {
+				kind: 'reject',
+				error: {
+					errorType: 'workspaceConversionPending',
+					message: 'Wait for workspace setup to finish before sending another message.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
 	test('queue drain captures senders, handles pending actions, and honors reordering', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {
@@ -945,16 +1152,16 @@ suite('AgentHostChatContributions', () => {
 		});
 		const first = queuedMessage('first', 'first');
 		const second = queuedMessage('second', 'second');
-		const reordered: IObservedAction['action'] = { type: ActionType.ChatQueuedMessagesReordered, order: ['second', 'first'] };
-		const removed: IObservedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: 'first' };
+		const reordered: IAppliedClientAction['action'] = { type: ActionType.ChatQueuedMessagesReordered, order: ['second', 'first'] };
+		const removed: IAppliedClientAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: 'first' };
 		queue.stateManager.dispatchServerAction(queue.chat, first);
-		queue.service.action(observedAction(queue.chat, queue.session, first, 'first-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, first, 'first-client'));
 		queue.stateManager.dispatchServerAction(queue.chat, second);
-		queue.service.action(observedAction(queue.chat, queue.session, second, 'second-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, second, 'second-client'));
 		queue.stateManager.dispatchServerAction(queue.chat, reordered);
-		queue.service.action(observedAction(queue.chat, queue.session, reordered, 'reorder-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, reordered, 'reorder-client'));
 		queue.stateManager.dispatchServerAction(queue.chat, removed);
-		queue.service.action(observedAction(queue.chat, queue.session, removed, 'remove-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, removed, 'remove-client'));
 		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
 		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'localCommand' } });
 
@@ -983,7 +1190,7 @@ suite('AgentHostChatContributions', () => {
 		});
 		const queued = queuedMessage('queued', 'queued');
 		queue.stateManager.dispatchServerAction(queue.chat, queued);
-		queue.service.action(observedAction(queue.chat, queue.session, queued));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
 		const admittedWhileFailed = queue.admitted.map(admission => admission.message.text);
 
 		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnResume, turnId: 'resumable-turn' });
@@ -1009,7 +1216,7 @@ suite('AgentHostChatContributions', () => {
 		});
 		const action = queuedMessage('queued', 'queued');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
-		queue.service.action(observedAction(queue.chat, queue.session, action, 'original-client'));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action, 'original-client'));
 		queue.service.disposeChatState(queue.chat);
 		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
 		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'localCommand' } });
@@ -1037,7 +1244,7 @@ suite('AgentHostChatContributions', () => {
 		queue.clearAgent();
 		const action = queuedMessage('queued', 'queued');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
-		queue.service.action(observedAction(queue.chat, queue.session, action));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
 
 		assert.deepStrictEqual({ actions, errorTypes }, {
 			actions: [ActionType.ChatPendingMessageSet, ActionType.ChatTurnStarted, ActionType.ChatError],
@@ -1049,7 +1256,7 @@ suite('AgentHostChatContributions', () => {
 		const queue = createQueueDrainContributions(disposables);
 		const action = queuedMessage('rename', '/rename Suggested title');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
-		queue.service.action(observedAction(queue.chat, queue.session, action));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
 		await Promise.resolve();
 		await Promise.resolve();
 
@@ -1066,7 +1273,7 @@ suite('AgentHostChatContributions', () => {
 		const queue = createQueueDrainContributions(disposables);
 		const action = queuedMessage('queued', 'queued');
 		queue.stateManager.dispatchServerAction(queue.chat, action);
-		queue.service.action(observedAction(queue.chat, queue.session, action));
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
 
 		assert.ok(queue.telemetryService.events.some(event =>
 			event.eventName === 'agentHost.userMessageSent'
@@ -1077,6 +1284,13 @@ suite('AgentHostChatContributions', () => {
 	test('runs contributions in order while preserving registration order for ties', () => {
 		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution, OrderedSecondContribution, OrderedThirdContribution));
 		contributions.turnEnd(turnEnd('ordered'));
+
+		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
+	});
+
+	test('runs envelope contributions in order while preserving registration order for ties', () => {
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstEnvelopeContribution, OrderedSecondEnvelopeContribution, OrderedThirdEnvelopeContribution));
+		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
 
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
 	});
@@ -1093,7 +1307,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
-		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
@@ -1113,6 +1327,58 @@ suite('AgentHostChatContributions', () => {
 			checkpointAndChangeset: false,
 			queueDrain: false,
 			markUnread: true,
+		});
+	});
+
+	test('does not resurface a read session when an admission-rejected turn ends', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const readChanges: boolean[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionIsReadChanged) {
+				readChanges.push(envelope.action.isRead);
+			}
+		}));
+
+		contributions.service.turnEnd(turnEnd('rejected', {
+			kind: 'rejected',
+			error: { errorType: 'noAgent', message: 'No agent found for session' },
+		}));
+		const rejectedReadChanges = [...readChanges];
+		contributions.service.turnEnd(turnEnd('error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: false,
+		}));
+
+		assert.deepStrictEqual({
+			rejectedReadChanges,
+			errorReadChanges: readChanges,
+		}, {
+			rejectedReadChanges: [],
+			errorReadChanges: [false],
+		});
+	});
+
+	test('skips all built-in turn-end contributions for rejected requests', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		contributions.service.turnEnd(turnEnd('rejected', {
+			kind: 'rejected',
+			error: { errorType: 'noAgent', message: 'No agent found for session' },
+		}));
+
+		assert.deepStrictEqual({
+			checkpointAndChangeset: observed.includes('checkpointAndChangeset'),
+			queueDrain: observed.includes('queueDrain'),
+			githubReferences: observed.includes('githubReferences'),
+			sessionTitle: observed.includes('sessionTitle'),
+			markUnread: observed.includes('markUnread'),
+		}, {
+			checkpointAndChangeset: false,
+			queueDrain: false,
+			githubReferences: false,
+			sessionTitle: false,
+			markUnread: false,
 		});
 	});
 
@@ -1172,7 +1438,7 @@ suite('AgentHostChatContributions', () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed peer' } as const;
 		titles.stateManager.dispatchServerAction(titles.peerChat, action);
-		titles.service.action(observedAction(titles.peerChat, titles.session, action));
+		titles.service.didApplyClientAction(appliedClientAction(titles.peerChat, titles.session, action));
 
 		assert.deepStrictEqual({
 			chatTitle: titles.stateManager.getChatState(titles.peerChat)?.title,
@@ -1197,7 +1463,7 @@ suite('AgentHostChatContributions', () => {
 			}
 		}));
 		titles.stateManager.dispatchServerAction(titles.defaultChat, action);
-		titles.service.action(observedAction(titles.defaultChat, titles.session, action));
+		titles.service.didApplyClientAction(appliedClientAction(titles.defaultChat, titles.session, action));
 
 		assert.deepStrictEqual({
 			channels,
@@ -1227,7 +1493,7 @@ suite('AgentHostChatContributions', () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed session' } as const;
 		titles.stateManager.dispatchServerAction(titles.session, action);
-		titles.service.action(observedAction(titles.session, titles.session, action));
+		titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
 
 		assert.deepStrictEqual({
 			sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
@@ -1311,9 +1577,66 @@ suite('AgentHostChatContributions', () => {
 
 	test('isolates a throwing action contribution', () => {
 		const contributions = disposables.add(createContributions(disposables, ThrowingActionContribution, FollowingActionContribution));
-		contributions.action(observedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
+		contributions.didApplyClientAction(appliedClientAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
 
 		assert.deepStrictEqual(calls, ['followingAction']);
+	});
+
+	test('isolates a throwing envelope contribution', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingEnvelopeContribution, FollowingEnvelopeContribution));
+		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
+
+		assert.deepStrictEqual(calls, ['followingEnvelope']);
+	});
+
+	test('passes envelope rejection reasons to contributions', () => {
+		const contributions = disposables.add(createContributions(disposables, RejectionReasonEnvelopeContribution));
+		const action = { type: ActionType.ChatQueuedMessagesReordered, order: [] as string[] } as const;
+		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', action, 'rejected'));
+		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', action));
+
+		assert.deepStrictEqual(envelopeRejectionReasons, ['rejected', undefined]);
+	});
+
+	test('skips rejected session flags while persisting config values', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const config = {
+			mode: 'plan',
+			autoApprove: 'default',
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+		};
+		contributions.stateManager.setSessionConfig(contributions.session, {
+			schema: { type: 'object', properties: {} },
+			values: config,
+		});
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsReadChanged, isRead: false }, 'rejected'));
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: { mode: 'interactive' } }, 'rejected'));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			isRead: await contributions.database.getMetadata(AH_META_IS_READ_DB_KEY),
+			isArchived: await contributions.database.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+			configValues: await contributions.database.getMetadata('configValues'),
+		}, {
+			isRead: undefined,
+			isArchived: undefined,
+			configValues: JSON.stringify({ mode: 'plan', autoApprove: 'default' }),
+		});
+	});
+
+	test('persists turn usage from envelopes but skips subagent chats', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const usage = { inputTokens: 10, outputTokens: 5 };
+		const chat = buildDefaultChatUri(contributions.session);
+		const subagentChat = buildSubagentChatUri(contributions.session, 'tool-call');
+		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, { type: ActionType.ChatUsage, turnId: 'parent-turn', usage }));
+		contributions.service.didDispatchAction(dispatchedAction(subagentChat, contributions.session, { type: ActionType.ChatUsage, turnId: 'subagent-turn', usage }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual([...(await contributions.database.getTurnUsages()).entries()], [
+			['parent-turn', JSON.stringify(usage)],
+		]);
 	});
 
 	test('isolates a throwing outgoing-turn contribution', async () => {
@@ -1373,6 +1696,113 @@ suite('AgentHostChatContributions', () => {
 		});
 		assert.deepStrictEqual(await contributions.outgoingTurn(outgoingTurn('send-empty-object')), {
 			message: { text: 'send-empty-object', origin: { kind: MessageKind.User } },
+		});
+	});
+
+	test('accepts incoming requests when no contribution objects', () => {
+		const contributions = disposables.add(createContributions(disposables, UndefinedIncomingRequestContribution, AcceptingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), { kind: 'accept' });
+	});
+
+	test('stops at a handled incoming-request disposition in contribution order', () => {
+		const contributions = disposables.add(createContributions(disposables, FollowingIncomingRequestContribution, HandlingIncomingRequestContribution));
+
+		assert.deepStrictEqual({
+			disposition: contributions.incomingRequest(incomingRequest()),
+			calls,
+		}, {
+			disposition: { kind: 'handled' },
+			calls: ['handled'],
+		});
+	});
+
+	test('passes incoming request sources to contributions', () => {
+		const contributions = disposables.add(createContributions(disposables, SourceRecordingIncomingRequestContribution));
+		contributions.incomingRequest(incomingRequest(undefined, undefined, 'queued'));
+		contributions.incomingRequest(incomingRequest());
+
+		assert.deepStrictEqual(calls, ['queued', 'direct']);
+	});
+
+	test('stops at the first non-accept incoming-request disposition in contribution order', () => {
+		const contributions = disposables.add(createContributions(disposables, SecondRejectingIncomingRequestContribution, FirstRejectingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), {
+			kind: 'reject',
+			error: { errorType: 'first', message: 'first rejection' },
+			stage: 'validation',
+		});
+		assert.deepStrictEqual(calls, ['first']);
+	});
+
+	test('fails closed when an incoming-request contribution throws', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingIncomingRequestContribution, FollowingIncomingRequestContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), {
+			kind: 'reject',
+			error: {
+				errorType: 'internalError',
+				message: 'Turn admission contribution \'throwingIncomingRequest\' failed',
+			},
+			stage: 'validation',
+		});
+		assert.deepStrictEqual(calls, []);
+	});
+
+	test('skips contributions without an onIncomingRequest hook', () => {
+		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution));
+
+		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), { kind: 'accept' });
+	});
+
+	test('rejects incoming requests for archived sessions and read-only chats', () => {
+		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const readOnly = createBuiltInContributions(disposables);
+		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+
+		assert.deepStrictEqual({
+			archived: archived.service.incomingRequest(incomingRequest(archived.session)),
+			readOnly: readOnly.service.incomingRequest(incomingRequest(readOnly.session, readOnlyChat)),
+		}, {
+			archived: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This session is archived and read-only. Restore the session to continue the conversation.',
+				},
+				stage: 'validation',
+			},
+			readOnly: {
+				kind: 'reject',
+				error: {
+					errorType: 'readOnly',
+					message: 'This chat is read-only.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
+	test('handles local commands before rejecting archived and read-only chats', () => {
+		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const readOnly = createBuiltInContributions(disposables);
+		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
+		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
+
+		assert.deepStrictEqual({
+			archived: archived.service.incomingRequest({
+				...incomingRequest(archived.session),
+				message: { text: '/rename Archived', origin: { kind: MessageKind.User } },
+			}),
+			readOnly: readOnly.service.incomingRequest({
+				...incomingRequest(readOnly.session, readOnlyChat),
+				message: { text: '/rename Read-only', origin: { kind: MessageKind.User } },
+			}),
+		}, {
+			archived: { kind: 'handled' },
+			readOnly: { kind: 'handled' },
 		});
 	});
 
@@ -1438,6 +1868,60 @@ suite('AgentHostChatContributions', () => {
 			firstMessage: injectSideChatContext('side question', undefined, undefined, 'MOONVALE99'),
 			laterMessage: 'follow up',
 		});
+	});
+
+	test('includes source transcript for a completed tool-origin side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables, undefined, 'selected text', { sourceIsToolChat: true });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'source question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'source-turn',
+			duration: 1,
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question', 'selected text'));
+	});
+
+	test('keeps completed turns before an active tool-origin side-chat source turn', async () => {
+		const sideChat = createSideChatContributions(disposables, undefined, undefined, { sourceIsToolChat: true });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'completed-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'completed question', origin: { kind: MessageKind.User } },
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'completed-turn',
+			duration: 1,
+		});
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'source-turn',
+			startedAt: '2025-01-01T00:00:01.000Z',
+			message: { text: 'active question', origin: { kind: MessageKind.User } },
+		});
+
+		const first = await sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+
+		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\ncompleted question\n\n---\n\nUser request:\nactive question'));
 	});
 
 	test('includes source transcript for an active side-chat source turn', async () => {

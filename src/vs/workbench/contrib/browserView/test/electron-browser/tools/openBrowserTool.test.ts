@@ -21,6 +21,7 @@ import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions } from '../../../../../../platform/browserView/common/browserView.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 suite('OpenBrowserTool', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +41,7 @@ suite('OpenBrowserTool', () => {
 			upcastPartial<IChatService>({}),
 			configService,
 			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }),
 		);
 
 		const urls = [
@@ -88,6 +90,7 @@ suite('OpenBrowserTool', () => {
 			upcastPartial<IChatService>({}),
 			new TestConfigurationService(),
 			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
 		);
 
 		await tool.invoke(
@@ -105,7 +108,7 @@ suite('OpenBrowserTool', () => {
 				owner: { type: 'agent', sessionId: 'chat:session' },
 				initialAudiences: [{ type: 'agent' }],
 				session: {
-					scope: BrowserViewStorageScope.Ephemeral,
+					scope: BrowserViewStorageScope.Agent,
 					affinity: 'chat:session'
 				},
 				initialUrl: 'https://example.com',

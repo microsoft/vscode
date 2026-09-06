@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { readAgentComponents, toParsedAgent, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
@@ -107,6 +107,55 @@ export async function discoverCodexWorkspaceAgents(
 	}
 
 	return { agents, containers };
+}
+
+/**
+ * Surfaces the root `AGENTS.md` file that Codex natively loads for each
+ * workspace. The transport/provider owns applying the instruction; this scan
+ * only projects that effective workspace customization into AHP state.
+ */
+export async function discoverCodexWorkspaceInstructions(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const resource = URI.joinPath(workingDirectory, 'AGENTS.md');
+		try {
+			if (!(await fileService.stat(resource)).isFile) {
+				continue;
+			}
+		} catch {
+			continue;
+		}
+		const ruleUri = resource.toString();
+		const rule: RuleCustomization = {
+			type: CustomizationType.Rule,
+			id: customizationId(ruleUri),
+			uri: ruleUri,
+			name: 'AGENTS.md',
+			alwaysApply: true,
+		};
+		const directoryUri = workingDirectory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(directoryUri),
+			uri: directoryUri,
+			name: basename(workingDirectory),
+			enabled: true,
+			contents: CustomizationType.Rule,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [rule],
+		});
+	}
+	return containers;
 }
 
 function localFileComparisonKey(resource: URI): { readonly key: string; readonly resource: URI } | undefined {

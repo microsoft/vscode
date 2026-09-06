@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../../platform/markers/common/markers.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
@@ -37,6 +37,7 @@ suite('PromptValidator', () => {
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
+	const existingHomeRef = URI.parse('myFs://test/home/work/vscode/');
 
 	setup(async () => {
 
@@ -44,7 +45,8 @@ suite('PromptValidator', () => {
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
-			configurationService: () => testConfigService
+			configurationService: () => testConfigService,
+			pathService: () => new TestPathService(URI.parse('myFs://test/home')),
 		}, disposables);
 		instaService.stub(ILabelService, { getUriLabel: (resource) => resource.path });
 
@@ -149,7 +151,7 @@ suite('PromptValidator', () => {
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
 
-		const existingFiles = new ResourceSet([existingRef1, existingRef2]);
+		const existingFiles = new ResourceSet([existingRef1, existingRef2, existingHomeRef]);
 		instaService.stub(IFileService, {
 			exists(uri: URI) {
 				return Promise.resolve(existingFiles.has(uri));
@@ -546,6 +548,17 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('reasoning effort is supported in agent file', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'reasoning-effort: low',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -557,7 +570,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -705,13 +718,14 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
 		});
 
-		test('github-copilot agent warns about model and handoffs attributes', async () => {
+		test('github-copilot agent warns about handoffs attribute', async () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
 				'description: "GitHub Copilot agent"',
 				'target: github-copilot',
 				'model: MAE 4.1',
+				'reasoning-effort: high',
 				`tools: ['shell', 'edit']`,
 				`handoffs:`,
 				'  - label: Test',
@@ -723,9 +737,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-			], 'Model and handoffs are not validated for github-copilot target');
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.',
+			], 'Only handoffs is unsupported for github-copilot target, model and reasoning-effort are supported');
 		});
 
 		test('github-copilot agent does not validate variable references', async () => {
@@ -1987,7 +2000,8 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "Refs"',
 				'---',
-				'Here is a #file:./reference1.md and a markdown [reference](./reference2.md) plus variables #tool1 and #tool2'
+				'Here is a #file:./reference1.md and a markdown [reference](./reference2.md) plus variables #tool1 and #tool2',
+				'User home references also work: #file:~/work/vscode/ and [home reference](~/work/vscode/).'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues');

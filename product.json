@@ -116,6 +116,10 @@
 			"apple": {
 				"id": "apple",
 				"name": "Apple"
+			},
+			"microsoft": {
+				"id": "microsoft",
+				"name": "Microsoft"
 			}
 		},
 		"providerExtensionId": "vscode.github-authentication",
@@ -156,6 +160,9 @@
 		],
 		"github-enterprise": [
 			"GitHub.copilot-chat"
+		],
+		"microsoft": [
+			"vscode.github-authentication"
 		]
 	},
 	"onboardingKeymaps": [

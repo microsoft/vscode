@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -31,6 +32,7 @@ import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariab
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
 import { HookTypeValue } from '../promptSyntax/hookTypes.js';
+import { ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
@@ -218,6 +220,17 @@ export function formatCopilotCredits(credits: number): string {
 	return parseFloat(credits.toFixed(1)).toString();
 }
 
+/**
+ * Formats a credit value as a pluralized label such as "1 credit" or "2.5 credits".
+ * Shared so every credit readout agrees.
+ */
+export function formatCopilotCreditsLabel(credits: number): string {
+	const formatted = formatCopilotCredits(credits);
+	return formatted === '1'
+		? localize('chat.credit', "{0} credit", formatted)
+		: localize('chat.credits', "{0} credits", formatted);
+}
+
 export interface IChatContentInlineReference {
 	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
@@ -309,6 +322,16 @@ export interface IChatSystemNotificationPart {
 	 * notifications that report something completing.
 	 */
 	icon?: ThemeIcon;
+	/** Render the first line as an always-visible summary and the remaining Markdown as collapsible details. */
+	collapsible?: boolean;
+	/** Render response timing beside the notification instead of using the response footer. */
+	renderInlineTiming?: boolean;
+	/** Use a quiet transcript boundary treatment instead of a progress row. */
+	presentation?: 'workspaceTransition';
+	/** Workspace folder name emphasized by the transition presentation. */
+	workspaceName?: string;
+	/** Complete accessible description for non-visual presentation and announcements. */
+	accessibilityLabel?: string;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -644,6 +667,17 @@ export interface IChatTerminalToolInvocationData {
 		isSandboxWrapped?: boolean;
 	};
 	/**
+	 * Whether the user may edit the command before confirming.
+	 *
+	 * Omitted means editable, the historical behavior for the built-in terminal
+	 * tool, which runs `commandLine.userEdited` when it is set. A producer whose
+	 * confirmation does not return the edit — an agent-host session, whose edit
+	 * would have to travel back as `chat/toolCallConfirmed.editedToolInput` —
+	 * MUST set `false`. Letting someone edit a command they are approving and
+	 * then running the original is worse than showing it read-only.
+	 */
+	editable?: boolean;
+	/**
 	 * LM-generated intention describing why the command is being run, shown
 	 * above the command in the terminal tool card. Set by the Agent Host; the
 	 * built-in terminal tool leaves this unset.
@@ -786,6 +820,21 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
+	/**
+	 * Whether the user may edit {@link rawInput} before confirming.
+	 *
+	 * Omitted means editable, the historical behavior: the confirmation editor
+	 * writes back into `rawInput`, and for an extension-contributed tool
+	 * `ILanguageModelToolsService` then invokes it with that value as its
+	 * parameters. That path always honours an edit, which is why no opt-out
+	 * existed before.
+	 *
+	 * A producer whose confirmation does not run through it — an agent-host
+	 * session, whose edit would have to travel back as
+	 * `chat/toolCallConfirmed.editedToolInput` — MUST set `false`. Inviting an
+	 * edit and then running the original is worse than showing none.
+	 */
+	editable?: boolean;
 }
 
 export const enum ToolConfirmKind {
@@ -1971,6 +2020,8 @@ export interface IChatService {
 	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
+
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable;
 
 	/**
 	 * An observable containing all live chat models.

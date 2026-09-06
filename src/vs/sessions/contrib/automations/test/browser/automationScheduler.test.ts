@@ -56,6 +56,12 @@ class RecordingRecoveryAutomationService extends AutomationService {
 	}
 }
 
+class HostScheduledAutomationService extends AutomationService {
+	isSchedulingOwnedByHost(_automationId: string): boolean {
+		return true;
+	}
+}
+
 interface RecordedRun {
 	readonly automationId: string;
 	readonly trigger: AutomationRunTrigger;
@@ -144,6 +150,28 @@ suite('AutomationSchedulerCore', () => {
 		leader.set(true);
 		await core.waitForPendingRuns();
 		await core.tickForTesting();
+		assert.deepStrictEqual(runner.runs, []);
+	});
+
+	test('does not dispatch automations whose provider owns scheduling', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new HostScheduledAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const runner = new RecordingRunner(service);
+		const leader = new FakeLeaderElection(false);
+		let now = T0;
+		service.setClockForTesting(() => now);
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
+			leaderElection: leader,
+			disableAutoTick: true,
+			now: () => now,
+		}));
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		now = T_PAST_DUE;
+
+		leader.set(true);
+		await core.waitForPendingRuns();
+
 		assert.deepStrictEqual(runner.runs, []);
 	});
 

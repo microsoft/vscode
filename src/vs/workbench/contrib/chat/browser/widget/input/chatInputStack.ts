@@ -7,6 +7,16 @@ import { isHTMLElement } from '../../../../../../base/browser/dom.js';
 import './media/chatInputStack.css';
 
 /**
+ * A regularly spaced column of standalone surfaces around the docked chat input
+ * stack. The stack owns the space between members so cards do not compound it
+ * with component-specific margins.
+ */
+export const chatInputSurfaceStackClass = 'chat-input-surface-stack';
+
+/** Marks a dynamic member of the surface stack, which disappears while empty. */
+export const chatInputSurfaceStackSlotClass = 'chat-input-surface-stack-slot';
+
+/**
  * A column of surfaces above a chat input - notices, the goal banner, the todo
  * list, artifacts, the working set - plus the input itself.
  *

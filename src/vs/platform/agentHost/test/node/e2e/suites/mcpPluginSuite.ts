@@ -314,7 +314,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				throw new Error('Plugin customization has not been removed');
 			}
 		}, 100, 100);
-	}, config.provider !== 'codex');
+	});
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {

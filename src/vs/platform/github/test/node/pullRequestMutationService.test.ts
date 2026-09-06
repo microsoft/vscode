@@ -233,6 +233,37 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	test('marks a pull request ready and toggles auto-merge off through node mutations', async () => {
+		await withServers(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						markPullRequestReadyForReview: { pullRequest: { id: 'PR7', isDraft: false } },
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostDisablePullRequestAutoMerge',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						disablePullRequestAutoMerge: { pullRequest: { id: 'PR7' } },
+					}),
+				}),
+			);
+			const { ref, resources, service } = setup(server);
+
+			await service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal());
+			await service.disableAutoMerge(ref, { pullRequestId: 'PR7' }, signal());
+
+			assert.deepStrictEqual(resources.invalidations, [
+				{ fragments: ['core', 'mergeability'] },
+				{ fragments: ['mergeability'] },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
 	test('retries only after a complete refresh proves a comment marker absent', async () => {
 		await withServers(async server => {
 			server.enqueue(
@@ -577,13 +608,20 @@ suite('PullRequestMutationService', () => {
 				gitHubRestStep({
 					method: 'GET',
 					path: '/repos/octo/repo/actions/jobs/20/logs',
+					assert: request => assert.strictEqual(request.headers.accept, 'application/vnd.github+json'),
 					response: gitHubRedirectResponse(`${download.apiBaseUrl}/signed/log`),
 				}),
 			);
 			download.enqueue(gitHubRestStep({
 				method: 'GET',
 				path: '/signed/log',
-				assert: request => assert.strictEqual(request.headers.authorization, undefined),
+				assert: request => assert.deepStrictEqual({
+					accept: request.headers.accept,
+					authorization: request.headers.authorization,
+				}, {
+					accept: 'text/plain, application/octet-stream',
+					authorization: undefined,
+				}),
 				response: gitHubRawResponse('::add-mask::supersecret\nsupersecret\ntoken=visible\nghp_1234567890123456'),
 			}));
 			const { ref, service } = setup(server);

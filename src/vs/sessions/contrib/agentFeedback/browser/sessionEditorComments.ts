@@ -7,6 +7,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
@@ -24,6 +25,7 @@ export interface ISessionEditorComment {
 	readonly range: IRange;
 	readonly text: string;
 	readonly suggestion?: ICodeReviewSuggestion;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly canConvertToAgentFeedback: boolean;
 	/**
 	 * Replies that belong to the same comment thread as this comment. They
@@ -82,6 +84,7 @@ export function getSessionEditorComments(
 			range: item.range,
 			text: item.text,
 			suggestion: item.suggestion,
+			sourcePullRequest: item.sourcePullRequest,
 			canConvertToAgentFeedback: false,
 			replies: item.replies,
 			state: item.state,
@@ -103,6 +106,11 @@ export function getSessionEditorComments(
 			resourceUri: item.uri,
 			range: item.range,
 			text: item.body,
+			sourcePullRequest: {
+				owner: item.pullRequest.owner,
+				repo: item.pullRequest.repo,
+				number: item.pullRequest.number,
+			},
 			canConvertToAgentFeedback: true,
 		});
 	}

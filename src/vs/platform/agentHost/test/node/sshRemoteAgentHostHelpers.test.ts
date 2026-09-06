@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import {
@@ -17,6 +19,7 @@ import {
 	buildFindFallbackCLICommand,
 	filterLiveAgentHostEndpoints,
 	findNewAgentHostEndpoint,
+	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIArchiveName,
 	getRemoteCLIBin,
 	getRemoteCLIDataDir,
@@ -33,6 +36,7 @@ import {
 	waitForNewStandaloneEndpoint,
 	type ISshExec,
 } from '../../node/sshRemoteAgentHostHelpers.js';
+import { ensureRemoteAgentHostCliInstalled } from '../../node/remoteAgentHostCliInstaller.js';
 
 suite('SSH Remote Agent Host Helpers', () => {
 
@@ -265,6 +269,18 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'armv7l'), { os: 'linux', arch: 'armhf' });
 		});
 
+		test('detects musl Linux x64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'x86_64', 'musl'), { os: 'alpine', arch: 'x64' });
+		});
+
+		test('detects musl Linux arm64 as Alpine', () => {
+			assert.deepStrictEqual(resolveRemotePlatform('Linux', 'aarch64', 'musl\n'), { os: 'alpine', arch: 'arm64' });
+		});
+
+		test('rejects musl Linux armhf because no Alpine CLI artifact exists', () => {
+			assert.strictEqual(resolveRemotePlatform('Linux', 'armv7l', 'musl'), undefined);
+		});
+
 		test('detects Darwin x64', () => {
 			assert.deepStrictEqual(resolveRemotePlatform('Darwin', 'x86_64'), { os: 'darwin', arch: 'x64' });
 		});
@@ -304,6 +320,13 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.strictEqual(
 				buildCLIDownloadUrl('darwin', 'arm64', 'stable'),
 				'https://update.code.visualstudio.com/latest/cli-darwin-arm64/stable'
+			);
+		});
+
+		test('uses the Alpine artifact for musl Linux', () => {
+			assert.strictEqual(
+				buildCLIDownloadUrl('alpine', 'x64', 'insider'),
+				'https://update.code.visualstudio.com/latest/cli-alpine-x64/insider'
 			);
 		});
 
@@ -649,6 +672,72 @@ suite('SSH Remote Agent Host Helpers', () => {
 		});
 	});
 
+	suite('ensureRemoteAgentHostCliInstalled', () => {
+		test('reports whether a CLI was reused or installed', async () => {
+			const cliBin = getRemoteCLIBin('.vscode-server', 'insider');
+			const options = {
+				serverDataFolderName: '.vscode-server',
+				quality: 'insider',
+				commit: undefined,
+				reportInstalling: () => { },
+				logService: new NullLogService(),
+			};
+			const commit = '1234567890abcdef1234567890abcdef12345678';
+			const pinnedOptions = { ...options, commit };
+			const pinnedCliBin = getRemoteCLIBin('.vscode-server', 'insider', commit);
+			const reused = await ensureRemoteAgentHostCliInstalled(
+				async () => ({ stdout: '1.0.0\n__vscode_cli_update_exit_code__:0\n', stderr: '', code: 0 }),
+				{ os: 'linux', arch: 'x64' },
+				options,
+			);
+			let calls = 0;
+			const installed = await ensureRemoteAgentHostCliInstalled(
+				async () => {
+					calls++;
+					return { stdout: '', stderr: '', code: calls === 1 ? 1 : 0 };
+				},
+				{ os: 'linux', arch: 'x64' },
+				options,
+			);
+			const reusedPinned = await ensureRemoteAgentHostCliInstalled(
+				async () => ({ stdout: '', stderr: '', code: 0 }),
+				{ os: 'linux', arch: 'x64' },
+				pinnedOptions,
+			);
+			calls = 0;
+			const installedPinned = await ensureRemoteAgentHostCliInstalled(
+				async () => {
+					calls++;
+					return { stdout: '', stderr: '', code: calls === 1 ? 1 : 0 };
+				},
+				{ os: 'linux', arch: 'x64' },
+				pinnedOptions,
+			);
+
+			assert.deepStrictEqual(
+				{
+					reused,
+					installed,
+					reusedPinned,
+					installedPinned,
+					registrationTimeouts: {
+						reused: getNewAgentHostRegistrationTimeoutMs(reused.installed),
+						installed: getNewAgentHostRegistrationTimeoutMs(installed.installed),
+						reusedPinned: getNewAgentHostRegistrationTimeoutMs(reusedPinned.installed),
+						installedPinned: getNewAgentHostRegistrationTimeoutMs(installedPinned.installed),
+					},
+				},
+				{
+					reused: { cliBin, installed: false },
+					installed: { cliBin, installed: true },
+					reusedPinned: { cliBin: pinnedCliBin, installed: false },
+					installedPinned: { cliBin: pinnedCliBin, installed: true },
+					registrationTimeouts: { reused: undefined, installed: 300_000, reusedPinned: undefined, installedPinned: 300_000 },
+				},
+			);
+		});
+	});
+
 	suite('waitForNewStandaloneEndpoint', () => {
 		test('resolves as soon as the new endpoint appears', async () => {
 			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
@@ -664,13 +753,48 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.ok(poll >= 2);
 		});
 
-		test('throws once the attempt budget is exhausted', async () => {
+		test('uses the default short deadline when no timeout is supplied', async () => {
 			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
 			const exec: ISshExec = async () => ({ stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 });
 			await assert.rejects(
-				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { attempts: 2, intervalMs: 1 }),
-				/Timed out waiting/,
+				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { intervalMs: 1 }),
+				/deadline 20ms/,
 			);
+		});
+
+		test('keeps polling past the default deadline when given a longer deadline', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const spawned = makeEndpoint({ type: 'standalone', pid: 2, instanceId: 'new' });
+			let polls = 0;
+			const exec: ISshExec = async () => {
+				polls++;
+				const endpoints = polls <= 20 ? before : [...before, spawned];
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints }), stderr: '', code: 0 };
+			};
+
+			const result = await waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { intervalMs: 1, timeoutMs: getNewAgentHostRegistrationTimeoutMs(true) });
+			assert.deepStrictEqual({ result, polls }, { result: spawned, polls: 21 });
+		});
+
+		test('cancels promptly while waiting for registration', async () => {
+			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
+			const cancellationSource = new CancellationTokenSource();
+			let polls = 0;
+			const exec: ISshExec = async () => {
+				polls++;
+				cancellationSource.cancel();
+				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 };
+			};
+
+			try {
+				await assert.rejects(
+					() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { timeoutMs: 60_000, token: cancellationSource.token }),
+					/Canceled/,
+				);
+				assert.deepStrictEqual(polls, 1);
+			} finally {
+				cancellationSource.dispose();
+			}
 		});
 	});
 });

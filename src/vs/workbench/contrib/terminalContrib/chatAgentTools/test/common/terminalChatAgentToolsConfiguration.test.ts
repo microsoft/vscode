@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
+import { DefaultConfiguration } from '../../../../../../platform/configuration/common/configurations.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
@@ -13,7 +15,7 @@ import { WorkspaceConfigurationModelParser } from '../../../../../services/confi
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 suite('Terminal chat agent tools configuration', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	const configurationNode: IConfigurationNode = {
 		id: 'terminalChatAgentToolsConfigurationTest',
@@ -40,6 +42,19 @@ suite('Terminal chat agent tools configuration', () => {
 	});
 
 	suiteTeardown(() => configurationRegistry.deregisterConfigurations([configurationNode]));
+
+	test('allows sandbox network access by default and preserves explicit overrides', async () => {
+		const logService = new NullLogService();
+		const defaults = await store.add(new DefaultConfiguration(logService)).initialize();
+		const settingId = AgentSandboxSettingId.AgentSandboxAllowNetwork;
+		const values = [defaults.getValue<boolean>(settingId)];
+		for (const value of [false, true]) {
+			const parser = new ConfigurationModelParser('sandboxNetworkSettings', logService);
+			parser.parse(JSON.stringify({ [settingId]: value }));
+			values.push(defaults.merge(parser.configurationModel).getValue<boolean>(settingId));
+		}
+		assert.deepStrictEqual(values, [true, false, true]);
+	});
 
 	test('registers terminal safety settings as restricted', () => {
 		assert.deepStrictEqual(

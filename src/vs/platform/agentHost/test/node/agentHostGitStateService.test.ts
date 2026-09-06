@@ -84,6 +84,31 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('keeps pull request state scoped to its pull request', () => {
+		const pullRequest = 'https://github.com/microsoft/vscode/pull/1';
+		const state: ISessionGitHubState = {
+			pullRequestUrls: [pullRequest],
+			pullRequestState: 'merged',
+			pullRequestStateUrl: pullRequest,
+		};
+
+		assert.deepStrictEqual({
+			same: withMostRecentSessionPullRequest(state, `${pullRequest}/`, 'feature-1'),
+			different: withMostRecentSessionPullRequest(state, 'https://github.com/microsoft/vscode/pull/2', 'feature-2'),
+		}, {
+			same: {
+				pullRequestUrls: [pullRequest],
+				pullRequestBranchName: 'feature-1',
+				pullRequestState: 'merged',
+				pullRequestStateUrl: pullRequest,
+			},
+			different: {
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2', pullRequest],
+				pullRequestBranchName: 'feature-2',
+			},
+		});
+	});
+
 	test('promotes an initial pull request into the session', () => {
 		const initial = 'https://github.com/microsoft/vscode/pull/1';
 		const state = withMostRecentRelatedSessionPullRequest({

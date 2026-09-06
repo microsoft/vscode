@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 
@@ -31,6 +31,9 @@ import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/c
 const WORKTREE_REMOVAL_MAX_ATTEMPTS = 5;
 const WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS = 100;
 const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
+
+/** Budget for reading one blob; a timeout here drops a diff's original side. */
+const SHOW_BLOB_TIMEOUT_MS = 15_000;
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -356,9 +359,49 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined;
 	}
 
+	async createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void> {
+		const args = options?.checkout
+			? ['checkout', '-q', '-b', branchName, '--no-track']
+			: ['branch', '-q', branchName];
+
+		await this._runGit(workingDirectory, args, { throwOnError: true });
+	}
+
+	async checkout(workingDirectory: URI, treeish: string): Promise<void> {
+		try {
+			await this._runGit(workingDirectory, ['checkout', '-q', treeish], {
+				throwOnError: true,
+				env: { LANG: 'C', LC_ALL: 'C' },
+			});
+		} catch (error) {
+			if (error instanceof GitCommandError && isCheckoutBlockedByLocalChanges(error.stderr)) {
+				throw new CheckoutBlockedByLocalChangesError(error.message, { cause: error });
+			}
+			throw error;
+		}
+	}
+
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGitStatus(workingDirectory, ['--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void> {
+		const args = ['stash', 'push'];
+
+		if (options?.includeUntracked) {
+			args.push('-u');
+		}
+
+		if (options?.staged) {
+			args.push('-S');
+		}
+
+		if (options?.message) {
+			args.push('-m', options.message);
+		}
+
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
@@ -699,12 +742,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// `git show` exits non-zero when the path didn't exist at that
-		// ref; `_runGit` swallows that into `undefined` which is exactly
-		// the contract callers want.
+		const args = ['show', `${ref}:${repoRelativePath}`];
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
+		// Callers only get `undefined`, which surfaces as "git blob not found"
+		// whatever actually went wrong, so log the real reason.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 				if (error) {
+					// The timeout above is the only thing that kills this process.
+					this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
 					resolve(undefined);
 					return;
 				}
@@ -1079,7 +1126,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 						this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
 					}
 					if (options?.throwOnError) {
-						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
+						reject(new GitCommandError(formatGitError(args, timeoutMs, didTimeOut, error, stderr), stderr, error));
 						return;
 					}
 					resolve(undefined);
@@ -1100,6 +1147,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+class GitCommandError extends Error {
+	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
+		super(message, { cause });
+	}
+}
+
+function isCheckoutBlockedByLocalChanges(stderr: string): boolean {
+	return /(?:local changes to the following files|untracked working tree files) would be overwritten by checkout:/i.test(stderr);
 }
 
 export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {

@@ -6,7 +6,15 @@
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
+
+export const IAgentHostServerToolService = createDecorator<IAgentHostServerToolService>('agentHostServerToolService');
+
+/** Injectable Agent Host server-tool registry and advertiser. */
+export interface IAgentHostServerToolService extends IAgentServerToolHost {
+	readonly _serviceBrand: undefined;
+}
 
 /**
  * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
@@ -34,6 +42,12 @@ export interface IServerToolDisplay {
 	readonly invocationMessage?: StringOrMarkdown;
 	/** Past-tense message shown once the tool completes. When omitted, the provider reuses `invocationMessage`. */
 	readonly pastTenseMessage?: StringOrMarkdown;
+	/** Short title shown when the tool requires confirmation. */
+	readonly confirmationTitle?: string;
+	/** Plain-language description of the decision shown when the tool requires confirmation. */
+	readonly confirmationMessage?: StringOrMarkdown;
+	/** Whether the generic raw-input preview should be omitted from the confirmation. */
+	readonly hideConfirmationInput?: boolean;
 }
 
 export interface IServerToolExecutionContext {
@@ -72,6 +86,8 @@ export interface IServerToolGroup {
 	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
+	/** Whether a contributed tool is supported by a specific session. */
+	isEnabledForSession(toolName: string, sessionUri: URI): boolean;
 	/**
 	 * Whether {@link toolName} (one of this group's {@link definitions}) can
 	 * ever prompt for confirmation. Providers exclude such tools from their
@@ -126,7 +142,9 @@ export interface IServerToolGroup {
  * tool on a session's {@link SessionState.serverTools} so clients see them as
  * server-provided.
  */
-export class AgentServerToolHost implements IAgentServerToolHost {
+export class AgentServerToolHost implements IAgentHostServerToolService {
+
+	declare readonly _serviceBrand: undefined;
 
 	/** Every name the host answers to — current and legacy — and its owning group. */
 	private readonly _groupByToolName = new Map<string, IServerToolGroup>();
@@ -172,9 +190,19 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
 		return this._groups.flatMap(group => {
 			if (materializedDefinitions && group.materializeDefinitions) {
-				return materializedDefinitions.filter(definition => this._groupByToolName.get(definition.name) === group);
+				// A session's tool membership is fixed at materialization time, but
+				// each still-current tool's metadata (description, schema) is refreshed
+				// from the group so restored sessions pick up wording changes instead
+				// of pinning the descriptions they were first advertised with. Tools
+				// with no current definition (e.g. the retired create_chat) keep their
+				// stored metadata.
+				const currentByName = new Map(group.definitions.map(definition => [definition.name, definition]));
+				return materializedDefinitions
+					.filter(definition => this._groupByToolName.get(definition.name) === group)
+					.filter(definition => !currentByName.has(definition.name) || group.isEnabledForSession(definition.name, sessionUri))
+					.map(definition => currentByName.get(definition.name) ?? definition);
 			}
-			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name));
+			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name) && group.isEnabledForSession(definition.name, sessionUri));
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
 		});
 	}
@@ -241,6 +269,10 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
+		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		if (!group.isEnabledForSession(toolName, sessionUri)) {
+			return false;
+		}
 		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
 			? advertisedTools.some(tool => tool.name === toolName) || group.legacyToolNames?.has(requestedToolName) === true

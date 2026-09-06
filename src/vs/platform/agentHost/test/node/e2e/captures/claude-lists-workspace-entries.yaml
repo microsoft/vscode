@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -14,22 +14,21 @@ exchanges:
           name: Bash
           input:
             command: node -e "console.log(require('fs').readdirSync('.').join(' '))"
-            description: List files in current directory via node
+            description: List files via node
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: 'Run exactly this shell command, with no modifications: `node -e "console.log(require(''fs'').readdirSync(''.'').join('' ''))"`. Then reply with the filenames it printed and nothing else.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: Bash
               input:
                 command: node -e "console.log(require('fs').readdirSync('.').join(' '))"
-                description: List files in current directory via node
+                description: List files via node
         - role: user
           content:
             - type: tool_result

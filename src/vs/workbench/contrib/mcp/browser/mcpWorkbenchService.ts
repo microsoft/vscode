@@ -316,6 +316,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	// Source identity is intentionally trusted only in-process; IPC copies are re-verified.
 	private readonly gallerySourceGenerations = new WeakMap<IGalleryMcpServer, number>();
 	private readonly registrySyncDelayer = this._register(new ThrottledDelayer<void>(0));
+	readonly whenInitialLocalMcpServersLoaded: Promise<void>;
 	get local(): readonly McpWorkbenchServer[] { return [...this._local]; }
 
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -350,7 +351,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._register(this.mcpManagementService.onDidUpdateMcpServersInCurrentProfile(e => this.onDidUpdateMcpServers(e)));
 		this._register(this.mcpManagementService.onDidUninstallMcpServerInCurrentProfile(e => this.onDidUninstallMcpServer(e)));
 		this._register(this.mcpManagementService.onDidChangeProfile(e => this.onDidChangeProfile()));
-		this.queryLocal().then(() => {
+		this.whenInitialLocalMcpServersLoaded = this.queryLocal().then(() => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -359,7 +360,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.scheduleRegistrySync();
 			}));
 			this.scheduleRegistrySync();
-		});
+		}, error => this.logService.error(error));
 		urlService.registerHandler(this);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {

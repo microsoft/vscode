@@ -394,6 +394,24 @@ suite('AutomationTools', () => {
 		]);
 	});
 
+	test('configureAutomation tool data requires explicit creation intent', () => {
+		const modelDescription = new ConfigureAutomationTool(
+			new FakeAutomationService(),
+			new FakeSessionsManagementService(undefined),
+			createConfigurationService(),
+		).getToolData().modelDescription ?? '';
+
+		assert.deepStrictEqual({
+			requiresExplicitAutomationIntent: modelDescription.includes('only when the user explicitly asks for an automation'),
+			allowsRecurringScheduleIntent: modelDescription.includes('or for a prompt to run on a recurring schedule'),
+			excludesMonitoringRequests: modelDescription.includes('Do not infer that intent from requests merely to monitor, watch, follow, or keep something'),
+		}, {
+			requiresExplicitAutomationIntent: true,
+			allowsRecurringScheduleIntent: true,
+			excludesMonitoringRequests: true,
+		});
+	});
+
 	test('listAutomations returns stable IDs and editable fields', async () => {
 		const automation = createAutomation();
 		const tool = new ListAutomationsTool(new FakeAutomationService([automation]), createConfigurationService());

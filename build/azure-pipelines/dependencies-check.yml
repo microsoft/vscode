@@ -22,10 +22,13 @@ jobs:
     variables:
       VSCODE_ARCH: x64
     steps:
-      - task: NodeTool@0
+      - script: |
+          echo "##vso[task.setvariable variable=NODE_VERSION]$(cat .nvmrc)"
+        displayName: Read Node version from .nvmrc
+
+      - task: UseNode@1
         inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+          version: $(NODE_VERSION)
 
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get GitHub token"
@@ -84,6 +87,30 @@ jobs:
       - script: |
           set -e
 
+          # Check if any build subfolders with package-lock.json were modified
+          git fetch origin main
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          MODIFIED_BUILD_FOLDERS=""
+           
+          # Check if build/package-lock.json itself was modified
+          if echo "$CHANGED_FILES" | grep -q "^build/package-lock\.json$"; then
+            MODIFIED_BUILD_FOLDERS="build"
+            echo "build/package-lock.json was modified"
+          fi
+           
+          # Find all modified package-lock.json files under build subfolders and extract their directories
+          for file in $CHANGED_FILES; do
+            if [[ $file =~ ^(build/.+)/package-lock\.json$ ]]; then
+              dir="${BASH_REMATCH[1]}"
+              if [[ ! " $MODIFIED_BUILD_FOLDERS " =~ " $dir " ]]; then
+                MODIFIED_BUILD_FOLDERS="$MODIFIED_BUILD_FOLDERS $dir"
+                echo "$dir was modified"
+              fi
+            fi
+          done
+           
+          echo "##vso[task.setvariable variable=MODIFIED_BUILD_FOLDERS]$MODIFIED_BUILD_FOLDERS"
+
           for attempt in {1..120}; do
             if [ $attempt -gt 1 ]; then
               echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
@@ -92,6 +119,15 @@ jobs:
 
             echo "Attempt $attempt: Running npm ci"
             if npm i --ignore-scripts; then
+              # Rebuild each modified build subfolder separately
+              for folder in $MODIFIED_BUILD_FOLDERS; do
+                echo "Rebuilding modified $folder..."
+                if ! (cd "$folder" && npm i --ignore-scripts); then
+                  echo "npm i failed for $folder on attempt $attempt"
+                  continue 2
+                fi
+              done
+
               if node build/npm/postinstall.ts; then
                 echo "npm i succeeded on attempt $attempt"
                 exit 0

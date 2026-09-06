@@ -221,8 +221,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			return;
 		}
 		if (event.status.type === 'connected') {
-			const { tunnelName, isAttached, link, domain } = event.status;
-			const info: ConnectionInfo = { tunnelName, isAttached, ...(link === undefined ? {} : { link, domain }) };
+			const { tunnelName, tunnelId, isAttached, link, domain } = event.status;
+			const info: ConnectionInfo = {
+				tunnelName,
+				isAttached,
+				...(tunnelId === undefined ? {} : { tunnelId }),
+				...(link === undefined ? {} : { link, domain }),
+			};
 			this.telemetryService.publicLog2<RemoteTunnelConnectedEvent, RemoteTunnelConnectedClassification>('remoteTunnel.connected', {
 				tunnelName: info.tunnelName,
 				isAttached: info.isAttached,

@@ -22,6 +22,8 @@ import { TestThemeService } from '../../../../../platform/theme/test/common/test
 import { ChatAttachmentResolveService } from '../../browser/attachments/chatAttachmentResolveService.js';
 import { createFileStat } from '../../../../test/common/workbenchTestServices.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { BrowserViewStorageScope } from '../../../../../platform/browserView/common/browserView.js';
 
 suite('ChatAttachmentResolveService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +75,7 @@ suite('ChatAttachmentResolveService', () => {
 		instantiationService.stub(IBrowserViewWorkbenchService, { getKnownBrowserViews: () => knownBrowserViews });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(IAgentNetworkFilterService, { isEnabled: () => false });
 
 		service = instantiationService.createInstance(ChatAttachmentResolveService);
 
@@ -285,16 +288,19 @@ suite('ChatAttachmentResolveService - resolveBrowserViewAttachContext', () => {
 		instantiationService.stub(IBrowserViewWorkbenchService, {
 			getKnownBrowserViews: () => browserViews as Map<string, BrowserEditorInput>,
 		});
+		instantiationService.stub(IAgentNetworkFilterService, { isEnabled: () => true });
 
 		service = instantiationService.createInstance(ChatAttachmentResolveService);
 	});
 
-	function makeMockEditor(id: string, opts: { sharingState: BrowserViewSharingState; setSharedResult?: boolean }): Partial<BrowserEditorInput> {
+	function makeMockEditor(id: string, opts: { sharingState: BrowserViewSharingState; storageScope?: BrowserViewStorageScope; shareResult?: IBrowserViewModel | false }): Partial<BrowserEditorInput> {
 		const resource = BrowserViewUri.forId(id);
 		const model: Partial<IBrowserViewModel> = {
+			id,
 			sharingState: opts.sharingState,
-			setSharedWithAgent: async () => opts.setSharedResult ?? true,
+			storageScope: opts.storageScope ?? BrowserViewStorageScope.Agent,
 		};
+		model.setSharedWithAgent = async () => opts.shareResult === false ? undefined : opts.shareResult ?? model as IBrowserViewModel;
 		return {
 			id,
 			resource,
@@ -322,7 +328,7 @@ suite('ChatAttachmentResolveService - resolveBrowserViewAttachContext', () => {
 	});
 
 	test('prompts for sharing when NotShared and user accepts', async () => {
-		const editor = makeMockEditor('b2', { sharingState: BrowserViewSharingState.NotShared, setSharedResult: true });
+		const editor = makeMockEditor('b2', { sharingState: BrowserViewSharingState.Available });
 		browserViews.set('b2', editor);
 
 		const result = await service.resolveBrowserViewAttachContext('b2');
@@ -332,18 +338,46 @@ suite('ChatAttachmentResolveService - resolveBrowserViewAttachContext', () => {
 	});
 
 	test('returns undefined when NotShared and user denies', async () => {
-		const editor = makeMockEditor('b3', { sharingState: BrowserViewSharingState.NotShared, setSharedResult: false });
+		const editor = makeMockEditor('b3', { sharingState: BrowserViewSharingState.Available, shareResult: false });
 		browserViews.set('b3', editor);
 
 		const result = await service.resolveBrowserViewAttachContext('b3');
 		assert.strictEqual(result, undefined);
 	});
 
+	test('attaches the shareable copy returned by the model', async () => {
+		const sharedEditor = makeMockEditor('shared-copy', { sharingState: BrowserViewSharingState.Shared });
+		const editor = makeMockEditor('original', { sharingState: BrowserViewSharingState.Available, shareResult: sharedEditor.model });
+		browserViews.set('original', editor);
+		browserViews.set('shared-copy', sharedEditor);
+
+		const result = await service.resolveBrowserViewAttachContext('original');
+
+		assert.deepStrictEqual({
+			id: result?.id,
+			browserId: result?.browserId,
+			name: result?.name,
+		}, {
+			id: BrowserViewUri.forId('shared-copy').toString(),
+			browserId: 'shared-copy',
+			name: 'Page shared-copy',
+		});
+	});
+
+	test('returns undefined when restricted by network policy', async () => {
+		const editor = makeMockEditor('restricted', { sharingState: BrowserViewSharingState.BlockedByNetworkPolicy });
+		browserViews.set('restricted', editor);
+
+		const result = await service.resolveBrowserViewAttachContext('restricted');
+		assert.strictEqual(result, undefined);
+	});
+
 	test('resolves model if not yet resolved', async () => {
 		const resource = BrowserViewUri.forId('b4');
 		const model: Partial<IBrowserViewModel> = {
+			id: 'b4',
 			sharingState: BrowserViewSharingState.Shared,
-			setSharedWithAgent: async () => true,
+			storageScope: BrowserViewStorageScope.Agent,
 		};
 		let resolved = false;
 		const editor: Partial<BrowserEditorInput> = {

@@ -69,10 +69,12 @@ import { createNoopCustomizationEnablementService } from './testCustomizationEna
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -523,7 +525,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 				if (!startup?.onElicitation) {
 					throw new Error('integration test: elicitation marker but Options.onElicitation not wired');
 				}
-				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal });
+				const result = await startup.onElicitation(item.request, { signal: new AbortController().signal, requestId: 'integration-elicitation' });
 				this._sdk.elicitationResults.push(result);
 				continue;
 			}
@@ -548,6 +550,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setModel(): never { throw new Error('not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }
+	updateSettings(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
 	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }
@@ -720,6 +723,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -859,6 +863,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
@@ -940,6 +945,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentSdkDownloader, new RecordingAgentSdkDownloader()],
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),

@@ -12,3 +12,8 @@ const GPT_56_MODEL_IDS: ReadonlySet<string> = new Set([
 export function isGpt56Model(modelId: string | undefined): boolean {
 	return modelId !== undefined && GPT_56_MODEL_IDS.has(modelId.toLowerCase());
 }
+
+/** Whether this is the synthetic "Auto" entry, which routes each turn instead of naming a model. */
+export function isAutoModel(modelId: string | undefined): boolean {
+	return modelId === 'auto';
+}

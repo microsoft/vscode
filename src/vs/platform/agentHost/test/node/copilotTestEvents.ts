@@ -150,7 +150,7 @@ export type ISessionEvent =
 	| ISessionEventAssistantTurn
 	| ISessionEventSystemNotification
 	| ISessionEventError
-	| { type: string; timestamp?: string; data?: unknown };
+	| { type: string; agentId?: string; timestamp?: string; data?: unknown };
 
 /**
  * Widens ergonomic {@link ISessionEvent} test fixtures to the real SDK

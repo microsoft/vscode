@@ -116,6 +116,14 @@ export enum ChatFetchResponseType {
 
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
+export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResponseType; reason?: string; reasonDetail?: string }): boolean {
+	if (input.type !== ChatFetchResponseType.BadRequest && input.type !== ChatFetchResponseType.Failed) {
+		return false;
+	}
+	const haystack = `${input.reason ?? ''} ${input.reasonDetail ?? ''}`.toLowerCase();
+	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
+}
+
 export type ChatFetchError =
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
@@ -441,11 +449,19 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
-		case ChatFetchResponseType.Failed:
-			details = fetchResult.serverRequestId
-				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
-				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+		case ChatFetchResponseType.Failed: {
+			const isVisionExpired = isVisionAttachmentInaccessibleError(fetchResult);
+			if (isVisionExpired) {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			} else {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			}
 			break;
+		}
 		case ChatFetchResponseType.NetworkError:
 			details = { message: l10n.t(`Sorry, there was a network error. Please try again later. Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
 			break;

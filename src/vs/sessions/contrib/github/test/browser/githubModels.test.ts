@@ -20,7 +20,8 @@ import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
 
 //#region Mock Fetchers
 
@@ -108,6 +109,28 @@ class MockCIFetcher {
 }
 
 //#endregion
+
+suite('Pull Request Icons', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the highest-priority icon across pull requests', () => {
+		const closed = computePullRequestIcon(GitHubPullRequestState.Closed);
+		const merged = computePullRequestIcon(GitHubPullRequestState.Merged);
+		const draft = computePullRequestIcon('draft');
+		const open = computePullRequestIcon(GitHubPullRequestState.Open);
+		const comments = computePullRequestIcon(GitHubPullRequestState.Open, { hasUnresolvedComments: true });
+		const failing = computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true });
+
+		assert.deepStrictEqual([
+			getHighestPriorityPullRequestIcon([closed, merged]),
+			getHighestPriorityPullRequestIcon([draft, merged, closed]),
+			getHighestPriorityPullRequestIcon([open, draft]),
+			getHighestPriorityPullRequestIcon([comments, open]),
+			getHighestPriorityPullRequestIcon([comments, failing, open]),
+			getHighestPriorityPullRequestIcon([merged, undefined]),
+		], [merged, draft, open, comments, failing, merged]);
+	});
+});
 
 suite('GitHubRepositoryModel', () => {
 

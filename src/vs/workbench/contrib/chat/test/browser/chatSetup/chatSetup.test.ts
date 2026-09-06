@@ -7,10 +7,13 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatMicrosoftAuthenticationEnabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatEntitlement } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { buildUpgradeUrlWithRedirect, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
-import { ChatSetup, getChatSetupDialogButtons, getChatSetupDialogFooter, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { buildUpgradeUrlWithRedirect, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
+import { ChatSetup, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogProviders, shouldShowMicrosoftProvider, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -95,13 +98,24 @@ suite('Chat setup dialog presentation', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const providers: IChatSetupDialogProviders = {
+		default: { name: 'GitHub' },
+		enterprise: { name: 'GHE' },
+		google: { name: 'Google' },
+		apple: { name: 'Apple' },
+		microsoft: { name: 'Microsoft' },
+	};
+
+	function buttonLabels(options: IChatSetupRunOptions, enterpriseAuthentication: boolean, showMicrosoftProvider: boolean): string[] {
+		return getChatSetupDialogButtons(ChatEntitlement.Unknown, options, enterpriseAuthentication, showMicrosoftProvider, providers).map(button => button.label);
+	}
+
+	function microsoftSetting(enabled: boolean): IConfigurationService {
+		return new TestConfigurationService({ [ChatMicrosoftAuthenticationEnabledSettingId]: enabled });
+	}
+
 	test('places signed-out continuation after providers', () => {
-		const buttons = getChatSetupDialogButtons(ChatEntitlement.Unknown, { allowContinueWithoutSignIn: true }, false, {
-			default: { name: 'GitHub' },
-			enterprise: { name: 'GHE' },
-			google: { name: 'Google' },
-			apple: { name: 'Apple' },
-		});
+		const buttons = getChatSetupDialogButtons(ChatEntitlement.Unknown, { allowContinueWithoutSignIn: true }, false, false, providers);
 		const footer = getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://example.com/settings', {
 			providerName: 'GitHub',
 			termsStatementUrl: 'https://example.com/terms',
@@ -121,6 +135,75 @@ suite('Chat setup dialog presentation', () => {
 				classes: ['link-button'],
 			},
 			footer: 'By continuing, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these [settings](https://example.com/settings) anytime.',
+		});
+	});
+
+	test('places Microsoft after the other providers and before the signed-out continuation', () => {
+		assert.deepStrictEqual({
+			withMicrosoft: buttonLabels({ allowContinueWithoutSignIn: true }, false, true),
+			withoutMicrosoft: buttonLabels({ allowContinueWithoutSignIn: true }, false, false),
+			// The enterprise dialog offers the same social providers, in the same order, because
+			// every one of them signs in against whichever host the default account points at.
+			enterprise: buttonLabels({}, true, true),
+		}, {
+			withMicrosoft: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with Microsoft', 'Continue with GHE', 'Continue Without Signing In'],
+			withoutMicrosoft: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with GHE', 'Continue Without Signing In'],
+			enterprise: ['Continue with GHE', 'Continue with Google', 'Continue with Apple', 'Continue with Microsoft', 'Continue with GitHub'],
+		});
+	});
+
+	test('offers Microsoft to every sign-in dialog once the setting is on', () => {
+		assert.deepStrictEqual({
+			settingOff: shouldShowMicrosoftProvider(microsoftSetting(false)),
+			settingOn: shouldShowMicrosoftProvider(microsoftSetting(true)),
+		}, {
+			settingOff: false,
+			settingOn: true,
+		});
+	});
+});
+
+suite('Chat setup strategy', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes the Microsoft strategy to the Microsoft social provider', async () => {
+		let setupOptions: { useEnterpriseProvider?: boolean; useSocialProvider?: string; additionalScopes?: readonly string[] } | undefined;
+		const setup = new ChatSetup(
+			{ update() { } } as never,
+			{
+				value: {
+					setupWithProvider: async (options: typeof setupOptions) => {
+						setupOptions = options;
+						return true;
+					},
+				},
+			} as never,
+			{ publicLog2() { } } as never,
+			undefined as never,
+			undefined as never,
+			{ error() { } } as never,
+			{ revealWidget() { } } as never,
+			{ requestWorkspaceTrust: async () => true } as never,
+			{ getDefaultAccountAuthenticationProvider: () => ({ enterprise: false }) } as never,
+			undefined as never,
+			{ isWorkspaceTrusted: () => true } as never,
+			undefined as never,
+			new TestConfigurationService(),
+		);
+
+		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
+
+		assert.deepStrictEqual({
+			success: result.success,
+			useEnterpriseProvider: setupOptions?.useEnterpriseProvider,
+			useSocialProvider: setupOptions?.useSocialProvider,
+			additionalScopes: setupOptions?.additionalScopes,
+		}, {
+			success: true,
+			useEnterpriseProvider: false,
+			useSocialProvider: 'microsoft',
+			additionalScopes: ['repo'],
 		});
 	});
 });
@@ -204,6 +287,7 @@ suite('Chat setup dialog cancellation', () => {
 			undefined as never,
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
+			new TestConfigurationService(),
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });

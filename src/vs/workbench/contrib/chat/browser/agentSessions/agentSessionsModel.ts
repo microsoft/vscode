@@ -698,6 +698,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
+		// Providers that register their session items dynamically (notably the
+		// agent host, e.g. `agent-host-copilotcli` and remote `remote-<auth>-…`)
+		// are neither built-in nor static contributions, so they are preserved
+		// via the live registration signal — otherwise a sibling provider's
+		// partial refresh would drop their rows (sessions vanishing mid-migration).
+		const registeredProviders = new Set(this.chatSessionsService.getRegisteredChatSessionItemProviders());
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
@@ -758,14 +764,23 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Phase 2: Atomically update sessions (sync - reads latest this._sessions
 		// so concurrent updateItems calls for other providers don't lose data)
 
+		let preservedViaRegistration = 0;
 		for (const [, session] of this._sessions) {
-			if (
-				session.providerType !== provider &&
-				!sessions.has(session.resource) &&
-				(isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))
-			) {
-				sessions.set(session.resource, session);
+			if (session.providerType !== provider && !sessions.has(session.resource)) {
+				const knownProvider = isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType);
+				if (knownProvider || registeredProviders.has(session.providerType)) {
+					sessions.set(session.resource, session);
+					// Count rows kept only because their provider is live-registered
+					// (e.g. agent-host): the old condition dropped these, causing the
+					// mid-migration vanish. A non-zero count means the fix engaged.
+					if (!knownProvider) {
+						preservedViaRegistration++;
+					}
+				}
 			}
+		}
+		if (preservedViaRegistration > 0) {
+			this.logger.logIfTrace(`doResolveProvider(${provider}): preserved ${preservedViaRegistration} live-registered session(s) across a sibling refresh (would have dropped before the preservation fix)`);
 		}
 		for (const resource of this.explicitlyMarkedUnreadSessions) {
 			if (!sessions.has(resource)) {

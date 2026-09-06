@@ -8,7 +8,6 @@ import { type IDialogService } from '../../dialogs/common/dialogs.js';
 import { type IProductService } from '../../product/common/productService.js';
 import { type IRemoteAgentHostLocationPreferenceService } from './remoteAgentHostLocationPreference.js';
 import { promptRemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreferenceDialog.js';
-import { type IRemoteAgentHostService } from './remoteAgentHostService.js';
 import { type ITunnelGatewayEndpoint, type ITunnelGatewayInventory, type ITunnelGatewaySelection, type TunnelGatewayServerType } from './tunnelAgentHost.js';
 
 /** Endpoints of `type`, sorted deterministically by `instanceId`. */
@@ -134,9 +133,7 @@ export async function resolveGatewaySelection(
 }
 
 /**
- * Decide whether a tunnel-failover notification should be shown after a
- * connection attempt's {@link IRemoteAgentHostService.addManagedConnection}
- * has already succeeded. Fires in two cases, both of which mean the editor
+ * Decide whether a tunnel-failover notification should be shown after a successful factory-built connection. Fires in two cases, both of which mean the editor
  * process that used to host the connection is gone and a dedicated agent
  * host silently took its place:
  *
@@ -173,9 +170,7 @@ export function shouldNotifyTunnelFailover(
  * Retains the last successfully registered endpoint's server type per
  * stable tunnel address (`tunnel:<tunnelId>`) so a later automatic
  * reconnect for the same tunnel can detect a silent editor → standalone
- * failover via {@link shouldNotifyTunnelFailover}. Entries are only ever
- * written after a successful {@link IRemoteAgentHostService.addManagedConnection}
- * registration and are deliberately never cleared on relay closure, so the
+ * failover via {@link shouldNotifyTunnelFailover}. Server types are recorded only after a successful factory-built connection and are deliberately never cleared on relay closure, so the
  * comparison survives disconnect/reconnect cycles for the tunnel's
  * lifetime. Exported (and kept free of any IPC/protocol dependencies) so
  * the retention + decision behavior can be unit tested in isolation.

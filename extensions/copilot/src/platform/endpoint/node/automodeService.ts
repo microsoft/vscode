@@ -18,7 +18,7 @@ import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
+import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
@@ -397,23 +397,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 *
 	 * Only a non-default selection counts as explicit: the workbench materializes
 	 * the schema default into `modelConfiguration` and strips a pick of the
-	 * default back out when storing it, so a `balanced` entry cannot be told
+	 * default back out when storing it, so a `balance` entry cannot be told
 	 * apart from "never picked" — reading it as a selection would make the inline
 	 * pin below unreachable.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
 		if (override) {
+			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if ((autoModeTiers as readonly string[]).includes(override)) {
-				return override as AutoModeTier;
+			if (autoModeTiers.some(tier => tier === normalized)) {
+				return normalized as AutoModeTier;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
 		}
 		if (!this.areAutoModeTiersSupported()) {
 			return undefined;
 		}
-		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
+		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
 			return configured;
 		}

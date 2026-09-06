@@ -46,16 +46,28 @@ export function areSessionWorkingDirectoriesEqual(first: readonly URI[] | undefi
 }
 
 /**
+ * Provider working-directory capability flags relevant to authoritative
+ * host-side validation. Mirrors {@link MultipleWorkingDirectoriesCapability}
+ * fields without the transport concerns.
+ */
+export interface ISessionWorkingDirectoryCapability {
+	readonly immutablePrimary: boolean;
+	readonly primaryReplacement: boolean;
+}
+
+/**
  * Validates and canonicalizes a working-directory delta against the session's
  * current host-side URI identities. The returned spelling is safe for the
- * exact-string session reducer. `hasImmutablePrimary` reflects the owning
- * agent's capability: when `true` the first entry of `workingDirectories` is a
- * fixed process root that cannot be removed.
+ * exact-string session reducer. `capability` reflects the owning agent's
+ * multiple-working-directories capability: `immutablePrimary` fixes the first
+ * entry as a process root that cannot be removed via the generic membership
+ * action, and `primaryReplacement` protects index 0 as a replaceable primary
+ * that may only change through `SessionWorkingDirectoryReplaced`.
  */
 export function resolveSessionWorkingDirectoryAction(
 	action: SessionWorkingDirectoryAction,
 	workingDirectories: readonly string[],
-	hasImmutablePrimary: boolean,
+	capability: ISessionWorkingDirectoryCapability,
 ): SessionWorkingDirectoryAction {
 	const directory = URI.parse(action.directory, true);
 	if (directory.scheme !== Schemas.file) {
@@ -64,10 +76,34 @@ export function resolveSessionWorkingDirectoryAction(
 
 	const current = workingDirectories.map(value => URI.parse(value, true));
 	const index = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, directory));
-	if (hasImmutablePrimary && action.type === ActionType.SessionWorkingDirectoryRemoved && index === 0) {
-		throw new Error('The primary working directory cannot be removed.');
+	const canonicalDirectory = index >= 0 ? current[index] : directory;
+
+	if (action.type === ActionType.SessionWorkingDirectoryRemoved) {
+		// The generic membership action MUST NOT remove index 0 when the primary
+		// is either fixed or a protected-replaceable slot; the replace action is
+		// the only path in the latter case.
+		if (index === 0 && (capability.immutablePrimary || capability.primaryReplacement)) {
+			throw new Error('The primary working directory cannot be removed.');
+		}
+		return { ...action, directory: canonicalDirectory.toString() };
 	}
 
-	const canonicalDirectory = index >= 0 ? current[index] : directory;
+	if (action.type === ActionType.SessionWorkingDirectoryReplaced) {
+		const replacement = URI.parse(action.replacement, true);
+		if (replacement.scheme !== Schemas.file) {
+			throw new Error(`Working directory replacement must be a file URI: ${action.replacement}`);
+		}
+		// Index 0 may only be replaced when the provider advertises
+		// primaryReplacement. An immutable primary without primaryReplacement
+		// is fixed and cannot be swapped; a plain equal-peer index 0 (neither
+		// flag set) is fine to replace like any other entry.
+		if (index === 0 && capability.immutablePrimary && !capability.primaryReplacement) {
+			throw new Error('The primary working directory cannot be replaced.');
+		}
+		const replacementIdx = current.findIndex(value => extUriBiasedIgnorePathCase.isEqual(value, replacement));
+		const canonicalReplacement = replacementIdx >= 0 ? current[replacementIdx] : replacement;
+		return { ...action, directory: canonicalDirectory.toString(), replacement: canonicalReplacement.toString() };
+	}
+
 	return { ...action, directory: canonicalDirectory.toString() };
 }

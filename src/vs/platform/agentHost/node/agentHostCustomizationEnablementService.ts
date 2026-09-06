@@ -183,7 +183,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			if (session !== undefined) {
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
-				if (envelope.action.type === ActionType.SessionWorkingDirectorySet || envelope.action.type === ActionType.SessionWorkingDirectoryRemoved) {
+				if (envelope.action.type === ActionType.SessionWorkingDirectorySet
+					|| envelope.action.type === ActionType.SessionWorkingDirectoryRemoved
+					|| envelope.action.type === ActionType.SessionWorkingDirectoryReplaced) {
 					const affectedSessions = this._applyPendingReplacements(session);
 					affectedSessions.add(session);
 					this._notifyDecisionChanged(affectedSessions);

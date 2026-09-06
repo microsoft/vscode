@@ -38,6 +38,7 @@ suite('ChatSetupController', () => {
 					entitlement: ChatEntitlement.Unknown,
 					sku: undefined,
 					organisations: undefined,
+					isStaff: undefined,
 					copilotTrackingId: undefined,
 				};
 			}

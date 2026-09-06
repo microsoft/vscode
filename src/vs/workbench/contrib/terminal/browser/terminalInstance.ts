@@ -42,7 +42,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMarkProperties, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IMarkProperties, TerminalCapability, type ICommandDetectionCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
@@ -1015,16 +1015,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			await Promise.race([
 				new Promise<void>(r => {
-					store.add(this.capabilities.onDidAddCommandDetectionCapability(e => {
-						commandDetection = e;
-						if (commandDetection.promptInputModel.state === PromptInputState.Input) {
+					const waitForPromptInput = (capability: ICommandDetectionCapability) => {
+						commandDetection = capability;
+						if (capability.promptInputModel.state === PromptInputState.Input) {
 							r();
 						} else {
-							store.add(commandDetection.promptInputModel.onDidStartInput(() => {
+							store.add(capability.promptInputModel.onDidStartInput(() => {
 								r();
 							}));
 						}
-					}));
+					};
+
+					if (commandDetection) {
+						waitForPromptInput(commandDetection);
+					} else {
+						store.add(this.capabilities.onDidAddCommandDetectionCapability(waitForPromptInput));
+					}
 				}),
 				timeout(timeoutMs)
 			]);

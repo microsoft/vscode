@@ -5,7 +5,7 @@
 
 import type { URI } from '../../../../base/common/uri.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
-import type { AgentFeedbackAuthorValue } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import type { AgentFeedbackAuthorValue, IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
 /**
@@ -83,6 +83,8 @@ export interface IAgentFeedback {
 	readonly kind: AgentFeedbackKind;
 	/** When this feedback was converted from a PR review comment, the original thread ID. */
 	readonly sourcePRReviewCommentId?: string;
+	/** Pull request that originated this PR review comment. */
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	/**
 	 * Additional comment messages that belong to the same thread as this feedback,
 	 * talking about the same code region. The first {@link text} is the initial

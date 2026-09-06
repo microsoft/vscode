@@ -224,7 +224,7 @@ export class AgentPluginEditor extends EditorPane {
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: item.name,
 					description: item.description,
-					version: '',
+					version: item.version ?? '',
 					source: item.source,
 					sourceDescriptor: item.sourceDescriptor,
 					marketplace: item.marketplace,
@@ -246,6 +246,7 @@ export class AgentPluginEditor extends EditorPane {
 							kind: AgentPluginItemKind.Marketplace,
 							name: item.name,
 							description: mp.description,
+							version: mp.version,
 							source: mp.source,
 							sourceDescriptor: mp.sourceDescriptor,
 							marketplace: mp.marketplace,

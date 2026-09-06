@@ -12,6 +12,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService, AutomationStore } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationActiveRunError, isAutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -40,6 +41,21 @@ function serializeLedgerAutomation(id: string, name: string) {
 suite('AutomationService', () => {
 
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies only homogeneous active-run aggregates as deferrals', () => {
+		const activeRunError = new AutomationActiveRunError('automation', 'run');
+		assert.deepStrictEqual({
+			direct: isAutomationActiveRunError(activeRunError),
+			nested: isAutomationActiveRunError(new AggregateError([new AggregateError([activeRunError])])),
+			mixed: isAutomationActiveRunError(new AggregateError([activeRunError, new Error('storage failed')])),
+			empty: isAutomationActiveRunError(new AggregateError([])),
+		}, {
+			direct: true,
+			nested: true,
+			mixed: false,
+			empty: false,
+		});
+	});
 
 	/** Records a run, asserting the automation's active-run slot was free. */
 	async function claimRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger, leaderWindowId = 1): Promise<IAutomationRun> {
@@ -440,12 +456,16 @@ suite('AutomationService', () => {
 		const restored = secondService.getAutomation(created.id);
 		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
 
+		const comparableTarget = (target: AutomationTarget | undefined) =>
+			target && target.kind === 'workspace'
+				? { ...target, folderUri: target.folderUri.toString() }
+				: target;
 		assert.deepStrictEqual({
-			restoredTarget: restored?.target,
-			updatedTarget: updated.target,
+			restoredTarget: comparableTarget(restored?.target),
+			updatedTarget: comparableTarget(updated.target),
 		}, {
-			restoredTarget: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			updatedTarget: workspaceTarget(FOLDER, { kind: 'folder' }),
+			restoredTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' })),
+			updatedTarget: comparableTarget(workspaceTarget(FOLDER, { kind: 'folder' })),
 		});
 	});
 
@@ -684,11 +704,23 @@ suite('AutomationService', () => {
 		});
 	});
 
-	test('reading a corrupt ledger leaves observables empty without throwing', () => {
+	test('reading a corrupt ledger leaves observables empty and blocks destructive writes', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', 'not json', -1, 1);
 		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get(), []);
+		await assert.rejects(
+			service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
+			/cannot safely interpret/,
+		);
+		assert.deepStrictEqual({
+			automations: service.automations.get(),
+			canCompleteMigration: service.canCompleteMigration(),
+			persisted: storage.get('chat.automations.ledger', -1),
+		}, {
+			automations: [],
+			canCompleteMigration: false,
+			persisted: 'not json',
+		});
 	});
 
 	test('drops a malformed schema v3 row without discarding valid rows', () => {
@@ -717,13 +749,15 @@ suite('AutomationService', () => {
 		assert.deepStrictEqual({
 			automationIds: service.automations.get().map(automation => automation.id),
 			runIds: service.runs.get().map(run => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			automationIds: ['keep'],
 			runIds: ['r-keep'],
+			canCompleteMigration: true,
 		});
 	});
 
-	test('migrates valid schema v1 records to v3 while dropping malformed targets', async () => {
+	test('reads valid schema v1 rows and drops malformed rows on rewrite', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const ledger = {
 			schemaVersion: 1,
@@ -754,15 +788,19 @@ suite('AutomationService', () => {
 		});
 
 		await service.updateAutomation('keep', { name: 'Updated' });
-		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
 		assert.deepStrictEqual({
-			schemaVersion: migrated.schemaVersion,
-			automationIds: migrated.automations.map((automation: { id: string }) => automation.id),
-			runIds: migrated.runs.map((run: { id: string }) => run.id),
+			schemaVersion: persisted.schemaVersion,
+			automationIds: persisted.automations.map((automation: { id: string }) => automation.id),
+			keepName: persisted.automations.find((automation: { id: string }) => automation.id === 'keep')?.name,
+			runIds: persisted.runs.map((run: { id: string }) => run.id),
+			canCompleteMigration: service.canCompleteMigration(),
 		}, {
 			schemaVersion: 3,
 			automationIds: ['keep', 'quick'],
+			keepName: 'Updated',
 			runIds: ['r-keep', 'r-quick'],
+			canCompleteMigration: true,
 		});
 	});
 

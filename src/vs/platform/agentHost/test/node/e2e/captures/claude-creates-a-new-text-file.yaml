@@ -2,15 +2,13 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Create result.txt containing exactly CREATED_VALUE.
     response:
       content:
-        - type: text
-          text: I'll create that file.
         - type: tool_use
           id: toolcall_0
           name: Write
@@ -19,15 +17,13 @@ exchanges:
             content: CREATED_VALUE
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
           content: Create result.txt containing exactly CREATED_VALUE.
         - role: assistant
           content:
-            - type: text
-              text: I'll create that file.
             - type: tool_use
               name: Write
               input:
@@ -39,5 +35,5 @@ exchanges:
               tool_use_id: toolcall_0
               content: 'File created successfully at: ${workdir}/result.txt (file state is current in your context — no need to Read it back)'
     response:
-      content: Created `result.txt` containing exactly `CREATED_VALUE`.
+      content: Created `result.txt` containing `CREATED_VALUE`.
       stopReason: end_turn

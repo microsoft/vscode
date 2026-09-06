@@ -14,7 +14,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { escapeModelIdForTelemetry, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { ChatModelFeedbackSurveyStepKind, expandModelMatchCandidates, IChatModelFeedbackSurveyConfig, matchesChatModelFeedbackSurvey, parseChatModelFeedbackSurveyConfig } from '../../common/feedbackSurvey/chatModelFeedbackSurveyConfig.js';
+import { ChatModelFeedbackSurveyStepKind, IChatModelFeedbackSurveyConfig, matchesChatModelFeedbackSurvey, parseChatModelFeedbackSurveyConfig } from '../../common/feedbackSurvey/chatModelFeedbackSurveyConfig.js';
+import { expandModelMatchCandidates, modelSelectorAliases } from '../../common/expPayload.js';
 import { CHAT_MODEL_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID, ChatModelFeedbackSurveyEventKind, IChatModelFeedbackSurveyTelemetryEvent } from '../../common/feedbackSurvey/chatModelFeedbackSurveyTelemetry.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -317,7 +318,7 @@ export class ChatModelFeedbackSurveyService extends Disposable implements IChatM
 	/** The other identifiers a selector may name a model by. */
 	private getModelAliases(modelId: string | undefined): string[] | undefined {
 		const metadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
-		return metadata ? [metadata.id, metadata.family, metadata.name, metadata.vendor] : undefined;
+		return metadata ? modelSelectorAliases(metadata) : undefined;
 	}
 
 	answerChoice(response: IChatResponseViewModel, stepId: string, optionId: string): void {

@@ -9,7 +9,7 @@
 import { ActionType } from '../common/actions.js';
 import type { Message } from '../channels-chat/state.js';
 import type { URI } from '../common/state.js';
-import type { AutomationCatalogState, AutomationDefinition, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTrigger } from './state.js';
+import type { AutomationDefinition, AutomationEntry, AutomationOperation, AutomationSessionTemplate, AutomationState, AutomationTrigger } from './state.js';
 
 /**
  * Partial replacement of editable {@link AutomationDefinition} fields.
@@ -60,9 +60,9 @@ export interface AutomationDefinitionPatch {
  */
 export interface AutomationCreateRequestedAction {
 	type: ActionType.AutomationCreateRequested;
-	/** Client-chosen `ahp-automation:` URI that becomes {@link AutomationState.resource}. */
+	/** Client-chosen `ahp-automation:` URI that becomes {@link AutomationEntry.resource}. */
 	resource: URI;
-	/** Complete initial {@link AutomationState.definition}. */
+	/** Complete initial {@link AutomationEntry.definition}. */
 	definition: AutomationDefinition;
 }
 
@@ -87,7 +87,7 @@ export interface AutomationCreateRequestedAction {
  */
 export interface AutomationUpdateRequestedAction {
 	type: ActionType.AutomationUpdateRequested;
-	/** Target {@link AutomationState.resource}. */
+	/** Target {@link AutomationEntry.resource}. */
 	resource: URI;
 	/** Editable {@link AutomationDefinition} fields to replace. */
 	changes: AutomationDefinitionPatch;
@@ -95,9 +95,9 @@ export interface AutomationUpdateRequestedAction {
 
 /**
  * Add or replace one full automation state in
- * {@link AutomationCatalogState.automations}.
+ * {@link AutomationState.entries}.
  *
- * Existing entries are matched by {@link AutomationState.resource} and
+ * Existing entries are matched by {@link AutomationEntry.resource} and
  * replaced in place. A previously unseen resource is appended.
  *
  * @category Automation Actions
@@ -106,11 +106,11 @@ export interface AutomationUpdateRequestedAction {
 export interface AutomationSetAction {
 	type: ActionType.AutomationSet;
 	/** Full new or replacement automation state. */
-	automation: AutomationState;
+	automation: AutomationEntry;
 }
 
 /**
- * Remove one automation from {@link AutomationCatalogState.automations}.
+ * Remove one automation from {@link AutomationState.entries}.
  *
  * Clients may dispatch this action only while the target advertises
  * {@link AutomationOperation.Remove}. The host revalidates that operation
@@ -125,6 +125,6 @@ export interface AutomationSetAction {
  */
 export interface AutomationRemovedAction {
 	type: ActionType.AutomationRemoved;
-	/** {@link AutomationState.resource} to remove. */
+	/** {@link AutomationEntry.resource} to remove. */
 	resource: URI;
 }

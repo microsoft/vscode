@@ -44,6 +44,11 @@ export interface IAgentHostDatabaseExternalUpdate {
 	readonly external: boolean;
 }
 
+export interface IAgentHostDatabaseModifiedTimeUpdate {
+	readonly session: string;
+	readonly modifiedTime: number;
+}
+
 export interface IAgentHostDatabase extends IDisposable {
 	/**
 	 * Records a session with source-aware provenance. When requested, the
@@ -56,6 +61,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
+	/** Advances the durable last-observed modification time for many sessions in one transaction. */
+	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	isSessionRegistryEmpty(): Promise<boolean>;
@@ -300,6 +307,30 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			[modifiedTime, session, modifiedTime],
 		);
 		return changes > 0;
+	}
+
+	async updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void> {
+		// Advancing durable recency for a large catalogue one statement at a time
+		// dominates discovery, so the whole batch is flushed in a single
+		// transaction. The `modified_time < ?` guard keeps each advance monotonic
+		// even if a concurrent write moved a row forward since the snapshot.
+		const statements = updates
+			.filter(({ modifiedTime }) => Number.isFinite(modifiedTime))
+			.map(({ session, modifiedTime }) => `UPDATE sessions SET modified_time = ${modifiedTime} WHERE session_uri = ${quoteSqlString(session)} AND modified_time < ${modifiedTime}`);
+		if (statements.length === 0) {
+			return;
+		}
+		const database = await this._ensureDatabase();
+		try {
+			await exec(database, `BEGIN IMMEDIATE;\n${statements.join(';\n')};\nCOMMIT`);
+		} catch (error) {
+			try {
+				await exec(database, 'ROLLBACK');
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], 'Failed to advance session modified times');
+			}
+			throw error;
+		}
 	}
 
 	async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {

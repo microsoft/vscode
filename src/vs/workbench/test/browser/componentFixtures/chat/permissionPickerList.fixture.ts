@@ -19,6 +19,7 @@ interface PermissionPickerListFixtureOptions {
 	readonly showStandaloneSandboxToggle?: boolean;
 	/** Whether the inline toggle renders in the on (checked) state. */
 	readonly sandboxingEnabled?: boolean;
+	readonly width?: number;
 }
 
 function buildItems(options: PermissionPickerListFixtureOptions): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -115,8 +116,9 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 	return items;
 }
 
-function renderPermissionPickerList(context: ComponentFixtureContext, options: PermissionPickerListFixtureOptions = {}): void {
+export function renderPermissionPickerList(context: ComponentFixtureContext, options: PermissionPickerListFixtureOptions = {}): void {
 	const { container, disposableStore } = context;
+	const width = options.width ?? 320;
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: context.theme });
 
 	const items = buildItems(options);
@@ -136,7 +138,7 @@ function renderPermissionPickerList(context: ComponentFixtureContext, options: P
 	));
 
 	container.classList.add('monaco-workbench');
-	container.style.width = '320px';
+	container.style.width = `${width}px`;
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 
@@ -152,7 +154,7 @@ function renderPermissionPickerList(context: ComponentFixtureContext, options: P
 	const actionHeight = defaultItemHeight + 44 * 2 + 24 + (options.showStandaloneSandboxToggle ? 24 : 0);
 	const separatorHeight = options.showStandaloneSandboxToggle ? 16 : 8;
 	const totalHeight = actionHeight + separatorHeight;
-	widget.layout(totalHeight, 320);
+	widget.layout(totalHeight, width);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/input/permissionPickerList' }, {

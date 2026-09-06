@@ -1,0 +1,59 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Continue?" with options Yes and No. If the request is cancelled or receives no answer, reply exactly "cancelled".'
+    response:
+      content:
+        - type: text
+          text: I’ll prompt you now with that single confirmation question.
+        - type: tool_use
+          id: toolcall_0
+          name: request_user_input
+          input:
+            questions:
+              - header: Continue
+                id: continue_decision
+                question: Continue?
+                options:
+                  - label: Yes (Recommended)
+                    description: Proceed with the next step.
+                  - label: 'No'
+                    description: Stop here and do not proceed.
+            autoResolutionMs: 60000
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Continue?" with options Yes and No. If the request is cancelled or receives no answer, reply exactly "cancelled".'
+        - role: assistant
+          content: I’ll prompt you now with that single confirmation question.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Continue
+                    id: continue_decision
+                    question: Continue?
+                    options:
+                      - label: Yes (Recommended)
+                        description: Proceed with the next step.
+                      - label: 'No'
+                        description: Stop here and do not proceed.
+                autoResolutionMs: 60000
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"continue_decision":{"answers":[]}}}'
+    response:
+      content: cancelled
+      stopReason: end_turn

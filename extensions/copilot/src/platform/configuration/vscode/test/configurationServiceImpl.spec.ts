@@ -51,6 +51,16 @@ const fakeTokenStore: ICopilotTokenStore = {
 	onDidStoreUpdate: () => ({ dispose() { } }),
 } as any;
 
+class StubExperimentationService extends NullExperimentationService {
+	constructor(private readonly treatments: Record<string, boolean | number | string>) {
+		super();
+	}
+
+	override getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		return this.treatments[name] as T | undefined;
+	}
+}
+
 describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', () => {
 	test('reads the user-set OLD key when only the OLD key is configured', () => {
 		const oldKey = `github.copilot.${ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration.oldId}`;
@@ -75,7 +85,67 @@ describe('ConfigurationServiceImpl - migrated chat.advanced setting fallback', (
 	});
 });
 
+describe('ConfigurationServiceImpl - getExperimentBasedConfigIfSet', () => {
+	const key = ConfigKey.TeamInternal.InlineEditsCacheDelay;
+	const expName = `copilotchat.config.${key.id}`;
+
+	function read(user: Record<string, unknown>, treatments: Record<string, boolean | number | string>) {
+		mockConfigStore.user = user;
+		mockConfigStore.defaults = {};
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+		const expService = new StubExperimentationService(treatments);
+		return {
+			ifSet: service.getExperimentBasedConfigIfSet(key, expService),
+			resolved: service.getExperimentBasedConfig(key, expService),
+		};
+	}
+
+	test('reports unset when neither the user nor an experiment provides a value', () => {
+		expect(read({}, {})).toEqual({ ifSet: undefined, resolved: key.defaultValue });
+	});
+
+	test('reports the experiment value when only an experiment provides one', () => {
+		expect(read({}, { [expName]: 42 })).toEqual({ ifSet: 42, resolved: 42 });
+	});
+
+	test('prefers the user value over the experiment value', () => {
+		expect(read({ [key.fullyQualifiedId]: 7 }, { [expName]: 42 })).toEqual({ ifSet: 7, resolved: 7 });
+	});
+
+	test('reports falsy configured values as set', () => {
+		expect(read({ [key.fullyQualifiedId]: 0 }, {})).toEqual({ ifSet: 0, resolved: 0 });
+		expect(read({}, { [expName]: 0 })).toEqual({ ifSet: 0, resolved: 0 });
+	});
+
+	test('reports a falsy boolean treatment as set', () => {
+		const boolKey = ConfigKey.TeamInternal.InlineEditsUnification;
+		mockConfigStore.user = {};
+		mockConfigStore.defaults = {};
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+		const expService = new StubExperimentationService({ [`copilotchat.config.${boolKey.id}`]: false });
+		expect(service.getExperimentBasedConfigIfSet(boolKey, expService)).toBe(false);
+	});
+});
+
 describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {
+	test('reports treatments arriving under any of a setting\'s names as affecting it', () => {
+		mockConfigStore.user = {};
+		mockConfigStore.defaults = {};
+		const key = ConfigKey.TeamInternal.InlineEditsUnification;
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+
+		const affected: boolean[] = [];
+		service.onDidChangeConfiguration(e => affected.push(e.affectsConfiguration(key.fullyQualifiedId)));
+
+		// A treatment can be published under the `config.` name or the older `copilotchat.config.` one;
+		// both assign the setting, so both have to invalidate its observers.
+		service.updateExperimentBasedConfiguration([`config.${key.fullyQualifiedId}`]);
+		service.updateExperimentBasedConfiguration([`copilotchat.config.${key.id}`]);
+		service.updateExperimentBasedConfiguration(['config.github.copilot.chat.somethingElse']);
+
+		expect(affected).toEqual([true, true, false]);
+	});
+
 	test('reads advanced inline edit settings for external users', () => {
 		mockConfigStore.user = {
 			[ConfigKey.TeamInternal.InlineEditsUnification.fullyQualifiedId]: true,

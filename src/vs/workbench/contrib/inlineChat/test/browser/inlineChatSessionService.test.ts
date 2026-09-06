@@ -44,6 +44,7 @@ import { IChatSlashCommandService } from '../../../chat/common/participants/chat
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/model/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/attachments/chatVariables.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ICustomizationMigrationService } from '../../../chat/common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatVariablesService } from '../../../chat/test/common/mockChatVariables.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
@@ -170,6 +171,7 @@ suite('InlineChatSessionService', () => {
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IMcpService, new TestMcpService());
+		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		collection.set(IChatDebugService, store.add(new ChatDebugServiceImpl(new TestConfigurationService(), store.add(new MockContextKeyService()))));

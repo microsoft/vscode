@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
             origin:
               kind: user
     serverToClient:
@@ -15,7 +15,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Then reply with exactly "deleted".'
+            text: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
             origin:
               kind: user
       - channel: ${session_0}

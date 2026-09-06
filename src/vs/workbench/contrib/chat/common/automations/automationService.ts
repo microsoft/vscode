@@ -15,6 +15,21 @@ export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 /** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
 export type AutomationMutationGuard = () => void;
 
+/** Signals that Automation ownership cannot move while one of its runs is active. */
+export class AutomationActiveRunError extends Error {
+	constructor(
+		readonly automationId: string,
+		readonly runId: string,
+	) {
+		super(`Automation '${automationId}' has active run '${runId}'.`);
+	}
+}
+
+export function isAutomationActiveRunError(error: unknown): boolean {
+	return error instanceof AutomationActiveRunError
+		|| (error instanceof AggregateError && error.errors.length > 0 && error.errors.every(isAutomationActiveRunError));
+}
+
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
  * `nextRunAt`.
@@ -101,10 +116,16 @@ export interface IUpdateAutomationRunOptions {
 
 /** Outcome of an attempt to claim an automation's single active-run slot. */
 export interface IAutomationRunClaim {
-	/** `false` when another run already held the slot, in which case nothing was recorded. */
+	/** `false` when another run held the slot or an external authority recorded and dispatched the returned run. */
 	readonly claimed: boolean;
 	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
 	readonly run: IAutomationRun;
+	/** Present when the backing authority already dispatched execution for this claim. */
+	readonly externalDispatch?: {
+		readonly sessionResource?: URI;
+		readonly whenCompleted: Promise<void>;
+		cancel?(): void;
+	};
 }
 
 /**
@@ -160,6 +181,11 @@ export interface IAutomationStore {
 
 export interface IAutomationService extends IAutomationStore {
 	readonly _serviceBrand: undefined;
+	canRunAutomation?(automationId: string): boolean;
+	canUpdateAutomation?(automationId: string): boolean;
+	canDeleteAutomation?(automationId: string): boolean;
+	/** Whether the target authority, rather than this window's scheduler, evaluates this Automation. */
+	isSchedulingOwnedByHost?(automationId: string): boolean;
 	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
 	startStaleRunRecovery(reason: string): Promise<void>;
 	/** Stops leader-scoped stale-run recovery. */

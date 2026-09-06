@@ -96,7 +96,7 @@
 /* ---- Widget Customizations ---- */
 
 /* Action Widget */
-.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row {
+.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row:not(.has-standalone-toggle) {
 	padding-right: 0;
 }
 

@@ -616,7 +616,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			}
 		}
 
+		this._hover.containerDomNode.style.maxHeight = '';
+		const heightOutsideContents = this._hover.containerDomNode.offsetHeight - this._hover.contentsDomNode.offsetHeight;
+		const contentsMaxHeight = Math.max(0, maxHeight - heightOutsideContents);
+
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${contentsMaxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;

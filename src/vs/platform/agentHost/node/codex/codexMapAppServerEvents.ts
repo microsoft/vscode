@@ -1047,7 +1047,7 @@ export function mapItemCompleted(
 	}
 	if (params.item.type === 'commandExecution') {
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
-		const output = params.item.aggregatedOutput ?? entry.output;
+		const output = params.item.aggregatedOutput || entry.output;
 		const command = unwrapShellInvocation(params.item.command ?? '');
 		const exit = params.item.exitCode;
 		const pastTense = success
