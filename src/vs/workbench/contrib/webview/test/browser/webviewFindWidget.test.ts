@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -19,11 +19,11 @@ suite('WebviewFindWidget', () => {
 	let nextButton: HTMLElement;
 	let hasFindResult: Emitter<boolean>;
 	let searches: string[];
-	let focusEvents: string[];
+	let inputFocusSpy: sinon.SinonSpy;
+	let nextButtonFocusSpy: sinon.SinonSpy;
 
 	setup(async () => {
 		searches = [];
-		focusEvents = [];
 		hasFindResult = store.add(new Emitter<boolean>());
 		const delegate: WebviewFindDelegate = {
 			hasFindResult: hasFindResult.event,
@@ -55,11 +55,13 @@ suite('WebviewFindWidget', () => {
 		input.focus();
 		assert.strictEqual(document.activeElement, input);
 
-		for (const [name, element] of [['input', input], ['next', nextButton]] as const) {
-			for (const type of ['focus', 'blur']) {
-				store.add(addDisposableListener(element, type, () => focusEvents.push(`${name}:${type}`)));
-			}
-		}
+		// An unfocused Electron test window does not reliably dispatch DOM focus events.
+		inputFocusSpy = sinon.spy(input, 'focus');
+		nextButtonFocusSpy = sinon.spy(nextButton, 'focus');
+	});
+
+	teardown(() => {
+		sinon.restore();
 	});
 
 	test('compositionend updates search without moving focus', () => {
@@ -76,12 +78,14 @@ suite('WebviewFindWidget', () => {
 		assert.deepStrictEqual({
 			searchesDuringComposition,
 			searches,
-			focusEvents,
+			inputFocusCalls: inputFocusSpy.callCount,
+			nextButtonFocusCalls: nextButtonFocusSpy.callCount,
 			inputHasFocus: document.activeElement === input,
 		}, {
 			searchesDuringComposition: [],
 			searches: ['안'],
-			focusEvents: [],
+			inputFocusCalls: 0,
+			nextButtonFocusCalls: 0,
 			inputHasFocus: true,
 		});
 	});
@@ -94,7 +98,8 @@ suite('WebviewFindWidget', () => {
 		input.dispatchEvent(new CompositionEvent('compositionstart'));
 		input.value = '안ㄴ';
 		input.dispatchEvent(new InputEvent('input', { isComposing: true }));
-		focusEvents.length = 0;
+		inputFocusSpy.resetHistory();
+		nextButtonFocusSpy.resetHistory();
 
 		// Deliver the previous search result after the next syllable has started composing.
 		hasFindResult.fire(true);
@@ -102,12 +107,14 @@ suite('WebviewFindWidget', () => {
 		assert.deepStrictEqual({
 			searches,
 			nextButtonEnabled: nextButton.getAttribute('aria-disabled') === 'false',
-			focusEvents,
+			inputFocusCalls: inputFocusSpy.callCount,
+			nextButtonFocusCalls: nextButtonFocusSpy.callCount,
 			inputHasFocus: document.activeElement === input,
 		}, {
 			searches: ['안'],
 			nextButtonEnabled: true,
-			focusEvents: [],
+			inputFocusCalls: 0,
+			nextButtonFocusCalls: 0,
 			inputHasFocus: true,
 		});
 	});
@@ -118,11 +125,15 @@ suite('WebviewFindWidget', () => {
 
 		assert.deepStrictEqual({
 			searches,
-			focusEvents,
+			inputFocusCalls: inputFocusSpy.callCount,
+			nextButtonFocusCalls: nextButtonFocusSpy.callCount,
+			inputFocusedAfterNextButton: inputFocusSpy.calledAfter(nextButtonFocusSpy),
 			inputHasFocus: document.activeElement === input,
 		}, {
 			searches: ['hello'],
-			focusEvents: ['input:blur', 'next:focus', 'next:blur', 'input:focus'],
+			inputFocusCalls: 1,
+			nextButtonFocusCalls: 1,
+			inputFocusedAfterNextButton: true,
 			inputHasFocus: true,
 		});
 	});
