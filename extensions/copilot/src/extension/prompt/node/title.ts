@@ -41,7 +41,7 @@ export class ChatTitleProvider implements vscode.ChatTitleProvider {
 		const sessionResource = context.sessionResource;
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const { messages } = await renderPromptElement(this.instantiationService, endpoint, TitlePrompt, { userRequest: firstRequest.prompt });
 
 		const capturingToken = new CapturingToken(

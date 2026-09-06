@@ -266,3 +266,56 @@ suite('AskQuestionsTool - invoke', () => {
 		});
 	});
 });
+
+suite('AskQuestionsTool - prepareToolInvocation validation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let tool: AskQuestionsTool;
+
+	setup(() => {
+		tool = store.add(new AskQuestionsTool(
+			null! as IChatService,
+			NullTelemetryService,
+			new NullLogService(),
+			new TestConfigurationService()
+		));
+	});
+
+	function makeContext(questions: IQuestion[]) {
+		return {
+			parameters: { questions },
+			toolCallId: 'test-call',
+			chatRequestId: 'request-1',
+			chatSessionResource: URI.parse('test://session'),
+		};
+	}
+
+	test('rejects single option without freeform input', async () => {
+		await assert.rejects(
+			tool.prepareToolInvocation(makeContext([
+				{ header: 'Q1', question: 'Pick one', options: [{ label: 'Only option' }] }
+			]), CancellationToken.None),
+			/must have at least two options/
+		);
+	});
+
+	test('allows single option with freeform input', async () => {
+		const result = await tool.prepareToolInvocation(makeContext([
+			{ header: 'Q1', question: 'Pick one', options: [{ label: 'Only option' }], allowFreeformInput: true }
+		]), CancellationToken.None);
+		assert.ok(result);
+	});
+
+	test('allows two or more options without freeform input', async () => {
+		const result = await tool.prepareToolInvocation(makeContext([
+			{ header: 'Q1', question: 'Pick one', options: [{ label: 'A' }, { label: 'B' }] }
+		]), CancellationToken.None);
+		assert.ok(result);
+	});
+
+	test('allows no options (free text)', async () => {
+		const result = await tool.prepareToolInvocation(makeContext([
+			{ header: 'Q1', question: 'Type something' }
+		]), CancellationToken.None);
+		assert.ok(result);
+	});
+});

@@ -78,16 +78,19 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 				content
 			};
 
+			// Tool calls grouped under a thinking part rely on the thinking header for the working
+			// indicator, so their rows stay static; standalone streaming rows shimmer instead.
+			const shimmer = !toolInvocation.isAttachedToThinking;
 			const part = reader.store.add(this.instantiationService.createInstance(
 				ChatProgressContentPart,
 				progressMessage,
 				this.renderer,
 				this.context,
-				undefined,
+				shimmer ? true : undefined,
 				true,
-				this.getIcon(),
+				this.getProgressIcon(),
 				toolInvocation,
-				false
+				shimmer
 			));
 
 			dom.reset(container, part.domNode);

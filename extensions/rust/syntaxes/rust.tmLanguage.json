@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/268fd42cfd4aa96a6ed9024a2850d17d6cd2dc7b",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/ca34cf382a7b250144f2ccb99ff9af96912c79f2",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -453,11 +453,20 @@
 		"functions": {
 			"patterns": [
 				{
-					"comment": "pub as a function",
+					"comment": "visibility modifier",
+					"match": "\\b(pub)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.modifier.visibility.rust"
+						}
+					}
+				},
+				{
+					"comment": "pub visibility modifier with restrictions",
 					"match": "\\b(pub)(\\()",
 					"captures": {
 						"1": {
-							"name": "keyword.other.rust"
+							"name": "storage.modifier.visibility.rust"
 						},
 						"2": {
 							"name": "punctuation.brackets.round.rust"
@@ -712,7 +721,7 @@
 				{
 					"comment": "other keywords",
 					"name": "keyword.other.rust",
-					"match": "\\b(as|async|become|box|dyn|move|final|gen|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
+					"match": "\\b(as|async|become|box|dyn|move|final|gen|impl|in|override|priv|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
 				},
 				{
 					"comment": "fn",

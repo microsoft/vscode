@@ -7,8 +7,10 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
@@ -17,6 +19,14 @@ import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from 
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import sinon from 'sinon';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
+import { ITextFileContent, ITextFileService } from '../../../../../../services/textfile/common/textfiles.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { AgentEditorCommentsBridge, IAgentEditorComment, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
+import { Emitter, Event as VSCodeEvent } from '../../../../../../../base/common/event.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -38,7 +48,9 @@ function createMockReviewWithPlan(overrides?: Partial<IChatPlanReview>): IChatPl
 }
 
 function createMockContext(): IChatContentPartRenderContext {
-	return {} as IChatContentPartRenderContext;
+	return {
+		element: { sessionResource: URI.parse('test://session/1') },
+	} as IChatContentPartRenderContext;
 }
 
 /** Query all `.monaco-button` elements inside the footer `.chat-buttons` container. */
@@ -70,19 +82,43 @@ suite('ChatPlanReviewPart', () => {
 
 	let widget: ChatPlanReviewPart;
 	let lastSubmitResult: IChatPlanReviewResult | undefined;
+	let submitCount = 0;
 	let lastFeedbackService: IPlanReviewFeedbackService | undefined;
+	let lastEditorService: IEditorService | undefined;
+	let lastTextFileService: ITextFileService | undefined;
+	let lastModelService: IModelService | undefined;
+	let lastCommentsBridge: AgentEditorCommentsBridge | undefined;
+	let lastContextMenuService: IContextMenuService | undefined;
+	let fileChangesEmitter: Emitter<FileChangesEvent> | undefined;
 
-	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
+	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService, onSubmit?: () => void): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const feedbackService = store.add(new PlanReviewFeedbackService());
+		const commentsBridge = store.add(new AgentEditorCommentsBridge());
+		const feedbackService = store.add(new PlanReviewFeedbackService(commentsBridge));
+		instantiationService.stub(IAgentEditorCommentsBridge, commentsBridge);
 		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
 
 		lastFeedbackService = feedbackService;
+		lastEditorService = instantiationService.get(IEditorService);
+		lastTextFileService = instantiationService.get(ITextFileService);
+		lastModelService = instantiationService.get(IModelService);
+		lastCommentsBridge = commentsBridge;
+		lastContextMenuService = instantiationService.get(IContextMenuService);
+		if (fileChangesEmitter) {
+			sinon.stub(instantiationService.get(IFileService), 'createWatcher').returns({
+				onDidChange: fileChangesEmitter.event,
+				dispose: () => { },
+			});
+		}
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
 		}
 		const options: IChatPlanReviewPartOptions = {
-			onSubmit: (result) => { lastSubmitResult = result; }
+			onSubmit: result => {
+				lastSubmitResult = result;
+				submitCount++;
+				onSubmit?.();
+			}
 		};
 		widget = store.add(instantiationService.createInstance(ChatPlanReviewPart, review, createMockContext(), options));
 		mainWindow.document.body.appendChild(widget.domNode);
@@ -94,7 +130,15 @@ suite('ChatPlanReviewPart', () => {
 			widget.domNode.parentNode.removeChild(widget.domNode);
 		}
 		lastSubmitResult = undefined;
+		submitCount = 0;
 		lastFeedbackService = undefined;
+		lastEditorService = undefined;
+		lastTextFileService = undefined;
+		lastModelService = undefined;
+		lastCommentsBridge = undefined;
+		lastContextMenuService = undefined;
+		fileChangesEmitter = undefined;
+		sinon.restore();
 	});
 
 	suite('Basic rendering', () => {
@@ -114,12 +158,108 @@ suite('ChatPlanReviewPart', () => {
 			assert.strictEqual(label?.textContent, 'My Plan Title');
 		});
 
+		test('disallows remote images in agent plan markdown', () => {
+			createWidget(createMockReview({ content: 'Plan ![remote](https://example.com/image.png)' }));
+
+			assert.strictEqual(widget.domNode.querySelectorAll('.chat-plan-review-body img').length, 0);
+		});
+
+		test('displays the outdated pill only for outdated summaries', () => {
+			createWidget(createMockReviewWithPlan({ isOutdated: true }));
+
+			const badge = widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated');
+			assert.deepStrictEqual({
+				text: badge?.textContent,
+				display: badge?.style.display,
+				ariaLabel: badge?.getAttribute('aria-label'),
+			}, {
+				text: 'Outdated',
+				display: '',
+				ariaLabel: 'Plan summary is outdated',
+			});
+		});
+
+		test('hides the outdated pill for current summaries', () => {
+			createWidget(createMockReviewWithPlan());
+
+			assert.strictEqual(widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display, 'none');
+		});
+
+		test('marks the summary outdated when the plan model changes', () => {
+			const planUri = URI.parse('file:///outdated-plan.md');
+			const review = new ChatPlanReviewData(
+				'Plan summary',
+				'Generated summary',
+				[{ label: 'Go', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			createWidget(review);
+			const model = lastModelService!.createModel('# Original plan', null, planUri);
+
+			try {
+				model.setValue('# Edited plan');
+
+				assert.deepStrictEqual({
+					isOutdated: review.isOutdated,
+					persistedIsOutdated: review.toJSON().isOutdated,
+					badgeDisplay: widget.domNode.querySelector<HTMLElement>('.chat-plan-review-outdated')?.style.display,
+					summary: review.content,
+				}, {
+					isOutdated: true,
+					persistedIsOutdated: true,
+					badgeDisplay: '',
+					summary: 'Generated summary',
+				});
+			} finally {
+				model.dispose();
+			}
+		});
+
+		test('marks the summary outdated when an open plan is deleted', () => {
+			const planUri = URI.parse('file:///deleted-plan.md');
+			const review = new ChatPlanReviewData(
+				'Plan summary',
+				'Generated summary',
+				[{ label: 'Go', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			fileChangesEmitter = store.add(new Emitter<FileChangesEvent>());
+			createWidget(review);
+			const model = lastModelService!.createModel('# Original plan', null, planUri);
+
+			try {
+				fileChangesEmitter.fire(new FileChangesEvent([{ resource: planUri, type: FileChangeType.DELETED }], false));
+
+				assert.strictEqual(review.isOutdated, true);
+			} finally {
+				model.dispose();
+			}
+		});
+
 		test('renders markdown content in the body', () => {
 			createWidget(createMockReview({ content: '**bold text**' }));
 
 			const body = widget.domNode.querySelector('.chat-plan-review-body');
 			assert.ok(body);
 			assert.ok(body?.querySelector('.rendered-markdown'));
+		});
+
+		test('uses the themed foreground for markdown links', () => {
+			createWidget(createMockReview({ content: '[link](https://example.com)' }));
+			const container = mainWindow.document.createElement('div');
+			container.classList.add('interactive-session');
+			container.style.setProperty('--vscode-textLink-foreground', 'rgb(1, 2, 3)');
+			mainWindow.document.body.appendChild(container);
+			container.appendChild(widget.domNode);
+
+			try {
+				const link = widget.domNode.querySelector<HTMLElement>('.rendered-markdown a');
+				assert.strictEqual(link && mainWindow.getComputedStyle(link).color, 'rgb(1, 2, 3)');
+			} finally {
+				container.remove();
+			}
 		});
 
 		test('renders approve and reject buttons in footer', () => {
@@ -222,22 +362,46 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Feedback mode', () => {
-		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
-			createWidget(createMockReviewWithPlan());
+		test('clicking Review button opens the plan editor and preserves the approval dropdown', async () => {
+			createWidget(createMockReviewWithPlan({
+				actions: [
+					{ id: 'interactive', label: 'Implement Plan', default: true },
+					{ id: 'autopilot', label: 'Implement with Autopilot' },
+				],
+			}));
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
+			const showContextMenuStub = sinon.stub(lastContextMenuService!, 'showContextMenu');
 
 			const reviewButton = getReviewButton(widget)!;
 			reviewButton.click();
 			await tick();
 
+			assert.strictEqual(openEditorSpy.calledOnce, true, 'plan file should open in an editor');
+			const editorInput = openEditorSpy.firstCall.args[0] as IResourceEditorInput;
+			assert.strictEqual(editorInput.resource?.toString(), 'file:///plan.md');
+			assert.strictEqual(editorInput.options?.pinned, true);
+
 			// Feedback section should now be visible.
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should keep approval available when no feedback has been entered.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			const dropdown = widget.domNode.querySelector('.chat-plan-review-footer .monaco-button-dropdown');
+			assert.ok(dropdown, 'approval dropdown should remain visible');
+			assert.ok(!dropdown.classList.contains('disabled'), 'approval dropdown should remain enabled without feedback');
+
+			(dropdown.querySelector('.monaco-dropdown-button') as HTMLElement).click();
+			assert.strictEqual(showContextMenuStub.calledOnce, true, 'approval dropdown should open its menu');
+			const menuDelegate = showContextMenuStub.firstCall.args[0];
+			assert.ok(menuDelegate.getActions);
+			const autopilotAction = menuDelegate.getActions().find(action => action.id === 'Implement with Autopilot');
+			assert.ok(autopilotAction, 'non-default approval action should be available');
+			await autopilotAction.run();
+			await tick();
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Implement with Autopilot', actionId: 'autopilot', rejected: false });
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -261,11 +425,11 @@ suite('ChatPlanReviewPart', () => {
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should have Submit Feedback + Approve + Reject.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should remain visible');
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -289,11 +453,11 @@ suite('ChatPlanReviewPart', () => {
 			const feedbackSection = getFeedbackSection(widget);
 			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
 
-			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			// Footer should have Submit Feedback + Approve + Reject.
 			const buttons = getFooterButtons(widget);
 			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should remain visible');
 		});
 
 		test('reject button remains visible in feedback mode', async () => {
@@ -306,26 +470,20 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
 		});
 
-		test('clicking Review while in feedback mode exits feedback mode', async () => {
+		test('clicking Review while in feedback mode reopens the plan editor', async () => {
 			createWidget(createMockReviewWithPlan());
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
 
 			const reviewButton = getReviewButton(widget)!;
 			reviewButton.click();
 			await tick();
 
-			// In feedback mode, the Review button label flips to "Cancel".
-			assert.ok(reviewButton.textContent?.includes('Cancel'), 'review button should read "Cancel" in feedback mode');
-
 			reviewButton.click();
 			await tick();
 
 			const feedbackSection = getFeedbackSection(widget);
-			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden after Cancel');
-			assert.ok(!reviewButton.textContent?.includes('Cancel'), 'review button label should revert after exiting feedback mode');
-
-			const buttons = getFooterButtons(widget);
-			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Submit Feedback')), 'submit button should be gone');
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should remain visible');
+			assert.strictEqual(openEditorSpy.callCount, 2, 'each click should reveal the plan editor');
 		});
 
 		test('approving with textarea content sends approval + feedback', () => {
@@ -379,6 +537,66 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(submitButton);
 			assert.ok(submitButton!.classList.contains('disabled'), 'Submit Feedback should be disabled when nothing to submit');
 		});
+
+		test('approval is disabled while feedback is pending and restored when feedback is cleared', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'))!;
+			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'))!;
+
+			textarea.value = 'Please change the plan';
+			textarea.dispatchEvent(new Event('input'));
+
+			assert.deepStrictEqual({
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitDisabled: submitButton.classList.contains('disabled'),
+			}, {
+				approveDisabled: true,
+				submitDisabled: false,
+			});
+
+			textarea.value = '';
+			textarea.dispatchEvent(new Event('input'));
+
+			assert.deepStrictEqual({
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitDisabled: submitButton.classList.contains('disabled'),
+			}, {
+				approveDisabled: false,
+				submitDisabled: true,
+			});
+		});
+
+		test('closing feedback mode keeps approval disabled while feedback is pending', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Please change the plan';
+			textarea.dispatchEvent(new Event('input'));
+
+			(widget.domNode.querySelector('.chat-plan-review-feedback-close') as HTMLElement).click();
+			await tick();
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'))!;
+			approveButton.click();
+			await tick();
+			assert.deepStrictEqual({
+				feedbackHidden: getFeedbackSection(widget).style.display,
+				approveDisabled: approveButton.classList.contains('disabled'),
+				submitResult: lastSubmitResult,
+			}, {
+				feedbackHidden: 'none',
+				approveDisabled: true,
+				submitResult: undefined,
+			});
+		});
 	});
 
 	suite('Inline comments list', () => {
@@ -403,6 +621,88 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok((submitButton!.textContent ?? '').includes('(2)'), 'Submit label should reflect inline count');
 		});
 
+		test('live comments from the Markdown editor update the widget', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const planUri = URI.revive(review.planUri!);
+			const changed = store.add(new Emitter<void>());
+			const comments = [{
+				id: 'live-comment',
+				resource: planUri,
+				range: {
+					startLineNumber: 5,
+					startColumn: 1,
+					endLineNumber: 5,
+					endColumn: 10,
+				},
+				body: 'New live comment',
+			}];
+			store.add(lastCommentsBridge!.registerProvider({
+				priority: 100,
+				onDidChangeComments: changed.event,
+				onDidRevealComment: VSCodeEvent.None,
+				acceptsComments: () => true,
+				getComments: () => comments,
+				addComment: () => { },
+				deleteComment: () => { },
+			}));
+			changed.fire();
+
+			assert.deepStrictEqual({
+				rows: widget.domNode.querySelectorAll('.chat-plan-review-comment-row').length,
+				submitLabel: getFooterButtons(widget).find(button => button.textContent?.includes('Submit Feedback'))?.textContent,
+			}, {
+				rows: 1,
+				submitLabel: 'Submit Feedback (1)',
+			});
+		});
+
+		test('reveals a related comment in its own resource', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const planUri = URI.revive(review.planUri!);
+			const relatedUri = URI.parse('file:///related.ts');
+			const changed = store.add(new Emitter<void>());
+			store.add(lastCommentsBridge!.registerProvider({
+				priority: 100,
+				onDidChangeComments: changed.event,
+				onDidRevealComment: VSCodeEvent.None,
+				acceptsComments: () => true,
+				getComments: () => [{
+					id: 'related-comment',
+					resource: relatedUri,
+					range: { startLineNumber: 7, startColumn: 3, endLineNumber: 7, endColumn: 8 },
+					body: 'Update this source',
+				}],
+				addComment: () => { },
+				deleteComment: () => { },
+			}));
+			changed.fire();
+			const openEditorSpy = sinon.spy(lastEditorService!, 'openEditor');
+
+			(widget.domNode.querySelector('.chat-plan-review-comment-reveal') as HTMLButtonElement).click();
+			await tick();
+
+			const editorInput = openEditorSpy.lastCall.args[0] as IResourceEditorInput;
+			assert.deepStrictEqual({
+				resource: editorInput.resource?.toString(),
+				override: editorInput.options?.override,
+				selection: (editorInput.options as ITextEditorOptions | undefined)?.selection,
+				planResource: planUri.toString(),
+			}, {
+				resource: relatedUri.toString(),
+				override: undefined,
+				selection: { startLineNumber: 7, startColumn: 3 },
+				planResource: planUri.toString(),
+			});
+		});
+
 		test('inline comments alone are enough to enable Submit Feedback', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -417,6 +717,106 @@ suite('ChatPlanReviewPart', () => {
 			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'));
 			assert.ok(submitButton);
 			assert.ok(!submitButton!.classList.contains('disabled'), 'Submit Feedback should be enabled with one inline comment');
+		});
+
+		test('editor toolbar feedback submission updates the original plan widget', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review, undefined, () => widget.dispose());
+
+			const service = lastFeedbackService!;
+			const planUri = URI.revive(review.planUri!);
+			service.addFeedback(planUri, 5, 1, 'Fix this step');
+			let commentsChanged = 0;
+			store.add(lastCommentsBridge!.onDidChangeComments(() => commentsChanged++));
+
+			const didSubmit = await service.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({
+				submitResult: lastSubmitResult,
+				didSubmit,
+				commentsChanged,
+				remainingComments: lastCommentsBridge!.getComments(planUri),
+			}, {
+				submitResult: {
+					rejected: false,
+					feedback: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
+					feedbackOverall: undefined,
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
+				},
+				didSubmit: true,
+				commentsChanged: 2,
+				remainingComments: [],
+			});
+			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));
+		});
+
+		test('editor toolbar submits an overall comment without inline comments', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Please simplify the rollout';
+			textarea.dispatchEvent(new Event('input'));
+
+			await lastFeedbackService!.submitAllFeedback(URI.revive(review.planUri!));
+
+			assert.deepStrictEqual(lastSubmitResult, {
+				rejected: false,
+				feedback: 'Please simplify the rollout',
+				feedbackOverall: 'Please simplify the rollout',
+				feedbackInlineMarkdown: undefined,
+			});
+		});
+
+		test('comments added while the plan save is pending remain unsubmitted', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			const changed = store.add(new Emitter<void>());
+			const comments: IAgentEditorComment[] = [{
+				id: 'submitted',
+				resource: planUri,
+				range: { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 2 },
+				body: 'Submit this',
+			}];
+			store.add(lastCommentsBridge!.registerProvider({
+				priority: 100,
+				onDidChangeComments: changed.event,
+				onDidRevealComment: VSCodeEvent.None,
+				acceptsComments: () => true,
+				getComments: () => comments,
+				addComment: () => { },
+				deleteComment: (_resource, id) => {
+					const index = comments.findIndex(comment => comment.id === id);
+					if (index !== -1) {
+						comments.splice(index, 1);
+					}
+				},
+			}));
+			changed.fire();
+			const saveDeferred = new DeferredPromise<URI | undefined>();
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').returns(saveDeferred.p);
+
+			const submitButton = getFooterButtons(widget).find(button => button.textContent?.includes('Submit Feedback'))!;
+			submitButton.click();
+			comments.push({
+				id: 'added-during-save',
+				resource: planUri,
+				range: { startLineNumber: 8, startColumn: 1, endLineNumber: 8, endColumn: 2 },
+				body: 'Keep this',
+			});
+			changed.fire();
+			saveDeferred.complete(planUri);
+			await tick();
+
+			assert.deepStrictEqual({
+				submittedFeedback: lastSubmitResult?.feedback,
+				remainingCommentIds: lastCommentsBridge!.getComments(planUri, true).map(comment => comment.id),
+			}, {
+				submittedFeedback: 'Inline comments on `plan.md`:\n- **Line 5:** Submit this',
+				remainingCommentIds: ['added-during-save'],
+			});
 		});
 
 		test('inline comments auto-promote into review mode even before Review button is clicked', () => {
@@ -511,7 +911,7 @@ suite('ChatPlanReviewPart', () => {
 		});
 	});
 
-	suite('Collapsed / expanded state', () => {
+	suite('Collapsed state', () => {
 		test('toggles collapsed state via chevron button', () => {
 			createWidget(createMockReview());
 
@@ -551,20 +951,6 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(!inlineButtons.some(b => b.textContent?.includes('Reject')), 'reject should be omitted in collapsed view');
 		});
 
-		test('toggles expanded state via expand/restore button', () => {
-			createWidget(createMockReview());
-
-			// The expand button is the first icon-only button in title actions
-			const expandButton = widget.domNode.querySelector('.chat-plan-review-title-icon-button:first-child') as HTMLElement;
-			assert.ok(expandButton);
-
-			expandButton.click();
-			assert.ok(widget.domNode.classList.contains('chat-plan-review-expanded'));
-
-			expandButton.click();
-			assert.ok(!widget.domNode.classList.contains('chat-plan-review-expanded'));
-		});
-
 		test('collapsing preserves feedback mode and inline buttons keep Submit Feedback', async () => {
 			createWidget(createMockReviewWithPlan());
 
@@ -584,7 +970,21 @@ suite('ChatPlanReviewPart', () => {
 			collapseButton.click();
 			const footerButtons = getFooterButtons(widget);
 			assert.ok(footerButtons.some(b => b.textContent?.includes('Submit Feedback')), 'submit feedback button should remain after expand');
-			assert.ok(!footerButtons.some(b => b.textContent?.includes('Autopilot')), 'approve should still be hidden in feedback mode');
+			assert.ok(footerButtons.some(b => b.textContent?.includes('Autopilot')), 'approve should remain available in feedback mode');
+		});
+
+		test('a comment added while collapsed is reflected in the inline action', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+
+			const collapseButton = widget.domNode.querySelector('.chat-plan-review-title-icon-button:last-child') as HTMLElement;
+			collapseButton.click();
+
+			lastFeedbackService!.addFeedback(URI.revive(review.planUri!), 3, 1, 'Clarify this step');
+			await tick();
+
+			const submitButton = getInlineButtons(widget).find(button => button.textContent?.includes('Submit Feedback'));
+			assert.ok(submitButton?.textContent?.includes('(1)'), 'collapsed widget should show the pending comment count');
 		});
 
 		test('restores draft collapsed state from ChatPlanReviewData', () => {
@@ -597,6 +997,66 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Multiple actions', () => {
+		test('persists edited plan content before submission', async () => {
+			const planUri = URI.parse('file:///plan.md');
+			const review = new ChatPlanReviewData(
+				'Review Plan',
+				'# Original plan',
+				[{ id: 'approve', label: 'Approve', default: true }],
+				true,
+				planUri.toJSON(),
+			);
+			createWidget(review);
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').resolves(planUri);
+			sinon.stub(lastTextFileService!, 'read').resolves({
+				resource: planUri,
+				name: 'plan.md',
+				size: 13,
+				mtime: 1,
+				ctime: 1,
+				etag: '1',
+				readonly: false,
+				locked: false,
+				executable: false,
+				encoding: 'utf8',
+				value: '# Edited plan',
+			} satisfies ITextFileContent);
+
+			getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!.click();
+			await tick();
+
+			assert.deepStrictEqual({
+				content: review.content,
+				serializedContent: review.toJSON().content,
+			}, {
+				content: '# Edited plan',
+				serializedContent: '# Edited plan',
+			});
+		});
+
+		test('concurrent approval attempts submit only once', async () => {
+			const review = createMockReviewWithPlan({
+				actions: [{ id: 'approve', label: 'Approve', default: true }],
+			});
+			createWidget(review);
+
+			const saveDeferred = new DeferredPromise<URI | undefined>();
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			const saveStub = sinon.stub(lastTextFileService!, 'save').returns(saveDeferred.p);
+			const approveButton = getFooterButtons(widget).find(button => button.textContent?.includes('Approve'))!;
+
+			approveButton.click();
+			approveButton.click();
+			assert.strictEqual(saveStub.callCount, 1);
+
+			saveDeferred.complete(URI.revive(review.planUri!));
+			await tick();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve', actionId: 'approve', rejected: false });
+			assert.strictEqual(submitCount, 1);
+		});
+
 		test('renders dropdown when multiple actions exist', () => {
 			const actions: IChatPlanApprovalAction[] = [
 				{ label: 'Autopilot', default: true },
@@ -740,6 +1200,31 @@ suite('ChatPlanReviewPart', () => {
 			approveButton!.click();
 
 			assert.strictEqual(textarea.disabled, true, 'textarea should be disabled after submission');
+		});
+
+		test('dismiss disposes the active plan registration', () => {
+			const review = new ChatPlanReviewData(
+				'Review Plan',
+				'# Plan',
+				[{ label: 'Go', default: true }],
+				true,
+				URI.parse('file:///plan.md').toJSON(),
+			);
+			createWidget(review);
+			const planUri = URI.revive(review.planUri!);
+			assert.strictEqual(lastFeedbackService!.isActivePlanReview(planUri), true);
+
+			review.dismiss();
+
+			assert.deepStrictEqual({
+				active: lastFeedbackService!.isActivePlanReview(planUri),
+				used: widget.domNode.classList.contains('chat-plan-review-used'),
+				buttonCount: getFooterButtons(widget).length,
+			}, {
+				active: false,
+				used: true,
+				buttonCount: 0,
+			});
 		});
 	});
 

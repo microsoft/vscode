@@ -19,10 +19,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IsActiveSessionArchivedContext } from '../../../common/contextkeys.js';
+import { SessionIsArchivedContext } from '../../../common/contextkeys.js';
 
 const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSessionHasWorktreeAndRepository', false, {
 	type: 'boolean',
@@ -35,16 +35,16 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
 		const worktreeAndRepoKey = hasWorktreeAndRepositoryContextKey.bindTo(contextKeyService);
 
 		this._register(autorun(reader => {
-			const activeSession = sessionManagementService.activeSession.read(reader);
-			const repo = activeSession?.workspace.read(reader)?.repositories[0];
-			const hasWorktreeAndRepo = !!repo?.workingDirectory && !!repo?.uri;
+			const activeSession = sessionsService.activeSession.read(reader);
+			const folder = activeSession?.workspace.read(reader)?.folders[0];
+			const hasWorktreeAndRepo = !!folder?.gitRepository?.workTreeUri;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
 		}));
 	}
@@ -79,21 +79,21 @@ class ApplyChangesToParentRepoAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = sessionManagementService.activeSession.get();
-		const repo = activeSession?.workspace.get()?.repositories[0];
-		if (!activeSession || !repo?.workingDirectory || !repo?.uri) {
+		const activeSession = sessionsService.activeSession.get();
+		const folder = activeSession?.workspace.get()?.folders[0];
+		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
 			return;
 		}
 
-		const worktreeRoot = repo.workingDirectory;
-		const repoRoot = repo.uri;
+		const worktreeRoot = folder.gitRepository.workTreeUri;
+		const repoRoot = folder.root;
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',
@@ -172,5 +172,5 @@ MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
 	order: 1,
 	when: ContextKeyExpr.and(
 		IsSessionsWindowContext,
-		IsActiveSessionArchivedContext.isEqualTo(false))
+		SessionIsArchivedContext.isEqualTo(false))
 });

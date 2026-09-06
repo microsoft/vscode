@@ -1,0 +1,21 @@
+# Apply this file to CodeQL default setup with the repository property:
+# github-codeql-config-file: ./.github/codeql/codeql-config.yml
+paths-ignore:
+  # Keep directory exclusions scoped: product code imports helpers from some
+  # extension src/test directories.
+  - 'test/**'
+  - 'src/**/test/**'
+  - 'build/**/test/**'
+  - 'cli/tests/**'
+  - '.eslint-plugin-local/tests/**'
+  - 'extensions/*/test/**'
+  - 'extensions/*/tests/**'
+  # Keep exact suffixes: themes.test.contribution.ts ships in the product.
+  - '**/*.test.js'
+  - '**/*.test.jsx'
+  - '**/*.test.mjs'
+  - '**/*.test.cjs'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.test.mts'
+  - '**/*.test.cts'

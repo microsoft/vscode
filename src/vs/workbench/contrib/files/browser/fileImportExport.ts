@@ -53,7 +53,7 @@ interface IWebkitDataTransfer {
 }
 
 interface IWebkitDataTransferItem {
-	webkitGetAsEntry(): IWebkitDataTransferItemEntry;
+	webkitGetAsEntry(): IWebkitDataTransferItemEntry | null;
 }
 
 interface IWebkitDataTransferItemEntry {
@@ -139,7 +139,13 @@ export class BrowserFileUpload {
 		// an array we own as early as possible before using it.
 		const entries: IWebkitDataTransferItemEntry[] = [];
 		for (const item of items) {
-			entries.push(item.webkitGetAsEntry());
+			// `webkitGetAsEntry()` returns `null` for data transfer items that
+			// do not represent a file system entry (e.g. dragged text/URLs).
+			// Skip those so we never operate on a `null` entry later on.
+			const entry = item.webkitGetAsEntry();
+			if (entry) {
+				entries.push(entry);
+			}
 		}
 
 		const results: { isFile: boolean; resource: URI }[] = [];

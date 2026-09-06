@@ -23,6 +23,11 @@ suite('HighlightedLabel', () => {
 		assert.strictEqual(label.element.innerHTML, 'hello');
 	});
 
+	test('colored symbol icon', function () {
+		label.set('$(symbol-class) hello', undefined, undefined, undefined, true);
+		assert.strictEqual(label.element.innerHTML, '<span class="codicon codicon-symbol-class codicon-colored"></span> hello');
+	});
+
 	test('escape html', function () {
 		label.set('hel<lo');
 		assert.strictEqual(label.element.innerHTML, 'hel&lt;lo');

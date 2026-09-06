@@ -5,6 +5,7 @@
 
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
@@ -19,16 +20,50 @@ import { isToolResultInputOutputDetails } from '../tools/languageModelToolsServi
 
 export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
 
+/**
+ * Data associated with a URI, readable until it is disposed. Disposing releases
+ * only this association; data shared with other associations of the same URI is
+ * kept until the last of them is disposed.
+ */
+export interface IChatResourceAssociation extends IDisposable {
+	readonly resource: URI;
+}
+
+export interface IChatResourceAssociateOptions {
+	/** Also releases the data when this chat session is disposed. */
+	readonly sessionResource?: URI;
+
+	/**
+	 * Stable identity: associating the same id again yields the same URI, and its
+	 * data is only released once every association for that id has been disposed.
+	 */
+	readonly id?: string;
+
+	/** Appended to the URI so the resource carries a readable name. */
+	readonly name?: string;
+}
+
+/** Data behind an associated URI, shared by every association that resolves to it. */
+interface IAssociatedEntry {
+	data: Uint8Array | { base64: string };
+
+	/** Number of associations not yet disposed; the data is released at zero. */
+	refCount: number;
+
+	/** Sessions whose disposal releases the data, whatever the reference count is. */
+	readonly sessionResources: ResourceSet;
+}
+
 export interface IChatResponseResourceFileSystemProvider extends IFileSystemProvider {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Associates arbitrary data with a URI in the chat response resource filesystem.
-	 * The data is scoped to the given session and automatically cleaned up when
-	 * the session is disposed.
-	 * Returns a URI that can later be read via the file service.
+	 * Associates arbitrary data with a URI in this filesystem, so it can be read
+	 * through the file service and opened in an editor. The data is held until every
+	 * association for its URI is disposed, or — for a session-scoped association —
+	 * until that session is disposed, whichever comes first.
 	 */
-	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI;
+	associate(data: Uint8Array | { base64: string }, options?: IChatResourceAssociateOptions): IChatResourceAssociation;
 }
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
@@ -50,7 +85,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		| FileSystemProviderCapabilities.FileReadWrite;
 
 	/** In-memory store for data associated via {@link associate}, keyed by URI. */
-	private readonly _associated = new ResourceMap<Uint8Array | { base64: string }>();
+	private readonly _associated = new ResourceMap<IAssociatedEntry>();
 
 	/** Tracks which associated URIs belong to which session, for cleanup on dispose. */
 	private readonly _sessionAssociations = new ResourceMap<ResourceSet>();
@@ -63,32 +98,75 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		this._register(this.chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				const uris = this._sessionAssociations.get(sessionResource);
-				if (uris) {
-					for (const uri of uris) {
-						this._associated.delete(uri);
-					}
-					this._sessionAssociations.delete(sessionResource);
+				if (!uris) {
+					continue;
 				}
+				// Releasing mutates the session's set, so iterate over a snapshot of it.
+				for (const uri of [...uris]) {
+					const entry = this._associated.get(uri);
+					if (entry) {
+						this._forget(uri, entry);
+					}
+				}
+				this._sessionAssociations.delete(sessionResource);
 			}
 		}));
 	}
 
-	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI {
-		const id = generateUuid();
+	associate(data: Uint8Array | { base64: string }, options?: IChatResourceAssociateOptions): IChatResourceAssociation {
 		const uri = URI.from({
 			scheme: ChatResponseResource.scheme,
-			path: `/assoc/${id}` + (name ? `/${name}` : ''),
+			path: `/assoc/${options?.id ?? generateUuid()}` + (options?.name ? `/${options.name}` : ''),
 		});
-		this._associated.set(uri, data);
 
-		let set = this._sessionAssociations.get(sessionResource);
-		if (!set) {
-			set = new ResourceSet();
-			this._sessionAssociations.set(sessionResource, set);
+		// A stable id can be associated more than once, e.g. when the same artifact is
+		// opened twice, so those associations share one entry that the last of them
+		// releases. Without that, one consumer would invalidate the data of another.
+		let entry = this._associated.get(uri);
+		if (entry) {
+			entry.data = data;
+			entry.refCount++;
+		} else {
+			entry = { data, refCount: 1, sessionResources: new ResourceSet() };
+			this._associated.set(uri, entry);
 		}
-		set.add(uri);
 
-		return uri;
+		if (options?.sessionResource) {
+			entry.sessionResources.add(options.sessionResource);
+			let set = this._sessionAssociations.get(options.sessionResource);
+			if (!set) {
+				set = new ResourceSet();
+				this._sessionAssociations.set(options.sessionResource, set);
+			}
+			set.add(uri);
+		}
+
+		return {
+			resource: uri,
+			// Guarded so a repeated dispose cannot release a reference it does not own.
+			dispose: createSingleCallFunction(() => this._release(uri)),
+		};
+	}
+
+	/** Drops one reference to the data at `uri`, releasing it once none are left. */
+	private _release(uri: URI): void {
+		const entry = this._associated.get(uri);
+		if (!entry || --entry.refCount > 0) {
+			return;
+		}
+
+		this._forget(uri, entry);
+	}
+
+	/** Releases the data at `uri` along with every session's claim on it. */
+	private _forget(uri: URI, entry: IAssociatedEntry): void {
+		this._associated.delete(uri);
+		for (const sessionResource of entry.sessionResources) {
+			const uris = this._sessionAssociations.get(sessionResource);
+			if (uris?.delete(uri) && uris.size === 0) {
+				this._sessionAssociations.delete(sessionResource);
+			}
+		}
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
@@ -161,11 +239,11 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
 		const associated = this._associated.get(uri);
 		if (associated) {
-			if (associated instanceof Uint8Array) {
-				return associated;
+			if (associated.data instanceof Uint8Array) {
+				return associated.data;
 			}
-			const decoded = decodeBase64(associated.base64).buffer;
-			this._associated.set(uri, decoded);
+			const decoded = decodeBase64(associated.data.base64).buffer;
+			associated.data = decoded;
 			return decoded;
 		}
 

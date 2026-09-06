@@ -20,6 +20,10 @@ If no clear policy need emerges from the conversation, clarify:
 - Should it block, warn, or inject context?
 - Does it need a companion script?
 
+## Path Conventions
+- Hook commands and companion scripts run with `cwd` defaulting to the workspace root (when a workspace folder is available); otherwise `cwd` falls back to the user home directory. Relative paths resolve from `cwd`. Absolute paths are fine when intentional — just be deliberate about which you use.
+- Do not use environment variables for pathing. The only exception is plugin-provided environment variables in hooks shipped as part of an agent plugin; never use environment variables for pathing outside of a plugin context.
+
 ## Iterate
 1. Draft the hook JSON (and any scripts) and save them.
 2. Identify the most ambiguous or weak parts and ask about those.

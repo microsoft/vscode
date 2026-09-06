@@ -24,13 +24,67 @@ function findGitRoot(startDir: string): string {
 	return dir;
 }
 
-function getOriginInfo(gitRoot: string): { org: string; repo: string } {
+type OriginInfo =
+	| { type: 'github'; org: string; repo: string }
+	| { type: 'ado'; org: string; project: string; repo: string };
+
+function getOriginInfo(gitRoot: string): OriginInfo {
 	const originUrl = execSync('git config --get remote.origin.url', { cwd: gitRoot, encoding: 'utf-8' }).trim();
-	const match = originUrl.match(/github\.com[:/](?<org>[^/]+)\/(?<repo>[^/.]+)/);
-	if (!match?.groups) {
-		throw new Error(`Could not parse origin URL: ${originUrl}`);
+	const githubMatch = originUrl.match(/github\.com[:/](?<org>[^/]+)\/(?<repo>[^/.]+)/);
+	if (githubMatch?.groups) {
+		return {
+			type: 'github',
+			org: githubMatch.groups.org,
+			repo: githubMatch.groups.repo
+		};
 	}
-	return { org: match.groups.org, repo: match.groups.repo };
+
+	const adoMatch = originUrl.match(/dev\.azure\.com\/(?<org>[^/]+)\/(?<project>[^/]+)\/_git\/(?<repo>[^/.]+)/);
+	if (adoMatch?.groups) {
+		return {
+			type: 'ado',
+			org: adoMatch.groups.org,
+			project: adoMatch.groups.project,
+			repo: adoMatch.groups.repo
+		};
+	}
+
+	throw new Error(`Could not parse origin URL: ${originUrl}`);
+}
+
+function assertRepoInfo(info: NonNullable<Awaited<ReturnType<typeof extractRepoInfo>>>, baseFolder: { uri: string }, origin: OriginInfo): void {
+	const { url, pathname, repoId, ...repoInfo } = info;
+	assert.ok(repoId);
+
+	if (origin.type === 'github') {
+		assert.deepStrictEqual(repoInfo, {
+			baseFolder,
+			hostname: 'github.com'
+		});
+		assert.deepStrictEqual(
+			{ org: repoId.org, repo: repoId.repo, type: repoId.type },
+			{ org: origin.org, repo: origin.repo, type: 'github' }
+		);
+		assert.ok(
+			[
+				`git@github.com:${origin.org}/${origin.repo}`,
+				`https://github.com/${origin.org}/${origin.repo}`,
+				`https://github.com/${origin.org}/${origin.repo}.git`,
+			].includes(url),
+			`url is ${url}`
+		);
+	} else {
+		assert.deepStrictEqual(repoInfo, {
+			baseFolder,
+			hostname: 'dev.azure.com'
+		});
+		assert.deepStrictEqual(
+			{ org: repoId.org, project: repoId.type === 'ado' ? repoId.project : undefined, repo: repoId.repo, type: repoId.type },
+			{ org: origin.org, project: origin.project, repo: origin.repo, type: 'ado' }
+		);
+	}
+
+	assert.ok(pathname.includes(`/${origin.repo}`));
 }
 
 suite('Extract repo info tests', function () {
@@ -43,28 +97,7 @@ suite('Extract repo info tests', function () {
 		const info = await extractRepoInfo(accessor, baseFolder.uri);
 
 		assert.ok(info);
-
-		// url and pathname get their own special treatment because they depend on how the repo was cloned.
-		const { url, pathname, repoId, ...repoInfo } = info;
-
-		assert.deepStrictEqual(repoInfo, {
-			baseFolder,
-			hostname: 'github.com'
-		});
-		assert.ok(repoId);
-		assert.deepStrictEqual(
-			{ org: repoId.org, repo: repoId.repo, type: repoId.type },
-			{ org: origin.org, repo: origin.repo, type: 'github' }
-		);
-		assert.ok(
-			[
-				`git@github.com:${origin.org}/${origin.repo}`,
-				`https://github.com/${origin.org}/${origin.repo}`,
-				`https://github.com/${origin.org}/${origin.repo}.git`,
-			].includes(url),
-			`url is ${url}`
-		);
-		assert.ok(pathname.includes(`/${origin.repo}`));
+		assertRepoInfo(info, baseFolder, origin);
 
 		assert.deepStrictEqual(await extractRepoInfo(accessor, 'file:///tmp/does/not/exist/.git/config'), undefined);
 	});
@@ -77,28 +110,7 @@ suite('Extract repo info tests', function () {
 		const info = await extractRepoInfo(accessor, cellUri);
 
 		assert.ok(info);
-
-		// url and pathname get their own special treatment because they depend on how the repo was cloned.
-		const { url, pathname, repoId, ...repoInfo } = info;
-
-		assert.deepStrictEqual(repoInfo, {
-			baseFolder,
-			hostname: 'github.com'
-		});
-		assert.ok(repoId);
-		assert.deepStrictEqual(
-			{ org: repoId.org, repo: repoId.repo, type: repoId.type },
-			{ org: origin.org, repo: origin.repo, type: 'github' }
-		);
-		assert.ok(
-			[
-				`git@github.com:${origin.org}/${origin.repo}`,
-				`https://github.com/${origin.org}/${origin.repo}`,
-				`https://github.com/${origin.org}/${origin.repo}.git`,
-			].includes(url),
-			`url is ${url}`
-		);
-		assert.ok(pathname.includes(`/${origin.repo}`));
+		assertRepoInfo(info, baseFolder, origin);
 
 		assert.deepStrictEqual(await instantiationService.invokeFunction(extractRepoInfo, 'file:///tmp/does/not/exist/.git/config'), undefined);
 	});

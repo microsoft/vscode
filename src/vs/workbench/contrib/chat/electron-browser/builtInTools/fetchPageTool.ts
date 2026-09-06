@@ -9,6 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
+import { normalizePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -20,7 +21,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
-import { AgentNetworkFilterFetchWebToolName, IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export const FetchWebPageToolData: IToolData = {
@@ -235,12 +236,17 @@ export class FetchWebPageTool implements IToolImpl {
 		let confirmationNotNeededReason: string | undefined;
 		if (context.chatSessionResource) {
 			const model = this._chatService.getSession(context.chatSessionResource);
-			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			const userMessages = model?.getRequests().map(r => r.message.text) ?? [];
+			// Collect the resources the user actually referenced by parsing whole
+			// whitespace-delimited tokens from their messages. Parsing at token granularity
+			// (rather than a substring match) ensures a `file://` URI embedded inside another
+			// URL the user pasted — e.g. `https://host/p?u=file:///home/victim/.ssh/id_rsa` —
+			// is parsed as part of its enclosing web URL and is not mistaken for an explicit
+			// request for that local file, which would otherwise auto-approve the read.
+			const referencedResources = collectReferencedResources(userMessages);
 			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {
-				// Normalize to lowercase and remove any trailing slash
-				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
-				if (userMessages?.some(m => m.includes(toToCheck))) {
+				if (referencedResources.has(uri)) {
 					urlsNeedingConfirmation.delete(uri);
 					urlsMentionedInPrompt = true;
 				}
@@ -291,14 +297,14 @@ export class FetchWebPageTool implements IToolImpl {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					if (!this._agentNetworkFilterService.isUriAllowed(uriObj, AgentNetworkFilterFetchWebToolName)) {
+					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
 						blockedUris.add(url);
 					} else {
 						webUris.set(url, uriObj);
 					}
 				} else {
-					// Try to handle other schemes via file service
-					fileUris.set(url, uriObj);
+					// Normalize `..` so the confirmation-gating workspace check and the eventual read agree on one path.
+					fileUris.set(url, normalizePath(uriObj));
 				}
 			} catch (e) {
 				invalidUris.add(url);
@@ -361,3 +367,41 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 	}
 }
+
+/**
+ * Matches the start of a URI scheme (RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":").
+ * Used as a cheap filter so only scheme-qualified tokens are parsed.
+ */
+const _schemePrefix = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+
+/**
+ * Collects the URIs a user explicitly referenced across their chat messages, used to decide
+ * whether a fetch may skip its confirmation dialog. Each message is split on whitespace and
+ * scheme-qualified tokens are parsed into URIs; parsing at token granularity is what makes
+ * this safe — a `file://` URI embedded inside another URL the user pasted (e.g. a
+ * `?u=file:///…` query parameter) is parsed as part of its enclosing URL and never becomes a
+ * standalone reference. Membership is compared by {@link ResourceSet} (keyed on `URI.toString()`).
+ */
+function collectReferencedResources(messages: readonly string[]): ResourceSet {
+	const resources = new ResourceSet();
+	for (const message of messages) {
+		for (const rawToken of message.split(/\s+/)) {
+			// Trim common punctuation/brackets a user might type around a URL.
+			const token = rawToken.replace(/^[<("'`[{]+/, '').replace(/[>)"'`\]},.;]+$/, '');
+			// Cheap pre-check: only tokens that start with a URI scheme are worth parsing.
+			// This avoids using exceptions for control flow on every plain word in a message.
+			if (!_schemePrefix.test(token)) {
+				continue;
+			}
+			try {
+				// Strict parsing rejects scheme-less tokens, so only genuine `scheme:…`
+				// tokens (http, https, file, …) are treated as references.
+				resources.add(URI.parse(token, true));
+			} catch {
+				// Scheme-like but not a valid URI; ignore.
+			}
+		}
+	}
+	return resources;
+}
+

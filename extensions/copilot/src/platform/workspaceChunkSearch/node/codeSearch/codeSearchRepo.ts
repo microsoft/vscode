@@ -409,7 +409,7 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		}
 
 		const triggerSuccess = await this._githubCodeSearchService.triggerIndexing({ silent: true }, triggerReason, this._githubRepoId, telemetryInfo);
-		if (!triggerSuccess) {
+		if (triggerSuccess.isError()) {
 			this._logService.error(`RepoTracker::TriggerRemoteIndexing(${triggerReason}). Failed to request indexing for '${this.remoteInfo.repoId}'.`);
 
 			this.updateState({ status: CodeSearchRepoStatus.NotYetIndexed });

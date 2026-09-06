@@ -173,8 +173,10 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	}
 
 	private generatePastTenseMessage(currentTodos: IChatTodo[], newTodos: IManageTodoListToolInputParams['todoList']): string {
-		// If no current todos, this is creating new ones
-		if (currentTodos.length === 0) {
+		// If no current todos and we're adding new ones, this is creating new ones.
+		// When both lists are empty (a no-op write), fall through to the default
+		// "Updated todo list" message rather than showing "Created 0 todos".
+		if (currentTodos.length === 0 && newTodos.length > 0) {
 			return newTodos.length === 1
 				? localize('todo.created.single', "Created 1 todo")
 				: localize('todo.created.multiple', "Created {0} todos", newTodos.length);

@@ -224,11 +224,6 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
 			return [[TestingConfigKeys.OpenResults, { value }]];
 		}
-	}, {
-		key: 'testing.automaticallyOpenResults', // insiders only during 1.96, remove after 1.97
-		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
-			return [[TestingConfigKeys.OpenResults, { value }]];
-		}
 	}]);
 
 export interface ITestingCoverageBarThresholds {

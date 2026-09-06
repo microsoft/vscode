@@ -1,0 +1,175 @@
+parameters:
+  - name: jobName
+    type: string
+  - name: displayName
+    type: string
+  - name: platform
+    type: string
+  - name: arch
+    type: string
+  - name: archiveExt
+    type: string
+  - name: artifactPrefix
+    type: string
+  - name: testIntegration
+    type: boolean
+  - name: testSmoke
+    type: boolean
+  - name: extraVariables
+    type: object
+    default: {}
+  - name: compileSteps
+    type: stepList
+  - name: archiveWorkspaceSteps
+    type: stepList
+  - name: archiveAppSteps
+    type: stepList
+    default: []
+  - name: archiveServerSteps
+    type: stepList
+    default: []
+
+jobs:
+  # Compiles and packages VS Code exactly once for this platform. The Unit,
+  # Integration and Smoke jobs below all depend on this job and reuse its
+  # output (downloaded from pipeline artifacts) instead of rebuilding, so we
+  # only pay for a from-source build once per platform, not once per test type.
+  - job: ${{ parameters.jobName }}
+    displayName: ${{ parameters.displayName }}
+    timeoutInMinutes: 90
+    variables:
+      ${{ each variable in parameters.extraVariables }}:
+        ${{ variable.key }}: ${{ variable.value }}
+      VSCODE_ARCH: ${{ parameters.arch }}
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/crashes
+          artifactName: crash-dump-${{ parameters.platform }}-$(VSCODE_ARCH)-build-$(System.JobAttempt)
+          displayName: Publish Crash Reports
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/logs
+          artifactName: logs-${{ parameters.platform }}-$(VSCODE_ARCH)-build-$(System.JobAttempt)
+          displayName: Publish Log Files
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/repo.${{ parameters.archiveExt }}
+          artifactName: ${{ parameters.artifactPrefix }}-repo
+          displayName: Publish built workspace
+          sbomEnabled: false
+          isProduction: false
+        - ${{ if or(eq(parameters.testIntegration, true), eq(parameters.testSmoke, true)) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/app.${{ parameters.archiveExt }}
+            artifactName: ${{ parameters.artifactPrefix }}-app
+            displayName: Publish packaged app
+            sbomEnabled: false
+            isProduction: false
+        - ${{ if eq(parameters.testIntegration, true) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/server.${{ parameters.archiveExt }}
+            artifactName: ${{ parameters.artifactPrefix }}-server
+            displayName: Publish packaged server
+            sbomEnabled: false
+            isProduction: false
+    steps:
+      # Build VS Code from source. No VSCODE_RUN_*_TESTS flags are passed, so the
+      # compile template builds the client/server but skips compiling the test
+      # suites and skips the unit/integration/smoke test template entirely — the
+      # test jobs below compile whichever suites they need and run them.
+      - ${{ each step in parameters.compileSteps }}:
+        - ${{ step }}
+
+      # The crash/log pipelineArtifact outputs above run unconditionally
+      # (succeededOrFailed()), so ensure the paths exist even if compile fails
+      # or a later step fails first. This must run after the checkout inside
+      # the compile template above, since checkout wipes any untracked files
+      # created earlier in the sources directory, and needs condition: always()
+      # so it still runs after an earlier step in this job has failed.
+      - ${{ if eq(parameters.platform, 'windows') }}:
+        - powershell: New-Item -ItemType Directory -Force -Path .build\crashes, .build\logs | Out-Null
+          displayName: Ensure artifact directories exist
+          condition: always()
+      - ${{ else }}:
+        - script: mkdir -p .build/crashes .build/logs
+          displayName: Ensure artifact directories exist
+          condition: always()
+
+      # Compiled here (rather than in the Integration/Smoke jobs) so the output
+      # is captured by the workspace archive below and doesn't need recompiling
+      # once per test job.
+      - ${{ if eq(parameters.testSmoke, true) }}:
+        - ${{ if eq(parameters.platform, 'windows') }}:
+          - powershell: npm run compile --prefix test/smoke
+            displayName: Compile smoke tests
+        - ${{ else }}:
+          - script: npm run compile --prefix test/smoke
+            displayName: Compile smoke tests
+
+      - ${{ if eq(parameters.testIntegration, true) }}:
+        - ${{ if eq(parameters.platform, 'windows') }}:
+          - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              exec { npm run gulp `
+                compile-extension:configuration-editing `
+                compile-extension:css-language-features-server `
+                compile-extension:emmet `
+                compile-extension:git `
+                compile-extension:github-authentication `
+                compile-extension:html-language-features-server `
+                compile-extension:ipynb `
+                compile-extension:notebook-renderers `
+                compile-extension:json-language-features-server `
+                compile-extension:markdown-language-features `
+                compile-extension-media `
+                compile-extension:microsoft-authentication `
+                compile-extension:typescript-language-features `
+                compile-extension:vscode-api-tests `
+                compile-extension:vscode-colorize-tests `
+                compile-extension:vscode-colorize-perf-tests `
+                compile-extension:vscode-test-resolver `
+              }
+            displayName: Build integration tests
+        - ${{ else }}:
+          - script: |
+              set -e
+              npm run gulp \
+                compile-extension:configuration-editing \
+                compile-extension:css-language-features-server \
+                compile-extension:emmet \
+                compile-extension:git \
+                compile-extension:github-authentication \
+                compile-extension:html-language-features-server \
+                compile-extension:ipynb \
+                compile-extension:notebook-renderers \
+                compile-extension:json-language-features-server \
+                compile-extension:markdown-language-features \
+                compile-extension-media \
+                compile-extension:microsoft-authentication \
+                compile-extension:typescript-language-features \
+                compile-extension:vscode-api-tests \
+                compile-extension:vscode-colorize-tests \
+                compile-extension:vscode-colorize-perf-tests \
+                compile-extension:vscode-test-resolver
+            displayName: Build integration tests
+
+      # Archive everything the downstream test jobs need so they can download
+      # and extract instead of rebuilding. The workspace archive excludes .git
+      # since test jobs never need source history, only the built output.
+      - ${{ each step in parameters.archiveWorkspaceSteps }}:
+        - ${{ step }}
+
+      - ${{ if or(eq(parameters.testIntegration, true), eq(parameters.testSmoke, true)) }}:
+        - ${{ each step in parameters.archiveAppSteps }}:
+          - ${{ step }}
+
+      - ${{ if eq(parameters.testIntegration, true) }}:
+        - ${{ each step in parameters.archiveServerSteps }}:
+          - ${{ step }}

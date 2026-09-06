@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CancellationToken, ChatHookResult, ChatHookType, ChatRequest, LanguageModelToolInformation } from 'vscode';
+import type { CancellationToken, ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService, SessionStartHookInput, StopHookInput, SubagentStartHookInput, SubagentStopHookInput } from '../../../../platform/chat/common/chatHookService';
+import { MockChatHookService } from './mockChatHookService';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -18,79 +19,6 @@ import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { IBuildPromptResult, nullRenderPromptResult } from '../../../prompt/node/intents';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { IToolCallingLoopOptions, ToolCallingLoop } from '../../node/toolCallingLoop';
-
-/**
- * Configurable mock implementation of IChatHookService for testing.
- *
- * Allows tests to configure:
- * - Hook results to return for specific hook types
- * - Error behavior to simulate hook failures
- * - Call tracking to verify hook invocations
- */
-export class MockChatHookService implements IChatHookService {
-	declare readonly _serviceBrand: undefined;
-
-	/** Configured results to return per hook type */
-	private readonly hookResults = new Map<ChatHookType, ChatHookResult[]>();
-
-	/** Configured errors to throw per hook type */
-	private readonly hookErrors = new Map<ChatHookType, Error>();
-
-	/** Tracks all hook calls for verification */
-	readonly hookCalls: Array<{ hookType: ChatHookType; input: unknown }> = [];
-
-	logConfiguredHooks(): void { }
-
-	/**
-	 * Configure the results that should be returned when a specific hook type is executed.
-	 */
-	setHookResults(hookType: ChatHookType, results: ChatHookResult[]): void {
-		this.hookResults.set(hookType, results);
-	}
-
-	/**
-	 * Configure an error to throw when a specific hook type is executed.
-	 */
-	setHookError(hookType: ChatHookType, error: Error): void {
-		this.hookErrors.set(hookType, error);
-	}
-
-	/**
-	 * Clear all hook calls for test isolation.
-	 */
-	clearCalls(): void {
-		this.hookCalls.length = 0;
-	}
-
-	/**
-	 * Get all calls for a specific hook type.
-	 */
-	getCallsForHook(hookType: ChatHookType): Array<{ hookType: ChatHookType; input: unknown }> {
-		return this.hookCalls.filter(call => call.hookType === hookType);
-	}
-
-	async executeHook(hookType: ChatHookType, _hooks: unknown, input: unknown, _sessionId?: string, _token?: CancellationToken): Promise<ChatHookResult[]> {
-		// Track the call
-		this.hookCalls.push({ hookType, input });
-
-		// Check if we should throw an error
-		const error = this.hookErrors.get(hookType);
-		if (error) {
-			throw error;
-		}
-
-		// Return configured results or empty array
-		return this.hookResults.get(hookType) || [];
-	}
-
-	async executePreToolUseHook(): Promise<undefined> {
-		return undefined;
-	}
-
-	async executePostToolUseHook(): Promise<undefined> {
-		return undefined;
-	}
-}
 
 /**
  * Minimal concrete implementation of ToolCallingLoop for testing.

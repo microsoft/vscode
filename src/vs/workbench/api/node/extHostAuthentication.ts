@@ -7,12 +7,14 @@ import * as nls from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { URL } from 'url';
 import { ExtHostAuthentication, DynamicAuthProvider, IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { XaaifyAuthProvider } from '../common/extHostXaaAuthProvider.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
 import { ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse, AuthorizationErrorType, AuthorizationDeviceCodeErrorType } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
 import { raceCancellationError } from '../../../base/common/async.js';
@@ -30,7 +32,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		initData: IExtHostInitDataService,
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
-		proxy: MainThreadAuthenticationShape,
+		proxy: Proxied<MainThreadAuthenticationShape>,
 		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
@@ -321,6 +323,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 export class NodeExtHostAuthentication extends ExtHostAuthentication implements IExtHostAuthentication {
 
 	protected override readonly _dynamicAuthProviderCtor = NodeDynamicAuthProvider;
+	protected override readonly _xaaAuthProviderCtor = XaaifyAuthProvider(NodeDynamicAuthProvider);
 
 	constructor(
 		extHostRpc: IExtHostRpcService,

@@ -28,12 +28,74 @@ interface ITargetMetadata {
 }
 
 /**
+ * Maps a sanity test target to the build pipeline artifact that carries it, for `--artifacts-dir`
+ * runs against builds that were never published. An unmapped target fails loudly rather than
+ * silently falling back to the update service.
+ */
+const targetArtifacts: Readonly<Record<string, string>> = {
+	'cli-alpine-arm64': 'vscode_cli_alpine_arm64_cli',
+	'cli-alpine-x64': 'vscode_cli_alpine_x64_cli',
+	'cli-darwin-arm64': 'vscode_cli_darwin_arm64_cli',
+	'cli-darwin-x64': 'vscode_cli_darwin_x64_cli',
+	'cli-linux-arm64': 'vscode_cli_linux_arm64_cli',
+	'cli-linux-armhf': 'vscode_cli_linux_armhf_cli',
+	'cli-linux-x64': 'vscode_cli_linux_x64_cli',
+	'cli-win32-arm64': 'vscode_cli_win32_arm64_cli',
+	'cli-win32-x64': 'vscode_cli_win32_x64_cli',
+	'darwin': 'vscode_client_darwin_x64_archive',
+	'darwin-arm64': 'vscode_client_darwin_arm64_archive',
+	'darwin-arm64-dmg': 'vscode_client_darwin_arm64_dmg',
+	'darwin-universal': 'vscode_client_darwin_universal_archive',
+	'darwin-universal-dmg': 'vscode_client_darwin_universal_dmg',
+	'darwin-x64-dmg': 'vscode_client_darwin_x64_dmg',
+	'linux-arm64': 'vscode_client_linux_arm64_archive-unsigned',
+	'linux-armhf': 'vscode_client_linux_armhf_archive-unsigned',
+	'linux-deb-arm64': 'vscode_client_linux_arm64_deb-package',
+	'linux-deb-armhf': 'vscode_client_linux_armhf_deb-package',
+	'linux-deb-x64': 'vscode_client_linux_x64_deb-package',
+	'linux-rpm-arm64': 'vscode_client_linux_arm64_rpm-package',
+	'linux-rpm-armhf': 'vscode_client_linux_armhf_rpm-package',
+	'linux-rpm-x64': 'vscode_client_linux_x64_rpm-package',
+	'linux-snap-x64': 'vscode_client_linux_x64_snap',
+	'linux-x64': 'vscode_client_linux_x64_archive-unsigned',
+	'server-alpine-arm64': 'vscode_server_alpine_arm64_archive-unsigned',
+	'server-alpine-arm64-web': 'vscode_web_alpine_arm64_archive-unsigned',
+	'server-darwin': 'vscode_server_darwin_x64_archive',
+	'server-darwin-arm64': 'vscode_server_darwin_arm64_archive',
+	'server-darwin-arm64-web': 'vscode_web_darwin_arm64_archive',
+	'server-darwin-web': 'vscode_web_darwin_x64_archive',
+	'server-linux-alpine': 'vscode_server_linux_alpine_archive-unsigned',
+	'server-linux-alpine-web': 'vscode_web_linux_alpine_archive-unsigned',
+	'server-linux-arm64': 'vscode_server_linux_arm64_archive-unsigned',
+	'server-linux-arm64-web': 'vscode_web_linux_arm64_archive-unsigned',
+	'server-linux-x64': 'vscode_server_linux_x64_archive-unsigned',
+	'server-linux-x64-web': 'vscode_web_linux_x64_archive-unsigned',
+	'server-win32-arm64': 'vscode_server_win32_arm64_archive',
+	'server-win32-arm64-web': 'vscode_web_win32_arm64_archive',
+	'server-win32-x64': 'vscode_server_win32_x64_archive',
+	'server-win32-x64-web': 'vscode_web_win32_x64_archive',
+	'win32-arm64': 'vscode_client_win32_arm64_setup',
+	'win32-arm64-archive': 'vscode_client_win32_arm64_archive',
+	'win32-arm64-user': 'vscode_client_win32_arm64_user-setup',
+	'win32-x64': 'vscode_client_win32_x64_setup',
+	'win32-x64-archive': 'vscode_client_win32_x64_archive',
+	'win32-x64-user': 'vscode_client_win32_x64_user-setup',
+};
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
+	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
+	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
-	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
+	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
+	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
+	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
+	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
@@ -41,6 +103,8 @@ export class TestContext {
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
+	private wslVersion: number | undefined;
+	private signToolPath: string | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -51,6 +115,8 @@ export class TestContext {
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
 		screenshotsDir: string | undefined;
+		crashDumpsDir: string | undefined;
+		artifactsDir: string | undefined;
 	}>) {
 	}
 
@@ -221,6 +287,37 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the WSL version of the Ubuntu distribution, or undefined if not found.
+	 */
+	public getUbuntuWslVersion(): number | undefined {
+		if (this.wslVersion !== undefined) {
+			return this.wslVersion;
+		}
+
+		const result = this.runNoErrors('wsl', '--list', '--verbose');
+		for (const rawLine of result.stdout.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line || /^NAME\s+STATE\s+VERSION$/i.test(line)) {
+				continue;
+			}
+
+			const normalizedLine = line.replace(/^\*\s*/, '');
+			const columns = normalizedLine.split(/\s+/);
+			if (columns.length < 3 || columns[0] !== 'Ubuntu') {
+				continue;
+			}
+
+			const version = Number(columns[columns.length - 1]);
+			if (!Number.isNaN(version)) {
+				this.wslVersion = version;
+				return this.wslVersion;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
 	 * Ensures that the directory for the specified file path exists.
 	 */
 	public ensureDirExists(filePath: string) {
@@ -319,6 +416,10 @@ export class TestContext {
 	 * @returns The path to the downloaded file.
 	 */
 	public async downloadTarget(target: string): Promise<string> {
+		if (this.options.artifactsDir) {
+			return this.resolveArtifact(target);
+		}
+
 		const { url, sha256hash } = await this.fetchMetadata(target);
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
@@ -328,6 +429,50 @@ export class TestContext {
 
 		this.validateSha256Hash(filePath, sha256hash);
 		return filePath;
+	}
+
+	/**
+	 * Resolves a target from a directory of downloaded build pipeline artifacts, laid out as
+	 * `<artifacts-dir>/<artifact-name>/<file>`. There is no update service metadata for these
+	 * builds, so the SHA-256 check is skipped.
+	 * @param target The target platform (e.g., 'cli-linux-x64').
+	 * @returns The path to the artifact file.
+	 */
+	private resolveArtifact(target: string): string {
+		const artifact = targetArtifacts[target];
+		if (!artifact) {
+			this.error(`No pipeline artifact is mapped for target ${target}. Add it to 'targetArtifacts', or exclude the test from this run.`);
+		}
+
+		const artifactDir = path.join(this.options.artifactsDir!, artifact);
+		if (!fs.existsSync(artifactDir)) {
+			this.error(`Artifact ${artifact} for target ${target} was not downloaded to ${artifactDir}`);
+		}
+
+		const files: string[] = [];
+		this.collectFiles(artifactDir, files, true);
+		if (files.length !== 1) {
+			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
+		}
+
+		this.log(`Resolved target ${target} to ${files[0]} from artifact ${artifact}`);
+		return files[0];
+	}
+
+	/**
+	 * Collects all files from the specified directory recursively.
+	 */
+	private collectFiles(dir: string, files: string[], skipInjectedManifest = false): void {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (!skipInjectedManifest || entry.name !== '_manifest') {
+					this.collectFiles(filePath, files, skipInjectedManifest);
+				}
+			} else {
+				files.push(filePath);
+			}
+		}
 	}
 
 	/**
@@ -347,7 +492,7 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates the Authenticode signature of a Windows executable.
+	 * Validates every Authenticode signature of a Windows executable.
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
@@ -357,7 +502,44 @@ export class TestContext {
 		}
 
 		this.log(`Validating Authenticode signature for ${filePath}`);
-		this.validateAuthenticodeSignaturesForFiles([filePath]);
+		let signToolPath = this.signToolPath;
+		if (!signToolPath) {
+			const architectures = process.arch === 'arm64' ? ['arm64', 'x64'] : ['x64'];
+			const command = `
+				$signTool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+				if (-not $signTool) {
+					$sdkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\\10\\bin'
+					foreach ($architecture in @(${architectures.map(architecture => `'${architecture}'`).join(', ')})) {
+						$signTool = Get-ChildItem (Join-Path $sdkRoot "*\\$architecture\\signtool.exe") -ErrorAction SilentlyContinue |
+							Sort-Object FullName -Descending |
+							Select-Object -First 1 -ExpandProperty FullName
+						if ($signTool) {
+							break
+						}
+					}
+				}
+				if (-not $signTool) {
+					throw 'Unable to locate signtool.exe'
+				}
+				$signTool
+			`;
+			signToolPath = this.runNoErrors('powershell', '-NoProfile', '-Command', command).stdout.trim();
+			this.signToolPath = signToolPath;
+		}
+
+		const result = this.run(signToolPath, 'verify', '/pa', '/all', '/v', filePath);
+		if (result.error !== undefined) {
+			this.error(`Failed to validate Authenticode signatures for ${filePath}: ${result.error.message}`);
+		}
+		const details = `${result.stdout}\n${result.stderr}`.trim();
+		if (TestContext.authenticodeTestCertificate.test(details)) {
+			this.error(`Authenticode signature uses a test certificate for ${filePath}`);
+		}
+		if (result.status !== 0) {
+			this.error(`Not all Authenticode signatures are valid for ${filePath}${details ? `:\n${details}` : ''}`);
+		}
+
+		this.log(`All Authenticode signatures are valid for ${filePath}`);
 	}
 
 	/**
@@ -370,37 +552,12 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				files.push(filePath);
-			}
-		}
-	}
-
-	/**
-	 * Validates Authenticode signatures for the specified list of files in a single PowerShell call.
-	 */
-	private validateAuthenticodeSignaturesForFiles(files: string[]): void {
-		if (files.length === 0) {
-			return;
-		}
-
-		const fileList = files.map(file => `"${file}"`).join(',');
-		const command = `@(${fileList}) | ForEach-Object { $sig = Get-AuthenticodeSignature $_; "$($sig.Path)|$($sig.Status)" }`;
-		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
-
-		const invalid: string[] = [];
-		for (const line of result.stdout.trim().split('\n')) {
-			const [, filePath, status] = /^(.+)\|(\w+)$/.exec(line.trim()) ?? [];
-			if (filePath) {
-				if (status === 'Valid') {
-					this.log(`Authenticode signature is valid for ${filePath}`);
+				if (TestContext.authenticodeExclude.test(filePath)) {
+					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
 				} else {
-					invalid.push(`${filePath}: ${status}`);
+					files.push(filePath);
 				}
 			}
-		}
-
-		if (invalid.length > 0) {
-			this.error(`Authenticode signatures are not valid for:\n${invalid.join('\n')}`);
 		}
 	}
 
@@ -417,7 +574,9 @@ export class TestContext {
 		const files: string[] = [];
 		this.collectAuthenticodeFiles(dir, files);
 		this.log(`Found ${files.length} file(s) to validate Authenticode signatures`);
-		this.validateAuthenticodeSignaturesForFiles(files);
+		for (const file of files) {
+			this.validateAuthenticodeSignature(file);
+		}
 	}
 
 	/**
@@ -430,7 +589,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				if (TestContext.versionInfoExclude.test(entry.name)) {
+				if (TestContext.versionInfoFileExclude.test(entry.name) || TestContext.versionInfoPathExclude.test(filePath)) {
 					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
 				} else {
 					files.push(filePath);
@@ -801,7 +960,10 @@ export class TestContext {
 
 		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
-			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+			const remainingFiles: string[] = [];
+			this.collectFiles(appDir, remainingFiles);
+			const remainingFileList = remainingFiles.map(file => path.relative(appDir, file)).sort().join('\n') || '(no files)';
+			this.error(`Installation directory still exists after uninstall: ${appDir}\nRemaining files:\n${remainingFileList}`);
 		}
 	}
 
@@ -811,22 +973,32 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public async installDeb(packagePath: string): Promise<string> {
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${entryPoint}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using DEB package manager`);
 		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux DEB package.
+	 * Uninstalls VS Code Linux DEB package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/share', name, name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`DEB package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
 		await this.runDpkgNoErrors('-r', name);
@@ -844,22 +1016,33 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installRpm(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const installedBinary = path.join('/usr/bin', name);
+		if (fs.existsSync(installedBinary)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${installedBinary}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using RPM package manager`);
 		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux RPM package.
+	 * Uninstalls VS Code Linux RPM package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallRpm() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`RPM package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
 		this.runSudoNoErrors('rpm', '-e', name);
@@ -877,23 +1060,34 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installSnap(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const snapWrapper = path.join('/snap/bin', name);
+		if (fs.existsSync(snapWrapper)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${snapWrapper}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using Snap package manager`);
 		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const name = this.getLinuxBinaryName();
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux Snap package.
+	 * Uninstalls VS Code Linux Snap package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallSnap() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/snap/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`Snap package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
 		this.runSudoNoErrors('snap', 'remove', name);
@@ -1158,6 +1352,19 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns a per-test crash dump directory for the desktop app to use with
+	 * `--crash-reporter-directory`. Returns undefined if `--crash-dumps-dir` was
+	 * not provided.
+	 */
+	public getCrashDumpsDir(): string | undefined {
+		if (!this.options.crashDumpsDir || !this.currentTestName) {
+			return undefined;
+		}
+		const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return path.join(this.options.crashDumpsDir, sanitizedName);
+	}
+
+	/**
 	 * Captures a screenshot of the current page if one is active.
 	 */
 	public async captureScreenshot(page: Page) {
@@ -1265,14 +1472,14 @@ export class TestContext {
 		const app = spawn(command, args, {
 			shell: /\.(sh|cmd)$/.test(command),
 			detached: !this.capabilities.has('windows'),
-			stdio: ['ignore', 'pipe', 'pipe']
+			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 
 		try {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)) {
+					if (this.isNonFatalCliStderr(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));
@@ -1309,5 +1516,10 @@ export class TestContext {
 		} finally {
 			this.killProcessTree(app.pid!);
 		}
+	}
+
+	private isNonFatalCliStderr(text: string): boolean {
+		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }

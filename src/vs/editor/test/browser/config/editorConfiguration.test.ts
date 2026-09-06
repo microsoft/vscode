@@ -232,7 +232,7 @@ suite('Common Editor Config', () => {
 		const config = new TestConfiguration({ quickSuggestions: null! });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		});
@@ -244,7 +244,7 @@ suite('Common Editor Config', () => {
 		config.updateOptions({ quickSuggestions: { strings: true } });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'on'
 		});

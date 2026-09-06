@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly "usage-ok" and do not use tools.
+    response:
+      content: usage-ok
+      stopReason: end_turn

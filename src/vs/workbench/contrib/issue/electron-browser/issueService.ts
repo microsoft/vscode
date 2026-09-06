@@ -5,6 +5,8 @@
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -32,9 +34,43 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
+		const useWizard = this.configurationService.getValue<boolean>('issueReporter.wizard.enabled');
+
+		if (useWizard) {
+			// New wizard: show UI immediately, load data in background
+			return this.openWizardReporter(dataOverrides);
+		} else {
+			// Old reporter: collect all data first, then open
+			return this.openLegacyReporter(dataOverrides);
+		}
+	}
+
+	private async openWizardReporter(dataOverrides: Partial<IssueReporterData>): Promise<void> {
+		const theme = this.themeService.getColorTheme();
+		const extensionsLoaded = new DeferredPromise<void>();
+		const dataComplete = new DeferredPromise<void>();
+		const issueReporterData: IssueReporterData = Object.assign({
+			styles: getIssueReporterStyles(theme),
+			zoomLevel: getZoomLevel(mainWindow),
+			enabledExtensions: [],
+			whenExtensionsLoaded: extensionsLoaded.p,
+			whenDataComplete: dataComplete.p,
+			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			isInstallationPure: true,
+			isSessionsWindow: this.environmentService.isSessionsWindow,
+			githubAccessToken: '',
+		}, dataOverrides);
+
+		const openPromise = this.issueFormService.openReporter(issueReporterData);
+		this.populateReporterDataAsync(issueReporterData, dataOverrides, extensionsLoaded).then(() => dataComplete.complete(), () => dataComplete.complete());
+		return openPromise;
+	}
+
+	private async openLegacyReporter(dataOverrides: Partial<IssueReporterData>): Promise<void> {
 		const extensionData: IssueReporterExtensionData[] = [];
 		try {
 			const extensions = await this.extensionManagementService.getInstalled();
@@ -60,34 +96,36 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				};
 			}));
 		} catch (e) {
+			// Surface the load failure in the issue body so triage doesn't mistake an
+			// empty list for "no extensions installed".
 			extensionData.push({
-				name: 'Workbench Issue Service',
-				publisher: 'Unknown',
-				version: '0.0.0',
+				name: 'Extensions not loaded',
+				publisher: undefined,
+				version: '',
+				id: 'extensions-load-error',
+				isTheme: false,
+				isBuiltin: false,
+				displayName: undefined,
 				repositoryUrl: undefined,
 				bugsUrl: undefined,
-				extensionData: 'Extensions data loading',
-				displayName: `Extensions not loaded: ${e}`,
-				id: 'workbench.issue',
-				isTheme: false,
-				isBuiltin: true
+				extensionData: `Extensions could not be loaded: ${e instanceof Error ? e.message : String(e)}`,
 			});
 		}
+
 		const experiments = await this.experimentService.getCurrentExperiments();
 
 		let githubAccessToken = '';
 		try {
 			const githubSessions = await this.authenticationService.getSessions('github');
-			const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-			githubAccessToken = potentialSessions[0]?.accessToken;
+			const repoSession = githubSessions.find(session => session.scopes.includes('repo'));
+			githubAccessToken = repoSession?.accessToken ?? '';
 		} catch (e) {
 			// Ignore
 		}
 
-		// air on the side of caution and have false be the default
-		let isUnsupported = false;
+		let isInstallationPure = true;
 		try {
-			isUnsupported = !(await this.integrityService.isPure()).isPure;
+			isInstallationPure = (await this.integrityService.isPure()).isPure;
 		} catch (e) {
 			// Ignore
 		}
@@ -99,12 +137,68 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
-			isUnsupported,
+			isInstallationPure,
 			isSessionsWindow: this.environmentService.isSessionsWindow,
-			githubAccessToken
+			githubAccessToken,
 		}, dataOverrides);
 
 		return this.issueFormService.openReporter(issueReporterData);
+	}
+
+	private async populateReporterDataAsync(data: IssueReporterData, dataOverrides: Partial<IssueReporterData>, extensionsLoaded?: DeferredPromise<void>): Promise<void> {
+		// Extensions
+		try {
+			const extensions = await this.extensionManagementService.getInstalled();
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
+			data.enabledExtensions = enabledExtensions.map((extension): IssueReporterExtensionData => {
+				const { manifest } = extension;
+				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+				const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+				const isBuiltin = extension.type === ExtensionType.System;
+				return {
+					name: manifest.name,
+					publisher: manifest.publisher,
+					version: manifest.version,
+					repositoryUrl: manifest.repository && manifest.repository.url,
+					bugsUrl: manifest.bugs && manifest.bugs.url,
+					displayName: manifest.displayName,
+					id: extension.identifier.id,
+					data: dataOverrides.data,
+					uri: dataOverrides.uri,
+					isTheme,
+					isBuiltin,
+					extensionData: 'Extensions data loading',
+				};
+			});
+		} catch (e) {
+			// Ignore — extensions will be empty
+		} finally {
+			extensionsLoaded?.complete();
+		}
+
+		// Experiments
+		try {
+			const experiments = await this.experimentService.getCurrentExperiments();
+			data.experiments = experiments?.join('\n');
+		} catch (e) {
+			// Ignore
+		}
+
+		// GitHub access token — only fetch existing sessions, never prompt
+		try {
+			const githubSessions = await this.authenticationService.getSessions('github');
+			const repoSession = githubSessions.find(session => session.scopes.includes('repo'));
+			data.githubAccessToken = repoSession?.accessToken ?? '';
+		} catch (e) {
+			// Ignore
+		}
+
+		// Integrity check
+		try {
+			data.isInstallationPure = (await this.integrityService.isPure()).isPure;
+		} catch (e) {
+			// Ignore
+		}
 	}
 
 }

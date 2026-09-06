@@ -30,6 +30,7 @@ export type ChatStatusEntry = {
 	label: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
+	tooltip: string | undefined;
 };
 
 class ChatStatusItemService implements IChatStatusItemService {

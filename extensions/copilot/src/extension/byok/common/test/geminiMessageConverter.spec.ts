@@ -5,9 +5,9 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, it } from 'vitest';
-import type { LanguageModelChatMessage } from 'vscode';
+import type { LanguageModelChatMessage, LanguageModelChatMessage2 } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
-import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResultPart, LanguageModelTextPart as LMText } from '../../../../vscodeTypes';
+import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart, LanguageModelTextPart as LMText } from '../../../../vscodeTypes';
 import { apiMessageToGeminiMessage } from '../geminiMessageConverter';
 
 describe('GeminiMessageConverter', () => {
@@ -78,6 +78,27 @@ describe('GeminiMessageConverter', () => {
 		expect(result.contents[0].parts!).toHaveLength(2); // Empty string filtered out, whitespace kept
 		expect(result.contents[0].parts![0].text).toBe('  ');
 		expect(result.contents[0].parts![1].text).toBe('Hello!');
+	});
+
+	it('should attach a thought signature to the following function call', () => {
+		const messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2> = [{
+			role: LanguageModelChatMessageRole.Assistant,
+			content: [
+				new LanguageModelThinkingPart('', undefined, { signature: 'thought-signature' }),
+				new LanguageModelToolCallPart('call-1', 'default_api:view', { path: 'README.md' }),
+			],
+			name: undefined,
+		}];
+
+		const result = apiMessageToGeminiMessage(messages);
+
+		expect(result.contents[0].parts).toEqual([{
+			functionCall: {
+				name: 'default_api:view',
+				args: { path: 'README.md' },
+			},
+			thoughtSignature: 'thought-signature',
+		}]);
 	});
 
 	it('should extract functionResponse parts from model message into subsequent user message and prune empty model', () => {

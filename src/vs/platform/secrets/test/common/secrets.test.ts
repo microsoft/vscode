@@ -8,8 +8,8 @@ import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEncryptionService, KnownStorageProvider } from '../../../encryption/common/encryptionService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { BaseSecretStorageService, CROSS_APP_SHARED_SECRET_KEYS } from '../../common/secrets.js';
-import { InMemoryStorageService } from '../../../storage/common/storage.js';
+import { BaseSecretStorageService, CROSS_APP_SHARED_SECRET_KEYS, secretStorageKey } from '../../common/secrets.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 
 class TestEncryptionService implements IEncryptionService {
 	_serviceBrand: undefined;
@@ -28,6 +28,15 @@ class TestEncryptionService implements IEncryptionService {
 	}
 	isEncryptionAvailable(): Promise<boolean> {
 		return Promise.resolve(true);
+	}
+}
+
+class TestFailingEncryptionService extends TestEncryptionService {
+	decryptCalls = 0;
+
+	override decrypt(_value: string): Promise<string> {
+		this.decryptCalls++;
+		return Promise.reject(new Error('Cannot decrypt stale secret'));
 	}
 }
 
@@ -162,6 +171,27 @@ suite('secrets', () => {
 			await service.delete(key);
 			const result = await service.get(key);
 			assert.strictEqual(result, undefined);
+		});
+
+		test('get removes stale persisted secret when decryption fails', async () => {
+			const key = 'my-secret';
+			const fullKey = secretStorageKey(key);
+			const storageService = store.add(new InMemoryStorageService());
+			const encryptionService = new TestFailingEncryptionService();
+			const failingService = store.add(new BaseSecretStorageService(
+				false,
+				storageService,
+				encryptionService,
+				store.add(new NullLogService()))
+			);
+
+			storageService.store(fullKey, 'encrypted+my-secret-value', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			assert.strictEqual(await failingService.get(key), undefined);
+			assert.strictEqual(encryptionService.decryptCalls, 1);
+			assert.strictEqual(storageService.get(fullKey, StorageScope.APPLICATION), undefined);
+
+			assert.strictEqual(await failingService.get(key), undefined);
+			assert.strictEqual(encryptionService.decryptCalls, 1);
 		});
 
 		test('onDidChangeSecret', async () => {

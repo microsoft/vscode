@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Endpoints } from '@octokit/types';
-import { CCAModel, RemoteAgentJobPayload } from '@vscode/copilot-api';
+import { CCAModel } from '@vscode/copilot-api';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { decodeBase64 } from '../../../util/vs/base/common/buffer';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { addPullRequestCommentGraphQLRequest, AssignableActor, closePullRequest, getPullRequestFromGlobalId, makeGitHubAPIRequest, makeSearchGraphQLRequest, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
+import { AssignableActor, closePullRequest, getPullRequestFromGlobalId, makeGitHubAPIRequest, makeSearchGraphQLRequest, PullRequestSearchItem } from './githubAPI';
 
 /**
  * Options for controlling authentication behavior in OctoKit service methods.
@@ -39,34 +39,6 @@ export type GithubRepositoryItem = {
 	type: 'file' | 'dir';
 };
 
-export interface JobInfo {
-	job_id: string;
-	session_id: string;
-	problem_statement: string;
-	content_filter_mode?: string;
-	status: string;
-	result?: string;
-	actor: {
-		id: number;
-		login: string;
-	};
-	created_at: string;
-	updated_at: string;
-	pull_request: {
-		id: number;
-		number: number;
-	};
-	workflow_run?: {
-		id: number;
-	};
-	error?: {
-		message: string;
-	};
-	event_type?: string;
-	event_url?: string;
-	event_identifiers?: string[];
-}
-
 export interface IGithubRepositoryService {
 
 	_serviceBrand: undefined;
@@ -83,6 +55,7 @@ export interface IGithubRepositoryService {
 }
 
 export interface IOctoKitUser {
+	id: number;
 	login: string;
 	name: string | null;
 	avatar_url: string;
@@ -101,37 +74,6 @@ export interface CCAEnabledResult {
 	 * Unexpected values (e.g. 429 rate-limit, 5xx) are also propagated for telemetry.
 	 */
 	statusCode?: number;
-}
-
-export interface IOctoKitSessionInfo {
-	name: string;
-	owner_id: number;
-	premium_requests: number;
-	repo_id: number;
-	resource_global_id: string;
-	resource_id: number;
-	resource_state: string;
-	resource_type: string;
-	state: string;
-	user_id: number;
-	workflow_run_id: number;
-	last_updated_at: string;
-	created_at: string;
-}
-
-export interface RemoteAgentJobResponse {
-	job_id: string;
-	session_id: string;
-	actor: {
-		id: number;
-		login: string;
-	};
-	created_at: string;
-	updated_at: string;
-}
-
-export interface ErrorResponseWithStatusCode {
-	status: number;
 }
 
 export interface CustomAgentListItem {
@@ -192,6 +134,16 @@ export interface PullRequestFile {
 	sha?: string;
 }
 
+/**
+ * Result of comparing two refs via the GitHub REST compare API. `baseSha`/`headSha` are
+ * the resolved commit SHAs that bound the {@link files} diff (base is the merge base).
+ */
+export interface RepositoryComparison {
+	readonly baseSha: string;
+	readonly headSha: string;
+	readonly files: readonly PullRequestFile[];
+}
+
 export interface CreatedPullRequest {
 	number: number;
 	url: string;
@@ -238,54 +190,6 @@ export interface IOctoKitService {
 	getOpenPullRequestsForUser(owner: string, repo: string, authOptions: AuthOptions): Promise<PullRequestSearchItem[]>;
 
 	/**
-	 * Returns the list of Copilot sessions for a given pull request.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getCopilotSessionsForPR(prId: string, authOptions: AuthOptions): Promise<SessionInfo[]>;
-
-	/**
-	 * Returns the logs for a specific Copilot session.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getSessionLogs(sessionId: string, authOptions: AuthOptions): Promise<string>;
-
-	/**
-	 * Returns the information for a specific Copilot session.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getSessionInfo(sessionId: string, authOptions: AuthOptions): Promise<SessionInfo | undefined>;
-
-	/**
-	 * Posts a new Copilot agent job.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	postCopilotAgentJob(
-		owner: string,
-		name: string,
-		apiVersion: string,
-		payload: RemoteAgentJobPayload,
-		authOptions: AuthOptions,
-	): Promise<RemoteAgentJobResponse | ErrorResponseWithStatusCode | undefined>;
-
-	/**
-	 * Gets a job by its job ID.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getJobByJobId(owner: string, repo: string, jobId: string, userAgent: string, authOptions: AuthOptions): Promise<JobInfo | undefined>;
-
-	/**
-	 * Gets a job by session ID
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getJobBySessionId(owner: string, repo: string, sessionId: string, userAgent: string, authOptions: AuthOptions): Promise<JobInfo | undefined>;
-
-	/**
-	 * Adds a comment to a pull request.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	addPullRequestComment(pullRequestId: string, commentBody: string, authOptions: AuthOptions): Promise<PullRequestComment | null>;
-
-	/**
 	 * Creates a pull request.
 	 * @param owner The repository owner
 	 * @param repo The repository name
@@ -297,12 +201,6 @@ export interface IOctoKitService {
 	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
 	 */
 	createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest>;
-
-	/**
-	 * Gets all open Copilot sessions.
-	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
-	 */
-	getAllSessions(nwo: string | undefined, open: boolean, authOptions: AuthOptions): Promise<SessionInfo[]>;
 
 	/**
 	 * Gets pull request from global id.
@@ -345,6 +243,23 @@ export interface IOctoKitService {
 	 * @returns An array of changed files with their metadata
 	 */
 	getPullRequestFiles(owner: string, repo: string, pullNumber: number, authOptions: AuthOptions): Promise<PullRequestFile[]>;
+
+	/**
+	 * Compares two refs via the GitHub REST compare API
+	 * (`GET /repos/{owner}/{repo}/compare/{base}...{head}`), returning the changed files plus
+	 * the resolved merge-base and head commit SHAs. Used to surface file changes for cloud
+	 * tasks that pushed a branch but have no pull request yet.
+	 * @param authOptions - Authentication options. By default, uses silent auth and returns undefined if not authenticated.
+	 */
+	compareCommits(owner: string, repo: string, base: string, head: string, authOptions: AuthOptions): Promise<RepositoryComparison | undefined>;
+
+	/**
+	 * Resolves a repository's `{owner, name}` from its numeric database id via
+	 * `GET /repositories/{id}`. Used to recover repo identity for Task API payloads that only
+	 * carry `repository.id` (no name-with-owner).
+	 * @param authOptions - Authentication options. By default, uses silent auth and returns undefined if not authenticated or not found.
+	 */
+	getRepositoryById(id: number, authOptions: AuthOptions): Promise<{ owner: string; name: string } | undefined>;
 
 	/**
 	 * Closes a pull request.
@@ -419,6 +334,8 @@ export interface IOctoKitService {
 	 */
 	getUserRepositories(authOptions: AuthOptions, query?: string): Promise<{ owner: string; name: string }[]>;
 
+	searchIssuesAndPullRequests(query: string, authOptions: AuthOptions): Promise<GitHubIssueSearchItem[]>;
+
 	/**
 	 * Gets the list of repositories the authenticated user has recently committed to.
 	 * Uses the GitHub Events API to find repositories from recent PushEvent activity.
@@ -463,6 +380,15 @@ export interface IOctoKitService {
 	getGitHubOutageStatus(): Promise<GitHubOutageStatus>;
 }
 
+export interface GitHubIssueSearchItem {
+	readonly number: number;
+	readonly title: string;
+	readonly url: string;
+	readonly owner: string;
+	readonly repository: string;
+	readonly isPullRequest: boolean;
+}
+
 /**
  * The same as {@link OctoKitService} but doesn't require the AuthService.
  * This is because we want to call certain Octokit method inside the Authservice and must
@@ -473,6 +399,9 @@ export class BaseOctoKitService {
 
 	private static readonly _outageStatusCacheTTL = 5 * 60 * 1000; // 5 minutes
 	private _cachedOutageStatus: { value: GitHubOutageStatus; timestamp: number } | undefined;
+
+	private static readonly _userReposScopeCacheTTL = 5 * 60 * 1000; // 5 minutes
+	private _cachedUserReposScope: { token: string; qualifiers: string; timestamp: number } | undefined;
 
 	constructor(
 		protected readonly _capiClientService: ICAPIClientService,
@@ -531,14 +460,45 @@ export class BaseOctoKitService {
 		return makeSearchGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, query);
 	}
 
+	protected async searchIssuesAndPullRequestsWithToken(query: string, token: string): Promise<GitHubIssueSearchItem[]> {
+		const response = await this._makeGHAPIRequest(
+			`search/issues?q=${encodeURIComponent(query)}&sort=updated&per_page=50`,
+			'GET',
+			token,
+			undefined,
+			undefined,
+			'github-rest-search-issues',
+		) as {
+			items?: Array<{
+				number?: number;
+				title?: string;
+				html_url?: string;
+				repository_url?: string;
+				pull_request?: object;
+			}>;
+		} | undefined;
+		return (response?.items ?? []).flatMap(item => {
+			const repositoryMatch = item.repository_url?.match(/\/repos\/(?<owner>[^/]+)\/(?<repository>[^/]+)$/);
+			const owner = repositoryMatch?.groups?.owner;
+			const repository = repositoryMatch?.groups?.repository;
+			if (typeof item.number !== 'number' || !item.title || !item.html_url || !owner || !repository) {
+				return [];
+			}
+			return [{
+				number: item.number,
+				title: item.title,
+				url: item.html_url,
+				owner,
+				repository,
+				isPullRequest: item.pull_request !== undefined,
+			}];
+		});
+	}
+
 	protected async findPullRequestByHeadBranchWithToken(owner: string, repo: string, headBranch: string, token: string): Promise<PullRequestSearchItem | undefined> {
 		const query = `repo:${owner}/${repo} head:${headBranch} is:pr`;
 		const results = await makeSearchGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, query, 5);
 		return results.find(pr => pr.headRefName === headBranch);
-	}
-
-	protected async addPullRequestCommentWithToken(pullRequestId: string, commentBody: string, token: string): Promise<PullRequestComment | null> {
-		return addPullRequestCommentGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, pullRequestId, commentBody);
 	}
 
 	protected async createPullRequestWithToken(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, token: string): Promise<CreatedPullRequest> {
@@ -567,6 +527,37 @@ export class BaseOctoKitService {
 	protected async getPullRequestFilesWithToken(owner: string, repo: string, pullNumber: number, token: string): Promise<PullRequestFile[]> {
 		const result = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, `repos/${owner}/${repo}/pulls/${pullNumber}/files`, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-get-pr-files' });
 		return result || [];
+	}
+
+	protected async compareCommitsWithToken(owner: string, repo: string, base: string, head: string, token: string): Promise<RepositoryComparison | undefined> {
+		// Branch names may contain slashes; the GitHub compare route accepts them literally in `base...head`.
+		const route = `repos/${owner}/${repo}/compare/${base}...${head}`;
+		const response = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, route, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-compare-commits' });
+		if (!response) {
+			return undefined;
+		}
+		const typed = response as { base_commit?: { sha?: string }; merge_base_commit?: { sha?: string }; commits?: ReadonlyArray<{ sha?: string }>; files?: PullRequestFile[] };
+		const baseSha = typed.merge_base_commit?.sha ?? typed.base_commit?.sha ?? base;
+		const headSha = typed.commits?.[typed.commits.length - 1]?.sha ?? head;
+		return { baseSha, headSha, files: typed.files ?? [] };
+	}
+
+	protected async getRepositoryByIdWithToken(id: number, token: string): Promise<{ owner: string; name: string } | undefined> {
+		const response = await makeGitHubAPIRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, `repositories/${id}`, 'GET', token, { version: '2022-11-28', callSite: 'github-rest-get-repository-by-id' });
+		if (!response) {
+			return undefined;
+		}
+		const typed = response as { name?: string; owner?: { login?: string }; full_name?: string };
+		if (typed.owner?.login && typed.name) {
+			return { owner: typed.owner.login, name: typed.name };
+		}
+		if (typed.full_name) {
+			const [owner, name] = typed.full_name.split('/');
+			if (owner && name) {
+				return { owner, name };
+			}
+		}
+		return undefined;
 	}
 
 	protected async closePullRequestWithToken(owner: string, repo: string, pullNumber: number, token: string): Promise<boolean> {
@@ -627,9 +618,12 @@ export class BaseOctoKitService {
 	}
 
 	protected async getUserRepositoriesWithToken(token: string, query?: string): Promise<{ owner: string; name: string }[]> {
-		// If query provided, use GitHub search API
-		if (query && query.trim()) {
-			return this.searchUserRepositoriesWithToken(token, query.trim());
+		const trimmedQuery = query?.trim();
+
+		// If query provided, use GitHub search API scoped to the user and their orgs.
+		// Without a user:/org: scope, /search/repositories does not return private repos.
+		if (trimmedQuery) {
+			return this.searchUserRepositoriesWithToken(token, trimmedQuery);
 		}
 
 		// Fetch the most recently updated repos with push access
@@ -646,20 +640,24 @@ export class BaseOctoKitService {
 			return [];
 		}
 
-		// Filter to repos with push access
-		const items = result
+		return result
 			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
 			}));
-		return items || [];
 	}
 
 	private async searchUserRepositoriesWithToken(token: string, query: string): Promise<{ owner: string; name: string }[]> {
-		// Use GitHub search API to find repos matching the query
-		// Search in repos the user has push access to
-		const searchQuery = encodeURIComponent(`${query} in:name fork:true`);
+		const scope = await this._getUserReposSearchScope(token);
+		if (!scope) {
+			return [];
+		}
+
+		// `user:<login>` plus `org:<org>` qualifiers are ORed by the search API, so a
+		// single call covers the authed user's own repos and any org repos they belong
+		// to (including private ones).
+		const searchQuery = encodeURIComponent(`${query} in:name fork:true ${scope}`);
 		const result = await this._makeGHAPIRequest(
 			`search/repositories?q=${searchQuery}&sort=updated&per_page=100`,
 			'GET',
@@ -669,18 +667,45 @@ export class BaseOctoKitService {
 			'github-rest-search-repos'
 		);
 
-		if (!result || !result.items || !Array.isArray(result.items)) {
+		if (!result || !Array.isArray(result.items)) {
 			return [];
 		}
 
-		// Filter to only repos with push access
-		const items = result.items
+		return result.items
 			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
 			}));
-		return items || [];
+	}
+
+	private async _getUserReposSearchScope(token: string): Promise<string | undefined> {
+		const now = Date.now();
+		if (this._cachedUserReposScope
+			&& this._cachedUserReposScope.token === token
+			&& (now - this._cachedUserReposScope.timestamp) < BaseOctoKitService._userReposScopeCacheTTL) {
+			return this._cachedUserReposScope.qualifiers;
+		}
+
+		const [user, orgs] = await Promise.all([
+			this._makeGHAPIRequest('user', 'GET', token, undefined, undefined, 'github-rest-get-user'),
+			this.getUserOrganizationsWithToken(token)
+		]);
+
+		const qualifiers: string[] = [];
+		if (user?.login) {
+			qualifiers.push(`user:${user.login}`);
+		}
+		for (const org of orgs) {
+			qualifiers.push(`org:${org}`);
+		}
+		if (qualifiers.length === 0) {
+			return undefined;
+		}
+
+		const joined = qualifiers.join(' ');
+		this._cachedUserReposScope = { token, qualifiers: joined, timestamp: now };
+		return joined;
 	}
 
 	protected async getRecentlyCommittedReposWithToken(token: string): Promise<{ owner: string; name: string }[]> {

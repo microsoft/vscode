@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IChatDebugFileLoggerService, IDebugLogEntry } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import type { ISessionStore, SessionRow, TurnRow, FileRow, RefRow } from '../../../../platform/chronicle/common/sessionStore';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
+import { MAX_ASSISTANT_RESPONSE_LENGTH, MAX_USER_MESSAGE_LENGTH } from '../../common/sessionStoreTracking';
 import { reindexSessions, reindexCloudSessions } from '../sessionReindexer';
 import type { CloudSessionApiClient } from '../cloudSessionApiClient';
 import type { CloudSessionIdStore } from '../cloudSessionIdStore';
@@ -260,8 +261,8 @@ describe('reindexSessions', () => {
 
 	it('truncates long user messages and assistant responses', async () => {
 		const store = createMockStore();
-		const longUserMsg = 'a'.repeat(200);
-		const longAssistantMsg = 'b'.repeat(2000);
+		const longUserMsg = 'a'.repeat(MAX_USER_MESSAGE_LENGTH * 2);
+		const longAssistantMsg = 'b'.repeat(MAX_ASSISTANT_RESPONSE_LENGTH * 2);
 		const entries = new Map<string, IDebugLogEntry[]>();
 		entries.set('session-1', [
 			makeEntry({ type: 'user_message', name: 'user_message', sid: 'session-1', attrs: { content: longUserMsg } }),
@@ -273,8 +274,8 @@ describe('reindexSessions', () => {
 
 		await reindexSessions(store, debugLog, vi.fn(), cts.token);
 
-		expect(store.insertedTurns[0].user_message!.length).toBeLessThanOrEqual(100);
-		expect(store.insertedTurns[0].assistant_response!.length).toBeLessThanOrEqual(1000);
+		expect(store.insertedTurns[0].user_message!.length).toBeLessThanOrEqual(MAX_USER_MESSAGE_LENGTH);
+		expect(store.insertedTurns[0].assistant_response!.length).toBeLessThanOrEqual(MAX_ASSISTANT_RESPONSE_LENGTH);
 	});
 
 	it('handles sessions with no session_start event', async () => {
@@ -362,7 +363,7 @@ function createMockCloudClient(overrides: Partial<CloudSessionApiClient> = {}): 
 			ok: true,
 			response: { id: 'cloud-session-1', task_id: 'task-1' },
 		}),
-		submitSessionEvents: vi.fn().mockResolvedValue(true),
+		submitSessionEvents: vi.fn().mockResolvedValue({ ok: true }),
 		backfillAnalytics: vi.fn().mockResolvedValue({ ok: true, sessionsQueued: 5 }),
 		listSessions: vi.fn().mockResolvedValue([]),
 		getSession: vi.fn().mockResolvedValue(undefined),
@@ -572,8 +573,8 @@ describe('reindexCloudSessions', () => {
 		);
 
 		expect(result.created).toBe(1);
-		// 1 session_start + 10 user + 10 assistant + 1 shutdown = 22 events
-		expect(result.eventsUploaded).toBe(22);
+		// 1 session_start + 10 user + 1 session.title_changed (after first user) + 10 assistant + 1 shutdown = 23 events
+		expect(result.eventsUploaded).toBe(23);
 		expect(cloudClient.submitSessionEvents).toHaveBeenCalled();
 	});
 });

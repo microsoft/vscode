@@ -17,7 +17,7 @@ export interface IPartVisibilityDefaults {
 	readonly sidebar: boolean;
 	readonly auxiliaryBar: boolean;
 	readonly panel: boolean;
-	readonly chatBar: boolean;
+	readonly sessions: boolean;
 	readonly editor: boolean;
 }
 
@@ -26,7 +26,7 @@ export interface IPartSizeDefaults {
 	readonly sideBarSize: number;
 	readonly auxiliaryBarSize: number;
 	readonly panelSize: number;
-	readonly chatBarWidth: number;
+	readonly sessionsWidth: number;
 }
 
 const PHONE_MAX_WIDTH = 640;
@@ -83,6 +83,23 @@ export class SessionsLayoutPolicy extends Disposable {
 	/** Current viewport class derived from the most recent `update()` call. */
 	readonly viewportClass: IObservable<ViewportClass> = this._viewportClass;
 
+	/**
+	 * Whether the agents window uses the single-pane layout (editor spans the
+	 * detail panel as a docked auxiliary bar). Resolved once at startup from the
+	 * setting; toggling requires a window reload. Never active on phone (which
+	 * has its own mobile layout).
+	 */
+	private _singlePane = false;
+
+	get isSinglePane(): boolean {
+		return this._singlePane && this._viewportClass.get() !== 'phone';
+	}
+
+	/** Set once at startup (from the redesign setting) before the first layout. */
+	setSinglePane(value: boolean): void {
+		this._singlePane = value;
+	}
+
 	/** `true` when the viewport class is `phone`. */
 	readonly isPhoneLayout: IObservable<boolean> = derived(this, reader => {
 		return this._viewportClass.read(reader) === 'phone';
@@ -118,12 +135,12 @@ export class SessionsLayoutPolicy extends Disposable {
 		const vc = viewportClass ?? this._viewportClass.get();
 		switch (vc) {
 			case 'phone':
-				return { sidebar: false, auxiliaryBar: false, panel: false, chatBar: true, editor: false };
+				return { sidebar: false, auxiliaryBar: false, panel: false, sessions: true, editor: false };
 			case 'tablet':
 			case 'desktop':
 				// Tablet and desktop share the standard multi-part workbench defaults.
 				// A dedicated tablet layout has not been designed yet.
-				return { sidebar: true, auxiliaryBar: true, panel: false, chatBar: true, editor: false };
+				return { sidebar: true, auxiliaryBar: true, panel: false, sessions: true, editor: false };
 		}
 	}
 
@@ -143,7 +160,7 @@ export class SessionsLayoutPolicy extends Disposable {
 					sideBarSize: 0,
 					auxiliaryBarSize: 0,
 					panelSize: 0,
-					chatBarWidth: width,
+					sessionsWidth: width,
 				};
 			case 'tablet':
 			case 'desktop':
@@ -152,7 +169,7 @@ export class SessionsLayoutPolicy extends Disposable {
 					sideBarSize: 300,
 					auxiliaryBarSize: 340,
 					panelSize: 300,
-					chatBarWidth: width - 300,
+					sessionsWidth: width - 300,
 				};
 		}
 	}

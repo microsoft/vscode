@@ -240,7 +240,7 @@ export interface IAccountMcpServersQuery extends IBaseQuery {
 	 * Get all MCP servers that have access to this account with their trusted state
 	 * @returns Array of objects containing MCP server data including trusted state
 	 */
-	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[];
+	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean; url?: string; agentHost?: { authority: string; label: string } }[];
 
 	/**
 	 * Grant access to this account for all specified MCP servers

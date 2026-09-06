@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { tsNativeExtensionId } from '../commands/useTsgo';
+import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
 
 const suggestNativePreviewStorageKey = 'typescript.suggestNativePreview.dismissed';
@@ -28,7 +28,7 @@ export async function suggestNativePreview(
 	}
 
 	// Don't show if the native preview extension is already installed
-	if (vscode.extensions.getExtension(tsNativeExtensionId)) {
+	if (getTsNativeExtension()) {
 		// Also don't prompt in the future
 		await context.globalState.update(suggestNativePreviewStorageKey, true);
 		return;
@@ -54,7 +54,7 @@ export async function suggestNativePreview(
 	await context.globalState.update(suggestNativePreviewStorageKey, true);
 
 	if (selection === install) {
-		await vscode.commands.executeCommand('workbench.extensions.installExtension', tsNativeExtensionId);
+		await vscode.commands.executeCommand('workbench.extensions.installExtension', tsNativeExtensionOldId);
 	} else if (selection === learnMore) {
 		await vscode.env.openExternal(vscode.Uri.parse('https://aka.ms/vscode-try-ts-7-learn-more'));
 	}

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { sanitizeHtml } from '../../browser/domSanitize.js';
+import { sanitizeHtml, sanitizeSurvivingStalePolicy } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+
+/** Derived from the function under test, since dompurify may not be imported directly. */
+type SanitizeConfig = Parameters<typeof sanitizeSurvivingStalePolicy>[1];
 
 suite('DomSanitize', () => {
 
@@ -255,6 +258,54 @@ suite('DomSanitize', () => {
 				allowedTags: { augment: ['custom'] }
 			});
 			assert.strictEqual(result.toString(), '<div><custom>allowed</custom>&lt;forbidden&gt;not allowed&lt;/forbidden&gt;</div>');
+		});
+	});
+
+	suite('stale trusted types policy', () => {
+
+		const STALE_POLICY_ERROR = `Failed to execute 'createHTML' on 'TrustedTypePolicy': The provided callback is no longer runnable.`;
+
+		/**
+		 * Stands in for dompurify, failing the first call the way a policy whose creating
+		 * realm is gone fails. The sanitizer keeps one policy for the lifetime of the
+		 * module, so a stand-in policy installed after anything has sanitized is never
+		 * consulted; driving the call itself is what makes this independent of test order.
+		 */
+		function failingOnce(message: string) {
+			const configs: (SanitizeConfig | undefined)[] = [];
+			let failed = false;
+			const sanitize = (untrusted: string, config: SanitizeConfig) => {
+				configs.push(config);
+				if (!failed) {
+					failed = true;
+					throw new Error(message);
+				}
+				return `sanitized:${untrusted}`;
+			};
+			return { sanitize, configs };
+		}
+
+		test('retries with a replacement policy when the sanitizer policy stops working', () => {
+			const { sanitize, configs } = failingOnce(STALE_POLICY_ERROR);
+
+			const result = sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize);
+
+			assert.deepStrictEqual(
+				{
+					result,
+					attempts: configs.length,
+					firstHadPolicy: configs[0]?.TRUSTED_TYPES_POLICY !== undefined,
+					retriedWithPolicy: typeof configs[1]?.TRUSTED_TYPES_POLICY?.createHTML === 'function',
+				},
+				{ result: 'sanitized:<div>safe</div>', attempts: 2, firstHadPolicy: false, retriedWithPolicy: true },
+			);
+		});
+
+		test('a failure that is not a stale policy is not retried', () => {
+			const { sanitize, configs } = failingOnce('Some other sanitizer failure');
+
+			assert.throws(() => sanitizeSurvivingStalePolicy('<div>safe</div>', {}, sanitize), /Some other sanitizer failure/);
+			assert.strictEqual(configs.length, 1);
 		});
 	});
 });

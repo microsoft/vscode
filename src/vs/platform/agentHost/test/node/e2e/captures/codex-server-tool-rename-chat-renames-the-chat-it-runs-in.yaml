@@ -1,0 +1,39 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: rename_chat
+          input:
+            title: Coverage audit
+            automatic: false
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: rename_chat
+              input:
+                title: Coverage audit
+                automatic: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Renamed chat to "Coverage audit".
+    response:
+      content: renamed
+      stopReason: end_turn

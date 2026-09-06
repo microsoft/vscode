@@ -11,6 +11,7 @@ import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifec
 import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 export const buildRemoteIndexCommandId = 'github.copilot.buildRemoteWorkspaceIndex';
+export const enableExternalIngestCommandId = 'github.copilot.enableExternalIngest';
 export const deleteExternalIngestWorkspaceIndexCommandId = 'github.copilot.deleteExternalIngestWorkspaceIndex';
 
 export function register(accessor: ServicesAccessor): IDisposable {
@@ -39,6 +40,16 @@ export function register(accessor: ServicesAccessor): IDisposable {
 
 			vscode.window.showInformationMessage(t`Codebase semantic index ready to use.`);
 		});
+	})));
+
+	disposableStore.add(vscode.commands.registerCommand(enableExternalIngestCommandId, onlyRunOneAtATime(async () => {
+		const enabled = await workspaceChunkSearch.enableExternalIngest();
+		if (enabled) {
+			vscode.window.showInformationMessage(t`External ingest enabled for this workspace.`);
+			return;
+		}
+
+		vscode.window.showWarningMessage(t`External ingest is disabled by your organization's policy.`);
 	})));
 
 	disposableStore.add(vscode.commands.registerCommand(deleteExternalIngestWorkspaceIndexCommandId, onlyRunOneAtATime(async () => {

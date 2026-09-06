@@ -26,6 +26,8 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -39,6 +41,7 @@ export class ExplorerService implements IExplorerService {
 	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
+	private decorationsProviderRegistered = false;
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
@@ -54,7 +57,8 @@ export class ExplorerService implements IExplorerService {
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -156,6 +160,20 @@ export class ExplorerService implements IExplorerService {
 
 	registerView(contextProvider: IExplorerView): void {
 		this.view = contextProvider;
+
+		// The explorer decorations are computed from this (window wide) model and
+		// are therefore shared by all explorer views. Register the provider only
+		// once, otherwise each view contributes its own badge and decorations
+		// render multiple times per resource.
+		if (!this.decorationsProviderRegistered) {
+			this.decorationsProviderRegistered = true;
+			const provider = this.disposables.add(new ExplorerDecorationsProvider(this, this.contextService));
+			this.disposables.add(this.decorationsService.registerDecorationsProvider(provider));
+		}
+	}
+
+	getViewId(): string | undefined {
+		return this.view?.id;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {

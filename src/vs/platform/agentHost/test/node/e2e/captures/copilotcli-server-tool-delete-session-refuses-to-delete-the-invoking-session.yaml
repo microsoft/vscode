@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "copilotcli:/e2e-server-tools-delete-current" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: delete_session
+          input:
+            session: copilotcli:/e2e-server-tools-delete-current
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "copilotcli:/e2e-server-tools-delete-current" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: delete_session
+              input:
+                session: copilotcli:/e2e-server-tools-delete-current
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Invalid delete_session input: refusing to delete the current session.'
+    response:
+      content: refused
+      stopReason: end_turn

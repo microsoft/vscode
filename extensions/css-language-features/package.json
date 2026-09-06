@@ -993,11 +993,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^10.0.0-next.20",
+    "vscode-languageclient": "^10.0.0-next.22",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "repository": {
     "type": "git",

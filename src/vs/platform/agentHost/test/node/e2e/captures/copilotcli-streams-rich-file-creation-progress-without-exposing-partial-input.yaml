@@ -1,0 +1,55 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Create streaming.txt containing exactly these three lines, with no other content:
+            STREAM_ALPHA
+            STREAM_BETA
+            STREAM_GAMMA
+            Use your file creation tool; do not run a shell command. Then reply exactly "done".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/streaming.txt
+            file_text: |
+              STREAM_ALPHA
+              STREAM_BETA
+              STREAM_GAMMA
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Create streaming.txt containing exactly these three lines, with no other content:
+            STREAM_ALPHA
+            STREAM_BETA
+            STREAM_GAMMA
+            Use your file creation tool; do not run a shell command. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/streaming.txt
+                file_text: |
+                  STREAM_ALPHA
+                  STREAM_BETA
+                  STREAM_GAMMA
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/streaming.txt with 38 characters
+    response:
+      content: done
+      stopReason: end_turn

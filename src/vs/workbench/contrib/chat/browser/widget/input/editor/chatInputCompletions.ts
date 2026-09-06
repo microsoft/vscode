@@ -19,6 +19,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IWordAtPosition } from '../../../../../../../editor/common/core/wordHelper.js';
@@ -44,13 +45,13 @@ import { LifecyclePhase } from '../../../../../../services/lifecycle/common/life
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../../../common/participants/chatAgents.js';
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
@@ -62,7 +63,7 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -229,6 +230,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
@@ -247,7 +252,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
-				const promptCommands = await this.harnessService.getSlashCommands(currentSessionType, token);
+				const promptCommands = await this.harnessService.getSlashCommands(widget.viewModel.model.sessionResource, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -265,13 +270,18 @@ class SlashCommandCompletions extends Disposable {
 
 				return {
 					suggestions: userInvocableCommands.map((c, i): CompletionItem => {
-						const label = `/${c.name}`;
+						const colonLabel = `/${c.name}`;
+						const hasSubcommand = c.name.includes(':');
+						const displayLabel = hasSubcommand ? `/${c.name.replace(/:/g, ' ')}` : colonLabel;
 						const description = c.description;
 						return {
-							label: { label, description },
-							insertText: `${label} `,
+							label: { label: displayLabel, description },
+							insertText: `${displayLabel} `,
 							documentation: c.description,
 							range,
+							// Allow matching by either the space form (what the user sees) or the
+							// colon form (so legacy `/chronicle:tips` typing still filters).
+							filterText: hasSubcommand ? `${colonLabel} ${displayLabel}` : undefined,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
@@ -287,6 +297,10 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
+					return;
 				}
 
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
@@ -721,7 +735,7 @@ class StartParameterizedPromptAction extends Action2 {
 				after: {
 					content: ' ',
 					inlineClassNameAffectsLetterSpacing: true,
-					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin')) + ' chat-prompt-spinner',
+					inlineClassName: ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loadingCompact, 'spin')) + ' chat-prompt-spinner',
 				}
 			});
 			store.add(toDisposable(() => {
@@ -882,6 +896,50 @@ class BuiltinDynamicCompletions extends Disposable {
 	) {
 		super();
 
+		this.registerVariableCompletions('attachedContexts', ({ widget, range }) => {
+			if (!widget.supportsFileReferences) {
+				return;
+			}
+
+			const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
+			const typedWord = getCompletionRangeWord(range) ?? typedLeader;
+			const suggestOptions = widget.inputEditor.getOption(EditorOption.suggest);
+			const suggestions = coalesce(widget.attachmentModel.attachments
+				.filter(attachment => !attachment.range)
+				.map((attachment): CompletionItem | undefined => {
+					const match = getAttachedContextCompletionMatch(typedWord, typedLeader, attachment.name, attachment.kind, suggestOptions);
+					if (!match) {
+						return undefined;
+					}
+					const text = `${typedLeader}attachment:${attachment.name}`;
+					const referenceRange = {
+						startLineNumber: range.replace.startLineNumber,
+						startColumn: range.replace.startColumn,
+						endLineNumber: range.replace.endLineNumber,
+						endColumn: range.replace.startColumn + text.length
+					};
+					return {
+						label: { label: attachment.name, description: localize('attachedContext', 'Attached context') },
+						filterText: match.filterText,
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: attachment.kind === 'directory'
+							? CompletionItemKind.Folder
+							: attachment.kind === 'file' || attachment.kind === 'image'
+								? CompletionItemKind.File
+								: CompletionItemKind.Reference,
+						sortText: getAttachedContextCompletionSortText(match.score),
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand,
+							title: '',
+							arguments: [new ReferenceArgument(widget, toAttachedContextDynamicVariable(attachment, referenceRange))]
+						}
+					};
+				}));
+
+			return { suggestions, incomplete: true };
+		}, BuiltinDynamicCompletions.VariableNameDef, true, attachedContextCompletionAdditionalTriggerCharacters);
+
 		// File/Folder completions in one go and m
 		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
 		this.registerVariableCompletions('fileAndFolder', async ({ widget, range }, token) => {
@@ -980,7 +1038,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;
@@ -1068,17 +1126,17 @@ class BuiltinDynamicCompletions extends Disposable {
 		return undefined;
 	}
 
-	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
+	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef, includeAgentHost = false, additionalTriggerCharacters: readonly string[] = []) {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
-			triggerCharacters: [chatVariableLeader, chatAgentLeader],
+			triggerCharacters: [chatVariableLeader, chatAgentLeader, ...additionalTriggerCharacters],
 			provideCompletionItems: async (model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				if (!includeAgentHost && isAgentHostBackedWidget(widget)) {
 					// Agent-host sessions delegate completions to the host
 					// process via `AgentHostInputCompletions`.
 					return;
@@ -1171,7 +1229,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 			for (const workspace of workspaces) {
-				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 				for (const file of files) {
 					if (!seen.has(file)) {
 						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));

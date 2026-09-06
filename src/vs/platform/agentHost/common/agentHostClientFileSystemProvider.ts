@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { AHPFileSystemProvider } from './agentHostFileSystemProvider.js';
-import { fromAgentClientUri } from './agentClientUri.js';
+import { fromAgentClientUri, toAgentClientUri } from './agentClientUri.js';
 
 /**
  * Read-only filesystem provider for accessing client-side files from the
@@ -27,5 +27,9 @@ export class AgentHostClientFileSystemProvider extends AHPFileSystemProvider {
 
 	protected _decodeUri(resource: URI): URI {
 		return fromAgentClientUri(resource);
+	}
+
+	protected _encodeUri(resource: URI, authority: string): URI {
+		return toAgentClientUri(resource, authority);
 	}
 }

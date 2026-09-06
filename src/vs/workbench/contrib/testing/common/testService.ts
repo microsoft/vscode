@@ -174,13 +174,19 @@ export const waitForTestToBeIdle = (testService: ITestService, test: Incremental
  * in strictly descending order.
  */
 export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// Canonicalize the URI so that comparisons against test item URIs (which are
+	// stored in their canonical form via asCanonicalUri() during deserialization)
+	// work correctly in remote environments such as WSL, SSH, and dev containers
+	// where URI.file(path) may produce a non-canonical form. Fixes #275268.
+	const canonicalUri = ident.asCanonicalUri(uri);
+
 	// In this function we go to a bit of effort to avoid awaiting unnecessarily
 	// and bulking the test collections we do collect for consumers. This fixes
 	// a performance issue (#235819) where a large number of tests in a file
 	// would cause a long delay switching editors.
 	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
 
-	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
+	const existing = [...testService.collection.getNodeByUrl(canonicalUri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
 
 	// getNodeByUrl will return all known tests in the URI, but this can include
 	// children of tests even when `descendInFile` is false. Remove those cases.
@@ -224,7 +230,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 				continue;
 			}
 
-			if (ident.extUri.isEqual(uri, test.item.uri)) {
+			if (ident.extUri.isEqual(canonicalUri, test.item.uri)) {
 				gather.push(test);
 
 				if (!descendInFile) {
@@ -232,7 +238,7 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 				}
 			}
 
-			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+			if (ident.extUri.isEqualOrParent(canonicalUri, test.item.uri)) {
 				let prom: Promise<void> | undefined;
 				if (test.expand === TestItemExpandState.Expandable) {
 					prom = testService.collection.expand(test.item.extId, 1);

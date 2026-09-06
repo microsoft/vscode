@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/c002f514dd81fa71fa304d4c36f8d2767dbf2f9d",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/684648ee5414eb2d9df22b0392ef05079f91e44e",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -13,8 +13,26 @@
 			"name": "text.variable"
 		},
 		{
-			"match": "(\\[)[^\\]]*(\\])",
-			"name": "text.bracketed"
+			"applyEndPatternLast": 1,
+			"begin": "\\[",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.bracket.begin.sql"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.bracket.end.sql"
+				}
+			},
+			"name": "text.bracketed",
+			"patterns": [
+				{
+					"match": "\\[|\\]\\]",
+					"name": "constant.character.bracket.sql"
+				}
+			]
 		},
 		{
 			"include": "#comments"

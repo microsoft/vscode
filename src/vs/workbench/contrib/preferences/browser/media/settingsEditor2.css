@@ -502,9 +502,18 @@
 	display: flex;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated-info .setting-item-deprecation-message {
+	color: var(--vscode-foreground);
+	margin-top: var(--vscode-spacing-size60);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
 	color: inherit;
 	margin-right: 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated-info .setting-item-deprecation-message .codicon {
+	color: var(--vscode-editorInfo-foreground);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description {

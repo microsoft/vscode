@@ -78,10 +78,10 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 
 		// Register a lazy fetcher so historical sessions are loaded from the
 		// extension only when the debug panel home page first needs them.
-		this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
+		disposables.add(this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
 			const entries = await this._proxy.$getAvailableDebugSessionResources(handle, token);
 			return entries.map(e => ({ uri: URI.revive(e.uri), title: e.title }));
-		});
+		}));
 	}
 
 	$unregisterChatDebugLogProvider(handle: number): void {

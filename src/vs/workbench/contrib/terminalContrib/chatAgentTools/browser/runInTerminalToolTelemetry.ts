@@ -8,6 +8,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import type { Report } from './tools/consoleCompactor/consoleCompactor.js';
 import { ShellIntegrationQuality } from './toolTerminalCreator.js';
 
 export class RunInTerminalToolTelemetry {
@@ -213,6 +214,41 @@ export class RunInTerminalToolTelemetry {
 
 			compressOutputEnabled: this._configurationService.getValue<boolean>(ChatConfiguration.CompressOutputEnabled) === true,
 		});
+	}
+
+	/**
+	 * Reports the measurements produced by the terminal output compaction
+	 * {@link Report}, so the effectiveness of compaction (how much output was
+	 * removed and whether it was lossless) can be evaluated across sessions.
+	 */
+	logCompaction(report: Report): void {
+		type TelemetryEvent = {
+			commandKinds: TelemetryTrustedValue<string>;
+			originalChars: number;
+			compactedChars: number;
+		};
+		type TelemetryClassification = {
+			owner: 'aiday-mar';
+			comment: 'Measures how effective terminal output compaction is for the runInTerminal tool';
+			commandKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The compactor tags that matched the command, encoded as a JSON array' };
+			originalChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of UTF-16 characters in the original output' };
+			compactedChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of UTF-16 characters in the compacted output' };
+		};
+		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.compaction', {
+			commandKinds: new TelemetryTrustedValue(JSON.stringify(report.commandKinds)),
+			originalChars: report.original.chars,
+			compactedChars: report.compacted.chars
+		});
+	}
+
+	logCompactionFailed(): void {
+		type TelemetryEvent = Record<never, never>;
+		type TelemetryClassification = {
+			owner: 'aiday-mar';
+			comment: 'Tracks failures when terminal output compaction throws before producing a report';
+		};
+
+		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.compactionFailed', {});
 	}
 }
 

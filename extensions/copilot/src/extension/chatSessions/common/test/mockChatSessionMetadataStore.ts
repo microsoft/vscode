@@ -141,6 +141,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._sessionOrigins.set(sessionId, 'vscode');
 	}
 
+	setSessionOriginForTest(sessionId: string, origin: 'vscode' | 'other'): void {
+		this._sessionOrigins.set(sessionId, origin);
+	}
+
 	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
 		return this._sessionOrigins.get(sessionId) ?? 'vscode';
 	}
@@ -149,8 +153,22 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		return Promise.resolve();
 	}
 
-	getSessionParentId(_sessionId: string): Promise<string | undefined> {
+	getSessionParentId(_sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
 		return Promise.resolve(undefined);
+	}
+
+	private readonly _archived = new Set<string>();
+
+	async setSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		if (archived) {
+			this._archived.add(sessionId);
+		} else {
+			this._archived.delete(sessionId);
+		}
+	}
+
+	async getSessionArchived(sessionId: string): Promise<boolean> {
+		return this._archived.has(sessionId);
 	}
 
 	getSessionIdsForFolder(folder: vscode.Uri): string[] {

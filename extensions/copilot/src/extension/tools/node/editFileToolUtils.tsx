@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { t } from '@vscode/l10n';
-import { realpath } from 'fs/promises';
 import { homedir } from 'os';
-import * as path from 'path';
 import type { LanguageModelChat, PreparedToolInvocation } from 'vscode';
 import { ToolName } from '../common/toolNames';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -37,6 +35,7 @@ import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common
 import { EndOfLine, Position, Range, TextEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { formatUriForFileWidget } from '../common/toolUtils';
+import { resolveRealPathForNonexistent } from './toolUtils';
 
 // Simplified Hunk type for the patch
 interface Hunk {
@@ -710,7 +709,14 @@ export async function applyEdit(
 }
 
 const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
+	'**/.mcp.json': false,
+	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Markdown files in these folders are loaded as custom agents; their
+	// frontmatter can declare a `hooks:` block that runs shell commands during
+	// the agent lifecycle, so writing them must always be confirmed.
+	'**/.github/agents/**': false,
+	'**/.claude/agents/**': false,
 };
 
 const allPlatformPatterns: (glob.ParsedPattern | string)[] = [
@@ -797,7 +803,6 @@ export const enum ConfirmationCheckResult {
 	SystemFile,
 	OutsideWorkspace,
 }
-
 
 /**
  * Returns a function that returns whether a URI is approved for editing without
@@ -895,33 +900,11 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		const toCheck = [normalizePath(uri)];
 		if (uri.scheme === Schemas.file) {
 			try {
-				let linked: string;
-				try {
-					linked = await realpath(uri.fsPath);
-				} catch (e) {
-					if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-						// File doesn't exist yet (e.g. CreateFileTool case) — resolve the
-						// parent directory so symlinked parents are still checked.
-						const parentDir = path.dirname(uri.fsPath);
-						try {
-							const resolvedParent = await realpath(parentDir);
-							linked = path.join(resolvedParent, path.basename(uri.fsPath));
-						} catch (parentError) {
-							const code = (parentError as NodeJS.ErrnoException).code;
-							if (code === 'ENOENT' || code === 'ENOTDIR') {
-								linked = uri.fsPath;
-							} else {
-								throw parentError;
-							}
-						}
-					} else {
-						throw e;
-					}
-				}
-				assertPathIsSafe(linked);
+				const linked = await resolveRealPathForNonexistent(uri);
+				assertPathIsSafe(linked.fsPath);
 
-				if (linked !== uri.fsPath) {
-					toCheck.push(URI.file(linked));
+				if (!extUriBiasedIgnorePathCase.isEqual(linked, uri)) {
+					toCheck.push(linked);
 				}
 			} catch (e) {
 				if ((e as NodeJS.ErrnoException).code === 'EPERM') {

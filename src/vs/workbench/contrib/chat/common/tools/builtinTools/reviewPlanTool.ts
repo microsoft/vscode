@@ -60,7 +60,7 @@ export function createReviewPlanToolData(): IToolData {
 		properties: {
 			title: {
 				type: 'string',
-				description: 'Title displayed in the widget header. Defaults to "Review plan" if omitted.'
+				description: 'Title displayed in the widget header. Defaults to "Plan summary" if omitted.'
 			},
 			plan: {
 				type: 'string',
@@ -136,7 +136,7 @@ export class ReviewPlanTool extends Disposable implements IToolImpl {
 		}
 
 		const reviewData = new ChatPlanReviewData(
-			title ?? localize('reviewPlanTool.defaultTitle', 'Review plan'),
+			title ?? localize('reviewPlanTool.defaultTitle', 'Plan summary'),
 			content,
 			actions,
 			canProvideFeedback,
@@ -148,6 +148,7 @@ export class ReviewPlanTool extends Disposable implements IToolImpl {
 
 		const result = await raceCancellation(reviewData.completion.p, token);
 		if (token.isCancellationRequested) {
+			reviewData.dismiss();
 			throw new CancellationError();
 		}
 

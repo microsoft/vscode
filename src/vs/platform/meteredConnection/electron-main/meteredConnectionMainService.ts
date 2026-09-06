@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AbstractMeteredConnectionService } from '../common/meteredConnection.js';
@@ -13,6 +14,8 @@ import { AbstractMeteredConnectionService } from '../common/meteredConnection.js
  */
 export class MeteredConnectionMainService extends AbstractMeteredConnectionService {
 	private telemetryService: ITelemetryService | undefined;
+	private readonly connectionStateInitialized = new DeferredPromise<void>();
+	readonly whenConnectionStateInitialized = this.connectionStateInitialized.p;
 
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(configurationService, false);
@@ -20,6 +23,11 @@ export class MeteredConnectionMainService extends AbstractMeteredConnectionServi
 
 	public setTelemetryService(telemetryService: ITelemetryService): void {
 		this.telemetryService = telemetryService;
+	}
+
+	public override setIsBrowserConnectionMetered(value: boolean): void {
+		super.setIsBrowserConnectionMetered(value);
+		this.connectionStateInitialized.complete();
 	}
 
 	protected override onChangeBrowserConnection() {
