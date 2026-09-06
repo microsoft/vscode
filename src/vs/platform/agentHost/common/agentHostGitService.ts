@@ -99,6 +99,14 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+/** Error thrown when checkout would overwrite local working-tree changes. */
+export class CheckoutBlockedByLocalChangesError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CheckoutBlockedByLocalChangesError';
+	}
+}
+
 /**
  * Resolves linked checkouts to their primary worktree and caches successful mappings for every worktree reported by Git.
  * Resolution is serialized so concurrent requests across linked checkouts share one probe, while empty results remain retryable.
@@ -256,7 +264,7 @@ export interface IAgentHostGitService {
 	branchExists(repositoryRoot: URI, branchName: string): Promise<boolean>;
 	/** Creates a new branch and optionally checks it out while preserving the working tree. */
 	createBranch(workingDirectory: URI, branchName: string, options?: { readonly checkout?: boolean }): Promise<void>;
-	/** Checks out an existing local branch. */
+	/** Checks out an existing local branch, throwing {@link CheckoutBlockedByLocalChangesError} when local changes would be overwritten. */
 	checkout(workingDirectory: URI, treeish: string): Promise<void>;
 	/**
 	 * Returns true when the working tree has any tracked, staged, or
@@ -264,6 +272,8 @@ export interface IAgentHostGitService {
 	 * worktree that still contains uncommitted work.
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
+
+	createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void>;
 
 	/**
 	 * Stages and commits all tracked, staged, and untracked changes in the

@@ -12,6 +12,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -22,6 +23,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { RequestService } from '../../../request/node/requestService.js';
 import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage, type IAgentSdkDownloadProgress } from '../../node/agentSdkDownloader.js';
+import { AgentHostStorageService, type IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -244,11 +246,16 @@ suite('AgentSdkDownloader', () => {
 	 * explicitly. Pass `productConfig: null` to omit the agentSdks block
 	 * entirely (the "no product config" case).
 	 */
-	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string } | null, telemetryService: ITelemetryService = NullTelemetryService) {
+	function makeDownloader(
+		productConfig?: { version?: string; urlTemplate?: string } | null,
+		telemetryService: ITelemetryService = NullTelemetryService,
+		storageService?: IAgentHostStorageService,
+	) {
 		const config = productConfig === null ? undefined : {
 			version: productConfig?.version ?? '1.0.0',
 			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
+		const storage = storageService ?? disposables.add(new AgentHostStorageService(undefined, new NullLogService()));
 		return disposables.add(new AgentSdkDownloader(
 			makeEnvService(userDataPath),
 			makeProductService(config),
@@ -256,6 +263,7 @@ suite('AgentSdkDownloader', () => {
 			makeFileService(disposables),
 			new NullLogService(),
 			telemetryService,
+			storage,
 		));
 	}
 
@@ -390,11 +398,39 @@ suite('AgentSdkDownloader', () => {
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {
 		const downloader = makeDownloader();
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 1);
 
 		// Second call hits the cache.
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 1, 'cache hit should not re-download');
+		assert.deepStrictEqual({
+			requests: server.requestCount,
+			downloadConsent: downloader.hasDownloadConsent(ClaudeSdkPackage),
+		}, {
+			requests: 1,
+			downloadConsent: false,
+		});
+	});
+
+	test('download consent persists in host storage without an SDK cache', async () => {
+		const storageResource = URI.file(path.join(userDataPath, 'agent-host-storage.json'));
+		const firstStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const first = makeDownloader(undefined, NullTelemetryService, firstStorage);
+		await first.recordDownloadConsent(ClaudeSdkPackage);
+
+		const restartedStorage = disposables.add(new AgentHostStorageService(storageResource, new NullLogService()));
+		const restarted = makeDownloader(undefined, NullTelemetryService, restartedStorage);
+		const otherPackage: IAgentSdkPackage = { ...ClaudeSdkPackage, id: 'codex' };
+
+		assert.deepStrictEqual({
+			first: first.hasDownloadConsent(ClaudeSdkPackage),
+			restarted: restarted.hasDownloadConsent(ClaudeSdkPackage),
+			otherPackage: restarted.hasDownloadConsent(otherPackage),
+			sdkLocal: await restarted.isSdkResolvableWithoutDownload(ClaudeSdkPackage),
+		}, {
+			first: true,
+			restarted: true,
+			otherPackage: false,
+			sdkLocal: false,
+		});
 	});
 
 	test('loadSdkRoot: cache dir includes sdkTarget so Universal launches stay separate', async () => {

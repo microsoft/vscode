@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatSystemNotificationPart } from '../../../common/chatService/chatService.js';
@@ -41,11 +42,14 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 		private readonly notification: IChatSystemNotificationPart,
 		renderer: IMarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 
 		let notificationNode: HTMLElement;
-		if (notification.collapsible) {
+		if (notification.presentation === 'workspaceTransition') {
+			notificationNode = this._renderWorkspaceTransition(notification);
+		} else if (notification.collapsible) {
 			const firstLineBreak = notification.content.value.indexOf('\n');
 			const detailsValue = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
 			if (detailsValue) {
@@ -65,6 +69,25 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			this.domNode = notificationNode;
 			this.inlineTimingContainer = undefined;
 		}
+	}
+
+	private _renderWorkspaceTransition(notification: IChatSystemNotificationPart): HTMLElement {
+		const owner = dom.$('.chat-workspace-transition');
+		owner.setAttribute('role', 'separator');
+		owner.setAttribute('aria-orientation', 'horizontal');
+		owner.setAttribute('aria-label', notification.accessibilityLabel ?? renderAsPlaintext(notification.content));
+		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
+		const label = dom.append(owner, dom.$('span.chat-workspace-transition-label'));
+		this._register(this.hoverService.setupDelayedHover(label, { content: renderAsPlaintext(notification.content) }));
+		const workspaceNameIndex = notification.workspaceName ? notification.content.value.lastIndexOf(notification.workspaceName) : -1;
+		const iconIndex = workspaceNameIndex >= 0 ? workspaceNameIndex : 0;
+		label.append(notification.content.value.slice(0, iconIndex));
+		const icon = dom.append(label, dom.$('span.chat-workspace-transition-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(notification.icon ?? Codicon.folderCompact));
+		icon.setAttribute('aria-hidden', 'true');
+		label.append(notification.content.value.slice(iconIndex));
+		dom.append(owner, dom.$('span.chat-workspace-transition-line')).setAttribute('aria-hidden', 'true');
+		return owner;
 	}
 
 	private _renderNotification(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer, instantiationService: IInstantiationService): HTMLElement {
@@ -119,6 +142,9 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			&& other.content.value === this.notification.content.value
 			&& ThemeIcon.isEqual(other.icon ?? Codicon.check, this.notification.icon ?? Codicon.check)
 			&& !!other.collapsible === !!this.notification.collapsible
-			&& !!other.renderInlineTiming === !!this.notification.renderInlineTiming;
+			&& !!other.renderInlineTiming === !!this.notification.renderInlineTiming
+			&& other.presentation === this.notification.presentation
+			&& other.workspaceName === this.notification.workspaceName
+			&& other.accessibilityLabel === this.notification.accessibilityLabel;
 	}
 }

@@ -10,7 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
@@ -64,6 +64,8 @@ interface ISessionEntry {
 	readonly createdAt: string;
 	/** Last modification timestamp (ISO 8601). Catalog-only; derived from chat aggregation. */
 	modifiedAt: string;
+	/** Host-resolved project metadata that is not part of synchronized session state. */
+	project?: SessionSummary['project'];
 	/** Aggregate file-change counts for the session-wide changeset. Catalog-only. */
 	changes?: ChangesSummary;
 	/** Whether this session is still an unused draft. Latches to `Used`. */
@@ -118,7 +120,7 @@ class SessionSummaryNotifier extends Disposable {
 
 	constructor(
 		private readonly _getSummary: (session: string) => SessionSummary | undefined,
-		private readonly _emit: (session: string, changes: Partial<SessionSummary>) => void,
+		private readonly _emit: (session: string, changes: SessionSummaryChanges) => void,
 	) {
 		super();
 	}
@@ -197,10 +199,10 @@ class SessionSummaryNotifier extends Disposable {
 			return;
 		}
 
-		const changes: Partial<SessionSummary> = {};
+		const changes: SessionSummaryChanges = {};
 		if (current.title !== lastNotified.title) { changes.title = current.title; }
 		if (current.status !== lastNotified.status) { changes.status = current.status; }
-		if (current.activity !== lastNotified.activity) { changes.activity = current.activity; }
+		if (current.activity !== lastNotified.activity) { changes.activity = current.activity ?? null; }
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
@@ -471,7 +473,7 @@ export class AgentHostStateManager extends Disposable {
 			modifiedAt: entry.modifiedAt,
 		};
 		if (state.activity !== undefined) { summary.activity = state.activity; }
-		if (state.project !== undefined) { summary.project = state.project; }
+		if (entry.project !== undefined) { summary.project = entry.project; }
 		if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 		if (state.annotations !== undefined) { summary.annotations = state.annotations; }
 		if (entry.changes !== undefined) { summary.changes = entry.changes; }
@@ -830,7 +832,7 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
 	private _newEntry(state: SessionState, summary: SessionSummary, use: SessionUse): ISessionEntry {
-		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, changes: summary.changes, use };
+		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, project: summary.project, changes: summary.changes, use };
 	}
 
 	/**
@@ -841,8 +843,9 @@ export class AgentHostStateManager extends Disposable {
 	 * `workingDirectory`, `modifiedAt`, `changes`) from the supplied summary
 	 * onto the session entry so subscribers see them. The reducer-owned metadata
 	 * (`title`, `status`, `activity`) is intentionally NOT copied back — the live
-	 * state is authoritative for those. No-ops for sessions that were already
-	 * announced (idempotent).
+	 * state is authoritative for those. Project remains catalog-only while the
+	 * resolved working directories are synchronized session state. No-ops for
+	 * sessions that were already announced (idempotent).
 	 */
 	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
 		const key = session.toString();
@@ -855,11 +858,12 @@ export class AgentHostStateManager extends Disposable {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
-		// `getSessionState` / `getSessionSummary` see the resolved working
-		// directory / project. We don't need to schedule a
+		// `getSessionSummary` sees the resolved project and both state and
+		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories };
+		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories };
+		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
 		const full = this._toSummary(key, entry);
@@ -1384,6 +1388,20 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
 		this.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: meta });
+	}
+
+	/** Updates catalog-only host-resolved project metadata. */
+	setSessionProject(session: URI, project: SessionSummary['project']): void {
+		const entry = this._sessionStates.get(session);
+		if (!entry) {
+			this._logService.warn(`[AgentHostStateManager] setSessionProject: unknown session ${session}`);
+			return;
+		}
+		if (equals(entry.project, project)) {
+			return;
+		}
+		entry.project = project;
+		this._summaryNotifier.markDirty(session);
 	}
 
 	/**

@@ -15,10 +15,8 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { BrowserViewEditorId } from '../../../browserView/common/browserView.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
 import { ChatPillsWidget, getChatPillEntries, IChatPill, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { ChatChangesPillActionViewItem } from '../../../../browser/chatChangesPill.js';
@@ -112,26 +110,6 @@ export interface IChatTurnPillsModel {
 	/** When `false` the artifact pill stays hidden regardless of the data. */
 	readonly artifactsEnabled: IObservable<boolean>;
 	openChanges(): void;
-}
-
-/** The former per-pill setting shape, retained for existing user settings. */
-export interface IChatTurnStatusPillsLegacyConfig {
-	readonly changes?: boolean;
-	readonly preview?: boolean;
-	readonly browser?: boolean;
-}
-
-export type ChatTurnStatusPillsSetting = boolean | IChatTurnStatusPillsLegacyConfig;
-
-/** Normalize the boolean setting and its legacy per-pill object form. */
-export function isChatTurnStatusPillsEnabled(value: ChatTurnStatusPillsSetting | undefined): boolean {
-	return typeof value === 'boolean' ? value : !!(value?.changes || value?.preview || value?.browser);
-}
-
-/** Observe whether agent turn status pills are enabled. */
-export function observeTurnStatusPillsEnabled(configurationService: IConfigurationService): IObservable<boolean> {
-	const value = observableConfigValue<ChatTurnStatusPillsSetting>(ChatConfiguration.TurnStatusPills, true, configurationService);
-	return derived(reader => isChatTurnStatusPillsEnabled(value.read(reader)));
 }
 
 /**

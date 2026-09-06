@@ -104,6 +104,9 @@
 		}
 
 		.icon::before {
+			--file-icon-mask-position: center;
+			--file-icon-mask-size: contain;
+
 			display: inline-block;
 			line-height: 100%;
 			overflow: hidden;

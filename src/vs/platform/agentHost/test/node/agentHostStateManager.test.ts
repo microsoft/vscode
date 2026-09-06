@@ -357,7 +357,7 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: persisted.project,
+			project: provisional.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
@@ -1986,6 +1986,34 @@ suite('AgentHostStateManager', () => {
 						notifiedSession: sessionUri,
 					},
 				);
+			});
+		});
+
+		test('SessionSummaryNotifier serializes activity clearing as null', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+
+				const notifications: INotification[] = [];
+				disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: 'Setting up workspace',
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: undefined,
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+
+				const summaryChanges = notifications
+					.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+					.map(notification => JSON.parse(JSON.stringify(notification)) as SessionSummaryChangedParams);
+				assert.deepStrictEqual(summaryChanges.map(notification => notification.changes.activity), [
+					'Setting up workspace',
+					null,
+				]);
 			});
 		});
 	});

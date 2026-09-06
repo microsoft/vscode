@@ -362,6 +362,7 @@
 	"github.copilot.config.gpt56Verbosity.enabled": "Sets the response verbosity to low for gpt-5.6 models.",
 	"github.copilot.config.gemini3GetChangedFilesTool.enabled": "Enables the Get Changed Files tool for gemini-3 models.",
 	"github.copilot.config.gemini3LowReasoningEffort.enabled": "Sets the reasoning effort to low for gemini-3 models.",
+	"github.copilot.config.claudeOpusDefaultReasoningEffort": "Overrides the default thinking effort shown in the model picker for Claude Opus models. Leave empty to use the built-in default. Ignored if the model does not support the chosen level.",
 	"github.copilot.config.gpt55ReadFileTool.enabled": "Enables the Read File tool for gpt-5.5 models.",
 	"github.copilot.config.anthropic.tools.websearch.enabled": "Enable Anthropic's native web search tool for BYOK Claude models. When enabled, allows Claude to search the web for current information. \n\n**Note**: This is an experimental feature only available for BYOK Anthropic Claude models.",
 	"github.copilot.config.anthropic.tools.websearch.maxUses": "Maximum number of web searches allowed per request. Valid range is 1 to 20. Prevents excessive API calls within a single interaction. If Claude exceeds this limit, the response returns an error.",

@@ -6,11 +6,14 @@
 import assert from 'assert';
 import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
@@ -18,6 +21,21 @@ import { ChatSystemNotificationContentPart } from '../../../../browser/widget/ch
 
 suite('ChatSystemNotificationContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestHoverService extends mock<IHoverService>() {
+		target: HTMLElement | undefined;
+		content: IDelayedHoverOptions['content'] | undefined;
+
+		override setupDelayedHover(
+			target: HTMLElement,
+			hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
+			_lifecycleOptions?: IHoverLifecycleOptions,
+		): IDisposable {
+			this.target = target;
+			this.content = (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions).content;
+			return Disposable.None;
+		}
+	}
 
 	test('renders persistent checked notification content', () => {
 		const disposables = store.add(new DisposableStore());
@@ -182,6 +200,67 @@ suite('ChatSystemNotificationContentPart', () => {
 			withDetailsHasCompactCheck: true,
 			withoutDetailsIsDisclosure: false,
 			withoutDetailsHasOrdinaryProgress: true,
+		});
+	});
+
+	test('renders a workspace transition as a named separator', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const hoverService = new TestHoverService();
+		instantiationService.stub(IHoverService, hoverService);
+		const renderer: IMarkdownRenderer = {
+			render: (markdown: IMarkdownString): IRenderedMarkdown => {
+				const element = mainWindow.document.createElement('div');
+				element.textContent = renderAsPlaintext(markdown);
+				return { element, dispose: () => { } };
+			},
+		};
+		const notification = {
+			kind: 'systemNotification' as const,
+			content: new MarkdownString('Now working in working'),
+			icon: Codicon.worktreeCompact,
+			presentation: 'workspaceTransition' as const,
+			workspaceName: 'working',
+			accessibilityLabel: 'Workspace changed. This session is now working in working using an isolated worktree.',
+		};
+		const part = disposables.add(instantiationService.createInstance(ChatSystemNotificationContentPart, notification, renderer));
+		part.domNode.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		mainWindow.document.body.appendChild(part.domNode);
+		disposables.add({ dispose: () => part.domNode.remove() });
+		const icon = part.domNode.querySelector<HTMLElement>('.chat-workspace-transition-icon');
+
+		assert.deepStrictEqual({
+			text: part.domNode.textContent,
+			role: part.domNode.getAttribute('role'),
+			orientation: part.domNode.getAttribute('aria-orientation'),
+			label: part.domNode.getAttribute('aria-label'),
+			lines: part.domNode.querySelectorAll('.chat-workspace-transition-line').length,
+			icon: icon?.classList.contains('codicon-worktree-compact'),
+			iconHidden: icon?.getAttribute('aria-hidden'),
+			iconFontSize: icon && mainWindow.getComputedStyle(icon).fontSize,
+			iconVerticalAlign: icon && mainWindow.getComputedStyle(icon).verticalAlign,
+			labelParts: [...part.domNode.querySelector('.chat-workspace-transition-label')?.childNodes ?? []].map(node =>
+				node.nodeType === Node.TEXT_NODE ? node.textContent : (node as HTMLElement).className
+			),
+			hoverTargetsLabel: hoverService.target === part.domNode.querySelector('.chat-workspace-transition-label'),
+			hoverContent: hoverService.content,
+			sameContent: part.hasSameContent(notification),
+			differentPresentation: part.hasSameContent({ kind: 'systemNotification', content: notification.content, icon: notification.icon }),
+		}, {
+			text: 'Now working in working',
+			role: 'separator',
+			orientation: 'horizontal',
+			label: 'Workspace changed. This session is now working in working using an isolated worktree.',
+			lines: 2,
+			icon: true,
+			iconHidden: 'true',
+			iconFontSize: '12px',
+			iconVerticalAlign: 'text-bottom',
+			labelParts: ['Now working in ', 'chat-workspace-transition-icon codicon codicon-worktree-compact', 'working'],
+			hoverTargetsLabel: true,
+			hoverContent: 'Now working in working',
+			sameContent: true,
+			differentPresentation: false,
 		});
 	});
 });

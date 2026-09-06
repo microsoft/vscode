@@ -15,7 +15,8 @@ import { defaultButtonStyles, defaultCheckboxStyles } from '../../../platform/th
 
 export interface IRemoteHostUnavailableEmptyStateContent {
 	readonly title: string;
-	readonly description: string;
+	/** Omitted when the title already says everything, leaving the title and action to speak. */
+	readonly description?: string;
 	readonly progress?: string;
 	readonly action?: {
 		readonly label: string;
@@ -59,7 +60,7 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 		icon.appendChild(renderIcon(Codicon.debugDisconnect));
 
 		this._title = dom.append(this.domNode, dom.$('h2.remote-host-unavailable-empty-state-title'));
-		this._description = dom.append(this.domNode, dom.$('p.remote-host-unavailable-empty-state-description'));
+		this._description = dom.append(this.domNode, dom.$('p.remote-host-unavailable-empty-state-description.hidden'));
 		this._progress = dom.append(this.domNode, dom.$('p.remote-host-unavailable-empty-state-progress.hidden'));
 		// Connect progress changes while the user waits (waiting → download
 		// percentage), so announce it politely rather than leaving it silent.
@@ -85,6 +86,8 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 		this._autoConnectListener.clear();
 		this.domNode.classList.toggle('hidden', !content);
 		if (!content) {
+			this._description.textContent = '';
+			this._description.classList.add('hidden');
 			this._progress.textContent = '';
 			this._progress.classList.add('hidden');
 			this._actionContainer.classList.add('hidden');
@@ -98,7 +101,8 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 
 		this.domNode.setAttribute('aria-label', content.title);
 		this._title.textContent = content.title;
-		this._description.textContent = content.description;
+		this._description.textContent = content.description ?? '';
+		this._description.classList.toggle('hidden', !content.description);
 		this._progress.textContent = content.progress ?? '';
 		this._progress.classList.toggle('hidden', !content.progress);
 		if (!content.action) {

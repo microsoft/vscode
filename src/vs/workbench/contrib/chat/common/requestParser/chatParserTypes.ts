@@ -42,24 +42,11 @@ export interface IParsedChatRequestPart {
 	readonly promptText: string;
 }
 
-export interface IChatPromptText {
-	readonly message: string;
-	readonly diff: number;
-	readonly leadingTrim?: number;
-	readonly rangeEdits?: readonly { readonly range: IOffsetRange; readonly newLength: number }[];
-}
-
-export function getPromptText(request: IParsedChatRequest): IChatPromptText {
-	const untrimmedMessage = request.parts.map(r => r.promptText).join('');
-	const message = untrimmedMessage.trimStart();
+export function getPromptText(request: IParsedChatRequest): { message: string; diff: number } {
+	const message = request.parts.map(r => r.promptText).join('').trimStart();
 	const diff = request.text.length - message.length;
-	const rangeEdits = request.parts
-		.filter(part => part.promptText !== part.text)
-		.map(part => ({ range: part.range, newLength: part.promptText.length }));
 
-	return rangeEdits.length
-		? { message, diff, leadingTrim: untrimmedMessage.length - message.length, rangeEdits }
-		: { message, diff };
+	return { message, diff };
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
@@ -221,14 +208,14 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>, readonly isAttachmentReference?: boolean, readonly promptTextOverride?: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>, readonly isAttachmentReference?: boolean) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
 	}
 
 	get promptText(): string {
-		return this.promptTextOverride ?? this.text;
+		return this.text;
 	}
 
 	toVariableEntry(): IChatRequestVariableEntry {
@@ -324,8 +311,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).isFile,
 					(part as ChatRequestDynamicVariablePart).isDirectory,
 					(part as ChatRequestDynamicVariablePart)._meta,
-					(part as ChatRequestDynamicVariablePart).isAttachmentReference,
-					(part as ChatRequestDynamicVariablePart).promptTextOverride
+					(part as ChatRequestDynamicVariablePart).isAttachmentReference
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

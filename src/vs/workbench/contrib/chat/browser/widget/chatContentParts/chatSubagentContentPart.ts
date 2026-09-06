@@ -21,6 +21,7 @@ import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -96,6 +97,10 @@ type ILazyItem = ILazyToolItem | ILazyMarkdownItem | ILazyHookItem;
  * trying to refactor to share code. Both could probably be simplified when stable.
  */
 export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
+	protected override get collapsibleKind(): string {
+		return 'subagent';
+	}
+
 	private wrapper!: HTMLElement;
 	private isActive: boolean;
 	private isExternallyActive: boolean;
@@ -431,6 +436,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
@@ -445,7 +451,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		const rawPrefix = agentName || localize('chat.subagent.prefix', 'Subagent');
 		const prefix = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
 		const initialTitle = `${prefix}: ${description}`;
-		super(initialTitle, context, undefined, hoverService, configurationService);
+		super(initialTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.description = rcut(description, MAX_TITLE_LENGTH);
 		this._isDefaultDescription = isDefaultDescription;

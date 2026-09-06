@@ -1015,7 +1015,7 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Effective VS Code policy keys', String(effectiveKeyCount)]
 				]
 			);
-			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one.*\n\n';
+			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one. For sandbox.enabled, any managed true wins regardless of channel precedence, matching the runtime sandbox floor.*\n\n';
 
 			content += '### Effective Resolution\n\n';
 			if (pick.resolutions.size > 0) {

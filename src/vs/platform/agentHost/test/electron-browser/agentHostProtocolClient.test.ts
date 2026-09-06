@@ -14,10 +14,11 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
+import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -84,6 +85,7 @@ import type { Implementation } from '../../common/state/protocol/common/commands
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -187,6 +189,11 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireExtensionRequest(id: number, method: string, params: Record<string, unknown>): void {
+		// VS Code-private reverse requests intentionally are not part of the public AHP ProtocolMessage union.
+		this._onMessage.fire({ jsonrpc: '2.0', id, method, params } as unknown as ProtocolMessage);
 	}
 
 	fireClose(): void {
@@ -334,11 +341,40 @@ suite('AgentHostProtocolClient', () => {
 		};
 	}
 
-	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
+	function createWorkspaceTrustServices(config?: { readonly trusted?: readonly URI[]; readonly requestResult?: boolean }) {
+		const trusted = new Set((config?.trusted ?? []).map(uri => uri.toString()));
+		const requests: URI[] = [];
+		const grants: URI[] = [];
+		const management = new class extends mock<IWorkspaceTrustManagementService>() {
+			override async getUriTrustInfo(uri: URI) {
+				return { uri, trusted: trusted.has(uri.toString()) };
+			}
+
+			override async setUrisTrust(uris: URI[], isTrusted: boolean): Promise<void> {
+				for (const uri of uris) {
+					if (isTrusted) {
+						trusted.add(uri.toString());
+						grants.push(uri);
+					} else {
+						trusted.delete(uri.toString());
+					}
+				}
+			}
+		}();
+		const request = new class extends mock<IWorkspaceTrustRequestService>() {
+			override async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean> {
+				requests.push(options.uri);
+				return config?.requestResult ?? true;
+			}
+		}();
+		return { management, request, requests, grants };
+	}
+
+	function createClientForIdentity(identity: AgentHostResourceIdentity, transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }, logService: ILogService = new NullLogService(), configurationService = new TestConfigurationService(), clientId?: string, clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, workspaceTrust = createWorkspaceTrustServices()): { client: AgentHostProtocolClient; transport: TestProtocolTransport; configurationService: TestConfigurationService } {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrust.management, workspaceTrust.request));
 		return { client, transport, configurationService };
 	}
 
@@ -1183,6 +1219,7 @@ suite('AgentHostProtocolClient', () => {
 	test('forwards the actual telemetry service restriction during initialization and config sync', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
 		const configurationService = new TestConfigurationService();
+		const workspaceTrust = createWorkspaceTrustServices();
 		const client = disposables.add(new AgentHostProtocolClient(
 			'test.example:1234',
 			transport,
@@ -1191,6 +1228,8 @@ suite('AgentHostProtocolClient', () => {
 			createPermissionService(),
 			configurationService,
 			NullTelemetryService,
+			workspaceTrust.management,
+			workspaceTrust.request,
 		));
 
 		const connectPromise = client.connect();
@@ -1726,6 +1765,133 @@ suite('AgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
 		transport.fireClose();
 		await rejected;
+	});
+
+	suite('reverse workspace trust', () => {
+
+		test('uses the standard workspace trust request', async () => {
+			const workspaceTrust = createWorkspaceTrustServices({ requestResult: false });
+			const { transport } = createClientForIdentity(
+				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				workspaceTrust,
+			);
+			const workspace = URI.file('/workspace/project');
+
+			transport.fireExtensionRequest(51, RequestAgentHostWorkspaceTrustExtensionMethod, {
+				workspace: workspace.toString(),
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requests: workspaceTrust.requests.map(uri => uri.toString()),
+				response: transport.sentMessages.pop(),
+			}, {
+				requests: [workspace.toString()],
+				response: {
+					jsonrpc: '2.0',
+					id: 51,
+					result: { trusted: false },
+				},
+			});
+		});
+
+		test('inherits trust for a validated managed worktree', async () => {
+			const parent = URI.file('/workspace/project');
+			const worktree = URI.file('/workspace/project.worktrees/feature');
+			const workspaceTrust = createWorkspaceTrustServices({ trusted: [parent] });
+			const { transport } = createClientForIdentity(
+				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				workspaceTrust,
+			);
+
+			transport.fireExtensionRequest(52, RequestAgentHostWorkspaceTrustExtensionMethod, {
+				workspace: worktree.toString(),
+				trustedParent: parent.toString(),
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requests: workspaceTrust.requests,
+				grants: workspaceTrust.grants.map(uri => uri.toString()),
+				response: transport.sentMessages.pop(),
+			}, {
+				requests: [],
+				grants: [worktree.toString()],
+				response: {
+					jsonrpc: '2.0',
+					id: 52,
+					result: { trusted: true },
+				},
+			});
+		});
+
+		test('rejects invalid workspace trust resources', async () => {
+			const workspaceTrust = createWorkspaceTrustServices({ trusted: [URI.file('/workspace/project')] });
+			const { transport } = createClientForIdentity(
+				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				workspaceTrust,
+			);
+
+			transport.fireExtensionRequest(53, RequestAgentHostWorkspaceTrustExtensionMethod, {
+				workspace: 'https://example.com/project',
+			});
+			transport.fireExtensionRequest(54, RequestAgentHostWorkspaceTrustExtensionMethod, {
+				workspace: URI.file('/workspace/unrelated').toString(),
+				trustedParent: URI.file('/workspace/project').toString(),
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requests: workspaceTrust.requests,
+				grants: workspaceTrust.grants,
+				responses: transport.sentMessages.splice(-2),
+			}, {
+				requests: [],
+				grants: [],
+				responses: [{
+					jsonrpc: '2.0',
+					id: 53,
+					error: {
+						code: -32000,
+						message: 'Workspace must be an absolute file URI',
+					},
+				}, {
+					jsonrpc: '2.0',
+					id: 54,
+					error: {
+						code: -32000,
+						message: 'Workspace is not a managed worktree under the trusted parent',
+					},
+				}],
+			});
+		});
 	});
 
 	suite('reverse permission gating', () => {
@@ -2317,8 +2483,9 @@ suite('AgentHostProtocolClient', () => {
 				transports.push(t);
 				return t;
 			};
+			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports };
 		}

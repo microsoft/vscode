@@ -13,6 +13,14 @@
 	pointer-events: none;
 }
 
+.interactive-session.chat-floating-persistent-content .chat-pet-overlay.chat-pet-run-layer {
+	isolation: isolate;
+}
+
+.interactive-session.chat-floating-persistent-content .chat-pet-overlay.chat-pet-run-layer > .chat-pet-button {
+	z-index: 1;
+}
+
 .chat-pet-button {
 	position: absolute;
 	right: var(--vscode-spacing-size320);

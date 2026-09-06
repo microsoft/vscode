@@ -35,7 +35,7 @@ import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMet
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionGitHubState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -632,6 +632,12 @@ function toPresentedSessionStatus(owner: object, status: IObservable<SessionStat
 	});
 }
 
+type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | '_meta'>;
+type AgentHostSessionSummaryWorkspaceMetadata = {
+	project?: IAgentSessionMetadata['project'];
+	workingDirectories?: IAgentSessionMetadata['workingDirectories'];
+};
+
 /**
  * Maps the protocol {@link ProtocolChatInteractivity} to the provider-agnostic
  * {@link ChatInteractivity}. Absent interactivity defaults to {@link
@@ -912,9 +918,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	readonly backendUri: URI;
 
-	// Retained so we can rebuild `workspace` when only `_meta` changes via
-	// a `SessionMetaChanged` action dispatched on session open (without a full
-	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
+	// Retained so we can rebuild `workspace` when session state changes via
+	// actions dispatched on session open (without a full list refresh).
+	// See `_applySessionMetadataFromState` / `applySessionStateMetadata`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectories: readonly URI[] | undefined;
 	/** Working-directory set used to resolve session customizations. */
@@ -927,11 +933,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _meta: SessionMeta | undefined;
 	/** The latest session metadata used to build startup-cache presentation state. */
 	get sessionMeta(): SessionMeta | undefined { return this._meta; }
-	/**
-	 * Whether this session is a workspace-less quick chat. Seeded from the
-	 * constructor metadata and only ever promoted by
-	 * {@link _promoteToQuickChatIfWorkspaceless}.
-	 */
+	/** Settable so authoritative session metadata can change the session kind in place. */
 	private readonly _isQuickChat: ISettableObservable<boolean>;
 	/** Session-kind strategy (quick chat vs. workspace), derived from {@link _isQuickChat}. */
 	private get _kind(): IAgentHostSessionKind { return sessionKind(this._isQuickChat.get()); }
@@ -1674,9 +1676,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * Returns `true` iff the activity observable changed. Callers inside a
 	 * transaction MUST pass it — see {@link setChangesSummary}.
 	 */
-	setActivity(activity: string | undefined, tx?: ITransaction): boolean {
-		if (this._activity.get() !== activity) {
-			this._activity.set(activity, tx);
+	setActivity(activity: string | null | undefined, tx?: ITransaction): boolean {
+		const value = activity ?? undefined;
+		if (this._activity.get() !== value) {
+			this._activity.set(value, tx);
 			return true;
 		}
 
@@ -1685,11 +1688,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	/**
 	 * Apply a `_meta` delta (the shared session-state / session-summary bag,
-	 * fed from `_applySessionMetaFromState` or a `SessionSummaryChanged`
-	 * notification), promote the session kind if the delta reports it
-	 * workspace-less, and rebuild the workspace if the git state changed.
+	 * fed from `_applySessionMetadataFromState` or a `SessionSummaryChanged`
+	 * notification), synchronize the session kind, and rebuild the workspace.
 	 * Returns `true` iff anything observable changed, so the list regroups a
-	 * session that became a quick chat without ever having had a workspace.
+	 * session whose kind changed even when its workspace did not.
 	 *
 	 * Callers that are already inside a transaction MUST pass it: a plain
 	 * `transaction()` here would finish (and therefore notify) mid-way through
@@ -1703,7 +1705,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let didChange = metaChanged;
 		subtransaction(tx, tx => {
 			this._metaObs.set(this._meta, tx);
-			if (this._promoteToQuickChatIfWorkspaceless(tx)) {
+			if (this._syncQuickChatFromMeta(tx)) {
 				didChange = true;
 			}
 			const workspace = this._computeWorkspace();
@@ -1711,6 +1713,61 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				didChange = true;
 			}
 		});
+		return didChange;
+	}
+
+	/**
+	 * Applies the workspace-bearing fields from authoritative session state in
+	 * one transaction so observers cannot see a converted session paired with
+	 * its previous working directory. On the first state snapshot, absent
+	 * optional fields retain catalogue metadata for compatibility; a later
+	 * present-to-absent transition clears them.
+	 */
+	applySessionStateMetadata(metadata: AgentHostSessionStateMetadata, previous: SessionState | undefined): boolean {
+		let didChange = false;
+		transaction(tx => {
+			if (metadata.project !== undefined || previous?.project !== undefined) {
+				this._project = metadata.project;
+			}
+			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
+				this._workingDirectories = metadata.workingDirectories;
+			}
+			if (metadata._meta !== undefined || previous?._meta !== undefined) {
+				didChange = this.setMeta(metadata._meta, tx);
+			} else {
+				didChange = this._setWorkspace(this._computeWorkspace(), tx);
+			}
+		});
+		return didChange;
+	}
+
+	/**
+	 * Applies project and working-directory fields from a session-summary delta.
+	 * Property presence distinguishes an omitted field from an explicit clear.
+	 */
+	applySessionSummaryWorkspaceMetadata(metadata: AgentHostSessionSummaryWorkspaceMetadata, tx: ITransaction): boolean {
+		let didChange = false;
+		if (Object.prototype.hasOwnProperty.call(metadata, 'project')) {
+			const project = metadata.project;
+			const projectMatches = this._project === project
+				|| (!!this._project && !!project && this._project.displayName === project.displayName && isEqual(this._project.uri, project.uri));
+			if (!projectMatches) {
+				this._project = project;
+				didChange = true;
+			}
+		}
+		if (Object.prototype.hasOwnProperty.call(metadata, 'workingDirectories')) {
+			const workingDirectories = metadata.workingDirectories;
+			const directoriesMatch = this._workingDirectories === workingDirectories
+				|| (!!this._workingDirectories && !!workingDirectories && arrayEquals(this._workingDirectories, workingDirectories, (a, b) => isEqual(a, b)));
+			if (!directoriesMatch) {
+				this._workingDirectories = workingDirectories;
+				didChange = true;
+			}
+		}
+		if (didChange) {
+			this._setWorkspace(this._computeWorkspace(), tx);
+		}
 		return didChange;
 	}
 
@@ -1731,17 +1788,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._worktreeIsolation.set(isolated, undefined);
 	}
 
-	/**
-	 * Heal an adapter born mis-classified because the path that materialized it
-	 * carried no `_meta` (a stale persisted cache, an older host). One-way: an
-	 * absent marker means "not included", never "cleared", so a quick chat is
-	 * never demoted back into a workspace session rooted at its scratch cwd.
-	 */
-	private _promoteToQuickChatIfWorkspaceless(tx: ITransaction): boolean {
-		if (this._isQuickChat.get() || !readSessionWorkspaceless(this._meta)) {
+	private _syncQuickChatFromMeta(tx: ITransaction): boolean {
+		const isQuickChat = readSessionWorkspaceless(this._meta);
+		if (this._isQuickChat.get() === isQuickChat) {
 			return false;
 		}
-		this._isQuickChat.set(true, tx);
+		this._isQuickChat.set(isQuickChat, tx);
 		return true;
 	}
 
@@ -5438,7 +5490,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
-		this._applySessionMetaFromState(sessionId, state);
+		this._applySessionMetadataFromState(sessionId, state, previous);
 		this._applyChatCatalogFromState(sessionId, state);
 
 		if (!previous) {
@@ -5541,7 +5593,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _applySessionMetaFromState(sessionId: string, state: SessionState): void {
+	private _applySessionMetadataFromState(sessionId: string, state: SessionState, previous: SessionState | undefined): void {
 		const rawId = this._rawIdFromChatId(sessionId);
 		if (!rawId) {
 			return;
@@ -5551,7 +5603,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		if (cached.setMeta(state._meta)) {
+		const metadata: AgentHostSessionStateMetadata = {
+			project: state.project ? {
+				displayName: state.project.displayName,
+				uri: this.mapProjectUri(URI.parse(state.project.uri)),
+			} : undefined,
+			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
+			_meta: state._meta,
+		};
+		if (cached.applySessionStateMetadata(metadata, previous)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -5699,6 +5759,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				changes: adapter.changesSummary.get(),
 				// A project assigned by `backfillProject` lives only on the adapter.
 				project: adapter.project ?? base.project,
+				// Session-state and summary updates can relocate an existing session.
+				workingDirectories: adapter.workingDirectories,
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,
@@ -6097,7 +6159,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
+	private _handleSessionSummaryChanged(session: string, changes: SessionSummaryChanges): void {
 		// Set when a delta clears the adoptable-legacy marker so we can reopen the
 		// passive state subscription after the transaction commits (the observable
 		// updates in `_ensureSessionStateSubscription` must not run nested in `tx`).
@@ -6145,6 +6207,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity, tx)) {
+				didChange = true;
+			}
+
+			const workspaceMetadata: AgentHostSessionSummaryWorkspaceMetadata = {};
+			if (Object.prototype.hasOwnProperty.call(changes, 'project')) {
+				workspaceMetadata.project = changes.project ? {
+					displayName: changes.project.displayName,
+					uri: this.mapProjectUri(URI.parse(changes.project.uri)),
+				} : undefined;
+			}
+			if (Object.prototype.hasOwnProperty.call(changes, 'workingDirectories')) {
+				workspaceMetadata.workingDirectories = changes.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory)));
+			}
+			if (cached.applySessionSummaryWorkspaceMetadata(workspaceMetadata, tx)) {
 				didChange = true;
 			}
 

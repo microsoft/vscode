@@ -28,6 +28,7 @@ import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/m
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -238,7 +239,7 @@ suite('MultiDiffEditorWidget', () => {
 			{} satisfies IWorkbenchUIElementFactory,
 			{ variant: MultiDiffEditorVariant.Standard },
 		);
-		widget.setRenderSideBySide(true, { useInlineViewWhenSpaceIsLimited: true });
+		widget.setViewMode('automatic');
 		widget.layout(new Dimension(800, 600));
 		const viewModel = widget.createViewModel(model);
 		await waitForState(viewModel.items, items => items.length === 1);
@@ -248,6 +249,7 @@ suite('MultiDiffEditorWidget', () => {
 		try {
 			const activeControl = widget.getActiveControl();
 			const renderSideBySideWhenNarrow = activeControl?.renderSideBySide;
+			const automaticLayoutWhenNarrow = widget.getContextKeyService().getContextKeyValue(EditorContextKeys.diffEditorAutomaticRenderSideBySide.key);
 			widget.layout(new Dimension(1000, 600));
 			assert.deepStrictEqual({
 				configuredAccessibilitySupport: updateOptionsSpy.firstCall.args[0].accessibilitySupport,
@@ -255,6 +257,8 @@ suite('MultiDiffEditorWidget', () => {
 				configuredUseInlineViewWhenSpaceIsLimited: updateOptionsSpy.firstCall.args[0].useInlineViewWhenSpaceIsLimited,
 				renderSideBySideWhenNarrow,
 				renderSideBySideWhenWide: activeControl?.renderSideBySide,
+				automaticLayoutWhenNarrow,
+				automaticLayoutWhenWide: widget.getContextKeyService().getContextKeyValue(EditorContextKeys.diffEditorAutomaticRenderSideBySide.key),
 				optionsAppliedBeforeModel: updateOptionsSpy.calledBefore(setDiffModelSpy),
 				effectiveAccessibilitySupport: activeControl?.getModifiedEditor().getOption(EditorOption.accessibilitySupport),
 			}, {
@@ -263,6 +267,8 @@ suite('MultiDiffEditorWidget', () => {
 				configuredUseInlineViewWhenSpaceIsLimited: true,
 				renderSideBySideWhenNarrow: false,
 				renderSideBySideWhenWide: true,
+				automaticLayoutWhenNarrow: false,
+				automaticLayoutWhenWide: true,
 				optionsAppliedBeforeModel: true,
 				effectiveAccessibilitySupport: AccessibilitySupport.Disabled,
 			});

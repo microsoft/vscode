@@ -33,7 +33,7 @@ suite('GitHubTransport', () => {
 		}
 	}
 
-	test('always reaches the injected fetch with explicit no-store behavior', async () => {
+	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
 			server.enqueue(
 				gitHubRestStep({ method: 'GET', path: '/repos/o/r/issues/1', response: gitHubJsonResponse({ value: 1 }) }),
@@ -60,8 +60,8 @@ suite('GitHubTransport', () => {
 				values: [1, 2],
 				serverRequests: 2,
 				fetchOptions: [
-					{ cache: 'no-store', cacheControl: 'no-store' },
-					{ cache: 'no-store', cacheControl: 'no-store' },
+					{ cache: 'no-store', cacheControl: undefined },
+					{ cache: 'no-store', cacheControl: undefined },
 				],
 			});
 			server.assertSatisfied();
@@ -245,7 +245,7 @@ suite('GitHubTransport', () => {
 				errors: [{ message: 'field denied', type: 'FORBIDDEN', path: ['repository', 'viewerPermission'] }],
 				rateLimit: { limit: 5000, remaining: 7, used: 3, resetAt: Date.parse('2030-01-01T00:00:00.000Z') },
 				authorizationIsExpected: true,
-				requestHeaders: { cacheControl: 'no-store', authorization: '******' },
+				requestHeaders: { cacheControl: undefined, authorization: '******' },
 			});
 			server.assertSatisfied();
 		});

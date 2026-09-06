@@ -7,7 +7,7 @@ import { constObservable, derived, derivedObservableWithCache, IObservable, IRea
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -54,17 +54,19 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		const requestChanges = this.getChangesForRequest(sessionResource, requestId);
 
 		return derivedObservableWithCache<IChatResponseFileChangesStats>(this, (reader, lastValue) => {
+			const requestDiffs = requestChanges?.read(reader) ?? [];
 			const readRequestStats = (): IChatResponseFileChangesStats => {
-				const changes = requestChanges?.read(reader) ?? [];
 				let insertions = 0, deletions = 0;
-				for (const change of changes) {
+				for (const change of requestDiffs) {
 					insertions += change.added;
 					deletions += change.removed;
 				}
-				return { files: changes.length, insertions, deletions };
+				return { files: requestDiffs.length, insertions, deletions };
 			};
 			let stats: IChatResponseFileChangesStats;
-			if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
+			if (requestDiffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES) {
+				stats = readRequestStats();
+			} else if (!isEqual(this._changesViewService.activeSessionResourceObs.read(reader), owner.session.resource)
 				|| !this._isMostRecentChat(owner.session, owner.chat, reader)) {
 				stats = readRequestStats();
 			} else {

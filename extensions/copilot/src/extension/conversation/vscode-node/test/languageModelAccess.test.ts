@@ -691,6 +691,12 @@ suite('reasoning effort schema', () => {
 		assert.deepStrictEqual(prop.enum, ['low', 'high']);
 		assert.strictEqual(prop.group, 'navigation');
 	});
+
+	test('buildReasoningEffortSchemaProperty honors a default override only when advertised', () => {
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', 'medium').default, 'medium');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'high'], 'claude-opus-4.5', 'medium').default, 'high');
+		assert.strictEqual(buildReasoningEffortSchemaProperty(['low', 'medium', 'high'], 'claude-opus-4.5', undefined).default, 'high');
+	});
 });
 
 suite('auto mode tier schema', () => {

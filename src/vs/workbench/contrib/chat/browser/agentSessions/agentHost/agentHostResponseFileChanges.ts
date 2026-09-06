@@ -17,6 +17,7 @@ import {
 	buildDefaultChatUri,
 	ChangesetStatus,
 	FileEditKind,
+	isHostNoticeTurn,
 	readSessionEhcliLastMigratedTurn,
 	ResponsePartKind,
 	StateComponents,
@@ -41,14 +42,16 @@ const REQUEST_CACHE_CAPACITY = 1000;
  * Where a turn's diffs came from, for tracing. `retained` means every source
  * was momentarily empty and the previous result was kept instead.
  */
-type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'response' | 'branchFallback' | 'retained';
+type TurnDiffSource = 'unsupported' | 'changeset' | 'authoritativeEmpty' | 'hostNotice' | 'response' | 'branchFallback' | 'retained';
 
 interface IResponseFileEdits {
 	readonly diffs: readonly IChatResponseFileEdit[];
 	readonly hasValidEdits: boolean;
+	readonly isHostNotice: boolean;
 }
 
-const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false };
+const EMPTY_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false, isHostNotice: false };
+const HOST_NOTICE_RESPONSE_FILE_EDITS: IResponseFileEdits = { diffs: [], hasValidEdits: false, isHostNotice: true };
 
 function uriArrayEquals(a: readonly URI[], b: readonly URI[]): boolean {
 	return a.length === b.length && a.every((uri, index) => isEqual(uri, b[index]));
@@ -209,6 +212,10 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		// before anything has been shown.
 		return derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const retained = lastValue ?? [];
+			const responseFileEdits = responseFileEditsObs.read(reader);
+			if (responseFileEdits.isHostNotice) {
+				return select('hostNotice', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES);
+			}
 
 			const turnUri = turnChangesetUriObs.read(reader);
 			const changesetState = turnUri ? changesetStateObs.read(reader).read(reader) : undefined;
@@ -240,7 +247,6 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				return select('authoritativeEmpty', AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset.status);
 			}
 
-			const responseFileEdits = responseFileEditsObs.read(reader);
 			return responseFileEdits.hasValidEdits
 				? select('response', responseFileEdits.diffs.length > 0 ? responseFileEdits.diffs : AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, changeset?.status)
 				: select('retained', retained, changeset?.status);
@@ -336,6 +342,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 					? chatState.activeTurn
 					: chatState.turns.find(turn => turn.id === requestId);
 				if (turn) {
+					if (turn.message?.origin && isHostNoticeTurn(turn)) {
+						return HOST_NOTICE_RESPONSE_FILE_EDITS;
+					}
 					return this._responsePartsToEntryDiffs(turn.responseParts, workspaceRoots);
 				}
 			}
@@ -391,7 +400,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				}
 			}
 		}
-		return { diffs: [...byUri.values()], hasValidEdits };
+		return { diffs: [...byUri.values()], hasValidEdits, isHostNotice: false };
 	}
 
 	private _fileEditToEntryDiff(fileEdit: ISessionFileDiff, workspaceRoots: readonly URI[]): IChatResponseFileEdit | undefined {

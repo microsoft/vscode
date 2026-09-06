@@ -18,6 +18,5 @@
 	color: var(--vscode-agentsBadge-foreground);
 	font-size: var(--vscode-fontSize-label3);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: normal;
 	opacity: 1;
 }

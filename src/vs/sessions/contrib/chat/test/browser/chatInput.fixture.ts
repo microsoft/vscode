@@ -102,7 +102,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		})
 	}),
 	ResponsiveModelResizeCycleCompact: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control while the model configuration remains visible.'],
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {

@@ -216,6 +216,7 @@ export function createTestAgentService(
 		options,
 		accessor,
 		instantiationService,
+		services,
 		logService,
 		sessionDataService,
 		foundation,

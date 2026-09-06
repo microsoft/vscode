@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { DiffEditorViewMode, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { ICodeEditor } from '../../editorBrowser.js';
@@ -115,6 +115,15 @@ export class MultiDiffEditorWidget extends Disposable {
 		}, undefined);
 	}
 
+	public setViewMode(mode: DiffEditorViewMode): void {
+		const currentOptions = this._diffLayoutOptions.get();
+		const wasAutomatic = currentOptions?.renderSideBySide === true && currentOptions.useInlineViewWhenSpaceIsLimited === true;
+		this.setRenderSideBySide(mode !== 'inline', { useInlineViewWhenSpaceIsLimited: mode === 'automatic' });
+		if (mode === 'automatic' && !wasAutomatic) {
+			this.resetWidthBasedLayout();
+		}
+	}
+
 	public toggleRenderSideBySide(): void {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
@@ -162,6 +171,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public getScopedInstantiationService(): IInstantiationService {
 		return this._widgetImpl.get().getScopedInstantiationService();
+	}
+
+	public resetWidthBasedLayout(): void {
+		this._widgetImpl.get().resetWidthBasedLayout();
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {

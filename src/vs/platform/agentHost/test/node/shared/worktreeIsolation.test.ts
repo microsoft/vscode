@@ -13,7 +13,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -1100,6 +1100,31 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			resolvedWorktree: undefined,
+		});
+	});
+
+	test('discardSessionWorktree removes provisional worktree metadata', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		await isolation.discardSessionWorktree(sessionUri, sessionId, await isolation.prepareSessionDeletion(sessionUri, sessionId));
+
+		assert.deepStrictEqual({
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			metadata: await db.getMetadataObject({
+				'copilot.worktree.branchName': true,
+				'copilot.worktree.path': true,
+				'copilot.worktree.repositoryRoot': true,
+				[META_DIFF_BASE_BRANCH]: true,
+			}),
+		}, {
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			metadata: {
+				'copilot.worktree.branchName': undefined,
+				'copilot.worktree.path': undefined,
+				'copilot.worktree.repositoryRoot': undefined,
+				[META_DIFF_BASE_BRANCH]: undefined,
+			},
 		});
 	});
 

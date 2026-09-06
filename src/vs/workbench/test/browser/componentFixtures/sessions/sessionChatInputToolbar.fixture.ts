@@ -9,9 +9,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -195,7 +192,7 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 // Render helpers
 // ============================================================================
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly enabled?: boolean; readonly width?: string }): void {
+function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly width?: string }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -220,8 +217,6 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 			}
 		},
 	});
-
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options?.enabled ?? true);
 
 	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
 	pills.setSession(sessionMock.session, sessionMock.chat);
@@ -252,11 +247,6 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			}
 			: undefined,
 		decorateInputPart: (inputPart, instantiationService) => {
-			// The fixture's test configuration has no product defaults, so opt in
-			// explicitly to make sure the pills render.
-			instantiationService.invokeFunction(accessor => {
-				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
-			});
 			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
@@ -531,7 +521,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_DebugFakeData: defineComponentFixture({
 		render: ctx => renderPills(ctx, createMockSession({ providerId: 'debug-provider' }), {
-			enabled: false,
 			debugData: {
 				stats: { files: 7, insertions: 128, deletions: 34 },
 				markdownFiles: ['README.md', 'CONTRIBUTING.md', 'docs/testing.md'],
@@ -652,9 +641,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
-					instantiationService.invokeFunction(accessor => {
-						(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, true);
-					});
 					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);

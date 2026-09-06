@@ -122,6 +122,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		this._updateButtons();
 	}
 
+	/** Whether focus is inside the rendered options, where re-rendering would move focus to the body. */
+	hasFocusedOption(): boolean {
+		return dom.isAncestorOfActiveElement(this._optionsContainer);
+	}
+
 	shouldClearInputForRefresh(): boolean {
 		const selectedOption = this._buttons.find(candidate => candidate.option.id === this._selectedOptionId)?.option;
 		return this._selecting || this._inputValue.length === 0 || matchesGeneratedPrompt(selectedOption, this._inputValue);

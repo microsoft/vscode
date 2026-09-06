@@ -16,6 +16,7 @@ import { ISessionWorkspace } from '../common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
+const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 
@@ -24,6 +25,17 @@ export function isWorktreeWorkspaceUri(uri: URI): boolean {
 		const normalizedSegment = segment.toLowerCase();
 		return normalizedSegment.endsWith('.worktrees') || normalizedSegment === 'copilot-worktrees';
 	});
+}
+
+function getRepositoryUriForWorktree(uri: URI): URI | undefined {
+	const segments = uri.path.split('/');
+	const worktreesIndex = segments.findIndex(segment => segment.toLowerCase().endsWith('.worktrees'));
+	if (worktreesIndex < 0) {
+		return undefined;
+	}
+	const worktreesSegment = segments[worktreesIndex];
+	segments[worktreesIndex] = worktreesSegment.slice(0, -'.worktrees'.length);
+	return uri.with({ path: segments.slice(0, worktreesIndex + 1).join('/') || '/' });
 }
 
 /** A recently used folder, resolved to its workspace. `checked` marks the currently selected folder in the new-session workspace picker. */
@@ -56,16 +68,22 @@ export interface ISessionsRecentWorkspacesService {
 	 * only. The new-session workspace picker checks this history before
 	 * considering VS Code's recently opened folders.
 	 */
-	getRecentWorkspaces(includeVSCodeRecents?: boolean): IRecentWorkspace[];
+	getRecentWorkspaces(includeVSCodeRecents?: boolean, collapseWorktrees?: boolean): IRecentWorkspace[];
 
 	/** Records `folderUri` as most-recently used; `checked` un-checks every other entry. */
 	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void;
 
 	/** Removes `folderUri` from the recent list, wherever it came from (own history or VS Code's recents). */
-	removeRecentWorkspace(folderUri: URI): void;
+	removeRecentWorkspace(folderUri: URI, removeCollapsedWorktrees?: boolean): void;
 
 	/** Clears the `checked` flag on every recent entry. */
 	clearCheckedWorkspace(): void;
+
+	/** Whether "No workspace" is the checked new-session target. */
+	isNoWorkspaceChecked(): boolean;
+
+	/** Marks "No workspace" as checked and un-checks every recent workspace. */
+	checkNoWorkspace(): void;
 }
 
 /** Exported for direct instantiation in tests; consumers should depend on {@link ISessionsRecentWorkspacesService}. */
@@ -90,12 +108,30 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._refreshVSCodeRecentWorkspaces()));
 	}
 
-	getRecentWorkspaces(includeVSCodeRecents = true): IRecentWorkspace[] {
-		const own = this._getStoredRecentWorkspaces();
+	getRecentWorkspaces(includeVSCodeRecents = true, collapseWorktrees = false): IRecentWorkspace[] {
+		const storedOwn = this._getStoredRecentWorkspaces();
 		if (!includeVSCodeRecents) {
-			return this._resolveStored(own);
+			return this._resolveStored(storedOwn);
 		}
 
+		const availableUris = new Set([
+			...storedOwn.map(entry => URI.revive(entry.uri)),
+			...this._vsCodeRecentFolderUris,
+		].map(uri => this.uriIdentityService.extUri.getComparisonKey(uri)));
+		const seenOwnUris = new Set<string>();
+		const own = storedOwn.flatMap(entry => {
+			const uri = URI.revive(entry.uri);
+			const repositoryUri = collapseWorktrees ? getRepositoryUriForWorktree(uri) : undefined;
+			const displayUri = repositoryUri && availableUris.has(this.uriIdentityService.extUri.getComparisonKey(repositoryUri))
+				? repositoryUri
+				: uri;
+			const key = this.uriIdentityService.extUri.getComparisonKey(displayUri);
+			if (seenOwnUris.has(key)) {
+				return [];
+			}
+			seenOwnUris.add(key);
+			return [{ ...entry, uri: displayUri.toJSON() }];
+		});
 		const ownUris = new Set(own.map(o => this.uriIdentityService.extUri.getComparisonKey(URI.revive(o.uri))));
 		const vsCode = this._vsCodeRecentFolderUris
 			.filter(uri => !ownUris.has(this.uriIdentityService.extUri.getComparisonKey(uri)))
@@ -132,21 +168,44 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 
 		const entry: IStoredRecentWorkspace = { uri: folderUri.toJSON(), providerId, checked };
 		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		if (checked) {
+			this.storageService.remove(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE);
+		}
 		this._persistRecentWorkspaces(updated);
 	}
 
-	removeRecentWorkspace(folderUri: URI): void {
+	removeRecentWorkspace(folderUri: URI, removeCollapsedWorktrees = false): void {
 		const recents = this._getStoredRecentWorkspaces();
-		const updated = recents.filter(p => !this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri));
+		const matchesRemovedWorkspace = (candidate: URI): boolean => {
+			if (this.uriIdentityService.extUri.isEqual(candidate, folderUri)) {
+				return true;
+			}
+			const repositoryUri = removeCollapsedWorktrees ? getRepositoryUriForWorktree(candidate) : undefined;
+			return !!repositoryUri && this.uriIdentityService.extUri.isEqual(repositoryUri, folderUri);
+		};
+		const updated = recents.filter(p => !matchesRemovedWorkspace(URI.revive(p.uri)));
 		if (updated.length !== recents.length) {
 			this._persistRecentWorkspaces(updated);
 		}
-		this.workspacesService.removeRecentlyOpened([folderUri]);
+		const vsCodeUris = this._vsCodeRecentFolderUris.filter(matchesRemovedWorkspace);
+		this.workspacesService.removeRecentlyOpened([folderUri, ...vsCodeUris]);
 	}
 
 	clearCheckedWorkspace(): void {
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.map(p => ({ ...p, checked: false }));
+		this.storageService.remove(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE);
+		this._persistRecentWorkspaces(updated);
+	}
+
+	isNoWorkspaceChecked(): boolean {
+		return this.storageService.getBoolean(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE, false);
+	}
+
+	checkNoWorkspace(): void {
+		const recents = this._getStoredRecentWorkspaces();
+		const updated = recents.map(p => ({ ...p, checked: false }));
+		this.storageService.store(STORAGE_KEY_NO_WORKSPACE_CHECKED, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._persistRecentWorkspaces(updated);
 	}
 

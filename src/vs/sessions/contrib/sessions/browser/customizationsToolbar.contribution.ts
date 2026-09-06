@@ -7,6 +7,7 @@ import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -17,15 +18,15 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { ICustomizationMigrationAvailabilityService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { $, append, reset } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -33,8 +34,12 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { SessionIsCreatedContext } from '../../../common/contextkeys.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -61,10 +66,13 @@ function customizationSectionVisibleKey(section: string): string {
 }
 
 const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
-	id: 'sessions.customization.overview',
+	id: OPEN_CUSTOMIZATIONS_COMMAND_ID,
 	label: localize('overview', "Overview"),
 	icon: Codicon.home,
 };
+
+const CUSTOMIZATION_ENTRY_POINTS_ENABLED = ContextKeyExpr.equals(`config.${ChatConfiguration.CustomizationEntryPoints}`, true);
+const CUSTOMIZATION_ENTRY_POINTS_DISABLED = ContextKeyExpr.equals(`config.${ChatConfiguration.CustomizationEntryPoints}`, false);
 
 export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
@@ -124,14 +132,17 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
-	const session = sessionsService.activeSession.get();
+export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, session?: IActiveSession): Promise<void> {
 	if (session) {
-		harnessService.setActiveSession(session.resource);
+		sessionsService.setActive(session);
+	}
+	const targetSession = session ?? sessionsService.activeSession.get();
+	if (targetSession) {
+		harnessService.setActiveSession(targetSession.resource);
 	}
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	input.setTargetLabels(harnessService.getActiveDescriptor().label, targetSession?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
@@ -244,6 +255,80 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 	}
 }
 
+function isActiveSessionContext(context: unknown): context is IActiveSession {
+	return typeof context === 'object' && context !== null && 'sessionId' in context && 'resource' in context && 'workspace' in context;
+}
+
+class CustomizationsToolbarActionViewItem extends ActionViewItem {
+	private readonly session = observableValue<IActiveSession | undefined>(this, undefined);
+	private tooltip = '';
+
+	constructor(
+		action: IAction,
+		options: IActionViewItemOptions,
+		@ISessionsService sessionsService: ISessionsService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+		@ICustomizationMigrationAvailabilityService migrationAvailabilityService: ICustomizationMigrationAvailabilityService,
+	) {
+		super(undefined, action, { ...options, icon: true, label: true });
+
+		this._register(autorun(reader => {
+			const session = this.session.read(reader);
+			const activeSession = sessionsService.activeSession.read(reader);
+			harnessService.activeHarness.read(reader);
+			harnessService.availableHarnesses.read(reader);
+			const isActiveSession = session?.sessionId === activeSession?.sessionId;
+			const harnessLabel = session
+				? isActiveSession
+					? harnessService.getActiveDescriptor().label
+					: harnessService.findHarnessById(findHarnessIdForSession(session, harnessService) ?? '')?.label
+				: undefined;
+			const workspaceLabel = session?.workspace.read(reader)?.folders[0]?.name;
+			const hasMigrations = isActiveSession && migrationAvailabilityService.candidateCount.read(reader) > 0;
+			this.updatePresentation(harnessLabel, workspaceLabel, hasMigrations);
+		}));
+	}
+
+	override setActionContext(context: unknown): void {
+		super.setActionContext(context);
+		this.session.set(isActiveSessionContext(context) ? context : undefined, undefined);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('sessions-customize-toolbar-action');
+	}
+
+	protected override getTooltip(): string {
+		return this.tooltip;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const text = $('span.sessions-customize-toolbar-label');
+			text.textContent = localize('customizeActionLabel', "Customize");
+			reset(this.label, text);
+		}
+	}
+
+	private updatePresentation(harnessLabel: string | undefined, workspaceLabel: string | undefined, hasMigrations: boolean): void {
+		let tooltip: string;
+		if (harnessLabel && workspaceLabel) {
+			tooltip = localize('customizeHarnessForWorkspace', "Customize {0} for {1}", harnessLabel, workspaceLabel);
+		} else if (harnessLabel) {
+			tooltip = localize('customizeHarness', "Customize {0}", harnessLabel);
+		} else if (workspaceLabel) {
+			tooltip = localize('customizeWorkspace', "Customize for {0}", workspaceLabel);
+		} else {
+			tooltip = localize('openCustomizationsTooltip', "Open Customizations");
+		}
+		this.tooltip = hasMigrations
+			? localize('customizeMigrationsAvailable', "{0}, migrations available", tooltip)
+			: tooltip;
+		this.updateTooltip();
+	}
+}
+
 // --- Register actions and view items --- //
 
 export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
@@ -287,25 +372,41 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
 		}, undefined));
+		this._register(actionViewItemService.register(Menus.SessionBarToolbar, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
+			return instantiationService.createInstance(CustomizationsToolbarActionViewItem, action, options);
+		}, undefined));
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
-					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
-					menu: {
+					title: localize('openCustomizations', "Open Customizations"),
+					icon: Codicon.tools,
+					precondition: ChatContextKeys.enabled,
+					menu: [{
 						id: Menus.SidebarCustomizations,
 						group: 'navigation',
 						order: 0,
-						when: ChatContextKeys.enabled,
-					}
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, CUSTOMIZATION_ENTRY_POINTS_DISABLED),
+					}, {
+						id: Menus.SessionBarToolbar,
+						group: 'navigation',
+						order: 10,
+						when: ContextKeyExpr.and(SessionIsCreatedContext, ChatContextKeys.enabled, CUSTOMIZATION_ENTRY_POINTS_ENABLED),
+					}, {
+						id: Menus.SessionHeaderContext,
+						group: '2_edit',
+						order: 2,
+						when: ContextKeyExpr.and(SessionIsCreatedContext, ChatContextKeys.enabled, CUSTOMIZATION_ENTRY_POINTS_ENABLED),
+					}],
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 				await openCustomizationOverviewPage(
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
 					accessor.get(ISessionsService),
+					session,
 				);
 			}
 		}));
@@ -322,8 +423,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 
 			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
 			const combinedWhen = config.when
-				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
-				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
+				? ContextKeyExpr.and(ChatContextKeys.enabled, CUSTOMIZATION_ENTRY_POINTS_DISABLED, sectionVisibleWhen, config.when)
+				: ContextKeyExpr.and(ChatContextKeys.enabled, CUSTOMIZATION_ENTRY_POINTS_DISABLED, sectionVisibleWhen);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {

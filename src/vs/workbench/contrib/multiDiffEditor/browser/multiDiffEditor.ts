@@ -31,6 +31,7 @@ import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/mult
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
@@ -49,6 +50,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
+	}
+
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this._multiDiffEditorWidget?.getContextKeyService();
 	}
 
 	constructor(
@@ -146,6 +151,14 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override getControl(): ICompositeControl | undefined {
 		return this._multiDiffEditorWidget!.getActiveControl();
+	}
+
+	setDiffEditorViewMode(mode: DiffEditorViewMode): void {
+		this._multiDiffEditorWidget?.setViewMode(mode);
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this._multiDiffEditorWidget?.resetWidthBasedLayout();
 	}
 
 	override focus(): void {

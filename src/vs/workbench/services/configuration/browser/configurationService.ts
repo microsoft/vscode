@@ -1438,15 +1438,17 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 					}
 				}
 				const registeredDefault = this.registeredExperimentalDefaults.get(property);
+				if (registeredDefault && equals(registeredDefault.overrides[property], value)) {
+					// Already applied: the registry mutated `schema.default` to this value, so re-checking drops it.
+					continue;
+				}
 				if (this.shouldOverride(value, schema)) {
-					if (!equals(registeredDefault?.overrides[property], value)) {
-						if (registeredDefault) {
-							removedDefaults.push(registeredDefault);
-						}
-						const nextDefault = { overrides: { [property]: value }, source: 'experiments' } satisfies IConfigurationDefaults;
-						this.registeredExperimentalDefaults.set(property, nextDefault);
-						addedDefaults.push(nextDefault);
+					if (registeredDefault) {
+						removedDefaults.push(registeredDefault);
 					}
+					const nextDefault = { overrides: { [property]: value }, source: 'experiments' } satisfies IConfigurationDefaults;
+					this.registeredExperimentalDefaults.set(property, nextDefault);
+					addedDefaults.push(nextDefault);
 				} else if (registeredDefault) {
 					this.registeredExperimentalDefaults.delete(property);
 					removedDefaults.push(registeredDefault);

@@ -15,8 +15,9 @@ import { AgentSession } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
@@ -1826,11 +1827,11 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 	});
 
 	/**
-	 * A host notice turn captures no checkpoint, so picking it as the session's
-	 * latest turn drops the session changeset onto the edit tracker, which
-	 * cannot see terminal-tool edits.
+	 * A workspace continuation is a real provider turn even though its request
+	 * row is hidden; a later pure host notice must not replace it as the latest
+	 * attributable turn.
 	 */
-	test('session changeset keeps its git fast path when the chat ends on a host notice turn', async () => {
+	test('session changeset attributes a hidden workspace continuation before a host notice', async () => {
 		const git = createNoopGitService();
 		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
 		const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
@@ -1841,15 +1842,22 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
 			getBaselineCheckpoint: async () => 'baseline',
-			// Mirrors production: only the agent's turn has a checkpoint.
 			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
-				turnId === 'agent-turn' ? { parent: 'agent~p', current: 'agent~c' } : undefined,
+				turnId === 'continuation-turn' ? { parent: 'continuation~p', current: 'continuation~c' } : undefined,
 		};
 		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
 
 		const chat = buildDefaultChatUri(sessionStr);
 		for (const turn of [
 			{ id: 'agent-turn', message: { text: 'Edit edited.ts', origin: { kind: MessageKind.User } } },
+			{
+				id: 'continuation-turn',
+				message: withMessageRequestHiddenFromTranscript({
+					text: 'Continue in the requested workspace.',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentWorkspaceContinuationMessageMeta(),
+				}, true),
+			},
 			{
 				id: 'notice-turn',
 				message: withMessageRequestHiddenFromTranscript(
@@ -1869,10 +1877,82 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			diffCalls,
 			files: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id),
 		}, {
-			diffCalls: [{ fromRef: 'baseline', toRef: 'agent~c' }],
+			diffCalls: [{ fromRef: 'baseline', toRef: 'continuation~c' }],
 			files: [URI.file('/wd/edited.ts').toString()],
 		});
 	});
+
+	for (const hidden of [true, false]) {
+		test(`session changeset selects ${hidden ? 'the peer checkpoint after a host notice' : 'a newer real Agent Merge repair checkpoint'}`, async () => {
+			const mainDiff = gitDiff('/wd/a.ts');
+			const peerDiff = gitDiff('/wd/b.ts');
+			const repairDiff = gitDiff('/wd/c.ts');
+			const diffsByCheckpoint = new Map([
+				['main-checkpoint', [mainDiff]],
+				['peer-checkpoint', [mainDiff, peerDiff]],
+				['repair-checkpoint', [mainDiff, peerDiff, repairDiff]],
+			]);
+			const git = createNoopGitService();
+			const diffCalls: Array<{ fromRef: string; toRef: string }> = [];
+			git.computeFileDiffsBetweenRefs = async (_wd, opts) => {
+				diffCalls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
+				return diffsByCheckpoint.get(opts.toRef);
+			};
+			const checkpoints = new Map([
+				['main-edit', 'main-checkpoint'],
+				['peer-edit', 'peer-checkpoint'],
+				['repair', 'repair-checkpoint'],
+			]);
+			const checkpoint: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				getBaselineCheckpoint: async () => 'baseline',
+				getTurnCheckpointPair: async (_session, turnId) => {
+					const current = checkpoints.get(turnId);
+					return current ? { parent: 'baseline', current } : undefined;
+				},
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+			const mainChat = buildDefaultChatUri(sessionStr);
+			const peerChat = buildChatUri(sessionStr, 'peer-1');
+			stateManager.addChat(sessionStr, peerChat);
+
+			for (const [chat, turnId, startedAt] of [
+				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
+				[peerChat, 'peer-edit', '2026-09-05T10:01:00.000Z'],
+			]) {
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt, message: { text: 'Edit a file', origin: { kind: MessageKind.User } } });
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+			}
+
+			const changesetUri = buildSessionChangesetUri(sessionStr);
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, changesetUri);
+
+			stateManager.dispatchServerAction(mainChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: hidden ? 'notice' : 'repair',
+				startedAt: '2026-09-05T10:02:00.000Z',
+				message: withMessageRequestHiddenFromTranscript({
+					text: hidden ? 'Agent Merge is enabled.' : 'Fix the failing checks.',
+					origin: { kind: MessageKind.SystemNotification },
+				}, hidden),
+			});
+			stateManager.dispatchServerAction(mainChat, { type: ActionType.ChatTurnComplete, turnId: hidden ? 'notice' : 'repair', duration: 1000 });
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, changesetUri);
+
+			assert.deepStrictEqual({
+				diffCalls,
+				files: stateManager.getChangesetState(changesetUri)?.files.map(file => file.id),
+			}, {
+				diffCalls: [
+					{ fromRef: 'baseline', toRef: 'peer-checkpoint' },
+					{ fromRef: 'baseline', toRef: hidden ? 'peer-checkpoint' : 'repair-checkpoint' },
+				],
+				files: (hidden ? ['/wd/a.ts', '/wd/b.ts'] : ['/wd/a.ts', '/wd/b.ts', '/wd/c.ts']).map(path => URI.file(path).toString()),
+			});
+		});
+	}
 
 	/**
 	 * All-folder branch summary (AC-3). In a multi-folder session the

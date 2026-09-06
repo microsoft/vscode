@@ -76,8 +76,9 @@ export interface IClaudeAgentSdkService {
 	canLoadWithoutDownload(): Promise<boolean>;
 	/**
 	 * Downloads the SDK if it isn't local yet, without loading the module. This
-	 * is the explicit gesture: background callers gate on
-	 * {@link canLoadWithoutDownload} instead and do without.
+	 * is reserved for user-initiated activation, such as an explicit download
+	 * or restoring chat history. Background callers gate on
+	 * {@link canLoadWithoutDownload} instead.
 	 */
 	ensureAvailable(): Promise<void>;
 

@@ -22,6 +22,7 @@ import { GroupDirection, GroupOrientation } from '../../../workbench/services/ed
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
+import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -29,6 +30,20 @@ interface IViewSize { width: number; height: number }
 class TestDockedEditorInput extends DockedEditorInput {
 	override get typeId(): string { return 'test.dockedEditor'; }
 	override get resource(): undefined { return undefined; }
+}
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && isTelemetryData(data)) {
+			this.events.push({ name: eventName, data });
+		}
+	}
 }
 
 suite('Sessions - Workbench', () => {
@@ -77,6 +92,7 @@ suite('Sessions - Workbench', () => {
 		layoutPolicy: { isPhoneLayout: IObservable<boolean> };
 		_register<T extends IDisposable>(disposable: T): T;
 	}) => void;
+	const logWindowLayout = Reflect.get(Workbench.prototype, 'logWindowLayout') as (this: ITestWorkbench, telemetryService: TestTelemetryService) => void;
 
 	// --- Harness ------------------------------------------------------------
 
@@ -378,6 +394,18 @@ suite('Sessions - Workbench', () => {
 	}
 
 	// --- Notifications ------------------------------------------------------
+
+	test('logs the selected Agents window layout', () => {
+		const telemetryService = new TestTelemetryService();
+
+		logWindowLayout.call(createHost(), telemetryService);
+		logWindowLayout.call(createHost({ single: true }), telemetryService);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/windowLayout', data: { layout: 'classic' } },
+			{ name: 'agents/windowLayout', data: { layout: 'sidePane' } },
+		]);
+	});
 
 	test('uses touch-sized notification rows on phone layouts', () => {
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);

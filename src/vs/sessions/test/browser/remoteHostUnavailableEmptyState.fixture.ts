@@ -44,6 +44,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/remoteHostUnavailable/
 			progress: 'Downloading server (80%)',
 		}),
 	}),
+
+	// A host that supplies its own wording, and whose heading needs no description under it.
+	EnvironmentOffline: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Environment Offline',
+			action: { label: 'Connect', run: () => { } },
+		}),
+	}),
+
+	EnvironmentConnecting: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderUnavailableState(context, {
+			title: 'Connecting to the Environment',
+			progress: 'Connecting...',
+		}),
+	}),
 });
 
 function renderUnavailableState({ container, disposableStore }: ComponentFixtureContext, content: IRemoteHostUnavailableEmptyStateContent): void {
