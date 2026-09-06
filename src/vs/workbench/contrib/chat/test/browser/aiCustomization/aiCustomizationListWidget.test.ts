@@ -141,6 +141,34 @@ suite('aiCustomizationListWidget', () => {
 		}
 	});
 
+	test('collapsible sections support keyboard focus and directional expansion', () => {
+		const disposables = new DisposableStore();
+		const heading = document.createElement('div');
+		const content = document.createElement('div');
+		const changes: boolean[] = [];
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
+		document.body.appendChild(heading);
+
+		try {
+			toggle.focus();
+			const focused = document.activeElement === toggle;
+			const states = [];
+			for (const key of ['ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight']) {
+				toggle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+				states.push(content.hidden);
+			}
+			assert.deepStrictEqual({ tag: toggle.tagName, focused, states, changes }, {
+				tag: 'BUTTON',
+				focused: true,
+				states: [true, true, false, false],
+				changes: [true, false],
+			});
+		} finally {
+			heading.remove();
+			disposables.dispose();
+		}
+	});
+
 	test('collapsible sections create disclosures outside auxiliary document realms', () => {
 		const disposables = new DisposableStore();
 		const auxiliaryDocument = document.implementation.createHTMLDocument();

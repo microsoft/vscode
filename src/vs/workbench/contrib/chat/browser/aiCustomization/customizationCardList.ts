@@ -42,7 +42,7 @@ export function setupCollapsibleSection(
 	initiallyCollapsed: boolean,
 	onDidChange: (collapsed: boolean) => void,
 ): HTMLButtonElement {
-	const toggle = $('.customization-section-toggle') as HTMLButtonElement;
+	const toggle = $<HTMLButtonElement>('button.customization-section-toggle');
 	toggle.type = 'button';
 	headingRow.prepend(toggle);
 	content.id ||= `customization-section-content-${++collapsibleSectionIdPool}`;
@@ -67,6 +67,14 @@ export function setupCollapsibleSection(
 		collapsed = !collapsed;
 		update();
 		onDidChange(collapsed);
+	}));
+	disposables.add(DOM.addDisposableListener(toggle, DOM.EventType.KEY_DOWN, event => {
+		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+			DOM.EventHelper.stop(event, true);
+			if (collapsed !== (event.key === 'ArrowLeft')) {
+				toggle.click();
+			}
+		}
 	}));
 	return toggle;
 }
