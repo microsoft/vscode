@@ -889,5 +889,31 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(cleared, true);
 			strictEqual(container.contains(wrapper), false);
 		});
+
+		test('should not initialize drag and drop if detached before deferred init runs', async () => {
+			const wrapper = document.createElement('div');
+			const container = document.createElement('div');
+
+			let initDndCalled = false;
+			const instance = {
+				_wrapperElement: wrapper,
+				_container: undefined as HTMLElement | undefined,
+				_store: { isDisposed: false },
+				_attachBarrier: { isOpen: () => true, open: () => {} },
+				_dndObserver: { clear() {} },
+				xterm: undefined,
+				_initDragAndDrop() {
+					initDndCalled = true;
+				},
+				attachToElement: TerminalInstance.prototype.attachToElement,
+				detachFromElement: TerminalInstance.prototype.detachFromElement
+			};
+
+			instance.attachToElement(container);
+			instance.detachFromElement();
+
+			await new Promise(resolve => setTimeout(resolve, 10));
+			strictEqual(initDndCalled, false);
+		});
 	});
 });
