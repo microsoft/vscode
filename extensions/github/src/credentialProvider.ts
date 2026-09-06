@@ -12,7 +12,8 @@ const EmptyDisposable: Disposable = { dispose() { } };
 class GitHubCredentialProvider implements CredentialsProvider {
 
 	async getCredentials(host: Uri): Promise<Credentials | undefined> {
-		if (!/github\.com/i.test(host.authority)) {
+		const hostname = host.authority.replace(/:\d+$/, '').toLowerCase();
+		if (hostname !== 'github.com') {
 			return;
 		}
 

@@ -143,9 +143,12 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId } = ScmHistoryItemResolver.parseUri(uri)!;
 
-		const repository = this._scmService.getRepository(repositoryId);
-		const historyProvider = repository?.provider.historyProvider.get();
-		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
+		const repository = await waitForState(observableFromEvent(this,
+			this._scmService.onDidAddRepository,
+			() => this._scmService.getRepository(repositoryId))
+		);
+		const historyProvider = await waitForState(repository.provider.historyProvider);
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
 
 		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
 			historyItemChanges.map(change => {

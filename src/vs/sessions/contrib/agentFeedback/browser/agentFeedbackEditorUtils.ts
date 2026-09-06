@@ -4,64 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-
-/**
- * Find the session that contains the given resource by checking editing sessions,
- * sessions providers, and agent sessions.
- */
-export function getSessionForResource(
-	resourceUri: URI,
-	chatEditingService: IChatEditingService,
-	sessionsManagementService: ISessionsManagementService,
-): URI | undefined {
-	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
-		if (editingEntriesContainResource(editingSession.entries.get(), resourceUri)) {
-			return editingSession.chatSessionResource;
-		}
-	}
-	for (const session of sessionsManagementService.getSessions()) {
-		const changes = session.changes.get();
-		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
-			return session.resource;
-		}
-	}
-
-	return undefined;
-}
-
-export type AgentFeedbackSessionChange = IChatSessionFileChange | IChatSessionFileChange2;
+import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 }
 
-export function changeMatchesResource(change: AgentFeedbackSessionChange, resourceUri: URI): boolean {
+export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {
-		return change.uri.fsPath === resourceUri.fsPath
-			|| change.modifiedUri?.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
+		return isEqual(change.uri, resourceUri)
+			|| isEqual(change.modifiedUri, resourceUri)
+			|| isEqual(change.originalUri, resourceUri);
 	}
 
-	return change.modifiedUri.fsPath === resourceUri.fsPath
-		|| change.originalUri?.fsPath === resourceUri.fsPath;
+	return isEqual(change.modifiedUri, resourceUri)
+		|| isEqual(change.originalUri, resourceUri);
 }
 
 export function getSessionChangeForResource(
 	sessionResource: URI | undefined,
 	resourceUri: URI,
 	sessionsManagementService: ISessionsManagementService,
-): AgentFeedbackSessionChange | undefined {
+): ISessionFileChange | undefined {
 	if (!sessionResource) {
 		return undefined;
 	}
@@ -315,6 +291,19 @@ function renderHunkGroup(
 
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
+
+	const multiDiffInput = input instanceof SessionChangesEditorInput ? input.multiDiffInput : input;
+	if (multiDiffInput instanceof MultiDiffEditorInput) {
+		const items = multiDiffInput.resources.get();
+		if (items) {
+			for (const item of items) {
+				if (item.originalUri) { result.push(item.originalUri); }
+				if (item.modifiedUri) { result.push(item.modifiedUri); }
+			}
+		}
+		return result;
+	}
+
 	const resources = EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH });
 	if (!resources) {
 		return result;
@@ -333,4 +322,31 @@ export function getActiveResourceCandidates(input: Parameters<typeof EditorResou
 	}
 
 	return result;
+}
+
+/** A resource candidate paired with the feedback session it is scoped to. */
+export interface IFeedbackSessionCandidate {
+	/** The first candidate resource that resolved to {@link sessionResource}. */
+	readonly resource: URI;
+	readonly sessionResource: URI;
+}
+
+/**
+ * Maps resource candidates to their feedback session, yielding every distinct
+ * session at most once. A Changes multi-diff contributes an original and a
+ * modified URI per file and can hold thousands of files, so session-scoped work
+ * (resolving the backend, reading feedback, building comments) must run once per
+ * session rather than once per file. Iteration stays lazy so callers keep their
+ * early exit once a session with comments is found.
+ */
+export function* getFeedbackSessionCandidates(candidates: Iterable<URI>, resolveSessionResource: (resource: URI) => URI | undefined): Iterable<IFeedbackSessionCandidate> {
+	const seenSessions = new ResourceSet();
+	for (const resource of candidates) {
+		const sessionResource = resolveSessionResource(resource);
+		if (!sessionResource || seenSessions.has(sessionResource)) {
+			continue;
+		}
+		seenSessions.add(sessionResource);
+		yield { resource, sessionResource };
+	}
 }

@@ -1,0 +1,25 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".
+        - role: assistant
+          content: READY
+        - role: user
+          content: Reply with only the exact code word I asked you to remember.
+    response:
+      content: VIOLET_REHYDRATE
+      stopReason: end_turn

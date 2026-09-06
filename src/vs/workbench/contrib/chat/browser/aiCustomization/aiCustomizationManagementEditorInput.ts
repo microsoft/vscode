@@ -8,13 +8,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
  * This is a singleton-style input with no file resource.
  */
-export class AICustomizationManagementEditorInput extends EditorInput {
+export class AICustomizationManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
@@ -22,6 +23,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private _targetLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -52,11 +54,18 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
+		if (this._targetLabel) {
+			return localize('aiCustomizationManagementEditorNameWithTarget', "Agent Customizations - {0}", this._targetLabel);
+		}
 		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
+	}
+
+	getModalEditorOptions(): IModalEditorOptions {
+		return { compactHeader: true };
 	}
 
 	override async resolve(): Promise<null> {
@@ -91,5 +100,13 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	setTargetLabel(label: string | undefined): void {
+		if (this._targetLabel === label) {
+			return;
+		}
+		this._targetLabel = label;
+		this._onDidChangeLabel.fire();
 	}
 }

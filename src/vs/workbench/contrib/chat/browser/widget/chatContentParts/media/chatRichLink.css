@@ -1,0 +1,466 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Copied and adapted from @vscode/markdown-editor's src/view/editor.css rich-link styles. */
+
+.chat-rich-link {
+	display: inline-flex;
+	align-items: baseline;
+	max-width: min(100%, 52rem);
+	box-sizing: border-box;
+	gap: 0.24em;
+	padding: 1px 0.3em;
+	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-textLink-foreground) 24%, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-button-secondaryBackground);
+	color: inherit;
+	font-size: 1em;
+	line-height: 1.25;
+	text-decoration: none;
+	vertical-align: baseline;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.chat-rich-link:hover {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-button-secondaryHoverBackground);
+	text-decoration: none;
+}
+
+.chat-rich-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-rich-link.chat-rich-link-loading {
+	border-color: var(--vscode-progressBar-background);
+	animation: chat-rich-link-loading-border 1.5s ease-in-out infinite alternate;
+}
+
+.monaco-workbench.monaco-reduce-motion .chat-rich-link.chat-rich-link-loading {
+	animation: none;
+	border-color: var(--vscode-progressBar-background);
+}
+
+.chat-rich-link-icon {
+	flex: none;
+	align-self: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: color-mix(in srgb, var(--vscode-textLink-foreground) 78%, currentColor);
+}
+
+.chat-rich-link-label,
+.chat-rich-link-title,
+.chat-rich-link-detail {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-rich-link-label,
+.chat-rich-link-title {
+	flex: 0 1 auto;
+	min-width: 0;
+	color: var(--vscode-textLink-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-rich-link-title {
+	max-width: 200px;
+}
+
+.chat-rich-link[data-chat-rich-link-kind='session'] :is(.chat-rich-link-label, .chat-rich-link-title) {
+	max-width: 150px;
+}
+
+.chat-rich-link-label[hidden],
+.chat-rich-link-title[hidden],
+.chat-rich-link-reference[hidden] {
+	display: none;
+}
+
+.chat-rich-link-reference {
+	flex: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.92em;
+}
+
+.chat-rich-link-detail {
+	flex: 1 1 auto;
+	min-width: 1.5em;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.92em;
+}
+
+.chat-rich-link-detail::before {
+	content: '·';
+	margin-right: 0.28em;
+}
+
+.chat-rich-link-status {
+	flex: none;
+	display: inline-flex;
+	align-self: center;
+	align-items: center;
+	gap: 0.22em;
+	margin-left: 0.04em;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.86em;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1;
+}
+
+.chat-rich-link-detail[hidden],
+.chat-rich-link-changes[hidden],
+.chat-rich-link-status[hidden] {
+	display: none;
+}
+
+.chat-rich-link-changes {
+	flex: none;
+	display: inline-flex;
+	align-self: center;
+	gap: 0.28em;
+	font-size: 0.86em;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1;
+}
+
+.chat-rich-link-changes::before,
+.chat-rich-link:not(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest'],
+	[data-chat-rich-link-kind='session']
+) .chat-rich-link-primary-status::before {
+	content: '·';
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-rich-link-insertions {
+	color: var(--vscode-charts-green);
+}
+
+.chat-rich-link-deletions {
+	color: var(--vscode-charts-red);
+}
+
+.chat-rich-link .chat-rich-link-status .chat-rich-link-status-icon {
+	flex: none;
+	align-self: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: inherit;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-status='open'],
+	[data-chat-rich-link-status='closed'],
+	[data-chat-rich-link-status='merged'],
+	[data-chat-rich-link-status='draft'],
+	[data-chat-rich-link-status='notPlanned']
+) .chat-rich-link-primary-status {
+	align-self: baseline;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	font-size: 1em;
+	line-height: inherit;
+}
+
+.chat-rich-link-secondary-status {
+	margin-left: 0.06em;
+}
+
+.chat-rich-link-secondary-status::before {
+	content: '·';
+	margin-right: 0.08em;
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-rich-link[data-chat-rich-link-status='success'] .chat-rich-link-primary-status {
+	color: var(--vscode-charts-green);
+}
+
+.chat-rich-link[data-chat-rich-link-secondary-status='success'] .chat-rich-link-secondary-status {
+	color: var(--vscode-charts-green);
+}
+
+.chat-rich-link[data-chat-rich-link-status='warning'] .chat-rich-link-primary-status,
+.chat-rich-link[data-chat-rich-link-secondary-status='warning'] .chat-rich-link-secondary-status,
+.chat-rich-link[data-chat-rich-link-status='pending'] .chat-rich-link-primary-status,
+.chat-rich-link[data-chat-rich-link-secondary-status='pending'] .chat-rich-link-secondary-status {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.chat-rich-link[data-chat-rich-link-status='error'] .chat-rich-link-primary-status,
+.chat-rich-link[data-chat-rich-link-secondary-status='error'] .chat-rich-link-secondary-status {
+	color: var(--vscode-errorForeground);
+}
+
+.chat-rich-link[data-chat-rich-link-kind='issue'] .chat-rich-link-primary-status .chat-rich-link-status-label,
+.chat-rich-link[data-chat-rich-link-kind='pullRequest'] :is(
+	.chat-rich-link-primary-status,
+	.chat-rich-link-secondary-status
+) .chat-rich-link-status-label {
+	display: none;
+}
+
+.chat-rich-link[data-chat-rich-link-status='open'] .chat-rich-link-primary-status {
+	color: var(--vscode-charts-green);
+}
+
+.chat-rich-link[data-chat-rich-link-kind='issue'][data-chat-rich-link-status='closed'] .chat-rich-link-primary-status,
+.chat-rich-link[data-chat-rich-link-status='merged'] .chat-rich-link-primary-status {
+	color: var(--vscode-charts-purple);
+}
+
+.chat-rich-link[data-chat-rich-link-kind='pullRequest'][data-chat-rich-link-status='closed'] .chat-rich-link-primary-status {
+	color: var(--vscode-charts-red);
+}
+
+.chat-rich-link[data-chat-rich-link-status='draft'] .chat-rich-link-primary-status,
+.chat-rich-link[data-chat-rich-link-status='notPlanned'] .chat-rich-link-primary-status {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-rich-link[data-chat-rich-link-kind='pullRequest'][data-chat-rich-link-secondary-status='error'] .chat-rich-link-secondary-status {
+	color: var(--vscode-charts-red);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) {
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 1px var(--vscode-spacing-size60);
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border));
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	vertical-align: -0.5px;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+):hover {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border));
+	background: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) .chat-rich-link-reference {
+	display: none;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) :is(
+	.chat-rich-link-label,
+	.chat-rich-link-title,
+	.chat-rich-link-primary-status,
+	.chat-rich-link-secondary-status
+) {
+	align-self: center;
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) :is(.chat-rich-link-label, .chat-rich-link-title) {
+	position: relative;
+	top: 0.25px;
+	max-width: 200px;
+	color: inherit;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) .chat-rich-link-status {
+	align-items: center;
+	height: 1.25em;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) .chat-rich-link-status-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-spacing-size120);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='issue'],
+	[data-chat-rich-link-kind='pullRequest']
+) .chat-rich-link-secondary-status::before {
+	align-self: center;
+	line-height: inherit;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) {
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 100%;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 16px;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):visited {
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):is(:hover, :active) {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+	background: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-icon {
+	display: inline-flex;
+	flex: 0 0 var(--vscode-codiconFontSize);
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize);
+	line-height: var(--vscode-codiconFontSize);
+}
+
+.interactive-item-container .value .rendered-markdown .chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-icon {
+	position: static;
+	top: auto;
+}
+
+.interactive-item-container .value .rendered-markdown a.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) {
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) :is(.chat-rich-link-label, .chat-rich-link-title) {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	color: inherit;
+	font-weight: inherit;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) :is(
+	.chat-rich-link-detail,
+	.chat-rich-link-reference,
+	.chat-rich-link-changes,
+	.chat-rich-link-secondary-status
+) {
+	display: none;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status {
+	display: none;
+	align-items: center;
+	height: var(--vscode-codiconFontSize-compact);
+	margin-left: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+):is(
+	[data-chat-rich-link-status='pending'],
+	[data-chat-rich-link-status='warning'],
+	[data-chat-rich-link-status='error']
+) .chat-rich-link-primary-status {
+	display: inline-flex;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status .chat-rich-link-status-label {
+	display: none;
+}
+
+.chat-rich-link:is(
+	[data-chat-rich-link-kind='session'],
+	[data-chat-rich-link-kind='chat']
+) .chat-rich-link-primary-status :is(
+	.chat-rich-link-status-icon,
+	.monaco-pixel-spinner
+) {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.hc-black .chat-rich-link,
+.hc-light .chat-rich-link {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-rich-link.chat-rich-link-loading,
+.hc-light .chat-rich-link.chat-rich-link-loading {
+	animation: none;
+}
+
+@keyframes chat-rich-link-loading-border {
+	from {
+		border-color: color-mix(in srgb, var(--vscode-progressBar-background) 35%, transparent);
+	}
+
+	to {
+		border-color: var(--vscode-progressBar-background);
+	}
+}

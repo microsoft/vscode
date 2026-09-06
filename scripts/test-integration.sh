@@ -17,6 +17,7 @@ RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
 HELP=false
+AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -51,13 +52,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Known suite names (used for help text and validation)
-KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html"
+KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html"
 
 if $HELP; then
 	echo "Usage: $0 [options]"
 	echo ""
 	echo "Runs integration tests. When no filters are given, all integration tests"
 	echo "(node.js integration tests + extension host tests) are run."
+	echo "Agent Host E2E entrypoints run in parallel before the remaining node.js tests."
 	echo ""
 	echo "--run and --runGlob select which node.js integration test files to load."
 	echo "Extension host tests are skipped when these options are used."
@@ -171,7 +173,12 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo "### node.js integration tests"
 	echo
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		./scripts/test.sh --runGlob "**/*.integrationTest.js" "${EXTRA_ARGS[@]}"
+		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
+			echo "Skipping Agent Host E2E tests because no relevant files changed."
+		else
+			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+		fi
+		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi
@@ -304,6 +311,14 @@ echo
 echo "### GitHub Authentication tests"
 echo
 npm run test-extension -- -l github-authentication "${GREP_ARGS[@]}"
+kill_app
+fi
+
+if should_run_suite copilot; then
+echo
+echo "### Copilot tests"
+echo
+npm run test-extension -- -l copilot "${GREP_ARGS[@]}"
 kill_app
 fi
 

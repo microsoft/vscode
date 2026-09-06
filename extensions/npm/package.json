@@ -3,7 +3,7 @@
   "publisher": "vscode",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.1",
+  "version": "10.0.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -21,10 +21,10 @@
     "watch": "npx gulp watch-extension:npm",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
-    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
-    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
+    "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "find-up": "^5.0.0",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
@@ -266,7 +266,8 @@
             "yarn",
             "pnpm",
             "bun",
-            "node"
+            "node",
+            "vp"
           ],
           "enumDescriptions": [
             "%config.npm.scriptRunner.auto%",
@@ -274,7 +275,8 @@
             "%config.npm.scriptRunner.yarn%",
             "%config.npm.scriptRunner.pnpm%",
             "%config.npm.scriptRunner.bun%",
-            "%config.npm.scriptRunner.node%"
+            "%config.npm.scriptRunner.node%",
+            "%config.npm.scriptRunner.vp%"
           ],
           "default": "auto",
           "description": "%config.npm.scriptRunner%"

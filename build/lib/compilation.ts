@@ -5,7 +5,7 @@
 
 import es from 'event-stream';
 import fs from 'fs';
-import gulp from 'gulp';
+import { gulp, bom, sourcemaps } from './gulp/facade.ts';
 import path from 'path';
 import * as monacodts from './monaco-api.ts';
 import * as nls from './nls.ts';
@@ -15,14 +15,13 @@ import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import os from 'os';
 import File from 'vinyl';
-import * as task from './task.ts';
+import * as task from './gulp/task.ts';
 import { Mangler } from './mangle/index.ts';
 import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
 import watch from './watch/index.ts';
-import bom from 'gulp-bom';
 import * as tsb from './tsb/index.ts';
-import sourcemaps from 'gulp-sourcemaps';
+import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -121,15 +120,17 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.Task {
 
-	const task = () => {
+	const task = async () => {
 
 		if (os.totalmem() < 4_000_000_000) {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		// For dev builds we can transpile with esbuild for speed and type-check with tsgo (no emit).
+		// For `build`, keep the full tsb pipeline because the NLS step requires `file.sourceMap`.
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: build ? false : { esbuild: true }, preserveEnglish: !!options.preserveEnglish });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -159,35 +160,42 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			});
 		}
 
-		return srcPipe
+		const emit = util.streamToPromise(srcPipe
 			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
-			.pipe(gulp.dest(out));
+			.pipe(gulp.dest(out)));
+
+		const typecheck = spawnTsgo(compile.projectPath, { taskName: `compile-${path.basename(src)}`, noEmit: true });
+
+		await Promise.all([emit, typecheck]);
 	};
 
 	task.taskName = `compile-${path.basename(src)}`;
 	return task;
 }
 
-export function watchTask(out: string, build: boolean, srcPath: string = 'src', options?: { noEmit?: boolean }): task.StreamTask {
-
-	const task = () => {
-		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false, noEmit: options?.noEmit });
-
-		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
-		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
-
+export function watchTypeCheckTask(src: string): task.Task {
+	return task.define(`watch-typecheck-${path.basename(src)}`, () => {
+		const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 		const generator = new MonacoGenerator(true);
 		generator.execute();
-
-		return watchSrc
-			.pipe(generator.stream)
-			.pipe(util.incremental(compile, src, true))
-			.pipe(gulp.dest(out));
-	};
-	task.taskName = `watch-${path.basename(out)}`;
-	return task;
+		const watchInput = watch(`${src}/**`, { base: src, readDelay: 200 });
+		const tsgoStream = watchInput.pipe(generator.stream).pipe(util.debounce(() => {
+			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
+			const result = es.through();
+			stream.on('end', () => {
+				result.emit('end');
+			});
+			stream.on('error', err => {
+				reporter(err);
+				fancyLog.error(ansiColors.red('[tsgo] watch-client-noEmit failed'));
+				result.emit('end');
+			});
+			return result.pipe(reporter.end(false));
+		}));
+		return tsgoStream;
+	});
 }
 
 const REPO_SRC_FOLDER = path.join(import.meta.dirname, '../../src');
@@ -290,8 +298,7 @@ function generateApiProposalNames() {
 	}
 
 	const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-	const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
-	const proposals = new Map<string, { proposal: string; version?: number }>();
+	const proposals = new Map<string, { proposal: string }>();
 
 	const input = es.through();
 	const output = input
@@ -306,13 +313,8 @@ function generateApiProposalNames() {
 
 			const proposalName = match[1];
 
-			const contents = f.contents!.toString('utf8');
-			const versionMatch = versionPattern.exec(contents);
-			const version = versionMatch ? versionMatch[1] : undefined;
-
 			proposals.set(proposalName, {
 				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
-				version: version ? parseInt(version) : undefined
 			});
 		}, function () {
 			const names = [...proposals.keys()].sort();
@@ -327,16 +329,26 @@ function generateApiProposalNames() {
 				'const _allApiProposals = {',
 				`${names.map(proposalName => {
 					const proposal = proposals.get(proposalName)!;
-					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+					return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}\t}`;
 				}).join(`,${eol}`)}`,
 				'};',
-				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+				'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string }> }>(_allApiProposals);',
 				'export type ApiProposalName = keyof typeof _allApiProposals;',
 				'',
 			].join(eol);
 
+			const filePath = 'vs/platform/extensions/common/extensionsApiProposals.ts';
+			try {
+				const existing = fs.readFileSync(path.join('src', filePath), 'utf-8');
+				if (existing === contents) {
+					this.emit('end');
+					return;
+				}
+			} catch {
+				// File doesn't exist yet, emit it
+			}
 			this.emit('data', new File({
-				path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
+				path: filePath,
 				contents: Buffer.from(contents)
 			}));
 			this.emit('end');
@@ -439,11 +451,11 @@ export const copyCodiconsTask = task.define('copy-codicons', () => {
 	copyCodiconsImpl();
 	return Promise.resolve();
 });
-gulp.task(copyCodiconsTask);
+task.task(copyCodiconsTask);
 
 export const watchCodiconsTask = task.define('watch-codicons', () => {
 	copyCodiconsImpl();
 	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
 		.on('data', () => copyCodiconsImpl());
 });
-gulp.task(watchCodiconsTask);
+task.task(watchCodiconsTask);

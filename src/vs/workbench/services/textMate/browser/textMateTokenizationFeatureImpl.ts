@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
@@ -378,14 +378,23 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {
-				const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
-				await vscodeOniguruma.loadWASM({
-					data: wasm,
-					print: (str: string) => {
-						this._debugModePrintFunc(str);
-					}
-				});
-				return vscodeOniguruma;
+				try {
+					const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
+					await vscodeOniguruma.loadWASM({
+						data: wasm,
+						print: (str: string) => {
+							this._debugModePrintFunc(str);
+						}
+					});
+					return vscodeOniguruma;
+				} catch (err) {
+					// Do not cache a rejected promise: loading the WASM can fail with a transient
+					// error (e.g. "Failed to fetch" while the window is being torn down). Caching
+					// the rejection would permanently break tokenization for the rest of the
+					// session and cause the same error to be re-reported for every language.
+					this._vscodeOniguruma = null;
+					throw err;
+				}
 			})();
 		}
 		return this._vscodeOniguruma;
@@ -399,7 +408,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			// We therefore use the non-streaming compiler :(.
 			return await response.arrayBuffer();
 		} else {
-			const response = await fetch(canASAR && this._environmentService.isBuilt
+			const response = await fetch(this._environmentService.isBuilt
 				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
 				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
 			return response;

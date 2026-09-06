@@ -159,7 +159,350 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 	});
 });
 
+describe('ChatMLFetcherImpl request.options.tools telemetry', () => {
+	let disposables: DisposableStore;
+	let fetcher: ChatMLFetcherImpl;
+	let mockFetcherService: MockFetcherService;
+	let spyingTelemetryService: SpyingTelemetryService;
+	let cancellationTokenSource: CancellationTokenSource;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		cancellationTokenSource = disposables.add(new CancellationTokenSource());
+
+		mockFetcherService = new MockFetcherService();
+		spyingTelemetryService = new SpyingTelemetryService();
+		const configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+
+		const logService = new TestLogService();
+		const experimentationService = new NullExperimentationService();
+
+		fetcher = new ChatMLFetcherImpl(
+			mockFetcherService as unknown as IFetcherService,
+			spyingTelemetryService,
+			new NullRequestLogger(),
+			logService,
+			new TestAuthenticationService() as unknown as IAuthenticationService,
+			createMockInteractionService(),
+			createMockChatQuotaService(),
+			new TestCAPIClientService() as unknown as ICAPIClientService,
+			createMockConversationOptions(),
+			configurationService,
+			experimentationService,
+			createMockPowerService(),
+			new InstantiationServiceBuilder([
+				[IFetcherService, mockFetcherService as unknown as IFetcherService],
+				[ITelemetryService, spyingTelemetryService],
+				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
+			]).seal() as unknown as IInstantiationService,
+			new NullChatWebSocketManager(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+		);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	it('emits request.options.tools event when tools are present', async () => {
+		const endpointWithTools = createEndpointWithTools();
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+
+		const opts: IFetchMLOptions = {
+			debugName: 'test-tools-telemetry',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Use a tool' }] }],
+			endpoint: endpointWithTools,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+		};
+
+		await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+		const events = spyingTelemetryService.getEvents();
+		const toolsEvents = events.telemetryServiceEvents.filter(
+			e => e.eventName === 'request.options.tools'
+		);
+
+		expect(toolsEvents.length).toBe(1);
+		const props = toolsEvents[0]!.properties as Record<string, string>;
+		expect(props.headerRequestId).toBeDefined();
+		expect(props.messagesJson).toBeDefined();
+
+		const toolsPayload = JSON.parse(props.messagesJson);
+		expect(toolsPayload.length).toBe(1);
+		expect(toolsPayload[0].function.name).toBe('get_weather');
+	});
+
+	it('does not emit request.options.tools event when no tools are present', async () => {
+		const endpointWithoutTools = createChatCompletionEndpointWithoutTools();
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+
+		const opts: IFetchMLOptions = {
+			debugName: 'test-no-tools-telemetry',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] }],
+			endpoint: endpointWithoutTools,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+		};
+
+		await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+		const events = spyingTelemetryService.getEvents();
+		const toolsEvents = events.telemetryServiceEvents.filter(
+			e => e.eventName === 'request.options.tools'
+		);
+
+		expect(toolsEvents.length).toBe(0);
+	});
+
+	it('multiplexes messagesJson when tool schemas exceed 8KB', async () => {
+		const endpointWithLargeTools = createEndpointWithLargeTools();
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+
+		const opts: IFetchMLOptions = {
+			debugName: 'test-large-tools-telemetry',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Use a tool' }] }],
+			endpoint: endpointWithLargeTools,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+		};
+
+		await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+		const events = spyingTelemetryService.getEvents();
+		const toolsEvents = events.telemetryServiceEvents.filter(
+			e => e.eventName === 'request.options.tools'
+		);
+
+		expect(toolsEvents.length).toBe(1);
+		const props = toolsEvents[0]!.properties as Record<string, string>;
+
+		// The messagesJson value exceeds 8192 chars, so multiplexProperties should chunk it
+		expect(props.messagesJson).toBeDefined();
+		expect(props.messagesJson_02).toBeDefined();
+
+		// Reassemble the chunked value and verify it's valid JSON
+		let fullJson = props.messagesJson;
+		let i = 2;
+		while (props[`messagesJson_${String(i).padStart(2, '0')}`]) {
+			fullJson += props[`messagesJson_${String(i).padStart(2, '0')}`];
+			i++;
+		}
+		const toolsPayload = JSON.parse(fullJson);
+		expect(toolsPayload.length).toBeGreaterThan(0);
+		expect(toolsPayload[0].function.name).toBe('large_tool_0');
+	});
+});
+
 // --- Test Helpers ---
+
+function createEndpointWithTools(): IChatEndpoint {
+	return {
+		url: 'https://api.github.com/copilot/chat/completions',
+		urlOrRequestMetadata: 'https://api.github.com/copilot/chat/completions',
+		model: 'test-model',
+		modelMaxPromptTokens: 8192,
+		maxOutputTokens: 4096,
+		supportsToolCalls: true,
+		supportsVision: false,
+		supportsPrediction: false,
+		showInModelPicker: true,
+		isDefault: true,
+		isFallback: false,
+		policy: 'enabled',
+		getHeaders: async () => ({}),
+		createRequestBody: (): IEndpointBody => ({
+			model: 'test-model',
+			messages: [{ role: 'user', content: 'Use a tool' }],
+			stream: true,
+			tools: [{
+				type: 'function',
+				function: {
+					name: 'get_weather',
+					description: 'Get the weather for a location',
+					parameters: { type: 'object', properties: { location: { type: 'string' } } },
+				},
+			}],
+		}),
+		acquireTokenizer: () => ({
+			countMessagesTokens: async () => 100,
+			countTokens: async () => 100,
+			tokenize: async () => [],
+		}),
+		processResponseFromChatEndpoint: async (_telemetryService: ITelemetryService, _logService: ILogService, response: Response, _expectedNumChoices: number, finishedCb: FinishedCallback, telemetryData: TelemetryData, _cancellationToken?: CancellationToken) => {
+			const text = await response.text();
+			if (finishedCb) {
+				await finishedCb(text, 0, { text });
+			}
+			return {
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						message: { role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }] },
+						choiceIndex: 0,
+						requestId: {
+							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
+							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							completionId: '',
+							created: 0,
+							serverExperiments: '',
+							deploymentId: '',
+						},
+						tokens: [],
+						usage: undefined,
+						model: 'test-model',
+						blockFinished: true,
+						finishReason: 'stop',
+						telemetryData: telemetryData,
+					};
+				}
+			};
+		},
+		acceptChatPolicy: async () => true,
+		doRequest: async () => {
+			throw new Error('Not implemented');
+		},
+	} as unknown as IChatEndpoint;
+}
+
+function createChatCompletionEndpointWithoutTools(): IChatEndpoint {
+	return {
+		url: 'https://api.github.com/copilot/chat/completions',
+		urlOrRequestMetadata: 'https://api.github.com/copilot/chat/completions',
+		model: 'test-model',
+		modelMaxPromptTokens: 8192,
+		maxOutputTokens: 4096,
+		supportsToolCalls: true,
+		supportsVision: false,
+		supportsPrediction: false,
+		showInModelPicker: true,
+		isDefault: true,
+		isFallback: false,
+		policy: 'enabled',
+		getHeaders: async () => ({}),
+		createRequestBody: (): IEndpointBody => ({
+			model: 'test-model',
+			messages: [{ role: 'user', content: 'Hello' }],
+			stream: true,
+			// No tools field
+		}),
+		acquireTokenizer: () => ({
+			countMessagesTokens: async () => 100,
+			countTokens: async () => 100,
+			tokenize: async () => [],
+		}),
+		processResponseFromChatEndpoint: async (_telemetryService: ITelemetryService, _logService: ILogService, response: Response, _expectedNumChoices: number, finishedCb: FinishedCallback, telemetryData: TelemetryData, _cancellationToken?: CancellationToken) => {
+			const text = await response.text();
+			if (finishedCb) {
+				await finishedCb(text, 0, { text });
+			}
+			return {
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						message: { role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }] },
+						choiceIndex: 0,
+						requestId: {
+							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
+							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							completionId: '',
+							created: 0,
+							serverExperiments: '',
+							deploymentId: '',
+						},
+						tokens: [],
+						usage: undefined,
+						model: 'test-model',
+						blockFinished: true,
+						finishReason: 'stop',
+						telemetryData: telemetryData,
+					};
+				}
+			};
+		},
+		acceptChatPolicy: async () => true,
+		doRequest: async () => {
+			throw new Error('Not implemented');
+		},
+	} as unknown as IChatEndpoint;
+}
+
+function createEndpointWithLargeTools(): IChatEndpoint {
+	// Generate tools with schemas large enough to exceed 8192 chars when JSON.stringified
+	const largeTools = Array.from({ length: 20 }, (_, i) => ({
+		type: 'function' as const,
+		function: {
+			name: `large_tool_${i}`,
+			description: 'A'.repeat(500),
+			parameters: {
+				type: 'object',
+				properties: Object.fromEntries(
+					Array.from({ length: 10 }, (_, j) => [`param_${j}`, { type: 'string', description: 'B'.repeat(50) }])
+				),
+			},
+		},
+	}));
+
+	return {
+		url: 'https://api.github.com/copilot/chat/completions',
+		urlOrRequestMetadata: 'https://api.github.com/copilot/chat/completions',
+		model: 'test-model',
+		modelMaxPromptTokens: 8192,
+		maxOutputTokens: 4096,
+		supportsToolCalls: true,
+		supportsVision: false,
+		supportsPrediction: false,
+		showInModelPicker: true,
+		isDefault: true,
+		isFallback: false,
+		policy: 'enabled',
+		getHeaders: async () => ({}),
+		createRequestBody: (): IEndpointBody => ({
+			model: 'test-model',
+			messages: [{ role: 'user', content: 'Use a tool' }],
+			stream: true,
+			tools: largeTools,
+		}),
+		acquireTokenizer: () => ({
+			countMessagesTokens: async () => 100,
+			countTokens: async () => 100,
+			tokenize: async () => [],
+		}),
+		processResponseFromChatEndpoint: async (_telemetryService: ITelemetryService, _logService: ILogService, response: Response, _expectedNumChoices: number, finishedCb: FinishedCallback, telemetryData: TelemetryData, _cancellationToken?: CancellationToken) => {
+			const text = await response.text();
+			if (finishedCb) {
+				await finishedCb(text, 0, { text });
+			}
+			return {
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						message: { role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }] },
+						choiceIndex: 0,
+						requestId: {
+							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
+							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							completionId: '',
+							created: 0,
+							serverExperiments: '',
+							deploymentId: '',
+						},
+						tokens: [],
+						usage: undefined,
+						model: 'test-model',
+						blockFinished: true,
+						finishReason: 'stop',
+						telemetryData: telemetryData,
+					};
+				}
+			};
+		},
+		acceptChatPolicy: async () => true,
+		doRequest: async () => {
+			throw new Error('Not implemented');
+		},
+	} as unknown as IChatEndpoint;
+}
 
 /**
  * Creates an endpoint that returns Response API format request body (with input instead of messages)

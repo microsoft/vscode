@@ -15,12 +15,19 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerOptions, withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { getModelHoverContent } from '../widget/input/modelPicker/modelPickerHover.js';
+import { getCompactCodicon } from '../chatIcons.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -49,6 +56,8 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -65,6 +74,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			actionBarActionProvider: undefined,
 			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
 			getAnchor: () => this._getAnchorElement(),
+			listOptions: withChatInputPickerMotion(undefined),
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -77,6 +87,16 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			}
 			this.updateEnabled();
 		}));
+
+		const pickerOptions = this._pickerOptions;
+		if (pickerOptions) {
+			this._register(autorun(reader => {
+				pickerOptions.compact.read(reader);
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+		}
 	}
 
 	/**
@@ -105,6 +125,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				description: optionItem.description,
 				tooltip: optionItem.description ?? optionItem.name,
 				label: optionItem.name,
+				hover: this._buildOptionHover(optionItem),
 				run: () => {
 					this.delegate.setOption(optionItem);
 				}
@@ -140,6 +161,51 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		return actions;
 	}
 
+	private _buildOptionHover(optionItem: IChatSessionProviderOptionItem): IActionListItemHover | undefined {
+		if (optionItem.modelMetadata) {
+			const isUBB = !!this.chatEntitlementService.quotas.usageBasedBilling;
+			const syntheticModel = {
+				identifier: optionItem.id,
+				metadata: {
+					extension: new ExtensionIdentifier(''),
+					name: optionItem.modelMetadata.name,
+					id: optionItem.modelMetadata.id,
+					vendor: optionItem.modelMetadata.vendor ?? '',
+					version: optionItem.modelMetadata.version ?? '',
+					family: optionItem.modelMetadata.family ?? '',
+					tooltip: optionItem.modelMetadata.tooltip,
+					pricing: optionItem.modelMetadata.pricing,
+					multiplierNumeric: optionItem.modelMetadata.multiplierNumeric,
+					inputCost: optionItem.modelMetadata.inputCost,
+					outputCost: optionItem.modelMetadata.outputCost,
+					cacheCost: optionItem.modelMetadata.cacheCost,
+					cacheWriteCost: optionItem.modelMetadata.cacheWriteCost,
+					longContextInputCost: optionItem.modelMetadata.longContextInputCost,
+					longContextOutputCost: optionItem.modelMetadata.longContextOutputCost,
+					longContextCacheCost: optionItem.modelMetadata.longContextCacheCost,
+					longContextCacheWriteCost: optionItem.modelMetadata.longContextCacheWriteCost,
+					priceCategory: optionItem.modelMetadata.priceCategory,
+					promo: optionItem.modelMetadata.promo,
+					maxInputTokens: optionItem.modelMetadata.maxInputTokens ?? 0,
+					maxOutputTokens: optionItem.modelMetadata.maxOutputTokens ?? 0,
+					capabilities: optionItem.modelMetadata.capabilities ? {
+						vision: optionItem.modelMetadata.capabilities.vision,
+						toolCalling: optionItem.modelMetadata.capabilities.toolCalling,
+					} : undefined,
+					isDefaultForLocation: {},
+				},
+			};
+			const hover = getModelHoverContent(syntheticModel, isUBB, undefined, this.openerService);
+			if (hover) {
+				return { content: hover.element, disposable: hover.disposable };
+			}
+		}
+		if (optionItem.tooltip) {
+			return { content: optionItem.tooltip };
+		}
+		return undefined;
+	}
+
 	/**
 	 * Creates a disabled action for a locked option.
 	 */
@@ -172,21 +238,24 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
 		const group = this.delegate.getOptionGroup();
+		const compact = this._pickerOptions?.compact.get() ?? false;
+		element.classList.toggle('compact', compact);
+		const label = this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option");
 		// If the current option is the default and has an icon, collapse the text and show only the icon
 		const isDefaultWithIcon = this.currentOption?.default && this.currentOption?.icon;
+		element.classList.toggle('icon-only', compact && !!this.currentOption?.icon);
 
 		if (this.currentOption?.icon) {
-			domChildren.push(renderIcon(this.currentOption.icon));
+			domChildren.push(renderIcon(getCompactCodicon(this.currentOption.icon)));
 		}
 
-		if (!isDefaultWithIcon) {
-			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option")));
+		if (!isDefaultWithIcon && (!compact || !this.currentOption?.icon)) {
+			domChildren.push(dom.$('span.chat-session-option-label', undefined, label));
 		}
-
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 		return null;
 	}
 

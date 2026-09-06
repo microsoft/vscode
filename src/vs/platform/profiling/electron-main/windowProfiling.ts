@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ProfileResult } from 'v8-inspect-profiler';
+import { ProfileResult } from '../../../base/node/profiling.js';
 import { BrowserWindow } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';

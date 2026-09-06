@@ -10,7 +10,7 @@ use std::{
 
 use super::{
 	code_server::CodeServerArgs,
-	control_server::ServerTermination,
+	control_server::{AgentHostServeOptions, ServerTermination},
 	dev_tunnels::{ActiveTunnel, StatusLock},
 	protocol,
 	shutdown_signal::{ShutdownRequest, ShutdownSignal},
@@ -22,7 +22,7 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
-	tunnels::code_server::print_listening,
+	tunnels::{code_server::print_listening, machine_status},
 	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
@@ -44,12 +44,20 @@ pub struct SingletonServerArgs<'a> {
 	pub paths: &'a LauncherPaths,
 	pub code_server_args: &'a CodeServerArgs,
 	pub platform: Platform,
+	pub user_data_dir: Option<String>,
+	pub agent_host_only: bool,
+	pub delegate_to_editor: bool,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub log_broadcast: &'a BroadcastLogSink,
 }
 
 struct StatusInfo {
 	name: String,
+	tunnel_id: String,
+	/// Whether this singleton serves the editor as well as the agent host, so
+	/// attaching clients can describe what is actually running rather than
+	/// what their own invocation asked for.
+	has_editor_link: bool,
 	lock: StatusLock,
 }
 
@@ -107,6 +115,8 @@ pub fn make_singleton_server(
 				.as_ref()
 				.map(|s| protocol::singleton::StatusWithTunnelName {
 					name: Some(s.name.clone()),
+					tunnel_id: Some(s.tunnel_id.clone()),
+					has_editor_link: Some(s.has_editor_link),
 					status: s.lock.read(),
 				})
 				.unwrap_or_default())
@@ -145,16 +155,27 @@ pub fn make_singleton_server(
 pub async fn start_singleton_server(
 	args: SingletonServerArgs<'_>,
 ) -> Result<ServerTermination, AnyError> {
+	let broadcast_tx = args.log_broadcast.get_brocaster();
+	machine_status::install_sink(move |status| {
+		let _ = broadcast_tx.send(RpcCaller::serialize_notify(
+			&JsonRpcSerializer {},
+			protocol::singleton::METHOD_MACHINE_STATUS,
+			status,
+		));
+	});
+
 	let shutdown_rx = ShutdownRequest::create_rx([
 		ShutdownRequest::Derived(Box::new(args.server.shutdown_broadcast.subscribe())),
 		ShutdownRequest::Derived(Box::new(args.shutdown.clone())),
 	]);
 
 	{
-		print_listening(&args.log, &args.tunnel.name);
+		print_listening(&args.log, &args.tunnel.name, !args.agent_host_only);
 		let mut status = args.server.current_status.lock().unwrap();
 		*status = Some(StatusInfo {
 			name: args.tunnel.name.clone(),
+			tunnel_id: args.tunnel.id.clone(),
+			has_editor_link: !args.agent_host_only,
 			lock: args.tunnel.status(),
 		})
 	}
@@ -165,6 +186,11 @@ pub async fn start_singleton_server(
 		args.paths,
 		args.code_server_args,
 		args.platform,
+		AgentHostServeOptions {
+			user_data_dir: args.user_data_dir,
+			agent_host_only: args.agent_host_only,
+			delegate_to_editor: args.delegate_to_editor,
+		},
 		shutdown_rx,
 	);
 

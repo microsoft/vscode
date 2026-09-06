@@ -98,7 +98,7 @@ class GitCommitMessageSystemRules extends PromptElement {
 				2. Use the ORIGINAL CODE to understand the context of the CODE CHANGES. Use the line numbers to map the CODE CHANGES to the ORIGINAL CODE.<br />
 				3. Identify the purpose of the changes to answer the *why* for the commit messages, also considering the optionally provided RECENT USER COMMITS.<br />
 				4. Review the provided RECENT REPOSITORY COMMITS to identify established commit message conventions. Focus on the format and style, ignoring commit-specific details like refs, tags, and authors.<br />
-				5. Generate a thoughtful and succinct commit message for the given CODE CHANGES. It MUST follow the the established writing conventions.
+				5. Generate a thoughtful and succinct commit message for the given CODE CHANGES. It MUST follow the established writing conventions.
 				6. Remove any meta information like issue references, tags, or author names from the commit message. The developer will add them.<br />
 				7. Now only show your message, wrapped with a single markdown ```text codeblock! Do not provide any explanations or details<br />
 			</>

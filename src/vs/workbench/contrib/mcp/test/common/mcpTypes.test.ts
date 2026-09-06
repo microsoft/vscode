@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { McpResourceURI, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { getMcpCollectionProvenance, McpCollectionProvenance, McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import * as assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -76,6 +78,12 @@ suite('MCP Types', () => {
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
 
+		test('returns false when default cwd differs', () => {
+			const def1 = createBasicDefinition({ defaultCwd: URI.file('/path1') });
+			const def2 = createBasicDefinition({ defaultCwd: URI.file('/path2') });
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
 		test('returns true when roots are both undefined', () => {
 			const def1 = createBasicDefinition({ roots: undefined });
 			const def2 = createBasicDefinition({ roots: undefined });
@@ -107,5 +115,87 @@ suite('MCP Types', () => {
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
+	});
+
+	test('McpServerDefinition serializes default cwd as a URI', () => {
+		const defaultCwd = URI.parse('vscode-remote://ssh-remote+linux/home/test/workspace');
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			defaultCwd,
+			launch: {
+				type: McpServerTransportType.Stdio,
+				cwd: undefined,
+				command: 'test-command',
+				args: [],
+				env: {},
+				envFile: undefined,
+				sandbox: undefined
+			},
+		};
+
+		const serialized = McpServerDefinition.toSerialized(definition);
+		const deserialized = McpServerDefinition.fromSerialized(serialized);
+		assert.deepStrictEqual({
+			serialized: serialized.defaultCwd,
+			deserialized: deserialized.defaultCwd?.toString(),
+		}, {
+			serialized: defaultCwd,
+			deserialized: defaultCwd.toString(),
+		});
+	});
+
+	test('McpServerLaunch converts persisted configurations', () => {
+		assert.deepStrictEqual({
+			local: McpServerLaunch.fromServerConfiguration({
+				type: McpServerType.LOCAL,
+				command: 'server',
+				args: ['--port', '3000'],
+				env: { TOKEN: 'value' },
+				envFile: '.env',
+				cwd: '/workspace',
+			}, { network: { allowedDomains: ['example.com'] } }),
+			remote: McpServerLaunch.fromServerConfiguration({
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/mcp',
+				headers: { Authorization: 'Bearer token' },
+				oauth: { clientId: 'client' },
+			}),
+		}, {
+			local: {
+				type: McpServerTransportType.Stdio,
+				command: 'server',
+				args: ['--port', '3000'],
+				env: { TOKEN: 'value' },
+				envFile: '.env',
+				cwd: '/workspace',
+				sandbox: { network: { allowedDomains: ['example.com'] } },
+			},
+			remote: {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://example.com/mcp'),
+				headers: [['Authorization', 'Bearer token']],
+				oauth: { clientId: 'client' },
+			},
+		});
+	});
+
+	test('maps configuration targets to collection provenance', () => {
+		assert.deepStrictEqual([
+			getMcpCollectionProvenance(ConfigurationTarget.USER),
+			getMcpCollectionProvenance(ConfigurationTarget.USER_LOCAL),
+			getMcpCollectionProvenance(ConfigurationTarget.USER_REMOTE),
+			getMcpCollectionProvenance(ConfigurationTarget.WORKSPACE),
+			getMcpCollectionProvenance(ConfigurationTarget.WORKSPACE_FOLDER),
+			getMcpCollectionProvenance(undefined),
+		], [
+			McpCollectionProvenance.UserProfile,
+			McpCollectionProvenance.UserProfile,
+			McpCollectionProvenance.RemoteUser,
+			McpCollectionProvenance.WorkspaceConfiguration,
+			McpCollectionProvenance.WorkspaceFolderConfiguration,
+			undefined,
+		]);
 	});
 });

@@ -30,30 +30,30 @@ export enum CacheScopeKind {
 
 export type FileCacheScope = {
 	kind: CacheScopeKind.File;
-}
+};
 export type NeighborFilesCacheScope = {
 	kind: CacheScopeKind.NeighborFiles;
-}
+};
 
 export type Position = {
 	line: number;
 	character: number;
-}
+};
 
 export type Range = {
 	start: Position;
 	end: Position;
-}
+};
 
 export type WithinRangeCacheScope = {
 	kind: CacheScopeKind.WithinRange;
 	range: Range;
-}
+};
 
 export type OutsideRangeCacheScope = {
 	kind: CacheScopeKind.OutsideRange;
 	ranges: Range[];
-}
+};
 
 export type CacheScope = FileCacheScope | NeighborFilesCacheScope | WithinRangeCacheScope | OutsideRangeCacheScope;
 
@@ -66,7 +66,7 @@ export enum EmitMode {
 export type CacheInfo = {
 	emitMode: EmitMode;
 	scope: CacheScope;
-}
+};
 export namespace CacheInfo {
 	export type has = { cache: CacheInfo };
 	export function has(item: unknown): item is has {
@@ -76,7 +76,7 @@ export namespace CacheInfo {
 export type CachedContextItem = {
 	key: ContextItemKey;
 	sizeInChars?: number;
-}
+};
 export namespace CachedContextItem {
 	export function create(key: ContextItemKey, sizeInChars?: number): CachedContextItem {
 		return { key, sizeInChars };
@@ -236,7 +236,7 @@ export namespace ContextItem {
 
 export type PriorityTag = {
 	priority: number;
-}
+};
 
 export enum ContextRunnableState {
 	Created = 'created',
@@ -291,7 +291,7 @@ export type ContextRunnableResult = {
 	 * A human readable path to the signature to ease debugging.
 	 */
 	debugPath?: ContextRunnableResultId | undefined;
-}
+};
 
 export type CachedContextRunnableResult = {
 
@@ -317,7 +317,7 @@ export type CachedContextRunnableResult = {
 	 * The cache information of the runnable.
 	 */
 	cache?: CacheInfo;
-}
+};
 
 export type ContextRunnableResultReference = {
 
@@ -328,7 +328,7 @@ export type ContextRunnableResultReference = {
 	 * this state.
 	 */
 	id: ContextRunnableResultId;
-}
+};
 
 export type ContextRunnableResultTypes = ContextRunnableResult | ContextRunnableResultReference;
 
@@ -345,7 +345,7 @@ export namespace ErrorData {
 export type Timings = {
 	totalTime: number;
 	computeTime: number;
-}
+};
 export namespace Timings {
 	export function create(totalTime: number, computeTime: number): Timings {
 		return { totalTime, computeTime };
@@ -397,7 +397,7 @@ export type ContextRequestResult = {
 	 * New server side context items that were computed.
 	 */
 	contextItems?: ContextItem[];
-}
+};
 
 export interface ComputeContextRequestArgs extends tt.server.protocol.FileLocationRequestArgs {
 	startTime: number;
@@ -504,17 +504,17 @@ export namespace PrepareNesRenameResult {
 		canRename: RenameKind.yes;
 		oldName: string;
 		onOldState: boolean;
-	}
+	};
 	export type Maybe = {
 		canRename: RenameKind.maybe;
 		oldName: string;
 		onOldState: boolean;
-	}
+	};
 	export type No = {
 		canRename: RenameKind.no;
 		timedOut: boolean;
 		reason?: string;
-	}
+	};
 }
 
 export type PrepareNesRenameResult = PrepareNesRenameResult.Yes | PrepareNesRenameResult.Maybe | PrepareNesRenameResult.No;
@@ -566,17 +566,17 @@ export interface NesRenameRequestArgs extends tt.server.protocol.FileLocationReq
 export type TextChange = {
 	range: Range;
 	newText?: string;
-}
+};
 
 export type RenameGroup = {
 	file: FilePath;
 	changes: TextChange[];
-}
+};
 
 export namespace NesRenameResult {
 	export type OK = {
 		groups: RenameGroup[];
-	}
+	};
 	export type Failed = CustomResponse.Failed;
 }
 

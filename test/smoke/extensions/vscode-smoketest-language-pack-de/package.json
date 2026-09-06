@@ -1,0 +1,27 @@
+{
+	"name": "vscode-smoketest-language-pack-de",
+	"displayName": "Smoke Test German Language Pack",
+	"description": "German language pack fixture for smoke testing",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"license": "MIT",
+	"private": true,
+	"engines": {
+		"vscode": "^1.55.0"
+	},
+	"contributes": {
+		"localizations": [
+			{
+				"languageId": "de",
+				"languageName": "German",
+				"localizedLanguageName": "Deutsch",
+				"translations": [
+					{
+						"id": "vscode",
+						"path": "./translations/main.i18n.json"
+					}
+				]
+			}
+		]
+	}
+}

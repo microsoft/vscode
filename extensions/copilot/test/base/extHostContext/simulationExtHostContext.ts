@@ -2,9 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// Allow importing vscode here. eslint does not let us exclude this path: https://github.com/import-js/eslint-plugin-import/issues/2800
-/* eslint-disable import/no-restricted-paths */
-
 import { GitDiffService } from '../../../src/extension/prompt/vscode-node/gitDiffService';
 import { IExtensionsService } from '../../../src/platform/extensions/common/extensionsService';
 import { VSCodeExtensionsService } from '../../../src/platform/extensions/vscode/extensionsService';

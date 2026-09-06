@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -23,6 +24,25 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 		assert(!element.classList.contains('foo'));
 		assert(!element.classList.contains(''));
+	});
+
+	test('findParentWithClass supports multiple required classes', () => {
+		const root = $('div.modern-ui.motion-enabled');
+		const intermediate = $('div.modern-ui');
+		const child = $('div');
+		root.appendChild(intermediate).appendChild(child);
+
+		assert.deepStrictEqual({
+			multipleClasses: findParentWithClass(child, ['modern-ui', 'motion-enabled']) === root,
+			singleClass: findParentWithClass(child, 'modern-ui') === intermediate,
+			missingClass: hasParentWithClass(child, ['modern-ui', 'missing']),
+			stoppedBeforeMatch: hasParentWithClass(child, ['modern-ui', 'motion-enabled'], intermediate),
+		}, {
+			multipleClasses: true,
+			singleClass: true,
+			missingClass: false,
+			stoppedBeforeMatch: false,
+		});
 	});
 
 	test('removeClass', () => {
@@ -529,6 +549,191 @@ suite('dom', () => {
 			assert.strictEqual(callCount, 2);
 
 			scheduler.dispose();
+		});
+	});
+
+	suite('DisposableResizeObserver', () => {
+		teardown(() => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve())));
+
+		// Captures the callback handed to a `ResizeObserver` so tests can fire
+		// deliveries synthetically. Returned via dependency injection — no
+		// global mutation, no `any` casts.
+		interface FakeResizeObserverHandle {
+			ctor: typeof ResizeObserver;
+			fire: (entries: ResizeObserverEntry[]) => void;
+			disconnects: number;
+		}
+
+		function createFakeResizeObserverCtor(): FakeResizeObserverHandle {
+			const handle: FakeResizeObserverHandle = {
+				ctor: undefined!,
+				fire: () => { throw new Error('observer not constructed'); },
+				disconnects: 0,
+			};
+			class FakeResizeObserver implements ResizeObserver {
+				constructor(callback: ResizeObserverCallback) {
+					handle.fire = entries => callback(entries, this);
+				}
+				observe(_target: Element, _options?: ResizeObserverOptions): void { /* no-op */ }
+				unobserve(_target: Element): void { /* no-op */ }
+				disconnect(): void { handle.disconnects++; }
+			}
+			handle.ctor = FakeResizeObserver;
+			return handle;
+		}
+
+		function fakeEntry(target: Element = document.createElement('div')): ResizeObserverEntry {
+			const size: ResizeObserverSize = { blockSize: 0, inlineSize: 0 };
+			return {
+				target,
+				contentRect: target.getBoundingClientRect(),
+				borderBoxSize: [size],
+				contentBoxSize: [size],
+				devicePixelContentBoxSize: [size],
+			};
+		}
+
+		test('callback runs synchronously with the entries the browser delivered', () => {
+			const fake = createFakeResizeObserverCtor();
+			let calls = 0;
+			let received: ResizeObserverEntry[] | undefined;
+			const observer = new DisposableResizeObserver('test.sync', (entries) => {
+				calls++;
+				received = entries;
+			}, mainWindow, { resizeObserverCtor: fake.ctor });
+			const a = fakeEntry();
+			const b = fakeEntry();
+			fake.fire([a, b]);
+			assert.strictEqual(calls, 1, 'callback runs synchronously inside the resize-observation phase');
+			assert.deepStrictEqual(received, [a, b], 'entries are forwarded as-is');
+			observer.dispose();
+		});
+
+		test('each native delivery invokes the callback once (no batching)', () => {
+			const fake = createFakeResizeObserverCtor();
+			let calls = 0;
+			const observer = new DisposableResizeObserver('test.noBatch', () => { calls++; }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			fake.fire([fakeEntry()]);
+			assert.strictEqual(calls, 2, 'wrapper does not coalesce deliveries');
+			observer.dispose();
+		});
+
+		test('dispose disconnects the underlying observer', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('test.dispose', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			observer.dispose();
+			assert.strictEqual(fake.disconnects, 1);
+		});
+
+		test('exceptions in the user callback do not propagate', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('test.throw', () => { throw new Error('boom'); }, mainWindow, { resizeObserverCtor: fake.ctor });
+			// Browser would not catch a throw out of the native callback; we
+			// must guard so a single bad consumer does not break delivery for
+			// every other observer in the realm. The wrapper routes the throw
+			// to onUnexpectedError, so swap the handler for the duration of
+			// this test so the test runner does not flag it as a failure.
+			const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(() => { /* swallow expected */ });
+			try {
+				assert.doesNotThrow(() => fake.fire([fakeEntry()]));
+			} finally {
+				setUnexpectedErrorHandler(originalErrorHandler);
+			}
+			observer.dispose();
+		});
+
+		test('exposes the configured name for loop-warning context', () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver(
+				'my-observer',
+				() => { /* noop */ },
+				mainWindow,
+				{ resizeObserverCtor: fake.ctor },
+			);
+			assert.strictEqual(observer.name, 'my-observer');
+			observer.dispose();
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError returns undefined for unrelated messages', () => {
+			assert.strictEqual(getRecentDisposableResizeObserverContextForLoopError(undefined), undefined);
+			assert.strictEqual(getRecentDisposableResizeObserverContextForLoopError('Uncaught TypeError: foo'), undefined);
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError returns sorted unique wrapped observers from the current frame', () => {
+			const fake = createFakeResizeObserverCtor();
+			const a = new DisposableResizeObserver('a', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			const fakeB = createFakeResizeObserverCtor();
+			const b = new DisposableResizeObserver('b', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fakeB.ctor });
+			fakeB.fire([fakeEntry()]);
+			fake.fire([fakeEntry()]);
+			const context = getRecentDisposableResizeObserverContextForLoopError(
+				'ResizeObserver loop completed with undelivered notifications.',
+			);
+			assert.strictEqual(
+				context,
+				'[ResizeObserverLoopContext(a,b)] ResizeObserver loop completed with undelivered notifications.',
+			);
+			a.dispose();
+			b.dispose();
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError marks bounded participant overflow', () => {
+			const observers: DisposableResizeObserver[] = [];
+			for (let i = 8; i >= 0; i--) {
+				const fake = createFakeResizeObserverCtor();
+				observers.push(new DisposableResizeObserver(`observer-${i}`, () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor }));
+				fake.fire([fakeEntry()]);
+			}
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'),
+				'[ResizeObserverLoopContext(observer-0,observer-1,observer-2,observer-3,observer-4,observer-5,observer-6,observer-7,<overflow>)] ResizeObserver loop completed with undelivered notifications.',
+			);
+			observers.forEach(observer => observer.dispose());
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError is scoped to the observer window', async () => {
+			const iframe = document.createElement('iframe');
+			document.body.appendChild(iframe);
+			const auxiliaryWindow = iframe.contentWindow!;
+			ensureCodeWindow(auxiliaryWindow, 999);
+
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('auxiliary', () => { /* noop */ }, auxiliaryWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.', mainWindow),
+				undefined,
+			);
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.', auxiliaryWindow),
+				'[ResizeObserverLoopContext(auxiliary)] ResizeObserver loop completed with undelivered notifications.',
+			);
+
+			observer.dispose();
+			await new Promise<void>(resolve => auxiliaryWindow.requestAnimationFrame(() => resolve()));
+			iframe.remove();
+		});
+
+		test('getRecentDisposableResizeObserverContextForLoopError clears at the next animation frame', async () => {
+			const fake = createFakeResizeObserverCtor();
+			const observer = new DisposableResizeObserver('scoped', () => { /* noop */ }, mainWindow, { resizeObserverCtor: fake.ctor });
+			fake.fire([fakeEntry()]);
+			// Context is recorded synchronously and survives microtasks (so it is
+			// still set when Chromium dispatches the loop warning at the end
+			// of the resize-observation phase).
+			await Promise.resolve();
+			assert.ok(getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'));
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			assert.strictEqual(
+				getRecentDisposableResizeObserverContextForLoopError('ResizeObserver loop completed with undelivered notifications.'),
+				undefined,
+				'context must be cleared at the next frame so a later rendering update does not inherit stale observers',
+			);
+			observer.dispose();
 		});
 	});
 

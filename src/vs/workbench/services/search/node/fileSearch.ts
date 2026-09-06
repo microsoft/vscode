@@ -38,6 +38,8 @@ process.on('exit', () => {
 	killCmds.forEach(cmd => cmd());
 });
 
+type SpawnRipgrepCmd = typeof spawnRipgrepCmd;
+
 export class FileWalker {
 	private config: IFileQuery;
 	private filePattern: string;
@@ -55,13 +57,14 @@ export class FileWalker {
 	private errors: string[];
 	private cmdSW: StopWatch | null = null;
 	private cmdResultCount: number = 0;
+	private readonly killCmds = new Set<() => void>();
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
 	private walkedPaths: { [path: string]: boolean };
 
-	constructor(config: IFileQuery) {
+	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd) {
 		this.config = config;
 		this.filePattern = config.filePattern || '';
 		const globOptions = config.ignoreGlobCase ? { ignoreCase: true } : undefined;
@@ -111,7 +114,7 @@ export class FileWalker {
 
 	cancel(): void {
 		this.isCanceled = true;
-		killCmds.forEach(cmd => cmd());
+		this.killCmds.forEach(cmd => cmd());
 	}
 
 	walk(folderQueries: IFolderQuery[], extraFiles: URI[], numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {
@@ -190,23 +193,42 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): void {
+	private async cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): Promise<void> {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
 
-		const killCmd = () => cmd && cmd.kill();
+		let leftover = '';
+		const tree = this.initDirectoryTree();
+
+		let ripgrep;
+		try {
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
+		} catch (err) {
+			cb(err instanceof Error ? err : new Error(String(err)));
+			return;
+		}
+		const cmd = ripgrep.cmd;
+		const killCmd = () => {
+			if (cmd.pid !== undefined) {
+				cmd.kill();
+			}
+		};
+		this.killCmds.add(killCmd);
 		killCmds.add(killCmd);
 
 		let done = (err?: Error) => {
+			this.killCmds.delete(killCmd);
 			killCmds.delete(killCmd);
 			done = () => { };
 			cb(err);
 		};
-		let leftover = '';
-		const tree = this.initDirectoryTree();
 
-		const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
-		const cmd = ripgrep.cmd;
+		if (this.isCanceled) {
+			cmd.once('error', () => { });
+			cmd.once('close', () => done());
+			killCmd();
+			return;
+		}
 		const noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 
 		const escapedArgs = ripgrep.rgArgs.args

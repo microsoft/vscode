@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
+import { modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 import { ITokenizer, TokenizerType } from '../../../../util/common/tokenizer';
 import { AsyncIterableObject } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -28,6 +29,7 @@ export class MockEndpoint implements IChatEndpoint {
 		if (family !== undefined) {
 			this.family = family;
 			this.model = family;
+			this.supportsToolSearch = modelSupportsToolSearch(family);
 		}
 	}
 
@@ -39,6 +41,7 @@ export class MockEndpoint implements IChatEndpoint {
 	model: string = CHAT_MODEL.GPT41;
 	modelProvider: string = 'Mock Endpoint';
 	supportsToolCalls: boolean = false;
+	supportsToolSearch?: boolean;
 	supportsVision: boolean = false;
 	supportsPrediction: boolean = true;
 	showInModelPicker: boolean = true;

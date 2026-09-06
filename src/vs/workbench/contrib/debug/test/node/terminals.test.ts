@@ -118,4 +118,33 @@ suite('Debug - prepareCommand', () => {
 			prepareCommand('powershell', ['arg1', '>', '> hello.txt', '<', '<input.in'], false).trim(),
 			`& 'arg1' > '> hello.txt' < '<input.in'`);
 	});
+
+	test('powershell - quotes environment values', () => {
+		const leftSingleQuotationMark = '\u2018';
+		const rightSingleQuotationMark = '\u2019';
+
+		assert.deepStrictEqual(
+			[
+				prepareCommand('powershell', [], false, undefined, { SIMPLE: 'hello' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { SPACES: 'hello world' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { EMPTY: '' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { QUOTE: 'hello\'world' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { MULTI: 'it\'s \'ok\'' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { LEFT_QUOTE: `hello${leftSingleQuotationMark}world` }).trim(),
+				prepareCommand('powershell', [], false, undefined, { RIGHT_QUOTE: `hello${rightSingleQuotationMark}world` }).trim(),
+				prepareCommand('powershell', [], false, undefined, { TRAILING: 'C:\\work\\' }).trim(),
+				prepareCommand('powershell', [], false, undefined, { BACKSLASH_QUOTE: 'C:\\it\'s\\path\\' }).trim(),
+			],
+			[
+				'${env:SIMPLE}=\'hello\';',
+				'${env:SPACES}=\'hello world\';',
+				'${env:EMPTY}=\'\';',
+				'${env:QUOTE}=\'hello\'\'world\';',
+				'${env:MULTI}=\'it\'\'s \'\'ok\'\'\';',
+				`\${env:LEFT_QUOTE}='hello${leftSingleQuotationMark}${leftSingleQuotationMark}world';`,
+				`\${env:RIGHT_QUOTE}='hello${rightSingleQuotationMark}${rightSingleQuotationMark}world';`,
+				'${env:TRAILING}=\'C:\\work\\\';',
+				'${env:BACKSLASH_QUOTE}=\'C:\\it\'\'s\\path\\\';',
+			]);
+	});
 });

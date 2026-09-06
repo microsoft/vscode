@@ -1,0 +1,267 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-agent-merge {
+	display: flex;
+	flex-direction: column;
+	margin: var(--vscode-spacing-size40) 0;
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-label1);
+	/* Collapsed, the card hugs its header; expanded, the body grows it to the transcript width. */
+	width: fit-content;
+	max-width: 100%;
+}
+
+.chat-agent-merge > .chat-agent-merge-header,
+.chat-agent-merge .chat-agent-merge-message-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+	user-select: none;
+}
+
+.chat-agent-merge > .chat-agent-merge-header {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+}
+
+.chat-agent-merge > .chat-agent-merge-header:hover,
+.chat-agent-merge .chat-agent-merge-message-header:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* `.codicon` joins each compound so these sizes outrank the `font` shorthand on
+the codicon base rule, which would otherwise force every glyph to 16px. */
+.chat-agent-merge .chat-agent-merge-twistie.codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	transition: transform 100ms ease-out;
+}
+
+/* Reduced motion follows the workbench-managed `.monaco-reduce-motion` class,
+which sits either on an ancestor or on the workbench element itself. */
+.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon,
+.monaco-workbench.monaco-reduce-motion .chat-agent-merge .chat-agent-merge-twistie.codicon {
+	transition: none;
+}
+
+.chat-agent-merge:not(.collapsed) > .chat-agent-merge-header > .chat-agent-merge-twistie,
+.chat-agent-merge-message:not(.collapsed) > .chat-agent-merge-message-header > .chat-agent-merge-twistie {
+	transform: rotate(90deg);
+}
+
+.chat-agent-merge .chat-agent-merge-icon.codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-badges {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-badge {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-badge::before {
+	content: '';
+	flex: 0 0 auto;
+	width: 2px;
+	height: 2px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+	opacity: 0.6;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.chat-agent-merge .chat-agent-merge-badge .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: inherit;
+}
+
+.chat-agent-merge > .chat-agent-merge-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+}
+
+.chat-agent-merge.collapsed > .chat-agent-merge-body {
+	display: none;
+}
+
+/* Shared leading icon: a fixed width keeps comment bodies and check names on one indent. */
+.chat-agent-merge .chat-agent-merge-row-icon.codicon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-check-icon.codicon {
+	color: var(--vscode-errorForeground);
+}
+
+/* Clickable text stays in its surrounding color and announces itself on hover,
+matching the pull request content part's link treatment. */
+.chat-agent-merge .chat-agent-merge-link {
+	cursor: pointer;
+	color: inherit;
+	text-decoration: none;
+}
+
+.chat-agent-merge .chat-agent-merge-link:hover {
+	text-decoration: underline;
+}
+
+.chat-agent-merge .chat-agent-merge-pr {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding-top: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-pr-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-section-title {
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* The icon owns the first column so a comment's header and body share one indent. */
+.chat-agent-merge .chat-agent-merge-comment {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	column-gap: var(--vscode-spacing-size60);
+	align-items: start;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-icon.codicon,
+.chat-agent-merge .chat-agent-merge-comment-header {
+	/* Align a comment's icon to the header's first line rather than to its box. */
+	line-height: var(--vscode-spacing-size200);
+}
+
+.chat-agent-merge .chat-agent-merge-comment-header {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-author {
+	flex: 0 0 auto;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file,
+.chat-agent-merge .chat-agent-merge-comment-file-description {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file {
+	flex: 0 0 auto;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file-description {
+	flex: 1 1 auto;
+	min-width: 0;
+	opacity: 0.8;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body {
+	grid-column: 2;
+	overflow-wrap: anywhere;
+	color: var(--vscode-foreground);
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body > :first-child {
+	margin-top: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body > :last-child {
+	margin-bottom: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-check {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-check-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-message {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-message-header {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	margin-left: calc(-1 * var(--vscode-spacing-size40));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-agent-merge .chat-agent-merge-message-body {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+	padding-left: var(--vscode-spacing-size80);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+}
+
+.chat-agent-merge-message.collapsed > .chat-agent-merge-message-body {
+	display: none;
+}

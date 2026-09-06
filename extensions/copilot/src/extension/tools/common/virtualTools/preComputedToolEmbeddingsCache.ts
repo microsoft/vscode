@@ -18,7 +18,7 @@ export class PreComputedToolEmbeddingsCache implements IToolEmbeddingsCache {
 	private embeddingsMap: Map<string, Embedding> | undefined;
 
 	constructor(
-		@ILogService readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEnvService envService: IEnvService
 	) {

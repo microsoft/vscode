@@ -9,12 +9,13 @@ import { IEnvironmentService } from '../../../platform/environment/common/enviro
 import { IRemoteConsoleLog, log } from '../../../base/common/console.js';
 import { logRemoteEntry, logRemoteEntryIfError } from '../../services/extensions/common/remoteConsoleUtil.js';
 import { parseExtensionDevOptions } from '../../services/extensions/common/extensionDevOptions.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import { ILogService, isDevConsoleLogForwardingEnabled } from '../../../platform/log/common/log.js';
 
 @extHostNamedCustomer(MainContext.MainThreadConsole)
 export class MainThreadConsole implements MainThreadConsoleShape {
 
-	private readonly _isExtensionDevTestFromCli: boolean;
+	private readonly _logAllExtensionHostConsole: boolean;
+	private readonly _logExtensionHostConsoleToLocalConsole: boolean;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -22,7 +23,9 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
-		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
+		const isDevConsoleLogForwardingActive = !this._environmentService.isBuilt && isDevConsoleLogForwardingEnabled;
+		this._logAllExtensionHostConsole = devOpts.isExtensionDevTestFromCli || isDevConsoleLogForwardingActive;
+		this._logExtensionHostConsoleToLocalConsole = !devOpts.isExtensionDevTestFromCli && !isDevConsoleLogForwardingActive;
 	}
 
 	dispose(): void {
@@ -30,9 +33,12 @@ export class MainThreadConsole implements MainThreadConsoleShape {
 	}
 
 	$logExtensionHostMessage(entry: IRemoteConsoleLog): void {
-		if (this._isExtensionDevTestFromCli) {
-			// If running tests from cli, log to the log service everything
+		if (this._logAllExtensionHostConsole) {
+			// In development scenarios, log all extension host console output to the log service.
 			logRemoteEntry(this._logService, entry);
+			if (this._logExtensionHostConsoleToLocalConsole) {
+				log(entry, 'Extension Host');
+			}
 		} else {
 			// Log to the log service only errors and log everything to local console
 			logRemoteEntryIfError(this._logService, entry, 'Extension Host');

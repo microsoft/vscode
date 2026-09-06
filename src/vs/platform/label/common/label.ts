@@ -28,6 +28,8 @@ export interface ILabelService {
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+	/** Returns the display home containing `resource`. */
+	getUriHome(resource: URI): URI | undefined;
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
 	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
@@ -53,6 +55,8 @@ export interface IFormatterChangeEvent {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	/** URI path used as a display home. Runtime registrations only. */
+	home?: string;
 	priority?: boolean;
 	formatting: ResourceLabelFormatting;
 }

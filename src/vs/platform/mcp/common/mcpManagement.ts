@@ -10,6 +10,7 @@ import { IIterativePager } from '../../../base/common/paging.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IMcpServerIdentity } from './allowedMcpServers.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
 export type InstallSource = 'gallery' | 'local';
@@ -164,12 +165,33 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
+export const enum McpGalleryResolveStatus {
+	/** The server was found in the active registry. */
+	Found,
+	/** The active registry authoritatively does not contain the server. */
+	NotFound,
+	/** Membership could not be determined (e.g. registry unreachable). */
+	Failed,
+}
+
+export type IMcpGalleryServerResolveResult =
+	| { readonly status: McpGalleryResolveStatus.Found; readonly server: IGalleryMcpServer }
+	| { readonly status: McpGalleryResolveStatus.NotFound }
+	| { readonly status: McpGalleryResolveStatus.Failed };
+
 export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalleryService');
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
 	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
+	/**
+	 * Resolves the given servers against the active registry, distinguishing a
+	 * definitive "not found" from a transient failure so callers can make policy
+	 * decisions without treating an unreachable registry as absence. The returned
+	 * map is keyed by the requested server name.
+	 */
+	resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
@@ -244,9 +266,18 @@ export interface IAllowedMcpServersService {
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
+
+	/**
+	 * Checks whether an MCP server identified by name / remote URL / local command is permitted by
+	 * the `chat.mcp.allowedServers` allowlist (in addition to the `chat.mcp.access` gate). Used by
+	 * the runtime enforcement path, which does not have a gallery/local/installable representation.
+	 */
+	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }
 
 export const mcpAccessConfig = 'chat.mcp.access';
+export const mcpAllowedServersConfig = 'chat.mcp.allowedServers';
+export const mcpDeniedServersConfig = 'chat.mcp.deniedServers';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';

@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
+import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
+import type { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { DeferredPromise } from '../../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { SpyingTelemetryService } from '../../../../../platform/telemetry/node/spyingTelemetryService';
+import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
 import type { IBuildPromptContext, IToolCallRound } from '../../../../prompt/common/intents';
@@ -238,7 +243,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -312,7 +317,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -332,6 +337,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 				toolReferences: [],
 				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
 				availableTools: [toolInfo],
+				subAgentInvocationId: 'execution-parent-call',
 			},
 		};
 
@@ -354,6 +360,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Tool invoked with updatedInput from hook
 		expect(toolsService.lastInvocation?.name).toBe(toolName);
 		expect(toolsService.lastInvocation?.options.input).toEqual(updatedInput);
+		expect(toolsService.lastInvocation?.options.subAgentInvocationId).toBe('execution-parent-call');
 		expect(toolsService.lastInvocation?.options.preToolUseResult).toEqual({
 			permissionDecision: 'ask',
 			permissionDecisionReason: 'Needs confirmation',
@@ -398,7 +405,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const accessor = testingServiceCollection.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		const round: IToolCallRound = {
 			id: 'round-1',
@@ -449,5 +456,298 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(contentText).toContain('<PreToolUse-context>');
 		expect(contentText).toContain(denyContext);
 		expect(contentText).not.toContain('<PostToolUse-context>');
+	});
+
+	test('synthesizes missing historical tool results for stateful Responses rounds', async () => {
+		const toolName = 'testTool';
+		const completedCallId = 'call-completed';
+		const missingCallIds = ['call-missing-1', 'call-missing-2'];
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'test tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		testingServiceCollection.define(IToolsService, new CapturingToolsService(toolInfo));
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const responsesEndpoint = Object.create(endpoint) as IChatEndpoint;
+		Object.defineProperty(responsesEndpoint, 'apiType', { value: 'responses' });
+
+		const round: IToolCallRound = {
+			id: 'round-stateful',
+			response: 'calling tools',
+			toolInputRetry: 0,
+			statefulMarker: 'resp-stateful',
+			toolCalls: [completedCallId, ...missingCallIds].map(id => ({ name: toolName, arguments: '{}', id })),
+		};
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[completedCallId]: new LanguageModelToolResult([new LanguageModelTextPart('completed output')]),
+		};
+		const promptContext: IBuildPromptContext = {
+			query: 'continue',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-stateful' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, responsesEndpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const assistantMessage = messages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+		const toolMessages = messages.filter((message): message is Raw.ToolChatMessage => message.role === Raw.ChatRole.Tool);
+		const toolOutputs = toolMessages.map(message => ({
+			id: message.toolCallId,
+			text: message.content
+				.filter((part): part is Raw.ChatCompletionContentPartText => part.type === Raw.ChatCompletionContentPartKind.Text)
+				.map(part => part.text)
+				.join(''),
+		}));
+
+		const { messages: nonResponsesMessages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const nonResponsesAssistantMessage = nonResponsesMessages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+		const { messages: markerlessResponsesMessages } = await renderPromptElement(instantiationService, responsesEndpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [{ ...round, statefulMarker: undefined }],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const markerlessResponsesAssistantMessage = markerlessResponsesMessages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+
+		expect({
+			assistantToolCallIds: assistantMessage?.toolCalls?.map(call => call.id),
+			toolOutputs,
+			nonResponsesToolCallIds: nonResponsesAssistantMessage?.toolCalls?.map(call => call.id),
+			markerlessResponsesToolCallIds: markerlessResponsesAssistantMessage?.toolCalls?.map(call => call.id),
+		}).toEqual({
+			assistantToolCallIds: [completedCallId, ...missingCallIds],
+			toolOutputs: [
+				{ id: completedCallId, text: 'completed output' },
+				...missingCallIds.map(id => ({
+					id,
+					text: JSON.stringify({
+						status: 'outcome_unknown',
+						message: 'No tool output was recorded. Verify the current state before retrying this tool if its result is still needed.',
+					}),
+				})),
+			],
+			nonResponsesToolCallIds: [completedCallId],
+			markerlessResponsesToolCallIds: [completedCallId],
+		});
+	});
+
+	test('replaces images with placeholders for historical turns', async () => {
+		const toolName = 'viewImage';
+		const toolCallId = 'call-img-1';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		const imageData = new Uint8Array(1024);
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[toolCallId]: new LanguageModelToolResult([
+				new LanguageModelTextPart('some text result'),
+				LanguageModelDataPart.image(imageData, 'image/png'),
+			]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing image',
+			toolInputRetry: 0,
+			toolCalls: [{ name: toolName, arguments: '{}', id: toolCallId }],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-img' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain('Image was previously shown to you');
+		expect(serialized).toContain('some text result');
+		// Should not contain base64 image data
+		expect(serialized).not.toContain('image_url');
+	});
+
+	test('enforces shared image budget across tool results', async () => {
+		const toolName = 'viewImage';
+		const firstCallId = 'call-big-1';
+		const secondCallId = 'call-big-2';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		// Disable image uploads so images go through the base64 path where the budget applies
+		const configService = accessor.get(IConfigurationService);
+		await configService.setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// Each image is 3MB — individually exceeds the 2.5MB shared budget (half of 5MB CAPI limit)
+		const bigImage = new Uint8Array(3 * 1024 * 1024);
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[firstCallId]: new LanguageModelToolResult([
+				LanguageModelDataPart.image(bigImage, 'image/png'),
+			]),
+			[secondCallId]: new LanguageModelToolResult([
+				LanguageModelDataPart.image(bigImage, 'image/png'),
+			]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing images',
+			toolInputRetry: 0,
+			toolCalls: [
+				{ name: toolName, arguments: '{}', id: firstCallId },
+				{ name: toolName, arguments: '{}', id: secondCallId },
+			],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-budget' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+		});
+
+		const serialized = JSON.stringify(messages);
+		// Both images exceed the 2.5MB shared budget and should be replaced with placeholders
+		expect(serialized).toContain('context image budget exceeded');
+		expect(serialized).not.toContain('image_url');
+	});
+
+	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {
+		// Regression test for issue #312813: ensure sendInvokedToolTelemetry uses DI to instantiate
+		// PrimitiveToolResult so that @IPromptEndpoint is properly injected when rendering images.
+		// Previously, it used raw BasePromptRenderer which bypassed DI, causing 'Cannot read properties
+		// of undefined (reading "supportsVision")' when a tool result contained an image.
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const spyingTelemetryService = new SpyingTelemetryService();
+		testingServiceCollection.define(ITelemetryService, spyingTelemetryService);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const telemetryService = accessor.get(ITelemetryService);
+		const configService = accessor.get(IConfigurationService);
+
+		// Disable image uploads in test environment to avoid auth requirement
+		await configService.setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// Import the function we're testing
+		const { sendInvokedToolTelemetry } = await import('../toolCalling');
+
+		// Create a tool result with an image
+		const imageData = new Uint8Array(1024);
+		const toolResult = new LanguageModelToolResult([
+			new LanguageModelTextPart('Tool executed successfully'),
+			LanguageModelDataPart.image(imageData, 'image/png'),
+		]);
+
+		// This should not throw — the endpoint and all services must be properly injected so that
+		// onImage() can read this.endpoint.supportsVision without crashing.
+		// The function is fire-and-forget (returns undefined), so we just verify it doesn't throw.
+		expect(() => {
+			sendInvokedToolTelemetry(
+				instantiationService,
+				endpoint as IChatEndpoint,
+				telemetryService,
+				'testTool',
+				toolResult,
+				{ conversationId: 'conversation-id', requestId: 'request-id' },
+			);
+		}).not.toThrow();
+
+		// Give async rendering a moment to complete without unhandled rejection
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const telemetryEvent = spyingTelemetryService.getEvents().telemetryServiceEvents.find(event => event.eventName === 'agent.tool.responseLength');
+		expect(telemetryEvent).toMatchObject({
+			properties: {
+				conversationId: 'conversation-id',
+				requestId: 'request-id',
+				model: endpoint.model,
+				toolName: 'testTool',
+			},
+			measurements: {
+				tokenCount: expect.any(Number),
+			},
+		});
 	});
 });

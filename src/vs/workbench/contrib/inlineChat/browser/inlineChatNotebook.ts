@@ -10,7 +10,6 @@ import { InlineChatController } from './inlineChatController.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class InlineChatNotebookContribution {
 
@@ -18,7 +17,6 @@ export class InlineChatNotebookContribution {
 
 	constructor(
 		@IInlineChatSessionService sessionService: IInlineChatSessionService,
-		@IEditorService editorService: IEditorService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
 

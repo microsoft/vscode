@@ -7,6 +7,16 @@ description: "Analyze V8 heap snapshots to investigate memory leaks and retentio
 
 Investigate memory leaks from V8 heap snapshots (`.heapsnapshot` files). This skill starts when snapshots already exist: either the user provided them, DevTools exported them, or another workflow produced them. Use the helpers here to compare snapshots, group object deltas, and trace retainer paths.
 
+## IGNORE Prior Investigations
+
+**Start every investigation fresh.** Do NOT read, consult, or be influenced by prior investigations found in:
+
+- `/memories/` (user, session, or repo memory)
+- `.github/skills/heap-snapshot-analysis/scratchpad/` (previous dated subfolders and their `findings.md` files)
+- Any other notes from earlier sessions
+
+Previous findings can bias the analysis toward suspects that are no longer relevant, or cause the agent to skip steps and jump to conclusions. Let the current snapshots speak for themselves. Only reference prior work if the user explicitly asks you to.
+
 ## When to Use
 
 - User provides `.heapsnapshot` files (before/after a workflow)
@@ -23,11 +33,51 @@ If the user needs the agent to launch VS Code, drive a scenario, and capture sna
 
 Use the helpers in [parseSnapshot.ts](./helpers/parseSnapshot.ts) to load snapshots. The files are often >500MB and too large for `JSON.parse` as a string — the helpers use Buffer-based extraction. In scratchpad scripts, import helpers from `../helpers/*.ts`.
 
+For very large snapshots, the helper may still be too eager. Node cannot create a Buffer larger than roughly 2 GiB, so snapshots above that size can fail with `ERR_FS_FILE_TOO_LARGE` even before parsing. In that case, do not try to raise `--max-old-space-size` and retry the same full-file read. Switch to a streaming script.
+
 ```typescript
 import { parseSnapshot, buildGraph } from '../helpers/parseSnapshot.ts';
 
 const data = parseSnapshot('/path/to/snapshot.heapsnapshot');
 const graph = buildGraph(data);
+```
+
+#### Snapshots Larger Than 2 GiB
+
+When a snapshot is too large to load into a single Buffer, write scratchpad scripts that scan and parse only the sections needed for the question. Use [streamSnapshot.mjs](./helpers/streamSnapshot.mjs) for the common streaming primitives instead of copying them between scratch scripts.
+
+Useful tricks:
+
+- Find top-level section offsets first. Scan the file as bytes for markers like `"nodes":`, `"edges":`, `"strings":`, and `"trace_function_infos":`. This lets follow-up scripts jump directly to the large arrays instead of searching the whole file repeatedly.
+- Parse `snapshot.meta` separately from the small header at the start of the file. Use `meta.node_fields`, `meta.node_types`, `meta.edge_fields`, and `meta.edge_types` to avoid hard-coding tuple widths.
+- Stream numeric arrays in chunks. For `nodes` and `edges`, keep a small carryover string between chunks, split on commas, and process complete numeric tokens as they arrive.
+- Avoid materializing the full `strings` table unless the investigation truly needs it. If you only need suspicious names, collect string indexes from matching nodes/edges first, then resolve only those indexes in a second streaming pass.
+- If you do need many strings, store only short previews and category counters. Full source strings, ref-listing strings, and prompt payloads can dominate memory and make the analyzer become the leak.
+- Write intermediate outputs to files in the scratchpad. Large heap analysis is iterative and slow; cached node ids, offsets, and retainer traces save repeated multi-minute passes.
+- Prefer self-size attribution and field-level ownership for huge graphs. Full retained-size walks can wildly overcount shared services, roots, maps, and singleton caches.
+- When quantifying a suspected owner, count obvious owned fields separately: wrapper object, key arrays, array elements, direct strings, and parent strings of sliced/concatenated strings. This often gives a better lower-bound than a single direct string bucket.
+- Be explicit about approximation boundaries. A field-level subtotal usually undercounts listeners/watchers/back-references but avoids the much worse problem of attributing the whole runtime to one object.
+
+Example large-snapshot workflow:
+
+```javascript
+import { findArrayStart, findTokenOffsets, parseMeta, streamNumberTuples } from '../../helpers/streamSnapshot.mjs';
+
+const { size, offsets } = findTokenOffsets(snapshotPath);
+const meta = parseMeta(snapshotPath);
+const nodeFieldCount = meta.node_fields.length;
+const nodesStart = findArrayStart(snapshotPath, offsets.get('"nodes"'));
+
+streamNumberTuples(snapshotPath, nodesStart, offsets.get('"edges"'), nodeFieldCount, (node, nodeIndex) => {
+    // node is reused for speed; copy it before storing.
+});
+```
+
+```bash
+cd .github/skills/heap-snapshot-analysis
+node --max-old-space-size=24576 scratchpad/YYYY-MM-DD-topic/findOffsets.mjs /path/to/Heap.heapsnapshot
+node --max-old-space-size=24576 scratchpad/YYYY-MM-DD-topic/streamAnalyze.mjs /path/to/Heap.heapsnapshot > scratchpad/YYYY-MM-DD-topic/streamAnalyze.out
+node --max-old-space-size=24576 scratchpad/YYYY-MM-DD-topic/traceNodes.mjs /path/to/Heap.heapsnapshot 12345 67890 > scratchpad/YYYY-MM-DD-topic/traceNodes.out
 ```
 
 ### 2. Compare Before/After
@@ -124,6 +174,7 @@ override dispose() {
 
 ### False Retainers to Watch For
 
+- **DevTools debugger global handles**: If the snapshot was captured after opening DevTools, large source strings, compiled scripts, preview data, inspected objects, or debugger bookkeeping can be retained by paths like `DevTools debugger(internal)` → `synthetic::(Global handles)` → GC roots. Treat these as debugger-induced until proven otherwise. They may not exist in the app before DevTools opens, and they should not be confused with application-owned leaks.
 - **`DevToolsLogger._aliveInstances`** (Map): Enabled by `VSCODE_DEV_DEBUG_OBSERVABLES` env var. Retains ALL observed observables. Check if this is active before investigating observable-rooted paths.
 - **`GCBasedDisposableTracker` (FinalizationRegistry)**: If `register(target, held, target)` is used (target === unregister token), creates a strong self-reference preventing GC. Currently commented out in production.
 - **WeakMap backing arrays**: Show up in retainer paths but don't prevent collection.

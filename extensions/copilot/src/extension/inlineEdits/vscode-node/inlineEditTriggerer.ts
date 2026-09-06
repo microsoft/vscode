@@ -157,6 +157,12 @@ export class InlineEditTriggerer extends Disposable {
 			return;
 		}
 
+		// When the user switches to a different file and comes back, clear same-line
+		// cooldowns so the triggerer fires again on the same line.
+		if (!isSameDoc) {
+			mostRecentChange.lineNumberTriggers.clear();
+		}
+
 		const hadRecentEdit = this._hasRecentEdit(mostRecentChange);
 		if (!hadRecentEdit || !this._hasRecentTrigger()) {
 			// The edit is too old or the provider was not triggered recently (we might be
@@ -221,17 +227,14 @@ export class InlineEditTriggerer extends Disposable {
 	/**
 	 * Returns true if the same-line cooldown is active and we should skip triggering.
 	 *
-	 * The cooldown is bypassed when:
-	 * - `triggerOnActiveEditorChange` is configured, OR
-	 * - we're in a notebook cell and the current document differs from the one that
-	 *   originally triggered the change (user moved to a different cell).
+	 * The cooldown is bypassed when we're in a notebook cell and the current document
+	 * differs from the one that originally triggered the change (user moved to a
+	 * different cell).
+	 *
+	 * When the user switches to a different file and comes back, line triggers are
+	 * cleared (see {@link _handleSelectionChange}), so the cooldown naturally resets.
 	 */
 	private _isSameLineCooldownActive(mostRecentChange: LastChange, selectionLine: number, currentDocument: vscode.TextDocument): boolean {
-		const triggerOnActiveEditorChange = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsTriggerOnEditorChangeAfterSeconds, this._expService);
-		if (triggerOnActiveEditorChange) {
-			return false; // cooldown bypassed
-		}
-
 		// In a notebook, if the user moved to a different cell, bypass the cooldown
 		if (isNotebookCell(currentDocument.uri) && currentDocument !== mostRecentChange.documentTrigger) {
 			return false; // cooldown bypassed

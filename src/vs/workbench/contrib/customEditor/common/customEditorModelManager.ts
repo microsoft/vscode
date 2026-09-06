@@ -75,6 +75,16 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		}
 	}
 
+	public disposeAllModelsForResource(resource: URI): void {
+		const keyStart = `${resource.toString()}@@@`;
+		for (const [key, value] of this._references) {
+			if (key.startsWith(keyStart)) {
+				value.model.then(x => x.dispose());
+				this._references.delete(key);
+			}
+		}
+	}
+
 	private key(resource: URI, viewType: string): string {
 		return `${resource.toString()}@@@${viewType}`;
 	}

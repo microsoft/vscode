@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../../../../editor/common/services/resolverService.js';
+import { chatInputSchemes } from '../../../../common/constants.js';
 
 
 export class ChatInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -19,7 +19,11 @@ export class ChatInputBoxContentProvider extends Disposable implements ITextMode
 		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
-		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatInput, this));
+		// Every chat input scheme needs this: paste edits are applied through the
+		// bulk edit service, which resolves the target model by URI.
+		for (const scheme of chatInputSchemes) {
+			this._register(textModelService.registerTextModelContentProvider(scheme, this));
+		}
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {

@@ -120,6 +120,17 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
 	},
+	[PromptHeaderAttributes.reasoningEffort]: {
+		type: 'scalar',
+		description: localize('promptHeader.agent.reasoningEffort', 'Specify the reasoning effort used by this custom agent.'),
+		enums: [
+			{ name: 'low' },
+			{ name: 'medium' },
+			{ name: 'high' },
+			{ name: 'xhigh' },
+			{ name: 'max' },
+		],
+	},
 	[PromptHeaderAttributes.tools]: {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),
@@ -203,6 +214,11 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 	[PromptHeaderAttributes.metadata]: {
 		type: 'map',
 		description: localize('promptHeader.skill.metadata', 'Additional metadata for the skill.'),
+	},
+	[PromptHeaderAttributes.context]: {
+		type: 'scalar',
+		description: localize('promptHeader.skill.context', 'Controls how the skill is loaded. Set to \'fork\' to spawn a subagent with the skill instructions instead of returning them inline.'),
+		enums: [{ name: 'fork', description: localize('promptHeader.skill.context.fork', 'Spawn a subagent with the skill instructions injected as system context.') }],
 	},
 };
 

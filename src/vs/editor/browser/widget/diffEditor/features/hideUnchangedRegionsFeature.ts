@@ -62,6 +62,8 @@ export class HideUnchangedRegionsFeature extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
+		private readonly _runWithOriginalEditorScrollAnchor: ((anchorLineNumber: number, update: () => void) => void) | undefined,
+		private readonly _runWithModifiedEditorScrollAnchor: ((anchorLineNumber: number, update: () => void) => void) | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -154,6 +156,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 							modifiedOutlineSource,
 							l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, RevealPreference.FromBottom, undefined),
 							this._options,
+							this._runWithOriginalEditorScrollAnchor,
 						));
 					}
 					{
@@ -169,6 +172,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 							modifiedOutlineSource,
 							l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, RevealPreference.FromBottom, undefined),
 							this._options,
+							this._runWithModifiedEditorScrollAnchor,
 						));
 					}
 				}
@@ -322,6 +326,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		private readonly _modifiedOutlineSource: IDiffEditorBreadcrumbsSource,
 		private readonly _revealModifiedHiddenLine: (lineNumber: number) => void,
 		private readonly _options: DiffEditorOptions,
+		private readonly _runWithScrollAnchor: ((anchorLineNumber: number, update: () => void) => void) | undefined,
 	) {
 		const root = h('div.diff-hidden-lines-widget');
 		super(_editor, _viewZone, root.root);
@@ -415,25 +420,17 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				didMove = didMove || Math.abs(delta) > 2;
 				const lineDelta = Math.round(delta / editor.getOption(EditorOption.lineHeight));
 				const newVal = Math.max(0, Math.min(cur - lineDelta, this._unchangedRegion.getMaxVisibleLineCountBottom()));
-				const top = this._unchangedRegionRange.endLineNumberExclusive > editor.getModel()!.getLineCount()
-					? editor.getContentHeight()
-					: editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
-				this._unchangedRegion.visibleLineCountBottom.set(newVal, undefined);
-				const top2 = this._unchangedRegionRange.endLineNumberExclusive > editor.getModel()!.getLineCount()
-					? editor.getContentHeight()
-					: editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
-				editor.setScrollTop(editor.getScrollTop() + (top2 - top));
+				if (newVal === this._unchangedRegion.visibleLineCountBottom.get()) {
+					return;
+				}
+				this._runWithLowerScrollAnchor(() => this._unchangedRegion.visibleLineCountBottom.set(newVal, undefined));
 			});
 
 			const mouseUpListener = addDisposableListener(window, 'mouseup', e => {
 				this._unchangedRegion.isDragged.set(undefined, undefined);
 
 				if (!didMove) {
-					const top = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
-
-					this._unchangedRegion.showMoreBelow(this._options.hideUnchangedRegionsRevealLineCount.get(), undefined);
-					const top2 = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
-					editor.setScrollTop(editor.getScrollTop() + (top2 - top));
+					this._runWithLowerScrollAnchor(() => this._unchangedRegion.showMoreBelow(this._options.hideUnchangedRegionsRevealLineCount.get(), undefined));
 				}
 				this._nodes.bottom.classList.toggle('dragging', false);
 				this._nodes.root.classList.toggle('dragging', false);
@@ -487,6 +484,25 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 			reset(this._nodes.others, ...children);
 		}));
+	}
+
+	private _runWithLowerScrollAnchor(update: () => void): void {
+		const anchorLineNumber = this._unchangedRegionRange.endLineNumberExclusive;
+		if (this._runWithScrollAnchor) {
+			this._runWithScrollAnchor(anchorLineNumber, update);
+			return;
+		}
+
+		const scrollTop = this._editor.getScrollTop();
+		const top = this._getTopForLineNumber(anchorLineNumber);
+		update();
+		this._editor.setScrollTop(scrollTop + this._getTopForLineNumber(anchorLineNumber) - top);
+	}
+
+	private _getTopForLineNumber(lineNumber: number): number {
+		return lineNumber > this._editor.getModel()!.getLineCount()
+			? this._editor.getContentHeight()
+			: this._editor.getTopForLineNumber(lineNumber);
 	}
 }
 

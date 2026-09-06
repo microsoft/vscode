@@ -1,374 +1,442 @@
 ---
 name: launch
-description: "Launch and automate VS Code (Code OSS) using agent-browser via Chrome DevTools Protocol. Use when you need to interact with the VS Code UI, automate the chat panel, test UI features, or take screenshots of VS Code. Triggers include 'automate VS Code', 'interact with chat', 'test the UI', 'take a screenshot', 'launch Code OSS with debugging'."
-metadata:
-  allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*)
+description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
 ---
 
-# VS Code Automation
+# Code OSS Dev - Launch + Debug
 
-Automate VS Code (Code OSS) using agent-browser. VS Code is built on Electron/Chromium and exposes a Chrome DevTools Protocol (CDP) port that agent-browser can connect to, enabling the same snapshot-interact workflow used for web pages.
+You're working on VS Code itself and you want to:
+
+1. Launch a Code OSS build from sources that is **already signed in** (Copilot, GitHub, etc.) so chat / agent flows work end-to-end.
+2. Drive it with `@playwright/cli` over CDP (UI automation).
+3. Optionally attach a debugger via **dap-cli** to set breakpoints in the renderer, extension host, or main process.
+4. Run multiple instances at once without port conflicts.
+
+This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
+
+The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved. On Windows the GitHub session lives in the **shared-data-dir** instead, which the launcher seeds separately (see [Windows authentication](#windows-authentication)).
 
 ## Prerequisites
 
-- **`agent-browser` must be installed.** It's listed in devDependencies — run `npm install` in the repo root. Use `npx agent-browser` if it's not on your PATH, or install globally with `npm install -g agent-browser`.
-- **For Code OSS (VS Code dev build):** The repo must be built before launching. `./scripts/code.sh` runs the build automatically if needed, or set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built.
-- **CSS selectors are internal implementation details.** Selectors like `.interactive-input-part`, `.interactive-input-editor`, and `.part.auxiliarybar` used in `eval` commands are VS Code internals that may change across versions. If they stop working, use `agent-browser snapshot -i` to re-discover the current DOM structure.
+- macOS, Linux, or Windows.
+  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
+  - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. `jq` is not needed — parse the JSON with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
+    ```powershell
+    fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+    fnm use   # picks up the repo's .nvmrc
+    ```
+- A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
+- A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
+- An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
+  - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
+- `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
+- For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
+- CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
 
-## Core Workflow
+> The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
-1. **Launch** Code OSS with remote debugging enabled
-2. **Connect** agent-browser to the CDP port
-3. **Snapshot** to discover interactive elements
-4. **Interact** using element refs
-5. **Re-snapshot** after navigation or state changes
+> The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
-> **📸 Take screenshots for a paper trail.** Use `agent-browser screenshot <path>` at key moments — after launch, before/after interactions, and when something goes wrong. Screenshots provide visual proof of what the UI looked like and are invaluable for debugging failures or documenting what was accomplished.
->
-> Save screenshots inside a timestamped subfolder so each run is isolated and nothing gets overwritten:
->
-> ```bash
-> # Create a timestamped folder for this run's screenshots
-> SCREENSHOT_DIR="/tmp/code-oss-screenshots/$(date +%Y-%m-%dT%H-%M-%S)"
-> mkdir -p "$SCREENSHOT_DIR"
->
-> # Save a screenshot (path is a positional argument — use ./ or absolute paths)
-> # Bare filenames without ./ may be misinterpreted as CSS selectors
-> agent-browser screenshot "$SCREENSHOT_DIR/after-launch.png"
-> ```
+> For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
+
+## Launch
+
+The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Linux) or `scripts\launch.ps1` (Windows). Resolve it relative to wherever this skill file is installed - do not hardcode an absolute path.
 
 ```bash
-# Launch Code OSS with remote debugging
-./scripts/code.sh --remote-debugging-port=9224
-
-# Wait for Code OSS to start, retry until connected
-for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
-
-# Verify you're connected to the right target (not about:blank)
-# If `tab` shows the wrong target, run `agent-browser close` and reconnect
-agent-browser tab
-
-# Discover UI elements
-agent-browser snapshot -i
-
-# Focus the chat input (macOS)
-agent-browser press Control+Meta+i
+# LAUNCH=<dir-of-this-SKILL.md>/scripts/launch.sh
+"$LAUNCH"                                    # default: workbench
+"$LAUNCH" --agents                           # Agents window
+"$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
+"$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
+"$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
+"$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
+"$LAUNCH" --full                             # skip slim excludes; copy everything
+"$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
+"$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
 ```
 
-## Connecting
+On Windows, invoke the PowerShell launcher with the same flags:
 
-```bash
-# Connect to a specific port
-agent-browser connect 9222
-
-# Or use --cdp on each command
-agent-browser --cdp 9222 snapshot -i
-
-# Auto-discover a running Chromium-based app
-agent-browser --auto-connect snapshot -i
+```powershell
+$skillDir = '<dir-of-this-SKILL.md>'
+$launch = Join-Path $skillDir 'scripts\launch.ps1'
+& $launch                                      # default: workbench
+& $launch --agents                             # Agents window
+& $launch -- --use-mock-keychain               # forward extra args to code.bat
+& $launch --source-user-data-dir C:\path\to\profile
+& $launch --repo C:\path\to\vscode
+& $launch --clone-extensions
+& $launch --full
+& $launch --skip-prelaunch
+& $launch --disable-workspace-trust
 ```
 
-After `connect`, all subsequent commands target the connected app without needing `--cdp`.
+If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
 
-## Tab Management
+### What gets copied (slim mode, the default)
 
-Electron apps often have multiple windows or webviews. Use tab commands to list and switch between them:
+The exclude list mirrors the one used by VS Code's own perf-test skill (`.github/skills/auto-perf-optimize`), which is known to keep Copilot auth and language-model availability working. Specifically `WebStorage/`, `Service Worker/`, `Local Storage/`, `Cookies`, `Network Persistent State`, `TransportSecurity`, `Trust Tokens`, `Preferences`, `machineid`, and the entire `User/globalStorage/` (which holds `state.vscdb`) are all preserved.
 
-```bash
-# List all available targets (windows, webviews, etc.)
-agent-browser tab
+#### Windows authentication
 
-# Switch to a specific tab by index
-agent-browser tab 2
+Windows has no shared per-app keychain for these secrets, so they live in files on disk - but **not all in the user-data-dir**. The GitHub session is stored at `StorageScope.APPLICATION_SHARED` *only on Windows* (see `useSharedStorage` and `CROSS_APP_SHARED_SECRET_KEYS` in `src/vs/platform/secrets/common/secrets.ts`), which puts the two halves of the credential in **different directories**:
 
-# Switch by URL pattern
-agent-browser tab --url "*settings*"
+| Piece | Location |
+|---|---|
+| Encrypted GitHub session blob | `<shared-data-dir>/sharedStorage/state.vscdb` |
+| DPAPI-wrapped decryption key (`os_crypt.encrypted_key`) | `<user-data-dir>/Local State` |
+
+The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session.
+
+> This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
+
+To (re)establish the source session: run `.\scripts\code.bat --user-data-dir=$env:USERPROFILE\.vscode-oss-dev` directly, sign in once, and close it. That writes the blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
+
+> Profiles that predate the `APPLICATION_SHARED` migration can still hold the secret in `User/globalStorage/state.vscdb`. `ApplicationSharedStorageMain` registers application storage as a read fallback, so those profiles authenticate even with no shared-data-dir present - which is why a missing shared dir is reported as a fact rather than assumed fatal.
+
+Excluded (transient, regenerable, or known-not-needed):
+- `User/workspaceStorage/` - per-workspace state, **including stored chat sessions** (often multi-GB)
+- `User/History/` - local file edit history
+- `CachedExtensionVSIXs` - backup VSIXs (hundreds of MB)
+- `logs`
+- Chromium caches at the profile root: `Cache`, `Code Cache`, `CachedData`, `GPUCache`, `ShaderCache`, `Dawn*Cache`, `component_crx_cache`; and under the persistent integrated-browser partition: `Cache`, `Code Cache`, `GPUCache`, `Dawn*Cache`
+- `Backups`, `blob_storage`, `BrowserMetrics`, `Crashpad`, `Session Storage`
+- `Singleton*`, `*.lock`, `*.sock` (would conflict with the source instance)
+
+The persistent integrated-browser partition keeps website state such as cookies, local and session storage, IndexedDB, WebStorage, service workers, and preferences; only its regenerable caches are excluded.
+
+`extensions/` defaults to a **fresh empty directory** - fastest and conflict-free, but the launched instance starts with no third-party extensions installed. Pass `--clone-extensions` to copy the source extensions dir into the temp profile so the new instance is independent of the source. Pass `--full` to skip all excludes if you suspect the slim copy is missing something you need.
+
+> **Why never share the source `extensions/` dir directly?** The extension management service writes a shared `.obsolete` file; two concurrent writers crash each other's shared background process. The launcher always uses an isolated extensions dir for the same reason it uses `--shared-data-dir` (see below).
+
+> If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
+
+The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
+
+For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
+
+```json
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
 
-## Launching Code OSS (VS Code Dev Build)
+The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
 
-The VS Code repository includes `scripts/code.sh` which launches Code OSS from source. It passes all arguments through to the Electron binary, so `--remote-debugging-port` works directly:
+Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
 
 ```bash
-cd <repo-root>  # the root of your VS Code checkout
-./scripts/code.sh --remote-debugging-port=9224
+INFO=$("$LAUNCH" | tail -n1)
+CDP=$(jq -r .cdpPort        <<<"$INFO")
+EXT=$(jq -r .extHostPort    <<<"$INFO")
+MAIN=$(jq -r .mainPort      <<<"$INFO")
+AGENT=$(jq -r .agentHostPort <<<"$INFO")
+LOG=$(jq -r .logFile        <<<"$INFO")
+PID=$(jq -r .pid            <<<"$INFO")
 ```
 
-Wait for the window to fully initialize, then connect:
+On Windows, capture and parse the JSON without `jq`:
 
-```bash
-# Wait for Code OSS to start, retry until connected
-for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
-
-# Verify you're connected to the right target (not about:blank)
-# If `tab` shows the wrong target, run `agent-browser close` and reconnect
-agent-browser tab
-agent-browser snapshot -i
+```powershell
+$info = & $launch | Select-Object -Last 1 | ConvertFrom-Json
+$cdp = $info.cdpPort
+$ext = $info.extHostPort
+$main = $info.mainPort
+$agent = $info.agentHostPort
+$log = $info.logFile
+$pid = $info.pid
 ```
 
-**Tips:**
-- Set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built: `VSCODE_SKIP_PRELAUNCH=1 ./scripts/code.sh --remote-debugging-port=9224` (from the repo root)
-- Code OSS uses the default user data directory. Unlike VS Code Insiders, you don't typically need `--user-data-dir` since there's usually only one Code OSS instance running.
-- If you see "Sent env to running instance. Terminating..." it means Code OSS is already running and forwarded your args to the existing instance. Quit Code OSS and relaunch with the flag, or use `--user-data-dir=/tmp/code-oss-debug` to force a new instance.
+### What each port is for
 
-## Launching the Agents App (Agents Window)
+| Port | Process | Use with |
+|------|---------|----------|
+| `cdpPort` (`--remote-debugging-port`) | Renderer (the workbench window) | `@playwright/cli` over CDP, also Chrome DevTools |
+| `extHostPort` (`--inspect-extensions`) | Extension host (Node) | `dap-cli` (Node inspector protocol) |
+| `mainPort` (`--inspect`) | Electron main process (Node) | `dap-cli` (Node inspector protocol) |
+| `agentHostPort` (`--inspect-agenthost`) | Agent host process (Node) | `dap-cli` (Node inspector protocol) |
 
-The Agents app is a separate workbench mode launched with the `--agents` flag. It uses a dedicated user data directory to avoid conflicts with the main Code OSS instance.
+## Drive the UI with @playwright/cli
+
+Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
+
+If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` or `npx @playwright/cli <command> --help` instead of guessing option names.
+
+> **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `npx @playwright/cli ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.
 
 ```bash
-cd <repo-root>  # the root of your VS Code checkout
-./scripts/code.sh --agents --remote-debugging-port=9224
+# At the top of your script / subagent prompt:
+PW_SESSION="my-uniq-$$"        # any unique string; $$ is fine for one shell per agent
+
+# launch.sh blocks until CDP is ready, so a single attach is enough.
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-Wait for the window to fully initialize, then connect:
+After `attach`, later `@playwright/cli` commands keep using the connected app until you close or reattach — as long as you keep passing the same `-s=$PW_SESSION`.
+
+### Selecting the right Electron target
+
+Electron apps can expose multiple windows or webviews. If `tab-list` shows `about:blank`, a webview, or otherwise the wrong target, switch targets before interacting:
 
 ```bash
-# Wait for Agents app to start, retry until connected
-for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
-
-# Verify you're connected to the right target (not about:blank)
-agent-browser tab
-agent-browser snapshot -i
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION tab-select 2
+npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-**Tips:**
-- The `--agents` flag launches the Agents workbench instead of the standard VS Code workbench.
-- Set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built.
+If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
 
-## Launching VS Code Extensions for Debugging
+### Focusing the chat input
 
-To debug a VS Code extension via agent-browser, launch VS Code Insiders with `--extensionDevelopmentPath` and `--remote-debugging-port`. Use `--user-data-dir` to avoid conflicting with an already-running instance.
+Use the `playwrightScripts/focus-chat-input.ts` script in both the regular
+workbench and the Agents window. It performs the complete focus flow in one
+Playwright call:
+
+1. If a visible chat input is already focused, it does nothing.
+2. If a visible chat input exists but is not focused, it focuses that input.
+3. Otherwise, it invokes the platform chat-focus chord, waits for the input,
+   and focuses it only if the chord did not already do so.
+
+The script detects the platform from the browser page, prefers the active
+Agents session, and excludes inline chat inputs. If the cloned profile has
+customized the default chord, it falls back to the surface-specific command
+through the Command Palette.
 
 ```bash
-# Build the extension first
-cd <extension-repo-root>  # e.g., the root of your extension checkout
-npm run compile
-
-# Launch VS Code Insiders with the extension and CDP
-code-insiders \
-  --extensionDevelopmentPath="<extension-repo-root>" \
-  --remote-debugging-port=9223 \
-  --user-data-dir=/tmp/vscode-ext-debug
-
-# Wait for VS Code to start, retry until connected
-for i in 1 2 3 4 5; do agent-browser connect 9223 2>/dev/null && break || sleep 3; done
-
-# Verify you're connected to the right target (not about:blank)
-# If `tab` shows the wrong target, run `agent-browser close` and reconnect
-agent-browser tab
-agent-browser snapshot -i
+LAUNCH_DIR=<dir-of-this-SKILL.md>
+FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
 ```
 
-**Key flags:**
-- `--extensionDevelopmentPath=<path>` — loads your extension from source (must be compiled first)
-- `--remote-debugging-port=9223` — enables CDP (use 9223 to avoid conflicts with other apps on 9222)
-- `--user-data-dir=<path>` — uses a separate profile so it starts a new process instead of sending to an existing VS Code instance
-
-**Without `--user-data-dir`**, VS Code detects the running instance, forwards the args to it, and exits immediately — you'll see "Sent env to running instance. Terminating..." and CDP never starts.
-
-## Restarting After Code Changes
-
-**After making changes to Code OSS source code, you must restart to pick up the new build.** The workbench loads the compiled JavaScript at startup — changes are not hot-reloaded.
-
-### Restart Workflow
-
-1. **Rebuild** the changed code
-2. **Kill** the running Code OSS instance
-3. **Relaunch** with the same flags
-
-```bash
-# 1. Ensure your build is up to date.
-#    Normally you can skip a manual step here and let ./scripts/code.sh in step 3
-#    trigger the build when needed (or run `npm run watch` in another terminal).
-
-# 2. Kill the Code OSS instance listening on the debug port (if running)
-pids=$(lsof -t -i :9224)
-if [ -n "$pids" ]; then
-	kill $pids
-fi
-
-# 3. Relaunch
-./scripts/code.sh --remote-debugging-port=9224
-
-# 4. Reconnect agent-browser
-for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
-agent-browser tab
-agent-browser snapshot -i
+```powershell
+$skillDir = '<dir-of-this-SKILL.md>'
+$focusChat = Join-Path $skillDir 'playwrightScripts\focus-chat-input.ts'
+npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
-> **Tip:** If you're iterating frequently, run `npm run watch` in a separate terminal so compilation happens automatically. You still need to kill and relaunch Code OSS to load the new build.
+The script returns
+`{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
+`focusChanged` reports whether this script invocation moved focus into Chat,
+while `focusInvoked` reports whether the script had to call `focus()` directly.
+Both are `false` when the chat input was already focused. If the script fails,
+take a fresh snapshot and resolve any blocking dialog or unavailable chat state
+before retrying.
 
-## Interacting with Monaco Editor (Chat Input, Code Editors)
+### Typing into Monaco (chat input, editors)
 
-VS Code uses Monaco Editor for all text inputs including the Copilot Chat input. Monaco editors require specific agent-browser techniques — standard `click`, `fill`, and `keyboard type` commands may not work depending on the VS Code build.
+`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
 
-### The Universal Pattern: Focus via Keyboard Shortcut + `press`
+- **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
 
-This works on **all** VS Code builds (Code OSS, Insiders, stable):
+  ```bash
+  LAUNCH_DIR=<dir-of-this-SKILL.md>           # the same dir that holds scripts/launch.sh
+  FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+  PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+  export PW_SESSION                            # helper reads this env var
+
+  # Send a prompt:
+  npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
+  "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
+  npx @playwright/cli -s=$PW_SESSION press Enter
+
+  # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
+  printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
+
+  # Append without clearing:
+  "$PASTE" --append " continued text"
+
+  # Skip the read-back check (useful when intentionally pasting more than the
+  # chat input's ~600-character soft cap):
+  "$PASTE" --no-verify "...long text..."
+
+  # Or pass the session explicitly per call (if you don't want to export PW_SESSION):
+  "$PASTE" --session "$PW_SESSION" "..."
+  ```
+
+  The helper prints a single JSON line on stdout: `{ok, actualLength, expectedLength, viewLineCount, firstViewLine, error?}`. Exit 0 on success, 1 on verify failure, 2 on argument errors. Tested reliable across 20+ sequential pastes including unicode (中文), emoji (🎉), backticks, ampersands, embedded quotes, and newlines.
+
+  **Why a helper script and not just docs:** the inline recipe involves a multi-line `node -e` heredoc with embedded JS template literals, which is exactly the kind of code that gets miscopied. There are also three non-obvious correctness traps the helper handles internally:
+  1. Monaco's `native-edit-context` doesn't react to `fill` or `type`, only to actual paste events (or per-key `press`).
+  2. Monaco renders ASCII spaces as U+00A0 (NBSP) in the view-line DOM, so verification has to normalize before comparing.
+  3. Monaco updates its DOM **asynchronously** after a paste event — a synchronous read-back inside the same `eval` returns stale state. The helper polls rendered view lines across paint cycles until the pasted prefix appears or verification times out.
+
+- **Per-key `press`** (universal but slow — each press is a separate CLI invocation with Node startup cost):
+  ```bash
+  npx @playwright/cli -s=$PW_SESSION press H
+  npx @playwright/cli -s=$PW_SESSION press i
+  npx @playwright/cli -s=$PW_SESSION press Enter
+  ```
+
+- **Clipboard paste via `pbcopy`** (fast on macOS, **but `NSPasteboard` is system-wide so any concurrent shell that touches the pasteboard will collide**). Only use when nothing else on the machine is using the clipboard for the duration of the paste.
+  ```bash
+  LAUNCH_DIR=<dir-of-this-SKILL.md>
+  FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+  printf '%s' "Your prompt here" | pbcopy
+  npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
+  npx @playwright/cli -s=$PW_SESSION press Meta+v
+  npx @playwright/cli -s=$PW_SESSION press Enter
+  ```
+
+### Parallel multi-instance pattern
+
+Because the launch skill is built around isolation, the natural workload is **many agents on one machine, each driving their own Code OSS**. The pattern boils down to giving each agent a unique `PW_SESSION` and passing it everywhere:
 
 ```bash
-# 1. Open and focus the chat input with the keyboard shortcut
-# macOS:
-agent-browser press Control+Meta+i
-# Linux / Windows:
-agent-browser press Control+Alt+i
+LAUNCH_DIR=<dir-of-this-SKILL.md>
+FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
+PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+export PW_SESSION
 
-# 2. Type using individual press commands
-agent-browser press H
-agent-browser press e
-agent-browser press l
-agent-browser press l
-agent-browser press o
-agent-browser press Space  # Use "Space" for spaces
-agent-browser press w
-agent-browser press o
-agent-browser press r
-agent-browser press l
-agent-browser press d
+# In agent A's shell:
+PW_SESSION="agent-A-$$"
+INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
+"$PASTE" "prompt for A"   # helper picks up $PW_SESSION
 
-# Verify text appeared (optional)
-agent-browser eval '
+# In agent B's shell (running concurrently):
+PW_SESSION="agent-B-$$"
+INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
+"$PASTE" "prompt for B"
+```
+
+Each agent gets its own `cliDaemon` bound to its own CDP, so the pastes / clicks / snapshots don't cross-contaminate. Verified live with two concurrent instances. **macOS Mach-ports caveat:** on macOS, beyond ~2–3 concurrent Code OSS instances Crashpad's exception handler tends to die with `mach_port_request_notification: invalid capability`. That's a separate, OS-level limit; it's not affected by the session name.
+
+> **Cleanup for `cliDaemon` processes:** stop your session's daemon with `npx @playwright/cli -s=$PW_SESSION close`, or nuke all stale daemons (after killing all the Code OSS windows) with `npx @playwright/cli kill-all`. Session daemons live under `~/Library/Caches/ms-playwright/daemon/<hash>/`.
+
+### Agents window selector differences
+
+The Agents window does not use the regular workbench `.interactive-input-editor` wrapper. Selector checks that are scoped to that wrapper may return nothing even when the Agents chat input is focused.
+
+```js
+// Regular-workbench-specific selector; do not assume this exists in Agents.
+document.querySelectorAll('.interactive-input-editor .view-line')
+
+// More useful checks in Agents.
+document.querySelectorAll('.view-line')
+document.activeElement?.matches('.native-edit-context, textarea.inputarea')
+```
+
+The focus script accounts for these DOM differences and prioritizes the active
+Agents session.
+
+### Verifying and clearing chat text
+
+For the regular workbench sidebar, this confirms that text landed in the Monaco input:
+
+```bash
+npx @playwright/cli -s=$PW_SESSION eval '
 (() => {
   const sidebar = document.querySelector(".part.auxiliarybar");
-  const viewLines = sidebar.querySelectorAll(".interactive-input-editor .view-line");
-  return Array.from(viewLines).map(vl => vl.textContent).join("|");
+  const viewLines = sidebar?.querySelectorAll(".interactive-input-editor .view-line") ?? [];
+  return Array.from(viewLines).map(viewLine => viewLine.textContent).join("|");
 })()'
-
-# 3. Send the message (same on all platforms)
-agent-browser press Enter
 ```
 
-**Chat focus shortcut by platform:**
-- **macOS:** `Ctrl+Cmd+I` → `agent-browser press Control+Meta+i`
-- **Linux:** `Ctrl+Alt+I` → `agent-browser press Control+Alt+i`
-- **Windows:** `Ctrl+Alt+I` → `agent-browser press Control+Alt+i`
+For the Agents window, use a fresh snapshot plus the broader selector/focus checks above instead of assuming the regular sidebar wrapper is present.
 
-This shortcut focuses the chat input and sets `document.activeElement` to a `DIV` with class `native-edit-context` — VS Code's native text editing surface that correctly processes key events from `agent-browser press`.
-
-### `type @ref` — Works on Some Builds
-
-On VS Code Insiders (extension debug mode), `type @ref` handles focus and input in one step:
+To clear the focused Monaco input:
 
 ```bash
-agent-browser snapshot -i
-# Look for: textbox "The editor is not accessible..." [ref=e62]
-agent-browser type @e62 "Hello from George!"
+# macOS
+npx @playwright/cli -s=$PW_SESSION press Meta+a
+# Linux / Windows
+npx @playwright/cli -s=$PW_SESSION press Control+a
+npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-> **Tip:** If `type @ref` silently drops text (the editor stays empty), the ref may be stale or the editor not yet ready. Re-snapshot to get a fresh ref and try again. You can verify text was entered using the snippet in "Verifying Text and Clearing" below.
+If the focus script cannot reach Chat because the surface is not available yet,
+take a snapshot and navigate the UI into a state where chat exists before
+retrying. Avoid treating completed CLI commands as proof that text was entered.
 
-However, **`type @ref` silently fails on Code OSS** — the command completes without error but no text appears. This also applies to `keyboard type` and `keyboard inserttext`. Always verify text appeared after typing, and fall back to the keyboard shortcut + `press` pattern if it didn't. The `press`-per-key approach works universally across all builds.
-
-> **⚠️ Warning:** `keyboard type` can hang indefinitely in some focus states (e.g., after JS mouse events). If it doesn't return within a few seconds, interrupt it and fall back to `press` for individual keystrokes.
-
-### Compatibility Matrix
-
-| Method | VS Code Insiders | Code OSS |
-|--------|-----------------|----------|
-| `press` per key (after focus shortcut) | ✅ Works | ✅ Works |
-| `type @ref` | ✅ Works | ❌ Silent fail |
-| `keyboard type` (after focus) | ✅ Works | ❌ Silent fail |
-| `keyboard inserttext` (after focus) | ✅ Works | ❌ Silent fail |
-| `click @ref` | ❌ Blocked by overlay | ❌ Blocked by overlay |
-| `fill @ref` | ❌ Element not visible | ❌ Element not visible |
-
-### Fallback: Focus via JavaScript Mouse Events
-
-If the keyboard shortcut doesn't work (e.g., chat panel isn't configured), you can focus the editor via JavaScript:
+### Screenshots (paper trail)
 
 ```bash
-agent-browser eval '
-(() => {
-  const inputPart = document.querySelector(".interactive-input-part");
-  const editor = inputPart.querySelector(".monaco-editor");
-  const rect = editor.getBoundingClientRect();
-  const x = rect.x + rect.width / 2;
-  const y = rect.y + rect.height / 2;
-  editor.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: x, clientY: y }));
-  editor.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: x, clientY: y }));
-  editor.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }));
-  return "activeElement: " + document.activeElement?.className;
-})()'
-
-# Then use press for each character
-agent-browser press H
-agent-browser press e
-# ...
+SHOTS="$PWD/screenshots/$(date +%Y-%m-%dT%H-%M-%S)"
+mkdir -p "$SHOTS"
+npx @playwright/cli -s=$PW_SESSION screenshot --filename="$SHOTS/after-launch.png"
 ```
 
-### Verifying Text and Clearing
+> Keep screenshots inside the workspace, not `/tmp`, so they survive for review.
+
+For wide windows, `--full-page` can make layout easier to inspect, and element screenshots are useful when a snapshot gives a stable ref for the panel you care about:
 
 ```bash
-# Verify text in the chat input
-agent-browser eval '
-(() => {
-  const sidebar = document.querySelector(".part.auxiliarybar");
-  const viewLines = sidebar.querySelectorAll(".interactive-input-editor .view-line");
-  return Array.from(viewLines).map(vl => vl.textContent).join("|");
-})()'
-
-# Clear the input (Select All + Backspace)
-# macOS:
-agent-browser press Meta+a
-# Linux / Windows:
-agent-browser press Control+a
-# Then delete:
-agent-browser press Backspace
+npx @playwright/cli -s=$PW_SESSION screenshot --full-page --filename="$SHOTS/full-window.png"
+npx @playwright/cli -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
 ```
 
-### Screenshot Tips for VS Code
+On macOS, a screenshot "Permission denied" failure usually means the terminal lacks Screen Recording permission. Use text/state verification while resolving that permission issue.
 
-On ultrawide monitors, the chat sidebar may be in the far-right corner of the CDP screenshot. Options:
-- Use `agent-browser screenshot --full` to capture the entire window
-- Use element screenshots: `agent-browser screenshot ".part.auxiliarybar" sidebar.png`
-- Use `agent-browser screenshot --annotate` to see labeled element positions
-- Maximize the sidebar first: click the "Maximize Secondary Side Bar" button
+## Debug with dap-cli
 
-> **macOS:** If `agent-browser screenshot` returns "Permission denied", your terminal needs Screen Recording permission. Grant it in **System Settings → Privacy & Security → Screen Recording**. As a fallback, use the `eval` verification snippet to confirm text was entered — this doesn't require screen permissions.
+To set breakpoints in VS Code source while the window is running, attach `dap-cli` to one of the ports. If `dap-cli` would help but the corresponding skill is unavailable, prompt the user to install it from https://github.com/roblourens/dap-cli before continuing with debugger-specific steps.
 
-## Troubleshooting
+**Read the `dap-cli` skill for the full attach/breakpoint/inspect workflow when it is available** - this skill only tells you which port to point it at:
 
-### "Connection refused" or "Cannot connect"
+- **Extension host** (most common - Copilot Chat extension, built-in extensions, your own extension under development) -> `extHostPort`
+- **Main process** (Electron lifecycle, window/menu wiring, IPC) -> `mainPort`
+- **Local agent host** (`src/vs/platform/agentHost/node/...`, agent session lifecycle, AHP wiring, Claude/Copilot agent providers) -> `agentHostPort`
+- **Renderer** (the workbench itself, `src/vs/workbench/...`) -> `cdpPort`
 
-- Make sure Code OSS was launched with `--remote-debugging-port=NNNN`
-- If Code OSS was already running, quit and relaunch with the flag
-- Check that the port isn't in use by another process:
-  - macOS / Linux: `lsof -i :9224`
-  - Windows: `netstat -ano | findstr 9224`
+You can run `@playwright/cli` and `dap-cli` against the **same window simultaneously** - drive the UI with one terminal, hit a breakpoint and inspect state in another.
 
-### Elements not appearing in snapshot
+## Multiple instances
 
-- VS Code uses multiple webviews. Use `agent-browser tab` to list targets and switch to the right one
-- Use `agent-browser snapshot -i -C` to include cursor-interactive elements (divs with onclick handlers)
+Every launch picks fresh ports and a fresh temp `runDir`, so you can run as many concurrent Code OSS windows as your machine can handle. Each one's ports come back in its own JSON blob - keep them separate.
 
-### Cannot type in Monaco Editor inputs
+The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **required** for multi-instance isolation: Code OSS keeps a fixed-path SQLite DB at `~/.<dataFolderName>-shared/sharedStorage/state.vscdb` that is *not* covered by `--user-data-dir`. Without overriding it, two concurrent instances would fight over the same file and one would die with "shared background process terminated unexpectedly". Each launch gets its own `shared-data` dir, **seeded from the source shared-data-dir** so the Windows GitHub session survives - see [Windows authentication](#windows-authentication) for why that copy matters.
 
-- Use `agent-browser press` for individual keystrokes after focusing the input. Focus the chat input with the keyboard shortcut (macOS: `Ctrl+Cmd+I`, Linux/Windows: `Ctrl+Alt+I`).
-- `type @ref`, `keyboard type`, and `keyboard inserttext` work on VS Code Insiders but **silently fail on Code OSS** — they complete without error but no text appears. The `press`-per-key approach works universally.
-- See the "Interacting with Monaco Editor" section above for the full compatibility matrix.
+## Restart after source changes
+
+Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current, kill the launched process, launch again, and reattach to the new `cdpPort` from the new JSON blob.
+
+```bash
+kill "$PID" 2>/dev/null || true
+INFO=$("$LAUNCH" | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+PID=$(jq -r .pid <<<"$INFO")
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION snapshot
+```
+
+If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current.
 
 ## Cleanup
 
-**Always kill the Code OSS instance when you're done.** Code OSS is a full Electron app that consumes significant memory (often 1–4 GB+). Leaving it running wastes resources and holds the CDP port.
+The launcher writes everything under a temp `runDir` (printed in the JSON). When you're done:
 
 ```bash
-# Disconnect agent-browser
-agent-browser close
+# Disconnect this session's playwright daemon (leaves other sessions' daemons alone)
+npx @playwright/cli -s=$PW_SESSION close
 
-# Kill the Code OSS instance listening on the debug port (if running)
-# macOS / Linux:
-pids=$(lsof -t -i :9224)
-if [ -n "$pids" ]; then
-	kill $pids
-fi
+# Or nuke any stale daemons left behind by crashed callers across all sessions:
+# npx @playwright/cli kill-all
 
-# Windows:
-# taskkill /F /PID <PID>
-# Or use Task Manager to end "Code - OSS"
+# Kill the Code OSS instance
+kill "$PID" 2>/dev/null || true
+# Or by port if you've lost the pid:
+pids=$(lsof -t -i :$CDP); [ -n "$pids" ] && kill $pids
+
+# Remove the throwaway profile
+rm -rf "$(dirname "$LOG")"
 ```
 
-Verify it's gone:
-```bash
-# Confirm no process is listening on the debug port
-lsof -i :9224  # should return nothing
-```
+Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
+
+## Troubleshooting
+
+- **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
+- **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
+- **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
+- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
+- **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
+- **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
+- **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
+- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).

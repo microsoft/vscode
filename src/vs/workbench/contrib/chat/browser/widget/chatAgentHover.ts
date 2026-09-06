@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { IManagedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverAction, IManagedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -121,18 +121,26 @@ export class ChatAgentHover extends Disposable {
 }
 
 export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IManagedHoverOptions {
-	return {
-		actions: [
-			{
-				commandId: showExtensionsWithIdsCommandId,
-				label: localize('viewExtensionLabel', "View Extension"),
-				run: () => {
-					const agent = getAgent();
-					if (agent) {
-						commandService.executeCommand(showExtensionsWithIdsCommandId, [agent.extensionId.value]);
-					}
-				},
+	const viewExtensionAction: IHoverAction = {
+		commandId: showExtensionsWithIdsCommandId,
+		label: localize('viewExtensionLabel', "View Extension"),
+		run: () => {
+			const agent = getAgent();
+			if (agent) {
+				commandService.executeCommand(showExtensionsWithIdsCommandId, [agent.extensionId.value]);
 			}
-		]
+		},
+	};
+
+	// `actions` is a getter so the agent is only resolved at hover-show time.
+	// Some callers (e.g. chatListRenderer) construct these options before the
+	// surrounding template is initialized, so calling `getAgent()` eagerly here
+	// would hit a TDZ on the captured `template` variable.
+	// Core agents (e.g. agent host) have a placeholder extension id and no real
+	// extension to view, so we omit the action for them.
+	return {
+		get actions() {
+			return getAgent()?.isCore ? [] : [viewExtensionAction];
+		}
 	};
 }

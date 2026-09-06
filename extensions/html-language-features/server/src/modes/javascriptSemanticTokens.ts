@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, SemanticTokenData } from './languageModes';
+import { TextDocument, SemanticTokenData } from './languageModes.js';
 import * as ts from 'typescript';
 
 export function getSemanticTokenLegend() {

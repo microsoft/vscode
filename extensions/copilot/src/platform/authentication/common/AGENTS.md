@@ -60,7 +60,8 @@ For non-blocking checks (no network, no UI), use the cached properties:
 - `authService.permissiveGitHubSession` — cached `'permissive'` session or `undefined`
 - `authService.copilotToken` — cached Copilot token (without the raw token string) or `undefined`
 
-React to `onDidAuthenticationChange` to stay up to date.
+React to `onDidAuthenticationChange` for identity changes (sign in/out, account switch).
+React to `onDidCopilotTokenChange` for token-level updates (quota, feature flags, routine ~20-minute refreshes).
 
 ## Copilot Tokens
 

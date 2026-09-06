@@ -18,6 +18,16 @@ function content(str: string): IChatMarkdownContent {
 suite('Annotations', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('voice progress is not renderable', () => {
+		assert.deepStrictEqual(
+			annotateSpecialMarkdownContent([
+				{ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' },
+				content('Visible response'),
+			]),
+			[content('Visible response')]
+		);
+	});
+
 	suite('extractVulnerabilitiesFromText', () => {
 		test('single line', async () => {
 			const before = 'some code ';
@@ -140,6 +150,15 @@ suite('Annotations', function () {
 			assert.strictEqual(result.subAgentInvocationId, subAgentId);
 			assert.strictEqual(result.uri.toString(), uri.toString());
 			assert.strictEqual(result.isEdit, true);
+		});
+
+		test('returns undefined for invalid URI content inside codeblock uri tag', () => {
+			// When content contains backticks and a colon, URI.parse extracts
+			// the text before the colon as the scheme. Backticks are illegal
+			// scheme characters, causing URI.parse to throw.
+			const invalidTag = '<vscode_codeblock_uri>```typescript\nconst uri: string\n```</vscode_codeblock_uri>';
+			const result = extractCodeblockUrisFromText(invalidTag);
+			assert.strictEqual(result, undefined);
 		});
 
 		test('round-trip encoding/decoding with special characters', () => {

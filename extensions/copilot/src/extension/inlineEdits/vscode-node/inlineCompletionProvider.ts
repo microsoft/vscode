@@ -14,12 +14,14 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
+import { observeUnifiedCompletions } from './unifiedCompletions';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
 import { getNotebookId } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
@@ -35,7 +37,6 @@ import { autorun, IObservable, observableFromEvent } from '../../../util/vs/base
 import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { LineCheck } from '../../inlineChat/vscode-node/naturalLanguageHint';
 import { createCorrelationId } from '../common/correlationId';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';
@@ -48,6 +49,7 @@ import { DiagnosticsNextEditResult } from './features/diagnosticsInlineEditProvi
 import { InlineEditModel } from './inlineEditModel';
 import { learnMoreCommandId, learnMoreLink } from './inlineEditProviderFeature';
 import { toInlineSuggestion } from './isInlineSuggestion';
+import { LineCheck } from './naturalLanguageHint';
 import { InlineEditLogger } from './parts/inlineEditLogger';
 import { IVSCodeObservableDocument } from './parts/vscodeWorkspace';
 import { raceAndAll } from './raceAndAll';
@@ -64,6 +66,12 @@ export interface NesCompletionItem extends InlineCompletionItem {
 	readonly info: NesCompletionInfo;
 	wasShown: boolean;
 	isEditInAnotherDocument?: boolean;
+	/**
+	 * Whether the underlying NES suggestion is being served as an inline (ghost
+	 * text at cursor) suggestion as opposed to a non-inline NES (e.g. gutter or
+	 * side hint). Used by the "mimic ghost text behavior" gating.
+	 */
+	isInlineCompletion?: boolean;
 }
 
 export class NesCompletionList extends InlineCompletionList {
@@ -147,6 +155,11 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _displayNextEditorNES: boolean;
 	private readonly _renameSymbolSuggestions: IObservable<boolean>;
 	private readonly _inlineCompletionsAdvanced: IObservable<boolean>;
+	/**
+	 * Read here as well as at provider registration: the two must agree, or NES could be registered as
+	 * the unified provider while declining every request.
+	 */
+	private readonly _unifiedCompletions: IObservable<boolean>;
 
 	constructor(
 		private readonly model: InlineEditModel,
@@ -172,6 +185,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this._displayNextEditorNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.UseAlternativeNESNotebookFormat, this._expService);
 		this._renameSymbolSuggestions = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsRenameSymbolSuggestions, this._expService);
 		this._inlineCompletionsAdvanced = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
+		this._unifiedCompletions = observeUnifiedCompletions(this, this._configurationService, this._expService, this._modelService);
 
 		this.setCurrentModelId = (modelId: string) => this._modelService.setCurrentModelId(modelId);
 
@@ -246,13 +260,19 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
+		const unification = this._unifiedCompletions.get();
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
-		const serveAsCompletionsProvider = unification && isCompletionsEnabled && !isInlineEditsEnabled;
+		// Respect the per-language `github.copilot.enable` setting for NES, just like ghost text does.
+		// The tracking-based filter (`getDocumentByTextDocument`) is updated asynchronously and is not
+		// reactive to configuration changes, so enforce the policy synchronously here.
+		const isLanguageEnabled = this.model.workspace.isLanguageEnabled(document.languageId);
 
-		if (!isInlineEditsEnabled && !serveAsCompletionsProvider) {
+		const serveAsCompletionsProvider = unification && isCompletionsEnabled && !isInlineEditsEnabled;
+		const serveAsInlineEdits = isInlineEditsEnabled && isLanguageEnabled;
+
+		if (!serveAsInlineEdits && !serveAsCompletionsProvider) {
 			logger.trace('Return: inline edits disabled');
 			return undefined;
 		}
@@ -354,6 +374,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				const positionToJumpOneBased = suggestionInfo.suggestion.result.jumpToPosition;
 				const jumpToPosition = new Position(positionToJumpOneBased.lineNumber - 1, positionToJumpOneBased.column - 1);
 				const targetDocumentId = suggestionInfo.suggestion.result.targetDocumentId;
+				telemetryBuilder.setIsNESForOtherEditor(!!targetDocumentId && targetDocumentId !== doc.id);
 				const jumpToPositionCompletionItem: NesCompletionItem = {
 					insertText: undefined as unknown as string,
 					info: suggestionInfo,
@@ -388,6 +409,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 					resolveDoc = targetObsDoc;
 				} else {
 					logger.trace('no next edit suggestion: cross-file target document not found in workspace');
+					telemetryBuilder.setIsNESForOtherEditor(true);
+					telemetryBuilder.setStatus('noEdit:crossFileTargetNotFound');
 					this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
 					return emptyList;
 				}
@@ -396,7 +419,25 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			const [targetDocument, range] = documents.length ? documents[0] : [undefined, undefined];
 
 			addNotebookTelemetry(document, position, result.edit.newText, documents, telemetryBuilder);
+			telemetryBuilder.setIsNESForOtherEditor(targetDocument !== undefined && targetDocument !== document);
 			telemetryBuilder.setIsActiveDocument(window.activeTextEditor?.document === targetDocument);
+
+			// When the edit targets a different document (cross-file / cross-cell NES), respect the
+			// per-language `github.copilot.enable` setting for that target too. The active document was
+			// already gated above; the target was resolved through the tracking-based filter, which is
+			// not reactive to configuration changes, so enforce the policy synchronously here as well.
+			if (targetDocument && targetDocument !== document && !this.model.workspace.isLanguageEnabled(targetDocument.languageId)) {
+				logger.trace('Return: inline edits disabled for target document language');
+				telemetryBuilder.setStatus('noEdit:targetLanguageDisabled');
+				this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
+				return emptyList;
+			}
+
+			// Signed line distance from the request cursor to the suggested edit's range start.
+			// Only meaningful when both share the active document's coordinate space.
+			if (range && targetDocument === document) {
+				telemetryBuilder.setSuggestionLineDistanceToCursor(range.start.line - position.line);
+			}
 
 			if (!targetDocument) {
 				logger.trace('no next edit suggestion');
@@ -425,6 +466,22 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 					command: result.action,
 					uri: targetDocument.uri,
 				};
+			}
+
+			// Gate: when the "mimic ghost text behavior" setting is on, a cached suggestion
+			// that was previously rendered as an inline (ghost text) suggestion must not
+			// re-surface in any other form. Suppress here without evicting the cache entry —
+			// when the cursor returns to an inline-renderable position, we'll serve it again.
+			if (
+				resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior)
+				&& !isInlineCompletion
+				&& isLlmCompletionInfo(suggestionInfo)
+				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion
+			) {
+				logger.trace('Return: previously shown as inline; current context cannot render as inline');
+				telemetryBuilder.setStatus('noEdit:suppressedNonInlineReshow');
+				this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
+				return emptyList;
 			}
 
 			if (!completionItem) {
@@ -459,6 +516,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				telemetryBuilder,
 				action: learnMoreAction,
 				isInlineEdit: !isInlineCompletion,
+				isInlineCompletion,
 				showInlineEditMenu: !(unification && isInlineCompletion),
 				wasShown: false,
 				supportsRename,
@@ -550,6 +608,15 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this.logContextRecorder?.handleShown(info.suggestion);
 
 		if (isLlmCompletionInfo(info)) {
+			// Mark the underlying cache entry as having been rendered as an inline
+			// (ghost text) suggestion. The "mimic ghost text behavior" gate uses this
+			// flag to suppress re-serving the same suggestion in a non-inline form.
+			if (completionItem.isInlineCompletion) {
+				const cacheEntry = info.suggestion.result?.cacheEntry;
+				if (cacheEntry) {
+					cacheEntry.wasRenderedAsInlineSuggestion = true;
+				}
+			}
 			this.model.nextEditProvider.handleShown(info.suggestion);
 		} else {
 			this.model.diagnosticsBasedProvider?.handleShown(info.suggestion);
@@ -769,6 +836,5 @@ function addNotebookTelemetry(document: TextDocument, position: Position, newTex
 		.setIsNextEditorVisible(!!nextEditor)
 		.setIsNextEditorRangeVisible(!!isNextEditorRangeVisible)
 		.setNotebookCellLines(lineCounts)
-		.setNotebookId(notebookId)
-		.setIsNESForOtherEditor(documents[0][0] !== document);
+		.setNotebookId(notebookId);
 }

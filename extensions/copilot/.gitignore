@@ -41,7 +41,7 @@ test/aml/out
 # claude
 .claude/settings.local.json
 
-# VS Code extension debug profile (agent-browser automation)
+# VS Code extension debug profile (@playwright/cli automation)
 .vscode-ext-debug/
 
 # playwright

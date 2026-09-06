@@ -22,8 +22,90 @@ interface IVSCodeCmdToolToolInput {
 }
 
 /** Commands that are read-only / have no side effects and can run without user confirmation. */
-const noConfirmationCommands = new Set([
+const noConfirmationCommandsWithoutArgs = new Set([
 	'github.copilot.debug.collectDiagnostics',
+	'breadcrumbs.toggle',
+	'diffEditor.toggleCollapseUnchangedRegions',
+	'diffEditor.toggleShowMovedCodeBlocks',
+	'editor.action.announceCursorPosition',
+	'editor.action.defineKeybinding',
+	'editor.action.showOrFocusStandaloneColorPicker',
+	'editor.action.toggleOvertypeInsertMode',
+	'editor.action.toggleScreenReaderAccessibilityMode',
+	'editor.action.toggleStickyScroll',
+	'extension.bisect.start',
+	'extension.bisect.stop',
+	'git.blame.toggleEditorDecoration',
+	'git.branch',
+	'git.closeAllDiffEditors',
+	'git.closeAllUnmodifiedEditors',
+	'git.openAllChanges',
+	'git.rebaseAbort',
+	'git.showOutput',
+	'git.stageAll',
+	'git.stash',
+	'git.stashPop',
+	'git.stashPopLatest',
+	'git.stashStaged',
+	'git.stashView',
+	'github.copilot.chat.completions.disable',
+	'github.copilot.chat.completions.enable',
+	'github.copilot.chat.completions.toggle',
+	'github.copilot.chat.tools.memory.showMemories',
+	'github.copilot.open.walkthrough',
+	'github.copilot.report',
+	'markdown.showPreview',
+	'markdown.showSource',
+	'search.action.getSearchResults',
+	'update.checkForUpdate',
+	'update.downloadUpdate',
+	'update.installUpdate',
+	'update.restartToUpdate',
+	'workbench.action.activityBarLocation.bottom',
+	'workbench.action.activityBarLocation.default',
+	'workbench.action.activityBarLocation.hide',
+	'workbench.action.activityBarLocation.top',
+	'workbench.action.chat.export',
+	'workbench.action.chat.openFeatureSettings',
+	'workbench.action.chat.openInEditor',
+	'workbench.action.chat.openInNewWindow',
+	'workbench.action.chat.openInSidebar',
+	'workbench.action.chat.readChatResponseAloud',
+	'workbench.action.chat.upgradePlan',
+	'workbench.action.chatEditor.newChat',
+	'workbench.action.closeAuxiliaryBar',
+	'workbench.action.closePanel',
+	'workbench.action.closeSidebar',
+	'workbench.action.configureRuntimeArguments',
+	'workbench.action.newWindow',
+	'workbench.action.openFolderSettings',
+	'workbench.action.openGlobalSettings',
+	'workbench.action.openLogFile',
+	'workbench.action.openSnippets',
+	'workbench.action.openWorkspaceSettings',
+	'workbench.action.showAboutDialog',
+	'workbench.action.showRuntimeExtensions',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.toggleZenMode',
+	'workbench.action.zoomIn',
+	'workbench.action.zoomOut',
+	'workbench.action.zoomReset'
+]);
+
+const noConfirmationCommandsWithArgs = new Set([
+	'editor.action.goToReferences',
+	'editor.action.peekDeclaration',
+	'editor.action.referenceSearch.trigger',
+	'editor.showCallHierarchy',
+	'editor.showIncomingCalls',
+	'editor.showOutgoingCalls',
+	'editor.showSubtypes',
+	'editor.showSupertypes',
+	'editor.showTypeHierarchy',
+	'extension.bisect.next',
+	'git.openChange',
+	'git.openMergeEditor',
+	'git.stage'
 ]);
 
 class VSCodeCmdTool implements vscode.LanguageModelTool<IVSCodeCmdToolToolInput> {
@@ -86,7 +168,11 @@ class VSCodeCmdTool implements vscode.LanguageModelTool<IVSCodeCmdToolToolInput>
 
 		const invocationMessage = l10n.t`Running command \`${options.input.name}\``;
 
-		if (noConfirmationCommands.has(commandId)) {
+		if ((noConfirmationCommandsWithoutArgs.has(commandId) || noConfirmationCommandsWithArgs.has(commandId)) && (!options.input.args || options.input.args.length === 0)) {
+			return { invocationMessage };
+		}
+
+		if (noConfirmationCommandsWithArgs.has(commandId) && options.input.args && options.input.args.length > 0) {
 			return { invocationMessage };
 		}
 

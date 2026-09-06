@@ -33,6 +33,8 @@ class TestElectronSession {
 }
 
 class TestBrowserSession {
+	readonly remote = { isRemote: false, proxy: undefined };
+
 	constructor(
 		readonly id: string,
 		readonly electronSession: Electron.Session,

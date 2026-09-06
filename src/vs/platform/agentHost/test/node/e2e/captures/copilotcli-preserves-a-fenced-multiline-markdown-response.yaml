@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply with exactly this Markdown code block and nothing else:
+            ```text
+            ALPHA
+            BETA
+            ```
+    response:
+      content: |-
+        ```text
+        ALPHA
+        BETA
+        ```
+      stopReason: end_turn

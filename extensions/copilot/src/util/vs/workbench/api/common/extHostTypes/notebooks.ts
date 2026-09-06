@@ -11,8 +11,6 @@ import { illegalArgument } from '../../../../base/common/errors';
 import { Mimes, normalizeMimeType, isTextStreamMime } from '../../../../base/common/mime';
 import { generateUuid } from '../../../../base/common/uuid';
 
-/* eslint-disable local/code-no-native-private */
-
 export enum NotebookCellKind {
 	Markup = 1,
 	Code = 2

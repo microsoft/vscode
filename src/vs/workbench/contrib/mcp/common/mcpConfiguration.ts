@@ -24,7 +24,7 @@ const mcpActivationEventPrefix = 'onMcpCollection:';
 export const mcpActivationEvent = (contributedCollectionId: string) =>
 	mcpActivationEventPrefix + contributedCollectionId;
 
-export const enum DiscoverySource {
+export const enum ExternalDiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
 	Windsurf = 'windsurf',
 	CursorGlobal = 'cursor-global',
@@ -32,28 +32,53 @@ export const enum DiscoverySource {
 }
 
 export const allDiscoverySources = Object.keys({
-	[DiscoverySource.ClaudeDesktop]: true,
-	[DiscoverySource.Windsurf]: true,
-	[DiscoverySource.CursorGlobal]: true,
-	[DiscoverySource.CursorWorkspace]: true,
-} satisfies Record<DiscoverySource, true>) as DiscoverySource[];
+	[ExternalDiscoverySource.ClaudeDesktop]: true,
+	[ExternalDiscoverySource.Windsurf]: true,
+	[ExternalDiscoverySource.CursorGlobal]: true,
+	[ExternalDiscoverySource.CursorWorkspace]: true,
+} satisfies Record<ExternalDiscoverySource, true>) as ExternalDiscoverySource[];
 
-export const discoverySourceLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
+export const discoverySourceLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
-export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
-	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
-	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
-	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
-	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
+export const discoverySourceSettingsLabel: Record<ExternalDiscoverySource, string> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
+	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
+	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
 };
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
+/**
+ * Configuration key for the enterprise-managed MCP IdP bag. The setting is
+ * registered with `included: false` so it is hidden from the Settings UI and
+ * settings.json IntelliSense; it is intended to be delivered through enterprise
+ * policy (Windows Group Policy / macOS managed preferences / Linux
+ * `/etc/vscode/policy.json`), with hand-editing of `settings.json` as a
+ * developer escape hatch.
+ */
+export const mcpEnterpriseManagedAuthIdpSection = 'mcp.enterpriseManagedAuth.idp';
+
+/**
+ * Shape of the {@link mcpEnterpriseManagedAuthIdpSection} setting. All fields
+ * are optional so partial configurations (e.g. just the issuer) remain valid.
+ */
+export interface IMcpEnterpriseManagedAuthIdpConfig {
+	readonly issuer?: string;
+	readonly clientId?: string;
+	readonly clientSecret?: string;
+}
+
+export const enum McpCollisionBehavior {
+	Disable = 'disable',
+	Suffix = 'suffix',
+}
 
 export interface IMcpServerSamplingConfiguration {
 	allowedDuringChat?: boolean;
@@ -274,7 +299,12 @@ export const mcpServerSchema: IJSONSchema = {
 									clientId: {
 										type: 'string',
 										minLength: 1,
-										description: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server.")
+										markdownDescription: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server. When `enterpriseManaged` is `true`, this is the **resource** authorization server's client ID (the client trusted by the protected resource), not the IdP's. To set the matching client secret, use the *Set Client Secret* code lens above this field — secrets are stored in the OS secret store, not in this file.")
+									},
+									enterpriseManaged: {
+										type: 'boolean',
+										default: false,
+										markdownDescription: localize('app.mcp.json.oauth.enterpriseManaged', "(Preview) When set to `true`, this MCP server authenticates through the SSO issuer configured by `#mcp.enterpriseManagedAuth.idp#` using OAuth Identity Assertion Authorization Grant (ID-JAG). After a one-time sign-in, subsequent enterprise-managed servers connect silently. The IdP issuer and client credentials are read from the `#mcp.enterpriseManagedAuth.idp#` setting; the `clientId` on this server entry is passed to the resource authorization server.")
 									}
 								}
 							},
@@ -360,4 +390,3 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	},
 	renderer: new SyncDescriptor(McpServerDefinitionsProviderRenderer),
 });
-

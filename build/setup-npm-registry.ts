@@ -37,6 +37,10 @@ async function setup(url: string, file: string): Promise<void> {
  * Main function to set up custom NPM registry
  */
 async function main(url: string, dir?: string): Promise<void> {
+	if (!url) {
+		throw new Error('Usage: node setup-npm-registry.ts <registry-url> [dir]. A registry URL is required.');
+	}
+
 	const root = dir ?? process.cwd();
 
 	for await (const file of getPackageLockFiles(root)) {
@@ -45,4 +49,7 @@ async function main(url: string, dir?: string): Promise<void> {
 	}
 }
 
-main(process.argv[2], process.argv[3]);
+main(process.argv[2], process.argv[3]).catch(err => {
+	console.error(err.message);
+	process.exit(1);
+});

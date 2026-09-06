@@ -56,7 +56,6 @@ export interface IAiSearchProvider extends IRemoteSearchProvider {
 	getLLMRankedResults(token: CancellationToken): Promise<ISearchResult | null>;
 }
 
-export const PREFERENCES_EDITOR_COMMAND_OPEN = 'workbench.preferences.action.openPreferencesEditor';
 export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPreferencesSearch', false);
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
@@ -70,6 +69,7 @@ export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettin
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);
 export const CONTEXT_SETTINGS_ROW_FOCUS = new RawContextKey<boolean>('settingRowFocus', false);
+export const CONTEXT_SETTINGS_FIRST_ROW_FOCUS = new RawContextKey<boolean>('settingFirstRowFocus', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE = new RawContextKey<boolean>('keybindingsSearchHasValue', false);
@@ -105,6 +105,7 @@ export const ID_SETTING_TAG = 'id:';
 export const LANGUAGE_SETTING_TAG = 'lang:';
 export const GENERAL_TAG_SETTING_TAG = 'tag:';
 export const POLICY_SETTING_TAG = 'hasPolicy';
+export const AGENTS_WINDOW_SETTING_TAG = 'override:agentsWindow';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const ADVANCED_SETTING_TAG = 'advanced';
@@ -234,6 +235,7 @@ knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
 knownTermMappings.set('github', 'GitHub');
+knownTermMappings.set('ocaml', 'OCaml');
 knownTermMappings.set('jet brains', 'JetBrains');
 knownTermMappings.set('jetbrains', 'JetBrains');
 knownTermMappings.set('re sharper', 'ReSharper');

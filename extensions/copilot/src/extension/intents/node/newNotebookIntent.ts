@@ -178,6 +178,7 @@ export class NewNotebookResponseProcessor {
 				const sourceLines = filterFilePathFromCodeBlock2(streamLines(sourceStream.asyncIterable)
 					.filter(LineFilters.createCodeBlockFilter())
 					.map(line => {
+						// eslint-disable-next-line local/code-no-unused-expressions
 						newNotebook.value; // force the notebook to be created
 						return line;
 					}));
@@ -187,13 +188,12 @@ export class NewNotebookResponseProcessor {
 					return undefined;
 				}
 
-				const generateResponse = await this.endpoint.makeChatRequest(
-					'newNotebookCodeCell',
-					generateMessages,
+				const generateResponse = await this.endpoint.makeChatRequest2({
+					debugName: 'newNotebookCodeCell',
+					messages: generateMessages,
 					finishedCb,
-					token,
-					ChatLocation.Panel
-				);
+					location: ChatLocation.Panel,
+				}, token);
 				sourceStream.resolve();
 				if (generateResponse.type !== ChatFetchResponseType.Success) {
 					return [];
@@ -256,13 +256,12 @@ export async function newNotebookCodeCell(instantiationService: IInstantiationSe
 		uri
 	});
 
-	const modelResponse = await endpoint.makeChatRequest(
-		'newNotebookCodeCell',
+	const modelResponse = await endpoint.makeChatRequest2({
+		debugName: 'newNotebookCodeCell',
 		messages,
-		undefined,
-		token,
-		ChatLocation.Panel
-	);
+finishedCb: undefined,
+		location: ChatLocation.Panel,
+	}, token);
 	if (modelResponse.type !== ChatFetchResponseType.Success) {
 		return;
 	}
@@ -287,13 +286,12 @@ export async function improveNotebookCodeCell(instantiationService: IInstantiati
 		uri
 	});
 
-	const modelResponse = await endpoint.makeChatRequest(
-		'improveNotebookCodeCell',
+	const modelResponse = await endpoint.makeChatRequest2({
+		debugName: 'improveNotebookCodeCell',
 		messages,
-		undefined,
-		token,
-		ChatLocation.Panel
-	);
+finishedCb: undefined,
+		location: ChatLocation.Panel,
+	}, token);
 	if (modelResponse.type !== ChatFetchResponseType.Success) {
 		return;
 	}

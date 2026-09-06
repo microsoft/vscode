@@ -7,7 +7,7 @@ badge_icon = {{BADGE_ICON}}
 background = {{BACKGROUND}}
 
 # Volume size
-size = '1g'
+size = '1800m'
 shrink = False
 
 # Files and symlinks

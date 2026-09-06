@@ -1,0 +1,103 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="../../node_modules/@vscode/codicons/dist/codicon.css">
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				overflow: hidden;
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+				background: var(--page-bg);
+				color: var(--vscode-foreground);
+			}
+			body.vs-dark {
+				--page-bg: #0a0a0a;
+				--device-border: #3a3a3a;
+				--vscode-foreground: #cccccc;
+				--vscode-descriptionForeground: #9d9d9d;
+				--vscode-editor-background: #1f1f1f;
+				--vscode-editor-foreground: #cccccc;
+				--vscode-editorLineNumber-foreground: #6e7681;
+				--vscode-diffEditor-insertedTextBackground: rgba(155, 185, 85, 0.2);
+				--vscode-diffEditor-removedTextBackground: rgba(255, 0, 0, 0.2);
+				--vscode-multiDiffEditor-headerBackground: #262626;
+				--vscode-multiDiffEditor-border: #2b2b2b;
+				--vscode-sideBarSectionHeader-border: #2b2b2b;
+				--vscode-gitDecoration-addedResourceForeground: #81b88b;
+				--vscode-gitDecoration-deletedResourceForeground: #c74e39;
+				--vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+			}
+			body.vs-light {
+				--page-bg: #e4e4e4;
+				--device-border: #c0c4cc;
+				--vscode-foreground: #3b3b3b;
+				--vscode-descriptionForeground: #6e6e6e;
+				--vscode-editor-background: #ffffff;
+				--vscode-editor-foreground: #3b3b3b;
+				--vscode-editorLineNumber-foreground: #6e7681;
+				--vscode-diffEditor-insertedTextBackground: rgba(35, 134, 54, 0.15);
+				--vscode-diffEditor-removedTextBackground: rgba(255, 129, 130, 0.20);
+				--vscode-multiDiffEditor-headerBackground: #f3f3f3;
+				--vscode-multiDiffEditor-border: #e5e5e5;
+				--vscode-sideBarSectionHeader-border: #e5e5e5;
+				--vscode-gitDecoration-addedResourceForeground: #587c0c;
+				--vscode-gitDecoration-deletedResourceForeground: #ad0707;
+				--vscode-toolbar-hoverBackground: rgba(184, 184, 184, 0.31);
+			}
+			#stage {
+				position: fixed;
+				inset: 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+				box-sizing: border-box;
+			}
+			#container {
+				width: 100%;
+				max-width: 430px;
+				height: 100%;
+				max-height: 932px;
+				position: relative;
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--device-border);
+				border-radius: 18px;
+				overflow: hidden;
+				box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15);
+			}
+			/* The production overlay uses position: fixed to cover the viewport.
+			 * In this design playground we constrain it to the device frame. */
+			#container .mobile-overlay-view {
+				position: absolute;
+			}
+			body.vs-light #container {
+				box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
+			}
+			#theme-toggle {
+				position: fixed;
+				top: 12px;
+				right: 12px;
+				z-index: 100;
+				padding: 4px 10px;
+				border: 1px solid var(--device-border);
+				border-radius: 6px;
+				background: var(--vscode-editor-background);
+				color: var(--vscode-foreground);
+				cursor: pointer;
+				font-size: 12px;
+				font-family: inherit;
+			}
+		</style>
+	</head>
+	<body class="vs-dark">
+		<button id="theme-toggle" onclick="document.body.classList.toggle('vs-dark'); document.body.classList.toggle('vs-light'); this.textContent = document.body.classList.contains('vs-dark') ? 'Light' : 'Dark'">Light</button>
+		<div id="stage">
+			<div id="container"></div>
+		</div>
+		<script src="./mobile-multi-diff.ts" type="module"></script>
+	</body>
+</html>
+

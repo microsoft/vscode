@@ -21,7 +21,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionContentContextDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatNewSessionRequestDto, IChatSessionDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -32,6 +32,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { isEqual } from '../../../base/common/resources.js';
 
 type ChatSessionTiming = vscode.ChatSessionItem['timing'];
 
@@ -43,6 +44,25 @@ class ChatSessionInputStateImpl implements vscode.ChatSessionInputState {
 
 	readonly #onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.#onDidChangeEmitter.event;
+
+	readonly #onDidDisposeEmitter = new Emitter<void>();
+	readonly onDidDispose = this.#onDidDisposeEmitter.event;
+
+	#sessionResource: vscode.Uri | undefined;
+	get sessionResource(): vscode.Uri | undefined {
+		return this.#sessionResource;
+	}
+	set sessionResource(value: vscode.Uri | undefined) {
+		this.#sessionResource = value;
+	}
+
+	#untitledSessionResource: vscode.Uri | undefined;
+	get untitledSessionResource(): vscode.Uri | undefined {
+		return this.#untitledSessionResource;
+	}
+	set untitledSessionResource(value: vscode.Uri | undefined) {
+		this.#untitledSessionResource = value;
+	}
 
 	constructor(groups: readonly vscode.ChatSessionProviderOptionGroup[], onChangedDelegate?: () => void) {
 		this.#groups = groups;
@@ -64,6 +84,12 @@ class ChatSessionInputStateImpl implements vscode.ChatSessionInputState {
 
 	_setGroups(groups: readonly vscode.ChatSessionProviderOptionGroup[]): void {
 		this.#groups = groups;
+	}
+
+	_dispose(): void {
+		this.#onDidDisposeEmitter.fire();
+		this.#onDidDisposeEmitter.dispose();
+		this.#onDidChangeEmitter.dispose();
 	}
 }
 
@@ -421,6 +447,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 			onDidChangeChatSessionItemState: onDidChangeChatSessionItemStateEmitter.event,
 			newChatSessionItemHandler: undefined,
+			// Bridge the deprecated `ChatSessionItemProvider.resolveChatSessionItem` hook through the
+			// new controller surface so both code paths share the same `$resolveChatSessionItem` impl.
+			// The legacy provider returns a new item; the bridge adds it to the collection so the
+			// controller contract (update via collection, return void) is satisfied.
+			resolveChatSessionItem: provider.resolveChatSessionItem
+				? async (item, token) => {
+					const resolved = await provider.resolveChatSessionItem!(item, token);
+					if (resolved) {
+						collection.add(resolved);
+					}
+				}
+				: undefined,
 			dispose: () => {
 				disposables.dispose();
 			},
@@ -431,7 +469,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 
 		this._chatSessionItemControllers.set(controllerHandle, { chatSessionType: chatSessionType, controller, extension, disposable: disposables, onDidChangeChatSessionItemStateEmitter, inputStates: new Set() });
-		this._proxy.$registerChatSessionItemController(controllerHandle, chatSessionType);
+		this._proxy.$registerChatSessionItemController(controllerHandle, chatSessionType, !!provider.resolveChatSessionItem);
 
 		if (provider.onDidChangeChatSessionItems) {
 			disposables.add(provider.onDidChangeChatSessionItems(() => {
@@ -470,11 +508,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		let isDisposed = false;
 		let newChatSessionItemHandler: vscode.ChatSessionItemController['newChatSessionItemHandler'];
 		let forkHandler: vscode.ChatSessionItemController['forkHandler'];
+		let resolveChatSessionItemHandler: vscode.ChatSessionItemController['resolveChatSessionItem'];
 		let provideChatSessionInputStateHandler: vscode.ChatSessionItemController['getChatSessionInputState'];
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
 		const inputStates = new Set<ChatSessionInputStateImpl>();
 
 		const collection = new ChatSessionItemCollectionImpl(controllerHandle, this._proxy);
+		const proxy = this._proxy;
 
 		const controller = Object.freeze<vscode.ChatSessionItemController>({
 			id,
@@ -505,6 +545,15 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			set newChatSessionItemHandler(handler: vscode.ChatSessionItemController['newChatSessionItemHandler']) { newChatSessionItemHandler = handler; },
 			get forkHandler() { return forkHandler; },
 			set forkHandler(handler: vscode.ChatSessionItemController['forkHandler']) { forkHandler = handler; },
+			get resolveChatSessionItem() { return resolveChatSessionItemHandler; },
+			set resolveChatSessionItem(handler: vscode.ChatSessionItemController['resolveChatSessionItem']) {
+				const hadHandler = !!resolveChatSessionItemHandler;
+				resolveChatSessionItemHandler = handler;
+				const hasHandler = !!handler;
+				if (hadHandler !== hasHandler && !isDisposed) {
+					proxy.$updateChatSessionItemControllerCapabilities(controllerHandle, hasHandler);
+				}
+			},
 			get getChatSessionInputState() { return provideChatSessionInputStateHandler; },
 			set getChatSessionInputState(handler: vscode.ChatSessionItemController['getChatSessionInputState']) { provideChatSessionInputStateHandler = handler; },
 			createChatSessionInputState: (groups: vscode.ChatSessionProviderOptionGroup[]) => {
@@ -528,22 +577,33 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						when: g.when,
 						icon: g.icon,
 						commands: g.commands,
+						kind: g.kind,
 					}));
-					void this._proxy.$updateChatSessionInputState(controllerHandle, serializableGroups);
+					const resource = inputState.sessionResource ?? inputState.untitledSessionResource;
+					if (resource) {
+						void this._proxy.$updateChatSessionInputState(controllerHandle, resource, serializableGroups);
+					}
 				});
 				inputStates.add(inputState);
 				return inputState;
 			},
 			dispose: () => {
 				isDisposed = true;
+				for (const inputState of inputStates) {
+					inputState._dispose();
+				}
+				inputStates.clear();
 				disposables.dispose();
 			},
 		});
 
 		this._chatSessionItemControllers.set(controllerHandle, { controller, extension, disposable: disposables, chatSessionType: id, onDidChangeChatSessionItemStateEmitter, inputStates });
 
-		// Register the controller with the main thread
-		this._proxy.$registerChatSessionItemController(controllerHandle, id);
+		// Register the controller with the main thread. `resolveChatSessionItem` may be assigned
+		// later via the setter, which fires `$updateChatSessionItemControllerCapabilities` to
+		// flip `supportsResolve` on. Start out as `false` so controllers that never set the
+		// handler don't pay an RPC per render.
+		this._proxy.$registerChatSessionItemController(controllerHandle, id, !!resolveChatSessionItemHandler);
 
 		disposables.add(toDisposable(() => {
 			this._chatSessionItemControllers.delete(controllerHandle);
@@ -591,7 +651,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const sessionResource = URI.revive(sessionResourceComponents);
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const controllerData = this.getChatSessionItemController(getChatSessionType(sessionResource));
 		let inputState: vscode.ChatSessionInputState;
 		if (controllerData?.controller.getChatSessionInputState) {
 			const result = await controllerData.controller.getChatSessionInputState(isUntitledChatSession(sessionResource) ? undefined : sessionResource, {
@@ -605,8 +665,20 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			controllerData?.optionGroups ?? [], context.initialSessionOptions
 		);
 
+		if (inputState instanceof ChatSessionInputStateImpl) {
+			// Dispose any previous input states for this session resource
+			if (controllerData) {
+				this._disposeInputStatesForResource(controllerData.inputStates, sessionResource);
+			}
+
+			if (isUntitledChatSession(sessionResource)) {
+				inputState.untitledSessionResource = sessionResource;
+			} else {
+				inputState.sessionResource = sessionResource;
+			}
+		}
+
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
-			sessionOptions: context?.initialSessionOptions ?? [],
 			inputState,
 		});
 		if (token.isCancellationRequested) {
@@ -682,9 +754,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return;
 		}
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const sessionType = getChatSessionType(sessionResource);
+		const controllerData = this.getChatSessionItemController(sessionType);
 		if (!controllerData || !controllerData.controller.getChatSessionInputState) {
-			this._logService.warn(`No valid controller found for scheme ${sessionResource.scheme}`);
+			this._logService.warn(`No valid controller found for session type ${sessionType}`);
 			return;
 		}
 
@@ -752,15 +825,22 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	}
 
 	async $disposeChatSessionContent(providerHandle: number, sessionResource: UriComponents): Promise<void> {
-		const entry = this._extHostChatSessions.get(URI.revive(sessionResource));
+		const resource = URI.revive(sessionResource);
+		const entry = this._extHostChatSessions.get(resource);
 		if (!entry) {
 			this._logService.warn(`No chat session found for resource: ${sessionResource}`);
 			return;
 		}
 
+		// Dispose input states associated with this session
+		const controllerData = this.getChatSessionItemController(resource.scheme);
+		if (controllerData) {
+			this._disposeInputStatesForResource(controllerData.inputStates, resource);
+		}
+
 		entry.disposeCts.cancel();
 		entry.sessionObj.sessionDisposables.dispose();
-		this._extHostChatSessions.delete(URI.revive(sessionResource));
+		this._extHostChatSessions.delete(resource);
 	}
 
 	async $invokeChatSessionRequestHandler(handle: number, sessionResource: UriComponents, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
@@ -787,7 +867,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const requestTurn = this.convertRequestDtoToRequestTurn(request);
 
-		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		const controllerData = this.getChatSessionItemController(getChatSessionType(sessionResource));
 		if (controllerData?.controller.forkHandler) {
 			const item = await controllerData.controller.forkHandler(sessionResource, requestTurn, token);
 			return typeConvert.ChatSessionItem.from(item);
@@ -829,6 +909,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return undefined;
 	}
 
+	private _disposeInputStatesForResource(inputStates: Set<ChatSessionInputStateImpl>, resource: URI): void {
+		for (const inputState of inputStates) {
+			const inputResource = inputState.sessionResource ?? inputState.untitledSessionResource;
+			if (inputResource && isEqual(resource, inputResource)) {
+				inputState._dispose();
+				inputStates.delete(inputState);
+			}
+		}
+	}
+
 	private _createInputStateFromOptions(
 		groups: readonly vscode.ChatSessionProviderOptionGroup[],
 		sessionOptions?: ReadonlyArray<{ optionId: string; value: string }>,
@@ -860,19 +950,34 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		initialSessionOptions: ReadonlyArray<{ optionId: string; value: string }> | undefined,
 		token: CancellationToken,
 	): Promise<vscode.ChatSessionInputState> {
-		const scheme = sessionResource?.scheme;
-		const controllerData = scheme ? this.getChatSessionItemController(scheme) : undefined;
+		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
+		const controllerData = sessionType ? this.getChatSessionItemController(sessionType) : undefined;
+		const resolvedResource = sessionResource && !isUntitledChatSession(sessionResource) ? sessionResource : undefined;
 		if (controllerData?.controller.getChatSessionInputState) {
 			const result = await controllerData.controller.getChatSessionInputState(
-				sessionResource && !isUntitledChatSession(sessionResource) ? sessionResource : undefined,
+				resolvedResource,
 				{ previousInputState: this._createInputStateFromOptions(controllerData.optionGroups ?? [], initialSessionOptions) },
 				token,
 			);
 			if (result) {
+				if (result instanceof ChatSessionInputStateImpl) {
+					// Dispose any previous input states for this session resource
+					if (sessionResource && controllerData) {
+						this._disposeInputStatesForResource(controllerData.inputStates, sessionResource);
+					}
+
+					if (sessionResource && isUntitledChatSession(sessionResource)) {
+						result.untitledSessionResource = sessionResource;
+					} else if (sessionResource) {
+						result.sessionResource = resolvedResource;
+					}
+				}
 				return result;
 			}
 		}
-		return this._createInputStateFromOptions(controllerData?.optionGroups ?? [], initialSessionOptions);
+		const fallback = this._createInputStateFromOptions(controllerData?.optionGroups ?? [], initialSessionOptions);
+		fallback.sessionResource = resolvedResource;
+		return fallback;
 	}
 
 	/**
@@ -1013,7 +1118,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return {
 			type: 'response' as const,
 			parts,
-			participant: turn.participant
+			participant: turn.participant,
+			details: turn.result?.details,
 		};
 	}
 
@@ -1039,11 +1145,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
+		const previousInputState = this._createInputStateFromOptions(controllerData.optionGroups ?? [], request.initialSessionOptions);
 		let inputState: vscode.ChatSessionInputState;
 		if (controllerData.controller.getChatSessionInputState) {
-			inputState = await controllerData.controller.getChatSessionInputState(undefined, { previousInputState: this._createInputStateFromOptions(controllerData.optionGroups ?? [], request.initialSessionOptions) }, token);
+			inputState = await controllerData.controller.getChatSessionInputState(undefined, { previousInputState }, token);
 		} else {
-			inputState = new ChatSessionInputStateImpl([]);
+			inputState = previousInputState;
 		}
 
 		const item = await handler({
@@ -1051,7 +1158,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				prompt: request.prompt,
 				command: request.command
 			},
-			sessionOptions: request.initialSessionOptions ?? [],
 			inputState,
 		}, token);
 		if (!item) {
@@ -1081,6 +1187,36 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
 
+	async $resolveChatSessionItem(handle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+		const sessionResource = URI.revive(sessionResourceComponents);
+
+		// Both the new `ChatSessionItemController.resolveChatSessionItem` and the deprecated
+		// `ChatSessionItemProvider.resolveChatSessionItem` hooks are bridged onto the controller
+		// surface, so a single code path handles both.
+		const controllerData = this._chatSessionItemControllers.get(handle);
+		if (!controllerData?.controller.resolveChatSessionItem) {
+			return undefined;
+		}
+
+		const item = controllerData.controller.items.get(sessionResource);
+		if (!item) {
+			this._logService.warn(`No item found for session resource ${sessionResource.toString()}`);
+			return undefined;
+		}
+
+		// The controller's resolve handler updates the item in the collection
+		// (via items.add or by mutating properties). We re-read from the
+		// collection after it completes to pick up the changes.
+		await controllerData.controller.resolveChatSessionItem(item, token);
+
+		const updatedItem = controllerData.controller.items.get(sessionResource);
+		if (!updatedItem) {
+			return undefined;
+		}
+
+		return typeConvert.ChatSessionItem.from(updatedItem);
+	}
+
 	async $provideChatSessionInputState(controllerHandle: number, sessionResourceComponents: UriComponents | undefined, token: CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(controllerHandle);
 		if (!controllerData) {
@@ -1092,11 +1228,21 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		if (!handler) {
 			return undefined;
 		}
-
 		const sessionResource = sessionResourceComponents ? URI.revive(sessionResourceComponents) : undefined;
-		const inputState = await handler(sessionResource, { previousInputState: undefined }, token);
+		const inputState = await handler(!sessionResource || isUntitledChatSession(sessionResource) ? undefined : sessionResource, { previousInputState: undefined }, token);
 		if (!inputState) {
 			return undefined;
+		}
+
+		if (inputState instanceof ChatSessionInputStateImpl && sessionResource) {
+			// Dispose any previous input states for this session resource
+			this._disposeInputStatesForResource(controllerData.inputStates, sessionResource);
+
+			if (isUntitledChatSession(sessionResource)) {
+				inputState.untitledSessionResource = sessionResource;
+			} else {
+				inputState.sessionResource = sessionResource;
+			}
 		}
 
 		// Store the option groups for onSearch callbacks
@@ -1114,6 +1260,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			when: g.when,
 			icon: g.icon,
 			commands: g.commands,
+			kind: g.kind,
 		}));
 	}
 }

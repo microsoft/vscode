@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { extractToolParameters } from '../../../platform/otel/node/extractToolParameters';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { equals as arraysEqual } from '../../../util/vs/base/common/arrays';
 import { Iterable } from '../../../util/vs/base/common/iterator';
 import { Lazy } from '../../../util/vs/base/common/lazy';
@@ -86,6 +90,8 @@ export class ToolsService extends BaseToolsService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
@@ -131,10 +137,12 @@ export class ToolsService extends BaseToolsService {
 			parentTraceContext,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 				[GenAiAttr.TOOL_NAME]: String(name),
 				[GenAiAttr.TOOL_TYPE]: isMcpTool ? GenAiToolType.EXTENSION : GenAiToolType.FUNCTION,
 				[GenAiAttr.TOOL_CALL_ID]: (options as { chatStreamToolCallId?: string }).chatStreamToolCallId ?? '',
 				...(toolInfo?.description ? { [GenAiAttr.TOOL_DESCRIPTION]: toolInfo.description } : {}),
+				...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 				...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
@@ -143,9 +151,23 @@ export class ToolsService extends BaseToolsService {
 		// Always capture tool call arguments for the debug panel
 		if (options.input !== undefined) {
 			try {
-				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input)));
+				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input), this._otelService.config.maxAttributeSizeChars));
 			} catch { /* swallow serialization errors */ }
 		}
+
+		// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
+		// unconditionally; raw paths, commands, and MCP names are gated.
+		try {
+			const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = extractToolParameters(String(name), options.input);
+			for (const [k, v] of Object.entries(paramAttrs)) {
+				span.setAttribute(k, v);
+			}
+			if (this._otelService.config.captureContent) {
+				for (const [k, v] of Object.entries(gatedParamAttrs)) {
+					span.setAttribute(k, v);
+				}
+			}
+		} catch { /* swallow extraction errors */ }
 
 		// For runSubagent tool, store this execute_tool span's trace context so the subagent's
 		// invoke_agent span can be parented to THIS tool call (not the grandparent invoke_agent).
@@ -175,6 +197,25 @@ export class ToolsService extends BaseToolsService {
 
 		const startTime = Date.now();
 
+		// Propagate W3C trace context to tool invocations so downstream spans can be
+		// correlated with this `execute_tool` span. MCP tools forward this onto
+		// `_meta.traceparent`/`_meta.tracestate` of the JSON-RPC `tools/call` payload
+		// (MCP SEP-414, see #302301). Only set if not already supplied by the caller.
+		const optionsWithTrace = options as vscode.LanguageModelToolInvocationOptions<Object> & { traceparent?: string; tracestate?: string };
+		const ctx = span.getSpanContext();
+		if (ctx) {
+			if (!optionsWithTrace.traceparent) {
+				// Preserve the upstream W3C trace flags when available. Fall back to `01`
+				// (sampled) so downstream MCP servers continue to participate in the trace
+				// when the abstraction does not surface flags (e.g. tests, in-memory impl).
+				const flags = (ctx.traceFlags ?? 0x01).toString(16).padStart(2, '0');
+				optionsWithTrace.traceparent = `00-${ctx.traceId}-${ctx.spanId}-${flags}`;
+			}
+			if (!optionsWithTrace.tracestate && ctx.traceState) {
+				optionsWithTrace.tracestate = ctx.traceState;
+			}
+		}
+
 		return vscode.lm.invokeTool(getContributedToolName(name), options, token).then(
 			result => {
 				span.setStatus(SpanStatusCode.OK);
@@ -191,7 +232,7 @@ export class ToolsService extends BaseToolsService {
 						}
 					}
 					if (parts.length > 0) {
-						span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(parts.join('')));
+						span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(parts.join(''), this._otelService.config.maxAttributeSizeChars));
 					}
 				} catch { /* swallow */ }
 				span.end();
@@ -204,7 +245,7 @@ export class ToolsService extends BaseToolsService {
 			err => {
 				span.setStatus(SpanStatusCode.ERROR, err instanceof Error ? err.message : String(err));
 				span.setAttribute(StdAttr.ERROR_TYPE, err instanceof Error ? err.constructor.name : 'Error');
-				span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${err instanceof Error ? err.message : String(err)}`));
+				span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${err instanceof Error ? err.message : String(err)}`, this._otelService.config.maxAttributeSizeChars));
 				span.recordException(err);
 				span.end();
 				const durationMs = Date.now() - startTime;
@@ -258,6 +299,33 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				// For changed_files_tool, disable experimentally for gpt-5.5.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& isGpt55(endpoint)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
+				// For changed_files_tool, disable experimentally for gemini-3.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& endpoint.family.toLowerCase().includes('gemini-3')
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
+				// For read_file_tool, disable experimentally for gpt-5.5.
+				if (
+					tool.name === ToolName.ReadFile
+					&& isGpt55(endpoint)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55ReadFileTool, this._experimentationService)
+				) {
+					return false;
+				}
+
 				// 0. Check if the tool was disabled via the tool picker. If so, it must be disabled here
 				const toolPickerSelection = requestToolsByName.get(getContributedToolName(tool.name));
 				if (toolPickerSelection === false) {
@@ -276,12 +344,6 @@ export class ToolsService extends BaseToolsService {
 					if (usedTool?.tags.includes(`enable_other_tool_${tool.name}`)) {
 						return true;
 					}
-				}
-
-				// 3. If this tool is neither enabled nor disabled, then consumer didn't have opportunity to enable/disable it.
-				// This can happen when a tool is added during another tool call (e.g. installExt tool installs an extension that contributes tools).
-				if (toolPickerSelection === undefined && tool.tags.includes('extension_installed_by_tool')) {
-					return true;
 				}
 
 				// Tool was enabled via tool picker

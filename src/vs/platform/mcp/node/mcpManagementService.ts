@@ -8,7 +8,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer } from '../common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer, IAllowedMcpServersService } from '../common/mcpManagement.js';
 import { McpUserResourceManagementService as CommonMcpUserResourceManagementService, McpManagementService as CommonMcpManagementService } from '../common/mcpManagementService.js';
 import { IMcpResourceScannerService } from '../common/mcpResourceScannerService.js';
 
@@ -20,9 +20,10 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		super(mcpResource, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, environmentService);
+		super(mcpResource, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService, environmentService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
@@ -54,9 +55,11 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 				inputs: mcpServerConfiguration.inputs
 			};
 
+			this.ensureServerAllowed(installable);
+
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
 
-			await this.updateLocal();
+			await this.updateLocal(server);
 			const local = (await this.getInstalled()).find(s => s.name === server.name);
 			if (!local) {
 				throw new Error(`Failed to install MCP server: ${server.name}`);

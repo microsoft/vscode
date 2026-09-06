@@ -100,6 +100,7 @@ export class ManagedHoverWidget implements IDisposable {
 				},
 				position: {
 					hoverPosition: HoverPosition.BELOW,
+					anchorAlignment: options?.position?.anchorAlignment,
 				},
 			};
 

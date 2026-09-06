@@ -11,12 +11,11 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../editor/common/model.js';
+import { ITextModel, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -25,9 +24,7 @@ import { FileKind, IFileService } from '../../../../platform/files/common/files.
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { searchFilesAndFolders } from '../../../../workbench/contrib/search/browser/searchChatContext.js';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
-import { themeColorFromId } from '../../../../base/common/themables.js';
-import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 import { isDiffEditorInput } from '../../../../workbench/common/editor.js';
 import { isSupportedChatFileScheme } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -112,8 +109,9 @@ function computeRange(model: ITextModel, position: Position, reg: RegExp): IComp
 export class VariableCompletionHandler extends Disposable {
 
 	private static readonly _wordPattern = /#[^\s]*/g; // MUST use g-flag
-	private static readonly _decoType = 'sessions-variable-reference';
-	private static _decosRegistered = false;
+	private static readonly _className = 'sessions-variable-reference';
+
+	private readonly _decorations: IEditorDecorationsCollection;
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -123,12 +121,12 @@ export class VariableCompletionHandler extends Disposable {
 		@ISearchService private readonly searchService: ISearchService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._decorations = this._editor.createDecorationsCollection();
 		this._registerFileCompletions();
 		this._registerDecorations();
 	}
@@ -145,6 +143,13 @@ export class VariableCompletionHandler extends Disposable {
 			_debugDisplayName: 'sessionsVariableFileAndFolder',
 			triggerCharacters: [VARIABLE_LEADER],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				// For a `/troubleshoot` request, `#` references target sessions
+				// (handled by the `#session` provider); suppress file/folder
+				// completions so only sessions are offered.
+				if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
+					return null;
+				}
+
 				const workspaceUri = this._getWorkspaceUri();
 				if (!workspaceUri) {
 					return null;
@@ -332,15 +337,6 @@ export class VariableCompletionHandler extends Disposable {
 	// --- Decorations ---
 
 	private _registerDecorations(): void {
-		if (!VariableCompletionHandler._decosRegistered) {
-			VariableCompletionHandler._decosRegistered = true;
-			this.codeEditorService.registerDecorationType('sessions-chat', VariableCompletionHandler._decoType, {
-				color: themeColorFromId(chatSlashCommandForeground),
-				backgroundColor: themeColorFromId(chatSlashCommandBackground),
-				borderRadius: '3px',
-			});
-		}
-
 		this._register(this._editor.onDidChangeModelContent(() => this._updateDecorations()));
 		this._updateDecorations();
 	}
@@ -349,7 +345,7 @@ export class VariableCompletionHandler extends Disposable {
 		const model = this._editor.getModel();
 		const value = model?.getValue() ?? '';
 
-		const decos: IDecorationOptions[] = [];
+		const decos: IModelDeltaDecoration[] = [];
 		const regex = /#file:\S+/g;
 		let match: RegExpExecArray | null;
 
@@ -367,10 +363,11 @@ export class VariableCompletionHandler extends Disposable {
 					endLineNumber: endPos.lineNumber,
 					endColumn: endPos.column,
 				},
+				options: { description: 'sessions-variable-reference', inlineClassName: VariableCompletionHandler._className },
 			});
 		}
 
-		this._editor.setDecorationsByType('sessions-chat', VariableCompletionHandler._decoType, decos);
+		this._decorations.set(decos);
 	}
 
 }

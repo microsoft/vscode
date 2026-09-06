@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LoggedInfo, LoggedInfoKind } from '../../../platform/requestLogger/node/requestLogger';
+import { LoggedInfo, LoggedInfoKind } from '../../../platform/requestLogger/common/requestLogger';
 
 /**
  * Type for a log entry in an exported chat log file.
@@ -139,7 +139,7 @@ export async function createExportedPrompt(
 				kind: 'error',
 				error: error?.toString() || 'Unknown error',
 				timestamp: new Date().toISOString()
-			} as unknown as ExportedLogEntry);
+			});
 		}
 	}
 

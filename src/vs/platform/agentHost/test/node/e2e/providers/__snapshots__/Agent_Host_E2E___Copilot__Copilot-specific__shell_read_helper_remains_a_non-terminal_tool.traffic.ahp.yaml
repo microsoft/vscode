@@ -1,0 +1,111 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: First use the shell tool exactly once to run `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"` in async mode with shellId "read-shell-e2e" and initial_wait 1. After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns. Then reply with exactly "READ_SHELL_E2E_DONE".
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: First use the shell tool exactly once to run `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"` in async mode with shellId "read-shell-e2e" and initial_wait 1. After that tool returns, use its matching read tool exactly once with shellId "read-shell-e2e" and delay 5 so the command finishes before the read returns. Then reply with exactly "READ_SHELL_E2E_DONE".
+            origin:
+              kind: user
+      - method: root/sessionAdded
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: ${shell}
+          displayName: Run Shell Command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: Running `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`
+          toolInput: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: Run delayed node script
+          toolInput: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: Ran `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`
+            content:
+              - type: text
+                text: '<command started in background with shellId: read-shell-e2e>'
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          toolName: ${read_shell}
+          displayName: Read Terminal
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          invocationMessage: Reading Terminal
+          toolInput: |-
+            {
+              "shellId": "read-shell-e2e",
+              "delay": 5
+            }
+          confirmed: not-needed
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_1}
+          result:
+            success: true
+            pastTenseMessage: Read Terminal
+            content:
+              - type: text
+                text: |-
+                  READ_SHELL_E2E_VALUE
+                  <shellId: read-shell-e2e completed with exit code 0>
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: READ_SHELL_E2E_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

@@ -62,6 +62,11 @@
 		"input.background": "#414339",
 		"inputOption.activeBorder": "#75715E",
 		"focusBorder": "#99947c",
+		// agent sessions
+		"agentsPanel.border": "#00000000",
+		"agentsChatInput.border": "#414339",
+		"agentsChatInput.focusBorder": "#99947c",
+		"agentsNewSessionButton.border": "#414339",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
 		"diffEditor.insertedTextBackground": "#4b661680", // middle of #272822 and #a6e22e
@@ -99,7 +104,9 @@
 		"terminal.ansiBrightBlue": "#819aff", // hue shifted #AE81FF
 		"terminal.ansiBrightMagenta": "#AE81FF",
 		"terminal.ansiBrightCyan": "#66D9EF",
-		"terminal.ansiBrightWhite": "#f8f8f2"
+		"terminal.ansiBrightWhite": "#f8f8f2",
+		// modern ui
+		"surface.border": "#272822",
 	},
 	"tokenColors": [
 		{

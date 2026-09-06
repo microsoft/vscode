@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { resolve } from 'path';
-import { ApproximateTokenizer, getTokenizer, TokenizerName } from '../tokenization';
+import { ApproximateTokenizer, ensureTokenizersLoaded, ExternalTokenizerProvider, getTokenizer, resetTokenizersForTest, setExternalTokenizerProvider, Tokenizer, TokenizerName } from '../tokenization';
 
 // Read the source files and normalize the line endings
 const source = fs.readFileSync(resolve(__dirname, 'testdata/example.py'), 'utf8').replace(/\r\n?/g, '\n');
@@ -62,7 +62,14 @@ suite('MockTokenizer', function () {
 });
 
 suite('Tokenizer Test Suite - cl100k', function () {
-	const tokenizer = getTokenizer(TokenizerName.cl100k);
+	// The dictionaries load lazily on the first ensureTokenizersLoaded() call;
+	// fetch the tokenizer after that instead of at suite definition time,
+	// which would capture the approximate fallback.
+	let tokenizer: Tokenizer;
+	suiteSetup(async function () {
+		await ensureTokenizersLoaded();
+		tokenizer = getTokenizer(TokenizerName.cl100k);
+	});
 
 	test('empty string', function () {
 		const str = '';
@@ -262,7 +269,11 @@ with minor edits to make it`;
 });
 
 suite('Tokenizer Test Suite - o200k', function () {
-	const tokenizer = getTokenizer(TokenizerName.o200k);
+	let tokenizer: Tokenizer;
+	suiteSetup(async function () {
+		await ensureTokenizersLoaded();
+		tokenizer = getTokenizer(TokenizerName.o200k);
+	});
 
 	test('empty string', function () {
 		const str = '';
@@ -591,5 +602,80 @@ suite('ApproximateTokenizer', function () {
 			const result = cl100kTokenizer.takeLastLinesTokens(text, 10);
 			assert.strictEqual(typeof result, 'string');
 		});
+	});
+});
+
+suite('Tokenizer Test Suite - external provider', function () {
+	class FakeExternalTokenizerProvider implements ExternalTokenizerProvider {
+		ensureLoadedCalls = 0;
+		getTokenizerCalls = 0;
+
+		constructor(
+			private readonly tokenizer: Tokenizer,
+			private readonly behavior: { getTokenizerThrows?: boolean; ensureLoadedRejects?: boolean } = {}
+		) { }
+
+		getTokenizer(_name: TokenizerName): Tokenizer {
+			this.getTokenizerCalls++;
+			if (this.behavior.getTokenizerThrows) {
+				throw new Error('getTokenizer failed');
+			}
+			return this.tokenizer;
+		}
+
+		ensureLoaded(): Promise<void> {
+			this.ensureLoadedCalls++;
+			return this.behavior.ensureLoadedRejects
+				? Promise.reject(new Error('ensureLoaded failed'))
+				: Promise.resolve();
+		}
+	}
+
+	setup(function () {
+		resetTokenizersForTest();
+	});
+
+	teardown(function () {
+		resetTokenizersForTest();
+	});
+
+	test('getTokenizer delegates to the installed provider', function () {
+		const hostTokenizer = new ApproximateTokenizer();
+		setExternalTokenizerProvider(new FakeExternalTokenizerProvider(hostTokenizer));
+
+		assert.strictEqual(getTokenizer(TokenizerName.cl100k), hostTokenizer);
+	});
+
+	test('ensureTokenizersLoaded defers to the provider and single-flights concurrent calls', async function () {
+		const provider = new FakeExternalTokenizerProvider(new ApproximateTokenizer());
+		setExternalTokenizerProvider(provider);
+
+		await Promise.all([ensureTokenizersLoaded(), ensureTokenizersLoaded()]);
+
+		assert.strictEqual(provider.ensureLoadedCalls, 1);
+	});
+
+	test('getTokenizer falls back to the approximate tokenizer when the provider throws', function () {
+		setExternalTokenizerProvider(new FakeExternalTokenizerProvider(new ApproximateTokenizer(), { getTokenizerThrows: true }));
+
+		assert.ok(getTokenizer(TokenizerName.cl100k) instanceof ApproximateTokenizer);
+	});
+
+	test('ensureTokenizersLoaded resolves and retries when the provider load fails', async function () {
+		const provider = new FakeExternalTokenizerProvider(new ApproximateTokenizer(), { ensureLoadedRejects: true });
+		setExternalTokenizerProvider(provider);
+
+		await ensureTokenizersLoaded();
+		await ensureTokenizersLoaded();
+
+		assert.strictEqual(provider.ensureLoadedCalls, 2);
+	});
+
+	test('the first installed provider wins', function () {
+		const first = new ApproximateTokenizer();
+		setExternalTokenizerProvider(new FakeExternalTokenizerProvider(first));
+		setExternalTokenizerProvider(new FakeExternalTokenizerProvider(new ApproximateTokenizer()));
+
+		assert.strictEqual(getTokenizer(TokenizerName.cl100k), first);
 	});
 });

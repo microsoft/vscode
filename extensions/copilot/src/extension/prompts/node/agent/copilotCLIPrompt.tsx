@@ -6,6 +6,7 @@
 import { BasePromptElementProps, PromptElement, PromptSizing, UserMessage } from '@vscode/prompt-tsx';
 import { ChatCompletionContentPartKind, ChatRole } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
 import type { ChatRequestEditedFileEvent } from 'vscode';
+import { isXAiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
@@ -47,7 +48,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 
 	async render(state: void, sizing: PromptSizing) {
 		const query = this.props.request;
-		const shouldUseUserQuery = this.props.endpoint.family.startsWith('grok-code');
+		const shouldUseUserQuery = isXAiFamily(this.props.endpoint);
 
 		// Files & folders will not be added as regular attachments, as those will be handed by SDK.
 		// We merely add a <attachments> tag to signal that there are file/folder attachments.
@@ -68,13 +69,13 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const hasVariables = resourceVariables.hasVariables() || nonResourceVariables.hasVariables();
 		const hasEditedFileEvents = (this.props.editedFileEvents?.length ?? 0) > 0;
 		const hasCustomContext = hasVariables || hasEditedFileEvents;
-		const promptVariable = resourceVariables.find(v => isPromptFile(v));
+		const promptVariable = resourceVariables.find(v => isPromptFile(v.reference));
 		// If we have a prompt file, we want to direct the model to follow instructions in that file.
 		// Otherwise we add a generic reminder to only use the context if its relevant.
 		// Also today we have a generic prompt that reads `Implement this.` and we have attachments.
 		// Thats not sufficient to direct the model to use prompt instructions.
 		// In regular chat we have `Follow instructions in #<file>` & thats very effective as the prompt is very sepcfici about what to do. `Implement this.` is not.
-		const instructions = promptVariable ?
+		const instructions = promptVariable && promptVariable.reference.name !== 'prompt:plan.prompt.md' ?
 			`Follow instructions in #${promptVariable.reference.name}` :
 			'IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task';
 		return (
@@ -123,11 +124,21 @@ export async function generateUserPrompt(request: ChatRequest, prompt: string | 
 		request: prompt ?? request.prompt,
 		editedFileEvents: request.editedFileEvents,
 	});
-	if (messages.length === 1 && messages[0].role === ChatRole.User && messages[0].content.length === 1 && messages[0].content[0].type === ChatCompletionContentPartKind.Text) {
-		return messages[0].content[0].text;
-	}
-	throw new Error(`[CopilotCLISession] Unexpected generated prompt structure.`);
 
+	// Copilot CLI only accepts a plain text prompt. Any non-text content (e.g. images) is delivered
+	// separately to the SDK as attachments, so we only gather the text parts of the user messages here
+	// and ignore everything else. We must not fail the whole request when the rendered structure is not
+	// purely text or when it is empty (e.g. the prompt was empty or was entirely pruned to fit the token
+	// budget), as throwing would break the agent entirely (see #323696).
+	const text = messages
+		.filter(message => message.role === ChatRole.User)
+		.flatMap(message => message.content)
+		.filter(part => part.type === ChatCompletionContentPartKind.Text)
+		.map(part => part.text)
+		.join('');
+
+	// Fall back to the original prompt when nothing was rendered so we never send an empty prompt.
+	return text || prompt || request.prompt || '';
 }
 
 async function renderResourceVariables(chatVariables: ChatVariablesCollection, fileSystemService: IFileSystemService, promptPathRepresentationService: IPromptPathRepresentationService): Promise<PromptElement[]> {
@@ -167,7 +178,7 @@ async function renderResourceVariables(chatVariables: ChatVariablesCollection, f
 		if (!URI.isUri(uri)) {
 			return;
 		}
-		if (uri.scheme === Schemas.untitled || isPromptFile(variable) || isScmEntry(uri)) {
+		if (uri.scheme === Schemas.untitled || isPromptFile(variable.reference) || isScmEntry(uri)) {
 			// If its an untitled document, we always include a summary, as CLI cannot read untitled documents.
 			// Similarly prompt file contents need to be included in the prompt.
 			// Except when its attached as a regular file (but in that case `isPromptFile` would return false).

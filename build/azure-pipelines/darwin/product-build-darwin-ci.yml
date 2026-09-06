@@ -7,7 +7,7 @@ parameters:
 jobs:
   - job: macOS${{ parameters.VSCODE_TEST_SUITE }}
     displayName: ${{ parameters.VSCODE_TEST_SUITE }} Tests
-    timeoutInMinutes: 90
+    timeoutInMinutes: 120
     variables:
       VSCODE_ARCH: arm64
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -25,7 +25,7 @@ jobs:
           artifactName: node-modules-macos-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Node Modules
           sbomEnabled: false
-          isProduction: false
+          isProduction: true
           condition: failed()
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/logs

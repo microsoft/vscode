@@ -10,8 +10,8 @@ import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
-import { isObject, isUndefined } from '../../../base/common/types.js';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, MCP_CONFIGURATION_KEY, mcpSchemaId } from '../../services/configuration/common/configuration.js';
+import { hasKey, isObject, isUndefined } from '../../../base/common/types.js';
 import { ExtensionIdentifierMap, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
@@ -19,6 +19,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import product from '../../../platform/product/common/product.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -145,6 +146,21 @@ const configurationEntrySchema: IJSONSchema = {
 								},
 								additionalItems: true,
 								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+							},
+							agentsWindow: {
+								type: 'object',
+								markdownDescription: nls.localize('scope.agentsWindow', "Configuration overrides for the Agents window. Allows specifying a different default value and read-only behavior for this setting when running in the Agents window.\n\n**Note**: This is a proposed API. To use it, extensions must include `agentsWindowConfiguration` in their `enabledApiProposals`."),
+								properties: {
+									'default': {
+										description: nls.localize('scope.agentsWindow.default', 'The default value for this setting in the Agents window.'),
+									},
+									readOnly: {
+										type: 'boolean',
+										description: nls.localize('scope.agentsWindow.readOnly', 'When true, this setting cannot be changed by the user in the Agents window.'),
+										default: false,
+									}
+								},
+								additionalProperties: false
 							}
 						}
 					}
@@ -291,13 +307,29 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 					continue;
 				}
-				if (extensionConfigurationPolicy?.[key]) {
-					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
+				const policyEntry = extensionConfigurationPolicy?.[key];
+				if (policyEntry) {
+					// A reference entry carries a `policyReference` pointer; a full (owner/"parent")
+					// entry declares the policy inline. References attach this setting to a policy
+					// *owned* by an in-code setting (whose `value` callback JSON cannot carry).
+					if (hasKey(policyEntry, { policyReference: true })) {
+						propertyConfiguration.policyReference = policyEntry.policyReference;
+					} else {
+						propertyConfiguration.policy = policyEntry;
+					}
 				}
 				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					propertyConfiguration.experiment = {
 						mode: 'startup'
 					};
+				}
+				if (propertyConfiguration.agentsWindow && !isProposedApiEnabled(extension.description, 'agentsWindowConfiguration')) {
+					extension.collector.error(nls.localize('config.property.agentsWindow.proposed', "Extension '{0}' CANNOT use 'agentsWindow' property on configuration '{1}' without enabling the 'agentsWindowConfiguration' API proposal.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agentsWindow;
+				}
+				if (propertyConfiguration.agentHost) {
+					extension.collector.error(nls.localize('config.property.agentHost.unsupported', "Extension '{0}' CANNOT use the 'agentHost' property on configuration '{1}'.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agentHost;
 				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
@@ -386,7 +418,27 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'object',
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
-			$ref: workspaceSettingsSchemaId
+			allOf: [
+				{ $ref: workspaceSettingsSchemaId },
+				{
+					properties: {
+						[MCP_CONFIGURATION_KEY]: {
+							type: 'object',
+							default: {
+								inputs: [],
+								servers: {
+									'mcp-server-time': {
+										command: 'uvx',
+										args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+									}
+								}
+							},
+							description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+							$ref: mcpSchemaId
+						}
+					}
+				}
+			]
 		},
 		'launch': {
 			type: 'object',
@@ -399,20 +451,6 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: { version: '2.0.0', tasks: [] },
 			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
 			$ref: tasksSchemaId
-		},
-		'mcp': {
-			type: 'object',
-			default: {
-				inputs: [],
-				servers: {
-					'mcp-server-time': {
-						command: 'uvx',
-						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
-					}
-				}
-			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
-			$ref: mcpSchemaId
 		},
 		'extensions': {
 			type: 'object',

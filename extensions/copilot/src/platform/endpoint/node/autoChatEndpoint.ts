@@ -105,14 +105,16 @@ function calculateAutoModelInfo(endpoint: IChatEndpoint, sessionToken: string, d
 		};
 	}
 	// Calculate the multiplier including the discount percent, rounding to two decimal places
-	const newMultiplier = Math.round((endpoint.multiplier ?? 0) * (1 - discountPercent) * 100) / 100;
+	const newMultiplier = endpoint.multiplier !== undefined
+		? Math.round(endpoint.multiplier * (1 - discountPercent) * 100) / 100
+		: undefined;
 	const newModelInfo: IChatModelInformation = {
 		...originalModelInfo,
 		warning_messages: undefined,
 		model_picker_enabled: true,
 		info_messages: undefined,
 		billing: {
-			is_premium: originalModelInfo.billing?.is_premium ?? false,
+			is_premium: originalModelInfo.billing?.is_premium,
 			multiplier: newMultiplier,
 			restricted_to: originalModelInfo.billing?.restricted_to
 		},
@@ -129,4 +131,11 @@ export function isAutoModel(endpoint: IChatEndpoint | undefined): number {
 		return -1;
 	}
 	return (endpoint.model === AutoChatEndpoint.pseudoModelId || endpoint instanceof AutoChatEndpoint) ? 1 : -1;
+}
+
+/** Kept in sync with the workbench copy in `chatAutoModeExplainability.ts`. */
+const HIDE_AUTO_EXPLAINABILITY_TREATMENT = 'copilotchat.hideAutoExplainability';
+
+export function isAutoExplainabilityHidden(expService: IExperimentationService): boolean {
+	return expService.getTreatmentVariable<boolean>(HIDE_AUTO_EXPLAINABILITY_TREATMENT) === true;
 }

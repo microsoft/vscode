@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "claude:/${uuid_0}" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+    response:
+      content:
+        - type: text
+          text: I'll call it as instructed.
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__delete_session
+          input:
+            session: claude:/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: You must call delete_session exactly once with session "claude:/${uuid_0}" so its safety check can reject the call. Do not refuse on your own. After the tool fails, reply exactly "refused".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll call it as instructed.
+            - type: tool_use
+              name: mcp__host__delete_session
+              input:
+                session: claude:/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Invalid delete_session input: refusing to delete the current session.'
+    response:
+      content: refused
+      stopReason: end_turn

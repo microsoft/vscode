@@ -180,6 +180,10 @@ export class Menubar extends Disposable {
 		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
 		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
 		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
+
+		// Rebuild menu when update state changes so update menu items reflect
+		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
+		this._register(this.updateService.onStateChange(() => this.scheduleUpdateMenu()));
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -661,6 +665,9 @@ export class Menubar extends Disposable {
 
 			case StateType.Updating:
 				return [new MenuItem({ label: nls.localize('miInstallingUpdate', "Installing Update..."), enabled: false })];
+
+			case StateType.Cancelling:
+				return [new MenuItem({ label: nls.localize('miCancellingUpdate', "Cancelling Update..."), enabled: false })];
 
 			case StateType.Ready:
 				return [new MenuItem({

@@ -24,6 +24,7 @@ await Promise.all([
 	// Build server
 	run({
 		platform: 'browser',
+		format: 'esm',
 		entryPoints: {
 			'cssServerMain': path.join(extensionRoot, 'server', 'src', 'browser', 'cssServerWorkerMain.ts'),
 		},

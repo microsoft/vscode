@@ -1,0 +1,354 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .automations-cards-widget {
+	position: relative;
+	height: 100%;
+	overflow: hidden;
+}
+
+.monaco-workbench .automations-cards-content:focus,
+.monaco-workbench .automations-cards-widget:focus {
+	outline: none;
+}
+
+.automations-cards-widget > .monaco-scrollable-element {
+	width: 100%;
+}
+
+.automations-cards-scroll-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 32px 24px;
+	box-sizing: border-box;
+}
+
+/* Centered content band */
+.automations-cards-header,
+.automations-cards-grid,
+.automations-cards-empty,
+.automations-history {
+	width: 100%;
+	max-width: 900px;
+}
+
+/* Header */
+.automations-cards-header-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.automations-cards-header-icon {
+	font-size: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-cards-header-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin: 0;
+	flex: 1;
+}
+
+.automations-cards-header-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin: 4px 0 16px;
+	line-height: 1.4;
+}
+
+.automations-cards-new-button {
+	flex-shrink: 0;
+	max-width: 140px;
+}
+
+.automations-cards-new-button .monaco-button {
+	padding: 4px 12px;
+	font-size: 12px;
+}
+
+/* Card Grid — wraps into new rows */
+.automations-cards-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+	grid-auto-rows: 1fr;
+	gap: 12px;
+}
+
+/* Card Wrapper */
+.automations-card-wrapper {
+	display: flex;
+	flex-direction: column;
+	border-radius: 6px;
+	overflow: hidden;
+	height: 100%;
+}
+
+/* Individual Card */
+.automations-card {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px 16px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 6px;
+	height: 100%;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.automations-card:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-card:has(> .automations-card-main:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Card Main Content */
+.automations-card-main {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.monaco-workbench .automations-card-main:focus {
+	outline: none;
+}
+
+/* Card Name */
+.automations-card-name {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+
+.automations-card-name-text {
+	flex: 1 1 0;
+	min-width: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-card-disabled-badge {
+	font-size: 12px;
+	font-weight: 400;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Card Metadata */
+.automations-card-meta {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	min-width: 0;
+}
+
+.automations-card-folder {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-card-meta-item + .automations-card-meta-item::before {
+	content: '·';
+	margin-right: 6px;
+	opacity: 0.6;
+}
+
+.automations-card-last-run.automations-card-run-failed {
+	color: var(--vscode-errorForeground);
+}
+
+.automations-card-last-run.automations-card-run-success {
+	color: var(--vscode-testing-iconPassed);
+}
+
+/* Card Prompt */
+.automations-card-prompt {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	word-break: break-word;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+/* Card Action Buttons (icon-only, matching native pattern) */
+.automations-card-actions {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+	align-items: center;
+	flex: 0 0 auto;
+	opacity: 0;
+}
+
+.automations-card:hover .automations-card-actions,
+.automations-card:focus-within .automations-card-actions {
+	opacity: 1;
+}
+
+.automations-card-actions .monaco-button.automations-card-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+	min-width: 24px;
+}
+
+.automations-card-actions .monaco-button.automations-card-action-button:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-card-actions .monaco-button.automations-card-action-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-card-actions .monaco-button.automations-card-action-button.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Empty State */
+.automations-cards-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 48px 20px;
+	gap: 8px;
+	flex: 1;
+}
+
+.automations-cards-empty-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
+.automations-cards-empty-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 12px;
+	max-width: 320px;
+	line-height: 1.4;
+}
+
+.automations-cards-create-button {
+	max-width: 180px;
+}
+
+.automations-cards-create-button .monaco-button {
+	padding: 6px 16px;
+	font-size: 12px;
+}
+
+/* Run History */
+.automations-history {
+	margin-top: 32px;
+}
+
+.automations-history-header {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin-bottom: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.automations-mark-all-read {
+	font-size: 12px;
+	padding: 2px 8px;
+	width: auto;
+	flex-shrink: 0;
+	white-space: nowrap;
+	max-width: fit-content;
+}
+
+.automations-history-group {
+	margin-bottom: 16px;
+}
+
+.automations-history-group-header {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 8px;
+}
+
+.automations-history-group-runs {
+	margin: 0 var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+}
+
+.automations-history-group-runs .automations-run-session-list .monaco-list-row.session-list-inset-row {
+	margin: 0;
+	width: 100%;
+	border-radius: 0;
+}
+
+.automations-history-group-runs .automations-temporary-run:not(:first-child),
+.automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child),
+.automations-history-group-runs .automations-temporary-runs:not(:empty) + .automations-run-session-list:not(:empty) {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.automations-temporary-runs:empty {
+	display: none;
+}
+
+.automations-temporary-run {
+	height: 54px;
+	width: 100%;
+}
+
+.hc-black .automations-card,
+.hc-light .automations-card {
+	border-color: var(--vscode-contrastBorder);
+}

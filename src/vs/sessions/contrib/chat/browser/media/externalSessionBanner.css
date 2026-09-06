@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.external-session-banner {
+	position: relative;
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	width: calc(100% - var(--vscode-spacing-size320) - var(--vscode-spacing-size320));
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: var(--vscode-spacing-size120) auto 0;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size400) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.external-session-banner.hidden {
+	display: none;
+}
+
+.external-session-banner-content {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40);
+}
+
+.external-session-banner-message {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.external-session-banner-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.external-session-banner-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.external-session-banner-select {
+	flex: 0 1 auto;
+	max-width: 100%;
+}
+
+.external-session-banner-select .monaco-select-box {
+	width: auto;
+	max-width: 100%;
+	height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.external-session-banner-controls > .external-session-banner-save {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+.external-session-banner-controls > .external-session-banner-save.hidden {
+	display: none;
+}
+
+.external-session-banner-actions {
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+}
+
+.external-session-banner-actions .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}

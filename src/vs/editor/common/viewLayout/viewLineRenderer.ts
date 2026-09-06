@@ -382,18 +382,19 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 			let afterCount = 0;
 			let containsForeignElements = ForeignElementType.None;
 			for (const lineDecoration of input.lineDecorations) {
-				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
+				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After || lineDecoration.type === InlineDecorationType.WidthOnly) {
 					sb.appendString(`<span class="`);
 					sb.appendString(lineDecoration.className);
 					sb.appendString(`"></span>`);
 
-					if (lineDecoration.type === InlineDecorationType.Before) {
-						containsForeignElements |= ForeignElementType.Before;
-						beforeCount++;
-					}
 					if (lineDecoration.type === InlineDecorationType.After) {
 						containsForeignElements |= ForeignElementType.After;
 						afterCount++;
+					} else {
+						// Width only decorations sit before the character at their column, just like
+						// before content decorations.
+						containsForeignElements |= ForeignElementType.Before;
+						beforeCount++;
 					}
 				}
 			}
@@ -502,6 +503,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 				containsForeignElements |= ForeignElementType.Before;
 			} else if (lineDecoration.type === InlineDecorationType.After) {
 				containsForeignElements |= ForeignElementType.After;
+			} else if (lineDecoration.type === InlineDecorationType.WidthOnly) {
+				// Pretend there are foreign elements... although not 100% accurate. See above.
+				containsForeignElements |= ForeignElementType.Before;
 			}
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);

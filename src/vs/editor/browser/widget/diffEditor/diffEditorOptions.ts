@@ -83,7 +83,8 @@ export class DiffEditorOptions {
 			}))
 			.flatten()
 			.map(this, v => !!v);
-		this.inlineViewHideOriginalLineNumbers = this.compactMode;
+		this.inlineViewHideOriginalLineNumbers = derived(this, reader =>
+			this._options.read(reader).hideOriginalLineNumbers || this.compactMode.read(reader));
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
 	}
@@ -168,7 +169,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateStringSetOption<'off' | 'on' | 'inherit'>(options.diffWordWrap, defaults.diffWordWrap, ['off', 'on', 'inherit']),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
 		experimental: {
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),
@@ -188,5 +189,6 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
 		renderGutterMenu: validateBooleanOption(options.renderGutterMenu, defaults.renderGutterMenu),
 		compactMode: validateBooleanOption(options.compactMode, defaults.compactMode),
+		hideOriginalLineNumbers: validateBooleanOption(options.hideOriginalLineNumbers, defaults.hideOriginalLineNumbers),
 	};
 }

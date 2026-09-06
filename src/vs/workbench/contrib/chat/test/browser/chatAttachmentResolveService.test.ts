@@ -12,6 +12,13 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ChatAttachmentResolveService } from '../../browser/attachments/chatAttachmentResolveService.js';
 import { createFileStat } from '../../../../test/common/workbenchTestServices.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -33,14 +40,22 @@ suite('ChatAttachmentResolveService', () => {
 	 * by the mocked resolveImageEditorAttachContext.
 	 */
 	let imageFileUris: Set<string>;
+	let knownBrowserViews: Map<string, BrowserEditorInput>;
+	let fileStatCalls: number;
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		directoryTree = new Map();
 		imageFileUris = new Set();
+		knownBrowserViews = new Map();
+		fileStatCalls = 0;
 
 		// Stub IFileService with resolve() that uses the directoryTree map
 		instantiationService.stub(IFileService, {
+			stat: async (resource: URI): Promise<IFileStatWithMetadata> => {
+				fileStatCalls++;
+				return createFileStat(resource, false, true, false);
+			},
 			resolve: async (resource: URI): Promise<IFileStatWithMetadata> => {
 				const children = directoryTree.get(resource.toString());
 				if (children !== undefined) {
@@ -55,6 +70,9 @@ suite('ChatAttachmentResolveService', () => {
 		instantiationService.stub(ITextModelService, {});
 		instantiationService.stub(IExtensionService, {});
 		instantiationService.stub(IDialogService, {});
+		instantiationService.stub(IBrowserViewWorkbenchService, { getKnownBrowserViews: () => knownBrowserViews });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IThemeService, new TestThemeService());
 
 		service = instantiationService.createInstance(ChatAttachmentResolveService);
 
@@ -71,6 +89,51 @@ suite('ChatAttachmentResolveService', () => {
 			}
 			return undefined;
 		};
+	});
+
+	test('resolves associated browser editor inputs through the live browser', async () => {
+		const browserId = 'browser-id';
+		const associatedResource = URI.file('/workspace/index.html');
+		const browserEditor = testDisposables.add(instantiationService.createInstance(BrowserEditorInput, {
+			id: browserId,
+			associatedResource
+		}, async () => {
+			throw new Error('Unexpected browser editor resolution.');
+		}));
+		knownBrowserViews.set(browserId, browserEditor);
+		let resolvedBrowserId: string | undefined;
+		service.resolveBrowserViewAttachContext = async id => {
+			resolvedBrowserId = id;
+			return undefined;
+		};
+
+		await service.resolveEditorAttachContext({
+			resource: associatedResource,
+			options: { override: BrowserEditorInput.EDITOR_ID }
+		});
+
+		assert.deepStrictEqual({
+			resolvedBrowserId,
+			fileStatCalls
+		}, {
+			resolvedBrowserId: browserId,
+			fileStatCalls: 0
+		});
+	});
+
+	test('does not treat an unknown transferred browser editor as a file', async () => {
+		const result = await service.resolveEditorAttachContext({
+			resource: URI.file('/workspace/index.html'),
+			options: { override: BrowserEditorInput.EDITOR_ID }
+		});
+
+		assert.deepStrictEqual({
+			result,
+			fileStatCalls
+		}, {
+			result: undefined,
+			fileStatCalls: 0
+		});
 	});
 
 	test('returns empty array for empty directory', async () => {
@@ -198,5 +261,108 @@ suite('ChatAttachmentResolveService', () => {
 		const result = await service.resolveDirectoryImages(dirUri);
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].name, 'animation.gif');
+	});
+});
+
+suite('ChatAttachmentResolveService - resolveBrowserViewAttachContext', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+	let service: ChatAttachmentResolveService;
+	let browserViews: Map<string, Partial<BrowserEditorInput>>;
+
+	setup(() => {
+		instantiationService = testDisposables.add(new TestInstantiationService());
+		browserViews = new Map();
+
+		instantiationService.stub(IFileService, {
+			resolve: async (resource: URI) => createFileStat(resource, false, true, false),
+		});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(ITextModelService, {});
+		instantiationService.stub(IExtensionService, {});
+		instantiationService.stub(IDialogService, {});
+		instantiationService.stub(IBrowserViewWorkbenchService, {
+			getKnownBrowserViews: () => browserViews as Map<string, BrowserEditorInput>,
+		});
+
+		service = instantiationService.createInstance(ChatAttachmentResolveService);
+	});
+
+	function makeMockEditor(id: string, opts: { sharingState: BrowserViewSharingState; setSharedResult?: boolean }): Partial<BrowserEditorInput> {
+		const resource = BrowserViewUri.forId(id);
+		const model: Partial<IBrowserViewModel> = {
+			sharingState: opts.sharingState,
+			setSharedWithAgent: async () => opts.setSharedResult ?? true,
+		};
+		return {
+			id,
+			resource,
+			model: model as IBrowserViewModel,
+			getName: () => `Page ${id}`,
+			getTitle: () => `Title ${id}`,
+			resolve: async () => model as IBrowserViewModel,
+		};
+	}
+
+	test('returns undefined for unknown browser id', async () => {
+		const result = await service.resolveBrowserViewAttachContext('nonexistent');
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns entry when already shared', async () => {
+		const editor = makeMockEditor('b1', { sharingState: BrowserViewSharingState.Shared });
+		browserViews.set('b1', editor);
+
+		const result = await service.resolveBrowserViewAttachContext('b1');
+		assert.ok(result);
+		assert.strictEqual(result.kind, 'browserView');
+		assert.strictEqual(result.browserId, 'b1');
+		assert.strictEqual(result.name, 'Page b1');
+	});
+
+	test('prompts for sharing when NotShared and user accepts', async () => {
+		const editor = makeMockEditor('b2', { sharingState: BrowserViewSharingState.NotShared, setSharedResult: true });
+		browserViews.set('b2', editor);
+
+		const result = await service.resolveBrowserViewAttachContext('b2');
+		assert.ok(result);
+		assert.strictEqual(result.kind, 'browserView');
+		assert.strictEqual(result.browserId, 'b2');
+	});
+
+	test('returns undefined when NotShared and user denies', async () => {
+		const editor = makeMockEditor('b3', { sharingState: BrowserViewSharingState.NotShared, setSharedResult: false });
+		browserViews.set('b3', editor);
+
+		const result = await service.resolveBrowserViewAttachContext('b3');
+		assert.strictEqual(result, undefined);
+	});
+
+	test('resolves model if not yet resolved', async () => {
+		const resource = BrowserViewUri.forId('b4');
+		const model: Partial<IBrowserViewModel> = {
+			sharingState: BrowserViewSharingState.Shared,
+			setSharedWithAgent: async () => true,
+		};
+		let resolved = false;
+		const editor: Partial<BrowserEditorInput> = {
+			id: 'b4',
+			resource,
+			model: undefined, // model not yet resolved
+			getName: () => 'Unresolved Page',
+			getTitle: () => 'Unresolved Title',
+			resolve: async () => {
+				resolved = true;
+				(editor as Partial<BrowserEditorInput>).model = model as IBrowserViewModel;
+				return model as IBrowserViewModel;
+			},
+		};
+		browserViews.set('b4', editor);
+
+		const result = await service.resolveBrowserViewAttachContext('b4');
+		assert.ok(resolved, 'resolve() should have been called');
+		assert.ok(result);
+		assert.strictEqual(result.kind, 'browserView');
 	});
 });

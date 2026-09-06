@@ -1,0 +1,91 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask exactly one question: "What should the Python script print?" with options "hello world" and "goodbye". Do not call any other tool, run a shell command, or inspect the workspace. After I answer, reply exactly "plan approved".'
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll ask that one question now.
+        - type: tool_use
+          id: toolcall_0
+          name: request_user_input
+          input:
+            questions:
+              - header: Python output
+                id: python_script_print
+                question: What should the Python script print?
+                options:
+                  - label: hello world
+                    description: The script prints hello world.
+                  - label: goodbye
+                    description: The script prints goodbye.
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask exactly one question: "What should the Python script print?" with options "hello world" and "goodbye". Do not call any other tool, run a shell command, or inspect the workspace. After I answer, reply exactly "plan approved".'
+        - role: assistant
+          content: Got it — I’ll ask that one question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Python output
+                    id: python_script_print
+                    question: What should the Python script print?
+                    options:
+                      - label: hello world
+                        description: The script prints hello world.
+                      - label: goodbye
+                        description: The script prints goodbye.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"python_script_print":{"answers":["hello world"]}}}'
+    response:
+      content: plan approved
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask exactly one question: "What should the Python script print?" with options "hello world" and "goodbye". Do not call any other tool, run a shell command, or inspect the workspace. After I answer, reply exactly "plan approved".'
+        - role: assistant
+          content: Got it — I’ll ask that one question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Python output
+                    id: python_script_print
+                    question: What should the Python script print?
+                    options:
+                      - label: hello world
+                        description: The script prints hello world.
+                      - label: goodbye
+                        description: The script prints goodbye.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"answers":{"python_script_print":{"answers":["hello world"]}}}'
+        - role: assistant
+          content: plan approved
+        - role: user
+          content: What did the plan I just approved say to print? Reply with exactly "hello world".
+    response:
+      content: hello world
+      stopReason: end_turn

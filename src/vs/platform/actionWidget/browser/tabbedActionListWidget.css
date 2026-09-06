@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Tab bar rendered above the action list inside a TabbedActionListWidget
+ * popup. Styles are intentionally minimal so consumers can override via
+ * the `tabBarClassName` option. */
+
+.action-widget .tabbed-action-list-tabbar {
+	display: flex;
+	align-items: center;
+	padding: 0 0 4px;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio {
+	width: 100%;
+	gap: 4px;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button {
+	border: none;
+	border-radius: 4px;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button:not(.active) {
+	color: var(--vscode-descriptionForeground);
+}

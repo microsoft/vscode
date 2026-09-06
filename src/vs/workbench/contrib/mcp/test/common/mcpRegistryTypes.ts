@@ -168,6 +168,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 		remoteAuthority: null,
 		label: 'Test Collection',
 		configTarget: ConfigurationTarget.USER,
+		order: 0,
 		serverDefinitions: observableValue(this, [{
 			id: 'test-server',
 			label: 'Test Server',

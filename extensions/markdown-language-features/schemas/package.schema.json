@@ -17,14 +17,175 @@
 					"type": "array",
 					"description": "Contributed scripts that are executed in the Markdown preview",
 					"items": {
-						"type": "string",
-						"description": "Extension relative path to a JavaScript file"
+						"oneOf": [
+							{
+								"type": "string",
+								"description": "Extension relative path to a JavaScript file"
+							},
+							{
+								"type": "object",
+								"required": [
+									"path"
+								],
+								"properties": {
+									"path": {
+										"type": "string",
+										"description": "Extension relative path to a JavaScript file"
+									},
+									"type": {
+										"type": "string",
+										"enum": [
+											"module"
+										],
+										"description": "The script type to use when loading the contributed script"
+									}
+								}
+							}
+						]
 					}
 				},
 				"markdown.markdownItPlugins": {
 					"type": "boolean",
 					"description": "Does this extension contribute a markdown-it plugin?"
-				}
+				},
+				"markdown.codeBlockEditors": {
+					"type": "array",
+					"description": "Self-contained HTML editors for fenced code blocks in the Markdown editor",
+					"items": {
+						"type": "object",
+						"required": [
+							"id",
+							"language",
+							"entrypoint"
+						],
+						"properties": {
+							"id": {
+								"type": "string",
+								"description": "Unique identifier for this code block editor"
+							},
+							"language": {
+								"type": "string",
+								"description": "Exact fenced code block language handled by this editor"
+							},
+							"entrypoint": {
+								"type": "string",
+								"description": "Extension-relative path to a self-contained HTML document"
+							},
+							"contentType": {
+								"type": "string",
+								"enum": [
+									"text",
+									"json"
+								],
+								"default": "text",
+								"description": "How code block content is represented to the editor"
+							}
+						}
+					}
+				},
+				"markdown.codeBlockEditorProviders": {
+						"type": "array",
+						"description": "Providers for self-contained HTML editors used by fenced code blocks in the Markdown editor",
+						"items": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"id",
+								"selector",
+								"source"
+							],
+							"properties": {
+								"id": {
+									"type": "string",
+									"minLength": 1,
+									"description": "Identifier for this provider, unique within the extension"
+								},
+								"selector": {
+									"oneOf": [
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["language"],
+											"properties": {
+												"language": {
+													"type": "string",
+													"minLength": 1,
+													"description": "Exact fenced code block info string handled by this provider"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["languagePrefix"],
+											"properties": {
+												"languagePrefix": {
+													"type": "string",
+													"minLength": 1,
+													"description": "Fenced code block info string prefix handled by this provider"
+												}
+											}
+										}
+									]
+								},
+								"source": {
+									"oneOf": [
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["kind", "entrypoint"],
+											"properties": {
+												"kind": {
+													"const": "static"
+												},
+												"entrypoint": {
+													"type": "string",
+													"description": "Extension-relative path to a self-contained HTML document"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["kind", "apiVersion"],
+											"properties": {
+												"kind": {
+													"const": "exportApi"
+												},
+												"apiVersion": {
+													"type": "integer",
+													"minimum": 1,
+													"description": "Version of the extension export API used to resolve this provider"
+												}
+											}
+										}
+									]
+								},
+								"contentType": {
+									"type": "string",
+									"enum": ["text", "json"],
+									"default": "text",
+									"description": "Default representation of code block content"
+								},
+								"initialHeight": {
+									"type": "number",
+									"exclusiveMinimum": 0,
+									"description": "Initial placeholder height before the editor reports its measured height"
+								},
+								"sandbox": {
+									"type": "object",
+									"additionalProperties": false,
+									"description": "Maximum optional iframe sandbox permissions this provider may request",
+									"properties": {
+										"forms": { "type": "boolean", "default": false },
+										"downloads": { "type": "boolean", "default": false },
+										"pointerLock": { "type": "boolean", "default": false },
+										"clipboardWrite": { "type": "boolean", "default": false }
+									}
+								}
+							}
+						}
+					}
 			}
 		}
 	}

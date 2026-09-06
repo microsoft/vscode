@@ -5,6 +5,7 @@
 
 import { EventProfiling } from '../../../../base/common/event.js';
 import { GCBasedDisposableTracker, setDisposableTracker } from '../../../../base/common/lifecycle.js';
+import { env } from '../../../../base/common/process.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -153,7 +154,6 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 			minimum: 0,
 			maximum: 1,
 			tags: ['experimental'],
-			included: false,
 			markdownDescription: localize('telemetry.performance.inputLatencySamplingProbability', "Probability (0 to 1) that input latency telemetry is reported for this session. Set to 0 to disable, 1 to always report."),
 			experiment: {
 				mode: 'auto'
@@ -168,7 +168,7 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 class DisposableTracking {
 	static readonly Id = 'perf.disposableTracking';
 	constructor(@IEnvironmentService envService: IEnvironmentService) {
-		if (!envService.isBuilt && !envService.extensionTestsLocationURI) {
+		if (!envService.isBuilt && !envService.extensionTestsLocationURI && !env['VSCODE_DEV_DISABLE_DISPOSABLE_TRACKING']) {
 			setDisposableTracker(new GCBasedDisposableTracker());
 		}
 	}

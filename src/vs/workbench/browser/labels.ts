@@ -12,7 +12,7 @@ import { IWorkspaceContextService } from '../../platform/workspace/common/worksp
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { ITextFileService } from '../services/textfile/common/textfiles.js';
-import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from '../services/decorations/common/decorations.js';
+import { DECORATION_LABEL_COLOR_CLASS, IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from '../services/decorations/common/decorations.js';
 import { Schemas } from '../../base/common/network.js';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from '../../platform/files/common/files.js';
 import { ITextModel } from '../../editor/common/model.js';
@@ -705,7 +705,7 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(decoration.labelClassName);
+					iconLabelOptions.extraClasses.push(DECORATION_LABEL_COLOR_CLASS, decoration.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {

@@ -35,6 +35,7 @@ if defined SHOW_HELP (
 	echo.
 	echo Runs integration tests. When no filters are given, all integration tests
 	echo ^(node.js integration tests + extension host tests^) are run.
+	echo Agent Host E2E entrypoints run in parallel before the remaining node.js tests.
 	echo.
 	echo --run and --runGlob select which node.js integration test files to load.
 	echo Extension host tests are skipped when these options are used.
@@ -57,7 +58,7 @@ if defined SHOW_HELP (
 	echo Available suites:
 	echo   api-folder, api-workspace, colorize, terminal-suggest, typescript,
 	echo   markdown, emmet, git, git-base, ipynb, notebook-renderers,
-	echo   configuration-editing, github-authentication, css, html
+	echo   configuration-editing, github-authentication, copilot, css, html
 	echo.
 	echo All other options are forwarded to the node.js test runner ^(see scripts\test.bat --help^).
 	echo Note: extra options are not forwarded to extension host suites ^(--suite mode^).
@@ -107,13 +108,13 @@ echo Storing log files into '%VSCODELOGSDIR%'.
 :: Validate --suite filter matches at least one known suite
 if defined SUITE_FILTER (
 	set "_any_match="
-	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html) do (
+	for %%s in (api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html) do (
 		call :should_run_suite %%s && set "_any_match=1"
 	)
 	if not defined _any_match (
 		echo Error: no suites match filter '%SUITE_FILTER%'
-		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html
-		exit /b 1
+		echo Available suites: api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html
+		goto :failed
 	)
 )
 
@@ -128,7 +129,14 @@ if defined RUN_GLOB (
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
 ) else (
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
+		echo Skipping Agent Host E2E tests because no relevant files changed.
+	) else (
+		call node .\scripts\test-agent-host-e2e.ts %*
+		if errorlevel 1 goto :failed
+	)
+	set VSCODE_SKIP_PRELAUNCH=1
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
@@ -275,6 +283,17 @@ if defined GREP_PATTERN (
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_github_authentication
 
+call :should_run_suite copilot || goto skip_copilot
+echo.
+echo ### Copilot tests
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l copilot --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l copilot
+)
+if %errorlevel% neq 0 exit /b %errorlevel%
+:skip_copilot
+
 :: Tests standalone (CommonJS)
 
 call :should_run_suite css || goto skip_css
@@ -310,6 +329,12 @@ set "_filter=%SUITE_FILTER:,= %"
 for %%p in (%_filter%) do (
 	if /i "%%p"=="%_suite_name%" exit /b 0
 )
+exit /b 1
+
+:failed
+if defined VSCODEUSERDATADIR rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
+popd
+endlocal
 exit /b 1
 
 :end

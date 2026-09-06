@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-readonly-banner {
+	display: flex;
+	flex: 0 0 26px;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size100);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 4%, var(--vscode-editorWidget-background));
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-readonly-banner.hidden {
+	display: none;
+}
+
+.chat-readonly-banner-icon {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-readonly-banner-icon .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.chat-readonly-banner-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hc-black .chat-readonly-banner,
+.hc-light .chat-readonly-banner {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}

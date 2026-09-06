@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Page</title></head>
+<body>
+<script>
+const worker = new Worker("worker.js");
+function sendMessage(text) {
+	return new Promise(resolve => {
+		worker.onmessage = e => resolve(e.data);
+		worker.postMessage(text);
+	});
+}
+async function onClick() {
+	const inputElement = document.getElementById('msgInput');
+	const input = inputElement.value;
+
+	inputElement.value = '';
+
+	const result = await sendMessage(input);
+	document.getElementById('output').textContent = result;
+}
+</script>
+<input id="msgInput" type="text" placeholder="Enter message">
+<button id="sendBtn" onclick="onClick()">Send Message</button>
+<pre id="output"></pre>
+</body>
+</html>

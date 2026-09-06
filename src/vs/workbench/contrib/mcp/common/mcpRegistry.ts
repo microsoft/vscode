@@ -35,7 +35,9 @@ import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
+import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { isStrictPluginOnlyCustomizationEnabled, StrictPluginOnlyCustomization } from '../../chat/common/customizationLockdown.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -45,11 +47,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
 	private readonly _mcpAccessValue: IObservable<string>;
+	private readonly _strictPluginOnlyCustomization: IObservable<StrictPluginOnlyCustomization>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
 		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return [];
 		}
-		return this._collections.read(reader);
+		const strictPluginOnly = this._strictPluginOnlyCustomization.read(reader);
+		return this._collections.read(reader).filter(collection => this.isCollectionAllowed(collection, strictPluginOnly));
 	});
 
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
@@ -65,7 +69,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		if (this._ongoingLazyActivations.read(reader) > 0) {
 			return { state: LazyCollectionState.LoadingUnknown, collections: [] };
 		}
-		const collections = this._collections.read(reader);
+		const strictPluginOnly = this._strictPluginOnlyCustomization.read(reader);
+		const collections = this._collections.read(reader).filter(collection => this.isCollectionAllowed(collection, strictPluginOnly));
 		const hasUnknown = collections.some(c => c.lazy && c.lazy.isCached === false);
 		return hasUnknown ? { state: LazyCollectionState.HasUnknown, collections: collections.filter(c => c.lazy && c.lazy.isCached === false) } : { state: LazyCollectionState.AllKnown, collections: [] };
 	});
@@ -93,6 +98,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
+		this._strictPluginOnlyCustomization = observableConfigValue(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, undefined, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
@@ -120,7 +126,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
 			this._collections.set([...currentCollections, collection]
-				.sort((a, b) => (a.presentation?.order || 0) - (b.presentation?.order || 0)), undefined);
+				.sort((a, b) => a.order - b.order), undefined);
 		}
 
 		return {
@@ -134,13 +140,17 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	public getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }> {
 		const collectionObs = this._collections.map(cols => cols.find(c => c.id === collectionRef.id));
 		return collectionObs.map((collection, reader) => {
+			if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.read(reader))) {
+				return { collection: undefined, server: undefined };
+			}
 			const server = collection?.serverDefinitions.read(reader).find(s => s.id === definitionRef.id);
 			return { collection, server };
 		});
 	}
 
 	public async discoverCollections(): Promise<McpCollectionDefinition[]> {
-		const toDiscover = this._collections.get().filter(c => c.lazy && !c.lazy.isCached);
+		const strictPluginOnly = this._strictPluginOnlyCustomization.get();
+		const toDiscover = this._collections.get().filter(c => this.isCollectionAllowed(c, strictPluginOnly) && c.lazy && !c.lazy.isCached);
 
 		this._ongoingLazyActivations.set(this._ongoingLazyActivations.get() + 1, undefined);
 		await Promise.all(toDiscover.map(c => c.lazy?.load())).finally(() => {
@@ -461,7 +471,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		]);
 
 		// pre-fill the variables we already resolved to avoid extra prompting
-		const expr = ConfigurationResolverExpression.parse(withRemoteFilled);
+		const expr = ConfigurationResolverExpression.parse(McpServerLaunch.toSerialized(withRemoteFilled));
 		for (const replacement of expr.unresolved()) {
 			if (previouslyStored.hasOwnProperty(replacement.id)) {
 				expr.resolve(replacement, previouslyStored[replacement.id]);
@@ -481,15 +491,27 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		await this._updateStorageWithExpressionInputs(inputStorage, expr);
 
 		// resolve other non-interactive variables, returning the final object
-		return await this._configurationResolverService.resolveAsync(folder, expr);
+		const resolved = await this._configurationResolverService.resolveAsync(folder, expr);
+		return McpServerLaunch.fromSerialized(resolved);
+	}
+
+	private isCollectionAllowed(collection: McpCollectionDefinition, strictPluginOnly: StrictPluginOnlyCustomization): boolean {
+		return !isStrictPluginOnlyCustomizationEnabled(strictPluginOnly)
+			|| collection.provenance === McpCollectionProvenance.Plugin;
 	}
 
 	public async resolveConnection(opts: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
 		const { collectionRef, definitionRef, interaction, logger, debug } = opts;
 		let collection = this._collections.get().find(c => c.id === collectionRef.id);
+		if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.get())) {
+			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
+		}
 		if (collection?.lazy) {
 			await collection.lazy.load();
 			collection = this._collections.get().find(c => c.id === collectionRef.id);
+		}
+		if (collection && !this.isCollectionAllowed(collection, this._strictPluginOnlyCustomization.get())) {
+			throw new Error(`MCP collection ${collectionRef.id} is blocked by enterprise customization policy`);
 		}
 
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);

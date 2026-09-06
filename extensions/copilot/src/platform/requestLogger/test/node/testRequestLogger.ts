@@ -11,7 +11,8 @@ import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IModelAPIResponse } from '../../../endpoint/common/endpointProvider';
 import { ThinkingData } from '../../../thinking/common/thinking';
 import { CapturingToken } from '../../common/capturingToken';
-import { AbstractRequestLogger, ILoggedRequestInfo, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../node/requestLogger';
+import { ILoggedRequestInfo, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../common/requestLogger';
+import { AbstractRequestLogger } from '../../node/requestLogger';
 
 /**
  * A test implementation of IRequestLogger that stores logged requests for verification in tests.
@@ -55,11 +56,6 @@ export class TestRequestLogger extends AbstractRequestLogger {
 
 	public override logToolCall(id: string, name: string, args: unknown, response: LanguageModelToolResult2, thinking?: ThinkingData): void {
 		this._entries.push(new TestLoggedToolCall(id, name, args, response, this.currentRequest, Date.now(), thinking));
-		this._onDidChangeRequests.fire();
-	}
-
-	public override logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void {
-		this._entries.push(new TestLoggedToolCall(id, name, args, result, this.currentRequest, Date.now()));
 		this._onDidChangeRequests.fire();
 	}
 

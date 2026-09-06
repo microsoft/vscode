@@ -144,6 +144,7 @@ const server = createServer(socket => {
 		printOnly: flagConfig[Flags.Print],
 		save: flagConfig[Flags.Save],
 		once: flagConfig[Flags.Once],
+		nonce: process.env.COPILOT_DEBUG_NONCE || '',
 	};
 
 	rpc.callMethod('start', opts);

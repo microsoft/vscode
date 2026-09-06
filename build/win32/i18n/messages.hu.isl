@@ -1,10 +1,10 @@
-[CustomMessages]
-AddContextMenuFiles="Megnyitás a következõvel: %1" parancs hozzáadása a fájlok helyi menüjéhez a Windows Intézõben
-AddContextMenuFolders="Megnyitás a következõvel: %1" parancs hozzáadása a mappák helyi menüjéhez a Windows Intézõben
-AssociateWithFiles=%1 regisztrálása szerkesztõként a támogatott fájltípusokhoz
-AddToPath=Hozzáadás a PATH-hoz (újraindítás után lesz elérhetõ)
-RunAfter=%1 indítása a telepítés után
-Other=Egyéb:
-SourceFile=%1 forrásfájl
-OpenWithCodeContextMenu=Megnyitás a következõvel: %1
-UpdatingVisualStudioCode=A Visual Studio Code frissítése...
+ï»¿[CustomMessages]
+AddContextMenuFiles="MegnyitÃ¡s a kÃ¶vetkezÅ‘vel: %1" parancs hozzÃ¡adÃ¡sa a fÃ¡jlok helyi menÃ¼jÃ©hez a Windows IntÃ©zÅ‘ben
+AddContextMenuFolders="MegnyitÃ¡s a kÃ¶vetkezÅ‘vel: %1" parancs hozzÃ¡adÃ¡sa a mappÃ¡k helyi menÃ¼jÃ©hez a Windows IntÃ©zÅ‘ben
+AssociateWithFiles=%1 regisztrÃ¡lÃ¡sa szerkesztÅ‘kÃ©nt a tÃ¡mogatott fÃ¡jltÃ­pusokhoz
+AddToPath=HozzÃ¡adÃ¡s a PATH-hoz (ÃºjraindÃ­tÃ¡s utÃ¡n lesz elÃ©rhetÅ‘)
+RunAfter=%1 indÃ­tÃ¡sa a telepÃ­tÃ©s utÃ¡n
+Other=EgyÃ©b:
+SourceFile=%1 forrÃ¡sfÃ¡jl
+OpenWithCodeContextMenu=MegnyitÃ¡s a kÃ¶vetkezÅ‘vel: %1
+UpdatingVisualStudioCode=A Visual Studio Code frissÃ­tÃ©se...

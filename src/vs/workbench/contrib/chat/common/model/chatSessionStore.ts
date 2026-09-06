@@ -29,11 +29,12 @@ import { awaitStatsForSession } from '../chat.js';
 import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../constants.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
+import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatModelInputState, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
-import { LocalChatSessionUri } from './chatUri.js';
+import { getChatSessionStorageResource, LocalChatSessionUri } from './chatUri.js';
+import { stringifyEntryWithFallback } from './objectMutationLog.js';
 
-const maxPersistedSessions = 50;
+const maxPersistedSessions = 400;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
@@ -245,7 +246,7 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		try {
-			const content = JSON.stringify(session, undefined, 2);
+			const content = stringifyEntryWithFallback(session);
 			const storageLocation = this.getTransferredSessionStorageLocation(session.sessionResource);
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 		} catch (e) {
@@ -384,12 +385,13 @@ export class ChatSessionStore extends Disposable {
 					if (data.byteLength > 0) {
 						await this.fileService.writeFile(storageLocation.log, data, { append: op === 'append' });
 					}
+					session.dataSerializer.confirmWrite();
 				} else {
 					const content = new ChatSessionOperationLog().createInitialFromSerialized(session);
 					await this.fileService.writeFile(storageLocation.log, content);
 				}
 			} else {
-				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(JSON.stringify(session)));
+				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(stringifyEntryWithFallback(session)));
 			}
 
 			// Write succeeded, update index
@@ -456,7 +458,14 @@ export class ChatSessionStore extends Disposable {
 			return;
 		}
 
-		const storageLocation = this.getStorageLocation(sessionId);
+		let storageLocation: ReturnType<ChatSessionStore['getStorageLocation']>;
+		try {
+			storageLocation = this.getStorageLocation(sessionId);
+		} catch (e) {
+			this.reportError('invalidSessionId', `Removing invalid chat session from index: ${sessionId}`, e);
+			delete index.entries[sessionId];
+			return;
+		}
 		for (const uri of [storageLocation.flat, storageLocation.log]) {
 			try {
 				if (uri) {
@@ -625,7 +634,18 @@ export class ChatSessionStore extends Disposable {
 
 	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
-			const storageLocation = this.getStorageLocation(sessionId);
+			let storageLocation: ReturnType<ChatSessionStore['getStorageLocation']>;
+			try {
+				storageLocation = this.getStorageLocation(sessionId);
+			} catch (e) {
+				this.reportError('invalidSessionId', `Ignoring invalid chat session from index: ${sessionId}`, e);
+				const index = this.internalGetIndex();
+				if (index.entries[sessionId]) {
+					delete index.entries[sessionId];
+					await this.flushIndex();
+				}
+				return undefined;
+			}
 			return this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
 		});
 	}
@@ -695,7 +715,7 @@ export class ChatSessionStore extends Disposable {
 		let rawData: VSBuffer | undefined;
 
 		if (this.previousEmptyWindowStorageRoot) {
-			const storageLocation2 = joinPath(this.previousEmptyWindowStorageRoot, `${sessionId}.json`);
+			const storageLocation2 = getChatSessionStorageResource(this.previousEmptyWindowStorageRoot, sessionId, '.json');
 			try {
 				rawData = (await this.fileService.readFile(storageLocation2)).value;
 				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
@@ -715,15 +735,41 @@ export class ChatSessionStore extends Disposable {
 		log?: URI;
 	} {
 		return {
-			flat: joinPath(this.storageRoot, `${chatSessionId}.json`),
+			flat: getChatSessionStorageResource(this.storageRoot, chatSessionId, '.json'),
 			// todo@connor4312: remove after stabilizing
-			log: this.configurationService.getValue('chat.useLogSessionStorage') !== false ? joinPath(this.storageRoot, `${chatSessionId}.jsonl`) : undefined,
+			log: this.configurationService.getValue('chat.useLogSessionStorage') !== false ? getChatSessionStorageResource(this.storageRoot, chatSessionId, '.jsonl') : undefined,
 		};
 	}
 
 	private getTransferredSessionStorageLocation(sessionResource: URI): URI {
 		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-		return joinPath(this.transferredSessionStorageRoot, `${sessionId}.json`);
+		if (!sessionId) {
+			throw new Error(`Invalid local chat session resource: ${sessionResource.toString()}`);
+		}
+		return getChatSessionStorageResource(this.transferredSessionStorageRoot, sessionId, '.json');
+	}
+
+	/**
+	 * Synchronously update the in-memory index entries for the given sessions
+	 * and flush the index to storage. This ensures the index is persisted
+	 * even when called from a synchronous `onWillSaveState` handler where
+	 * async file-write work would complete after the storage service has
+	 * already flushed.
+	 */
+	updateAndFlushIndexSync(localSessions: ChatModel[], externalSessions: ChatModel[]): void {
+		const index = this.internalGetIndex();
+		for (const session of localSessions) {
+			index.entries[session.sessionId] = getSessionMetadataSync(session);
+		}
+		for (const session of externalSessions) {
+			const externalSessionId = session.sessionResource.toString();
+			index.entries[externalSessionId] = getSessionMetadataSync(session);
+		}
+		try {
+			this.storageService.store(ChatIndexStorageKey, index, this.getIndexStorageScope(), StorageTarget.MACHINE);
+		} catch (e) {
+			this.reportError('indexWrite', 'Error writing index synchronously', e);
+		}
 	}
 
 	public getChatStorageFolder(): URI {
@@ -742,6 +788,12 @@ export interface IChatSessionEntryMetadata {
 	lastResponseState: ResponseModelState;
 
 	/**
+	 * The working directory URI string associated with this session.
+	 * Persisted so it survives window reload in the agents/sessions window.
+	 */
+	workingDirectory?: string;
+
+	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
 	 * currently in use. Now, `clearSession` deletes empty sessions, so old ones shouldn't take up space in the store anymore, but we still need to
 	 * filter the old ones out of history.
@@ -757,6 +809,13 @@ export interface IChatSessionEntryMetadata {
 	 * The permission level for tool auto-approval, if not default.
 	 */
 	permissionLevel?: ChatPermissionLevel;
+
+	/**
+	 * Serialized draft input state (text, attachments, mode, selected model, ...) for
+	 * external sessions, so that unsent input is preserved when switching away and
+	 * back. Local sessions instead persist their full state via storeSessions.
+	 */
+	inputState?: ISerializableChatModelInputState;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -801,47 +860,63 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
-	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+/**
+ * Builds session metadata synchronously from a live ChatModel.
+ * Used both by {@link updateAndFlushIndexSync} (where async work is not
+ * possible) and by {@link getSessionMetadata} (which layers on async stats).
+ */
+function getSessionMetadataSync(session: ChatModel): IChatSessionEntryMetadata {
+	const title = session.customTitle || session.title;
 
-	let stats: IChatSessionStats | undefined;
-	if (session instanceof ChatModel) {
-		stats = await awaitStatsForSession(session);
-	}
-
-	const lastMessageDate = session instanceof ChatModel ?
-		session.lastMessageDate :
-		session.requests.at(-1)?.timestamp ?? session.creationDate;
-
-	const timing: IChatSessionTiming = session instanceof ChatModel ?
-		session.timing :
-		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
-		{
-			created: session.creationDate,
-			lastRequestStarted: session.requests.at(-1)?.timestamp,
-			lastRequestEnded: lastMessageDate,
-		};
-
-	let lastResponseState = session instanceof ChatModel ?
-		(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
-		ResponseModelState.Complete;
-
+	let lastResponseState = session.lastRequest?.response?.state ?? ResponseModelState.Complete;
 	if (lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput) {
 		lastResponseState = ResponseModelState.Cancelled;
 	}
 
+	const isExternal = !LocalChatSessionUri.parseLocalSessionId(session.sessionResource);
+	const rawInputState = isExternal ? session.inputModel.toJSON() : undefined;
+	const inputState = rawInputState ? { ...rawInputState, attachments: [] } : undefined;
+
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
-		lastMessageDate,
-		timing,
+		lastMessageDate: session.lastMessageDate,
+		timing: session.timing,
 		initialLocation: session.initialLocation,
-		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
-		stats,
-		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
+		hasPendingEdits: session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified) ?? false,
+		isEmpty: session.getRequests().length === 0,
+		isExternal,
 		lastResponseState,
-		permissionLevel: session instanceof ChatModel ? session.inputModel.state.get()?.permissionLevel : undefined,
+		permissionLevel: session.inputModel.state.get()?.permissionLevel,
+		inputState,
+		workingDirectory: session.workingDirectory?.toString(),
+	};
+}
+
+async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
+	if (session instanceof ChatModel) {
+		const metadata = getSessionMetadataSync(session);
+		metadata.stats = await awaitStatsForSession(session);
+		return metadata;
+	}
+
+	// ISerializableChatData — only used in the old pre-fs storage data migration scenario
+	const lastMessageDate = session.requests.at(-1)?.timestamp ?? session.creationDate;
+
+	return {
+		sessionId: session.sessionId,
+		title: session.customTitle || localize('newChat', "New Chat"),
+		lastMessageDate,
+		timing: {
+			created: session.creationDate,
+			lastRequestStarted: session.requests.at(-1)?.timestamp,
+			lastRequestEnded: lastMessageDate,
+		},
+		initialLocation: session.initialLocation,
+		hasPendingEdits: false,
+		isEmpty: session.requests.length === 0,
+		isExternal: false,
+		lastResponseState: ResponseModelState.Complete,
 	};
 }
 

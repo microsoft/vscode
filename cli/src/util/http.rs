@@ -7,16 +7,16 @@ use crate::{
 	log,
 	util::errors::{self, WrappedError},
 };
-use async_trait::async_trait;
+use bytes::Bytes;
 use core::panic;
 use futures::stream::TryStreamExt;
-use hyper::{
-	header::{HeaderName, CONTENT_LENGTH},
-	http::HeaderValue,
+use http::{
+	header::{HeaderName, HeaderValue, CONTENT_LENGTH},
 	HeaderMap, StatusCode,
 };
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use serde::de::DeserializeOwned;
-use std::{io, pin::Pin, str::FromStr, sync::Arc, task::Poll};
+use std::{future::Future, io, pin::Pin, str::FromStr, sync::Arc, task::Poll};
 use tokio::{
 	fs,
 	io::{AsyncRead, AsyncReadExt},
@@ -28,6 +28,23 @@ use super::{
 	errors::{wrap, AnyError, StatusError},
 	io::{copy_async_progress, ReadBuffer, ReportCopyProgress},
 };
+
+/// Boxed body type used across the HTTP layer.
+pub type HyperBody = BoxBody<Bytes, hyper::Error>;
+
+/// Creates a body from some data (string, bytes, etc.)
+pub fn full_body(data: impl Into<Bytes>) -> HyperBody {
+	Full::new(data.into())
+		.map_err(|never| match never {})
+		.boxed()
+}
+
+/// Creates an empty body.
+pub fn empty_body() -> HyperBody {
+	Empty::<Bytes>::new()
+		.map_err(|never| match never {})
+		.boxed()
+}
 
 pub async fn download_into_file<T>(
 	filename: &std::path::Path,
@@ -119,13 +136,12 @@ impl SimpleResponse {
 /// the request library on the server (i.e. `reqwest`) but it can also be used
 /// to make update/download requests on the client rather than the server,
 /// similar to SSH's `remote.SSH.localServerDownload` setting.
-#[async_trait]
 pub trait SimpleHttp {
-	async fn make_request(
+	fn make_request(
 		&self,
 		method: &'static str,
 		url: String,
-	) -> Result<SimpleResponse, AnyError>;
+	) -> Pin<Box<dyn Future<Output = Result<SimpleResponse, AnyError>> + Send + '_>>;
 }
 
 pub type BoxedHttp = Arc<dyn SimpleHttp + Send + Sync + 'static>;
@@ -157,29 +173,30 @@ impl Default for ReqwestSimpleHttp {
 	}
 }
 
-#[async_trait]
 impl SimpleHttp for ReqwestSimpleHttp {
-	async fn make_request(
+	fn make_request(
 		&self,
 		method: &'static str,
 		url: String,
-	) -> Result<SimpleResponse, AnyError> {
-		let res = self
-			.client
-			.request(reqwest::Method::try_from(method).unwrap(), &url)
-			.send()
-			.await?;
+	) -> Pin<Box<dyn Future<Output = Result<SimpleResponse, AnyError>> + Send + '_>> {
+		Box::pin(async move {
+			let res = self
+				.client
+				.request(reqwest::Method::try_from(method).unwrap(), &url)
+				.send()
+				.await?;
 
-		Ok(SimpleResponse {
-			status_code: res.status(),
-			headers: res.headers().clone(),
-			url: Some(res.url().clone()),
-			read: Box::pin(
-				res.bytes_stream()
-					.map_err(futures::io::Error::other)
-					.into_async_read()
-					.compat(),
-			),
+			Ok(SimpleResponse {
+				status_code: res.status(),
+				headers: res.headers().clone(),
+				url: Some(res.url().clone()),
+				read: Box::pin(
+					res.bytes_stream()
+						.map_err(futures::io::Error::other)
+						.into_async_read()
+						.compat(),
+				),
+			})
 		})
 	}
 }
@@ -243,61 +260,62 @@ impl DelegatedSimpleHttp {
 	}
 }
 
-#[async_trait]
 impl SimpleHttp for DelegatedSimpleHttp {
-	async fn make_request(
+	fn make_request(
 		&self,
 		method: &'static str,
 		url: String,
-	) -> Result<SimpleResponse, AnyError> {
-		trace!(self.log, "making delegated request to {}", url);
-		let (tx, mut rx) = mpsc::unbounded_channel();
-		let sent = self
-			.start_request
-			.send(DelegatedHttpRequest {
-				method,
-				url: url.clone(),
-				ch: tx,
-			})
-			.await;
-
-		if sent.is_err() {
-			return Ok(SimpleResponse::generic_error(&url)); // sender shut down
-		}
-
-		match rx.recv().await {
-			Some(DelegatedHttpEvent::InitResponse {
-				status_code,
-				headers,
-			}) => {
-				trace!(
-					self.log,
-					"delegated request to {} resulted in status = {}",
-					url,
-					status_code
-				);
-				let mut headers_map = HeaderMap::with_capacity(headers.len());
-				for (k, v) in &headers {
-					if let (Ok(key), Ok(value)) = (
-						HeaderName::from_str(&k.to_lowercase()),
-						HeaderValue::from_str(v),
-					) {
-						headers_map.insert(key, value);
-					}
-				}
-
-				Ok(SimpleResponse {
-					url: url::Url::parse(&url).ok(),
-					status_code: StatusCode::from_u16(status_code)
-						.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-					headers: headers_map,
-					read: Box::pin(DelegatedReader::new(rx)),
+	) -> Pin<Box<dyn Future<Output = Result<SimpleResponse, AnyError>> + Send + '_>> {
+		Box::pin(async move {
+			trace!(self.log, "making delegated request to {}", url);
+			let (tx, mut rx) = mpsc::unbounded_channel();
+			let sent = self
+				.start_request
+				.send(DelegatedHttpRequest {
+					method,
+					url: url.clone(),
+					ch: tx,
 				})
+				.await;
+
+			if sent.is_err() {
+				return Ok(SimpleResponse::generic_error(&url)); // sender shut down
 			}
-			Some(DelegatedHttpEvent::End) => Ok(SimpleResponse::generic_error(&url)),
-			Some(_) => panic!("expected initresponse as first message from delegated http"),
-			None => Ok(SimpleResponse::generic_error(&url)), // sender shut down
-		}
+
+			match rx.recv().await {
+				Some(DelegatedHttpEvent::InitResponse {
+					status_code,
+					headers,
+				}) => {
+					trace!(
+						self.log,
+						"delegated request to {} resulted in status = {}",
+						url,
+						status_code
+					);
+					let mut headers_map = HeaderMap::with_capacity(headers.len());
+					for (k, v) in &headers {
+						if let (Ok(key), Ok(value)) = (
+							HeaderName::from_str(&k.to_lowercase()),
+							HeaderValue::from_str(v),
+						) {
+							headers_map.insert(key, value);
+						}
+					}
+
+					Ok(SimpleResponse {
+						url: url::Url::parse(&url).ok(),
+						status_code: StatusCode::from_u16(status_code)
+							.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+						headers: headers_map,
+						read: Box::pin(DelegatedReader::new(rx)),
+					})
+				}
+				Some(DelegatedHttpEvent::End) => Ok(SimpleResponse::generic_error(&url)),
+				Some(_) => panic!("expected initresponse as first message from delegated http"),
+				None => Ok(SimpleResponse::generic_error(&url)), // sender shut down
+			}
+		})
 	}
 }
 
@@ -357,20 +375,21 @@ impl FallbackSimpleHttp {
 	}
 }
 
-#[async_trait]
 impl SimpleHttp for FallbackSimpleHttp {
-	async fn make_request(
+	fn make_request(
 		&self,
 		method: &'static str,
 		url: String,
-	) -> Result<SimpleResponse, AnyError> {
-		let r1 = self.native.make_request(method, url.clone()).await;
-		if let Ok(res) = r1 {
-			if !res.status_code.is_server_error() {
-				return Ok(res);
+	) -> Pin<Box<dyn Future<Output = Result<SimpleResponse, AnyError>> + Send + '_>> {
+		Box::pin(async move {
+			let r1 = self.native.make_request(method, url.clone()).await;
+			if let Ok(res) = r1 {
+				if !res.status_code.is_server_error() {
+					return Ok(res);
+				}
 			}
-		}
 
-		self.delegated.make_request(method, url).await
+			self.delegated.make_request(method, url).await
+		})
 	}
 }
