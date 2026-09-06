@@ -16,7 +16,7 @@ import { findFreePort } from '../../base/node/ports.js';
 import { watchFileContents } from '../../platform/files/node/watcher/nodejs/nodejsWatcherLib.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { buildHelpMessage, buildStdinMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
-import { addArg, CliUsageError, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { addArg, CliUsageError, getUpdateCliRequest, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
 import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
@@ -29,7 +29,6 @@ import { cwd } from '../../base/common/process.js';
 import { addUNCHostToAllowlist } from '../../base/node/unc.js';
 import { URI } from '../../base/common/uri.js';
 import { DeferredPromise } from '../../base/common/async.js';
-import { getUpdateCliRequest } from '../../platform/cli/common/cliControl.js';
 
 class CliExitError extends Error {
 	constructor(readonly exitCode: number) {

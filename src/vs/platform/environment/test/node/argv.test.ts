@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildHelpMessage, ErrorReporter, formatOptions, Option, OptionDescriptions, OPTIONS, parseArgs, Subcommand } from '../../node/argv.js';
-import { addArg, CliUsageError, parseCLIProcessArgv } from '../../node/argvHelper.js';
+import { addArg, CliUsageError, getUpdateCliRequest, parseCLIProcessArgv } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {
@@ -203,6 +203,21 @@ suite('update command', () => {
 				{ update: { status: { json: true, help: false, verbose: false, _: [] }, _: [] }, _: [] },
 				{ update: { install: { version: '1.2.3', force: true, help: false, verbose: true, _: [] }, _: [] }, _: [] },
 				{ update: { status: { json: false, help: false, verbose: true, _: [] }, _: [] }, _: [] }
+			]
+		);
+	});
+
+	test('creates update requests', () => {
+		assert.deepStrictEqual(
+			[
+				getUpdateCliRequest(parseUpdateArgs(['update', 'status', '--json'])),
+				getUpdateCliRequest(parseUpdateArgs(['update', 'install', '--version', '1.2.3', '--force'])),
+				getUpdateCliRequest(parseUpdateArgs(['--help']))
+			],
+			[
+				{ command: 'status', json: true },
+				{ command: 'install', version: '1.2.3', force: true },
+				undefined
 			]
 		);
 	});

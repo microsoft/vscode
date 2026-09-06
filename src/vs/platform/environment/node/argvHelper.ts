@@ -7,11 +7,31 @@ import assert from 'assert';
 import { dirname, resolve } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
+import { IUpdateCliRequest } from '../../cli/common/cliControl.js';
 import { NativeParsedArgs } from '../common/argv.js';
 import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from './argv.js';
 
 export class CliUsageError extends Error {
 	readonly exitCode = 2;
+}
+
+export function getUpdateCliRequest(args: NativeParsedArgs): IUpdateCliRequest | undefined {
+	if (args.update?.status) {
+		return {
+			command: 'status',
+			json: args.update.status.json
+		};
+	}
+
+	if (args.update?.install) {
+		return {
+			command: 'install',
+			version: args.update.install.version,
+			force: args.update.install.force
+		};
+	}
+
+	return undefined;
 }
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {

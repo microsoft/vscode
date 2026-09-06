@@ -27,14 +27,14 @@ import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js'
 import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
 import { CodeApplication } from './app.js';
 import { localize } from '../../nls.js';
-import { getUpdateCliRequest, ICliCommandResult, ICliControlMainService } from '../../platform/cli/common/cliControl.js';
+import { ICliCommandResult, ICliControlMainService } from '../../platform/cli/common/cliControl.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DiagnosticsService } from '../../platform/diagnostics/node/diagnosticsService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { EnvironmentMainService, IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
-import { addArg, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { addArg, getUpdateCliRequest, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';

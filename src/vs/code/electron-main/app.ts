@@ -29,7 +29,7 @@ import { IProxyAuthService, ProxyAuthService } from '../../platform/native/elect
 import { localize } from '../../nls.js';
 import { IBackupMainService } from '../../platform/backup/electron-main/backup.js';
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
-import { getUpdateCliRequest, ICliControlMainService } from '../../platform/cli/common/cliControl.js';
+import { ICliControlMainService } from '../../platform/cli/common/cliControl.js';
 import { CliControlMainService } from '../../platform/cli/electron-main/cliControlMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
@@ -44,7 +44,7 @@ import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
-import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
+import { getUpdateCliRequest, isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
 import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../../platform/extensions/common/extensionHostStarter.js';
 import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
