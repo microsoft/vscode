@@ -202,7 +202,7 @@ npm run test-agent-host-e2e -- --jobs 2
 
 The complete-suite runner starts one test process per entrypoint and runs up to four concurrently. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
-Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
+Pull request CI runs the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. A lightweight job classifies the change once, then dedicated Linux, macOS, and Windows jobs run the suite in parallel with the remaining Electron integration tests. When no relevant files changed, the dedicated jobs are skipped. The regular Electron integration jobs set `VSCODE_SKIP_AGENT_HOST_E2E=1` to avoid running the suite twice.
 
 Provider availability:
 
