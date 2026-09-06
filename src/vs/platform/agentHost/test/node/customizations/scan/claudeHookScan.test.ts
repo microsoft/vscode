@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { NullLogService } from '../../../../../log/common/log.js';
 import { CustomizationType } from '../../../../common/state/protocol/state.js';
 import { scanClaudeHooks } from '../../../../node/claude/customizations/scan/claudeHookScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
@@ -15,6 +16,7 @@ suite('claudeHookScan', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
+	const logService = new NullLogService();
 	const seed = (path: string, content = '') => seedFile(fileService, path, content);
 
 	setup(() => {
@@ -35,7 +37,7 @@ suite('claudeHookScan', () => {
 			hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo start' }] }] },
 		}));
 
-		const hooks = await scanClaudeHooks(workspace, userHome, fileService);
+		const hooks = await scanClaudeHooks(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(
 			hooks.map(h => ({ type: h.type, uri: h.uri })),
@@ -51,7 +53,7 @@ suite('claudeHookScan', () => {
 			hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo stop' }] }] },
 		}));
 
-		const hooks = await scanClaudeHooks(workspace, userHome, fileService);
+		const hooks = await scanClaudeHooks(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(hooks.map(h => h.uri), [local.toString()]);
 	});
@@ -62,7 +64,7 @@ suite('claudeHookScan', () => {
 			hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'echo hi' }] }] },
 		}));
 
-		const hooks = await scanClaudeHooks(workspace, userHome, fileService);
+		const hooks = await scanClaudeHooks(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(hooks, []);
 	});
@@ -70,7 +72,7 @@ suite('claudeHookScan', () => {
 	test('a settings file without a hooks block yields no entry', async () => {
 		await seed('/workspace/.claude/settings.json', JSON.stringify({ model: 'x', permissions: { allow: [] } }));
 
-		const hooks = await scanClaudeHooks(workspace, userHome, fileService);
+		const hooks = await scanClaudeHooks(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(hooks, []);
 	});
@@ -84,7 +86,7 @@ suite('claudeHookScan', () => {
 			hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo stop' }] }] },
 		}));
 
-		const hooks = await scanClaudeHooks(undefined, userHome, fileService);
+		const hooks = await scanClaudeHooks(undefined, userHome, fileService, logService);
 
 		assert.deepStrictEqual(hooks.map(h => h.uri), [user.toString()]);
 	});
@@ -97,7 +99,7 @@ suite('claudeHookScan', () => {
 		// When the user opens their home directory as the workspace, the
 		// project and user scopes resolve to the same settings file — it must
 		// not surface twice.
-		const hooks = await scanClaudeHooks(userHome, userHome, fileService);
+		const hooks = await scanClaudeHooks(userHome, userHome, fileService, logService);
 
 		assert.strictEqual(hooks.length, 1);
 	});

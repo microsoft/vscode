@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { ILogService } from '../../../../../log/common/log.js';
 import { makeMcpServerCustomization, readJsonFile } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerStatus, type McpServerCustomization, type McpServerState } from '../../../../common/state/protocol/channels-session/state.js';
 
@@ -53,11 +54,12 @@ export async function scanClaudeMcpServers(
 	workingDirectory: URI | undefined,
 	userHome: URI,
 	fileService: IFileService,
+	logService: ILogService,
 ): Promise<readonly McpServerCustomization[]> {
 	const seen = new Set<string>();
 	const result: McpServerCustomization[] = [];
 	for (const uri of claudeMcpFiles(workingDirectory, userHome)) {
-		const raw = await readJsonFile(uri, fileService);
+		const raw = await readJsonFile(uri, fileService, logService);
 		const servers = extractMcpServerMap(uri, raw);
 		if (!servers) {
 			continue;

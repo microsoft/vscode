@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../files/common/files.js';
+import { NullLogService } from '../../../../log/common/log.js';
 import { CompletionItem, CompletionItemKind } from '../../../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../../../common/state/sessionState.js';
 import { AgentHostSkillCompletionProvider } from '../../../node/agentHostSkillCompletionProvider.js';
@@ -29,6 +30,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: IFileService;
+	const logService = new NullLogService();
 	const seed = (path: string, content = '') => seedFile(fileService, path, content);
 
 	setup(() => {
@@ -51,7 +53,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 	 * mock agent, and return the `/` completions for `text`.
 	 */
 	async function slashCompletions(text: string, sdk: ISdkResolvedCustomizations | undefined): Promise<readonly CompletionItem[]> {
-		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService);
+		const discovered = await scanClaudeDiskCustomizations(workspace, userHome, fileService, logService);
 		const customizations = buildDiscoveredCustomizations(discovered, [], [], [], workspace, userHome, sdk);
 
 		const agent = disposables.add(new MockAgent('mock'));

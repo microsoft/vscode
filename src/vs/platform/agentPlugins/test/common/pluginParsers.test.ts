@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { FileSystemProviderCapabilities } from '../../../files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
@@ -34,7 +34,9 @@ import {
 	toParsedAgent,
 	toParsedSkill,
 	parsePlugin,
+	pathExists,
 	PluginFormat,
+	readJsonFile,
 } from '../../common/pluginParsers.js';
 import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../common/agentPluginParser.js';
 
@@ -784,6 +786,79 @@ suite('pluginParsers', () => {
 		test('two servers declared in the same file get distinct ids', () => {
 			const uri = URI.file('/workspace/.mcp.json');
 			assert.notStrictEqual(makeMcpServerCustomization(uri, 'a').id, makeMcpServerCustomization(uri, 'b').id);
+		});
+	});
+
+	// ---- readJsonFile / pathExists --------------------------------------
+
+	suite('readJsonFile / pathExists', () => {
+
+		class CapturingLogService extends NullLogService {
+			readonly warnings: string[] = [];
+			override warn(message: string): void {
+				this.warnings.push(message);
+			}
+		}
+
+		const store = new DisposableStore();
+		let fileService: FileService;
+		let logService: CapturingLogService;
+
+		setup(() => {
+			logService = new CapturingLogService();
+			fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		});
+
+		teardown(() => store.clear());
+
+		async function probe(uri: URI) {
+			return {
+				json: await readJsonFile(uri, fileService, logService),
+				exists: await pathExists(uri, fileService, logService),
+				warnings: logService.warnings.map(warning => warning.includes(uri.toString())),
+			};
+		}
+
+		function registerFailingProvider(scheme: string, code: FileSystemProviderErrorCode): void {
+			class FailingProvider extends InMemoryFileSystemProvider {
+				override async stat(): Promise<never> {
+					throw createFileSystemProviderError(code, code);
+				}
+				override async readFile(): Promise<never> {
+					throw createFileSystemProviderError(code, code);
+				}
+			}
+			store.add(fileService.registerProvider(scheme, store.add(new FailingProvider())));
+		}
+
+		test('a present file is parsed without a warning', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/present.json' });
+			await fileService.writeFile(uri, VSBuffer.fromString('{ "a": 1 }'));
+			assert.deepStrictEqual(await probe(uri), { json: { a: 1 }, exists: true, warnings: [] });
+		});
+
+		test('a missing file is absent without a warning', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/missing.json' });
+			assert.deepStrictEqual(await probe(uri), { json: undefined, exists: false, warnings: [] });
+		});
+
+		test('a scheme without a provider is absent but warned about', async () => {
+			const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/workspace/.mcp.json' });
+			assert.deepStrictEqual(await probe(uri), { json: undefined, exists: false, warnings: [true, true] });
+			assert.ok(logService.warnings.every(warning => warning.includes('ENOPRO')), logService.warnings.join('\n'));
+		});
+
+		test('a permission error is absent but warned about', async () => {
+			registerFailingProvider('denied', FileSystemProviderErrorCode.NoPermissions);
+			const uri = URI.from({ scheme: 'denied', path: '/secret.json' });
+			assert.deepStrictEqual(await probe(uri), { json: undefined, exists: false, warnings: [true, true] });
+		});
+
+		test('a path under a file is absent without a warning', async () => {
+			registerFailingProvider('enotdir', FileSystemProviderErrorCode.FileNotADirectory);
+			const uri = URI.from({ scheme: 'enotdir', path: '/.claude/settings.json' });
+			assert.deepStrictEqual(await probe(uri), { json: undefined, exists: false, warnings: [] });
 		});
 	});
 

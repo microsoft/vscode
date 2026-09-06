@@ -6,7 +6,8 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../files/common/files.js';
-import { parseRuleFile, pathExists, type IParsedRule } from '../../../../../agentPlugins/common/pluginParsers.js';
+import { ILogService } from '../../../../../log/common/log.js';
+import { parseRuleFile, pathExists, tryResolve, type IParsedRule } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType } from '../../../../common/state/protocol/channels-session/state.js';
 import { customizationId, type RuleCustomization } from '../../../../common/state/sessionState.js';
 
@@ -42,27 +43,22 @@ export function claudeMemoryFiles(workingDirectory: URI | undefined, userHome: U
  */
 const MAX_RULE_SCAN_DEPTH = 32;
 
-async function readMarkdownFilesRecursive(dir: URI, fileService: IFileService, seen = new Set<string>(), depth = 0): Promise<URI[]> {
+async function readMarkdownFilesRecursive(dir: URI, fileService: IFileService, logService: ILogService, seen = new Set<string>(), depth = 0): Promise<URI[]> {
 	const key = dir.toString();
 	if (depth > MAX_RULE_SCAN_DEPTH || seen.has(key)) {
 		return [];
 	}
 	seen.add(key);
 
-	let stat;
-	try {
-		stat = await fileService.resolve(dir);
-	} catch {
-		return [];
-	}
-	if (!stat.isDirectory || !stat.children) {
+	const stat = await tryResolve(dir, fileService, logService);
+	if (!stat?.isDirectory || !stat.children) {
 		return [];
 	}
 
 	const files: URI[] = [];
 	for (const child of stat.children) {
 		if (child.isDirectory) {
-			files.push(...await readMarkdownFilesRecursive(child.resource, fileService, seen, depth + 1));
+			files.push(...await readMarkdownFilesRecursive(child.resource, fileService, logService, seen, depth + 1));
 		} else if (child.isFile && child.resource.path.toLowerCase().endsWith('.md')) {
 			files.push(child.resource);
 		}
@@ -87,12 +83,13 @@ export async function scanClaudeRules(
 	workingDirectory: URI | undefined,
 	userHome: URI,
 	fileService: IFileService,
+	logService: ILogService,
 ): Promise<readonly IParsedRule[]> {
 	const result: IParsedRule[] = [];
 
 	// CLAUDE.md memory files — always-on, no path scoping, no frontmatter.
 	for (const uri of claudeMemoryFiles(workingDirectory, userHome)) {
-		if (await pathExists(uri, fileService)) {
+		if (await pathExists(uri, fileService, logService)) {
 			const ruleUri = uri.toString();
 			const name = basename(uri);
 			const customization: RuleCustomization = {
@@ -109,7 +106,7 @@ export async function scanClaudeRules(
 	// `.claude/rules/**\/*.md` — path-scoped when `paths` frontmatter present.
 	const scopes = workingDirectory ? [workingDirectory, userHome] : [userHome];
 	for (const scope of scopes) {
-		const files = await readMarkdownFilesRecursive(URI.joinPath(scope, '.claude', 'rules'), fileService);
+		const files = await readMarkdownFilesRecursive(URI.joinPath(scope, '.claude', 'rules'), fileService, logService);
 		for (const uri of files) {
 			const parsed = await parseRuleFile(uri, fileService);
 			const ruleUri = uri.toString();

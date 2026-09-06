@@ -509,7 +509,7 @@ export class ClaudeAgentSession extends Disposable {
 			this._logService,
 		));
 		store.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
-		this._mcpDiscovery = directories?.length ? store.add(new SessionMcpDiscovery(directories, this._fileService)) : undefined;
+		this._mcpDiscovery = directories?.length ? store.add(new SessionMcpDiscovery(directories, this._fileService, this._logService)) : undefined;
 		if (this._mcpDiscovery) {
 			store.add(this._mcpDiscovery.onDidChange(() => {
 				this.clientCustomizationsDiff.markDirty();
@@ -912,7 +912,7 @@ export class ClaudeAgentSession extends Disposable {
 				continue;
 			}
 			try {
-				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
+				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir, this._logService);
 				if (gitHubMcpServerConfiguration && parsed.mcpServers.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))) {
 					hasGitHubMcpServer = true;
 				}
@@ -1493,9 +1493,9 @@ export class ClaudeAgentSession extends Disposable {
 		const userHome = this._environmentService.userHome;
 		const [multiRoot, rules, mcpServers, hooks] = await Promise.all([
 			discoverClaudeMultiRootCustomizations(this.workingDirectories, userHome, this._fileService, this._logService),
-			scanClaudeRules(this.workingDirectory, userHome, this._fileService),
-			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService),
-			scanClaudeHooks(this.workingDirectory, userHome, this._fileService),
+			scanClaudeRules(this.workingDirectory, userHome, this._fileService, this._logService),
+			scanClaudeMcpServers(this.workingDirectory, userHome, this._fileService, this._logService),
+			scanClaudeHooks(this.workingDirectory, userHome, this._fileService, this._logService),
 		]);
 
 		// Post-materialize, the live SDK snapshot filters the disk set down to

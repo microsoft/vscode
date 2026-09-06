@@ -50,7 +50,7 @@ suite('claudeMultiRootCustomizationDiscovery', () => {
 		]);
 		const logService = new NullLogService();
 		const [expectedDiscovered, expectedPlugins, actual] = await Promise.all([
-			scanClaudeDiskCustomizations(rootA, userHome, fileService),
+			scanClaudeDiskCustomizations(rootA, userHome, fileService, logService),
 			scanClaudeNativePlugins(rootA, userHome, fileService, logService),
 			discoverClaudeMultiRootCustomizations([rootA], userHome, fileService, logService),
 		]);

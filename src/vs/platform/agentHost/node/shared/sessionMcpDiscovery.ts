@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { makeMcpServerCustomization, normalizeMcpServerConfiguration, readJsonFile, resolveMcpServersMap, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
+import type { ILogService } from '../../../log/common/log.js';
 
 class RootMcpDiscovery extends Disposable {
 
@@ -29,6 +30,7 @@ class RootMcpDiscovery extends Disposable {
 	constructor(
 		private readonly _root: URI,
 		private readonly _fileService: IFileService,
+		private readonly _logService: ILogService,
 	) {
 		super();
 		this._definitionUri = URI.joinPath(_root, '.mcp.json');
@@ -64,7 +66,7 @@ class RootMcpDiscovery extends Disposable {
 
 	private async _scan(): Promise<readonly IMcpServerDefinition[]> {
 		const definitions: IMcpServerDefinition[] = [];
-		const raw = resolveMcpServersMap(await readJsonFile(this._definitionUri, this._fileService));
+		const raw = resolveMcpServersMap(await readJsonFile(this._definitionUri, this._fileService, this._logService));
 		if (!raw) {
 			return definitions;
 		}
@@ -91,7 +93,7 @@ interface ISharedRootMcpDiscovery {
 
 const sharedRootDiscoveries = new WeakMap<IFileService, ResourceMap<ISharedRootMcpDiscovery>>();
 
-function acquireRootMcpDiscovery(root: URI, fileService: IFileService): { readonly discovery: RootMcpDiscovery; dispose(): void } {
+function acquireRootMcpDiscovery(root: URI, fileService: IFileService, logService: ILogService): { readonly discovery: RootMcpDiscovery; dispose(): void } {
 	let byRoot = sharedRootDiscoveries.get(fileService);
 	if (!byRoot) {
 		byRoot = new ResourceMap();
@@ -99,7 +101,7 @@ function acquireRootMcpDiscovery(root: URI, fileService: IFileService): { readon
 	}
 	let entry = byRoot.get(root);
 	if (!entry) {
-		entry = { discovery: new RootMcpDiscovery(root, fileService), refCount: 0 };
+		entry = { discovery: new RootMcpDiscovery(root, fileService, logService), refCount: 0 };
 		byRoot.set(root, entry);
 	}
 	entry.refCount++;
@@ -140,10 +142,11 @@ export class SessionMcpDiscovery extends Disposable {
 	constructor(
 		workingDirectories: readonly URI[],
 		fileService: IFileService,
+		logService: ILogService,
 	) {
 		super();
 		this._roots = workingDirectories.map(root => {
-			const acquired = this._register(acquireRootMcpDiscovery(root, fileService));
+			const acquired = this._register(acquireRootMcpDiscovery(root, fileService, logService));
 			this._register(acquired.discovery.onDidChange(() => {
 				void this._refreshFromSnapshots();
 			}));

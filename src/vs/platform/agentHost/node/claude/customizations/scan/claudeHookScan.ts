@@ -6,6 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { ILogService } from '../../../../../log/common/log.js';
 import { parseHooksJson, readJsonFile } from '../../../../../agentPlugins/common/pluginParsers.js';
 import { type HookCustomization } from '../../../../common/state/protocol/channels-session/state.js';
 
@@ -46,6 +47,7 @@ export async function scanClaudeHooks(
 	workingDirectory: URI | undefined,
 	userHome: URI,
 	fileService: IFileService,
+	logService: ILogService,
 ): Promise<readonly HookCustomization[]> {
 	const result: HookCustomization[] = [];
 	const seen = new ResourceSet();
@@ -57,7 +59,7 @@ export async function scanClaudeHooks(
 			continue;
 		}
 		seen.add(uri);
-		const raw = await readJsonFile(uri, fileService);
+		const raw = await readJsonFile(uri, fileService, logService);
 		if (raw === undefined) {
 			continue;
 		}

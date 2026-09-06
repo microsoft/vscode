@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../log/common/log.js';
 import { IFileService } from '../../../../../files/common/files.js';
 import { scanClaudeNativePlugins, scanClaudeNativePluginsForRoots } from '../../../../node/claude/customizations/scan/claudeNativePluginScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { CapturingLogService, claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
 
 suite('claudeNativePluginScan', () => {
 
@@ -231,5 +233,19 @@ suite('claudeNativePluginScan', () => {
 		const plugins = await scanClaudeNativePlugins(workspace, userHome, fileService, logService);
 
 		assert.deepStrictEqual(plugins.map(p => p.id), ['ok@m']);
+	});
+
+	test('a workspace without a file system provider is warned about and resolution falls back to the user-home candidate', async () => {
+		const log = new CapturingLogService();
+		const remote = URI.from({ scheme: Schemas.vscodeRemote, authority: 'dev-container+abc', path: '/workspace' });
+		await seed('/home/.claude/settings.json', JSON.stringify({ enabledPlugins: { 'p@skills-dir': true } }));
+		await seed('/home/.claude/skills/p/.claude-plugin/plugin.json', manifest('p'));
+
+		const plugins = await scanClaudeNativePlugins(remote, userHome, fileService, log);
+
+		assert.deepStrictEqual({
+			roots: plugins.map(p => p.root.toString()),
+			warnedAboutWorkspace: log.warnings.some(warning => warning.includes(URI.joinPath(remote, '.claude', 'skills', 'p').toString())),
+		}, { roots: [URI.joinPath(userHome, '.claude', 'skills', 'p').toString()], warnedAboutWorkspace: true });
 	});
 });
