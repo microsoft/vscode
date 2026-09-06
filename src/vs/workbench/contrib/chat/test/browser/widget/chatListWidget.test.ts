@@ -73,7 +73,6 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);

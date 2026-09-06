@@ -314,6 +314,29 @@ A user can reopen an Agent Host session and ask Copilot to edit a file. The file
   in `mcpPluginSuite.ts`, record one scenario at a time, and review the resulting
   Responses fixtures before enabling the group.
 
+### Automation restart execution coverage is Copilot-scoped
+
+Users can save independent Mode and Approvals choices on an Automation and expect every later run to use them, including after the Agent Host restarts. The black-box restart scenario currently covers Copilot only, so equivalent Claude and Codex configuration persistence could regress without this suite detecting it.
+
+- Test: `an automation run restores Mode and Approvals after host restart`.
+- Scope: Claude and Codex.
+- Expected: after the host restarts, the Automation definition retains its provider Mode and Approvals and the next manual run creates a session with those same effective values.
+- Observed: Copilot has deterministic model-backed replay coverage. Claude and Codex variants are not registered and have no captures.
+- Gate: `automationsSuite.ts` registers the model-backed scenario only when `config.provider === 'copilotcli'`.
+- Reproduce:
+
+  Extend the provider gate and adapt the provider-specific Mode and Approvals values, then record one provider at a time:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "an automation run restores Mode and Approvals after host restart"
+
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "an automation run restores Mode and Approvals after host restart"
+  ```
+
 ### Claude paused-turn cancellation is not replay-stable
 
 - Tests:

@@ -56,7 +56,7 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 - editable name and prompt;
 - schedule;
 - execution target;
-- optional model, mode, and permission selection;
+- optional provider-owned session template;
 - enabled state;
 - runtime timestamps.
 
@@ -71,6 +71,16 @@ An `AutomationTarget` identifies both where and how a session is created:
 The same logical agent may be available from multiple providers. Consumers must not infer provider identity from `sessionTypeId`.
 
 Workspace targets may omit `providerId` and `sessionTypeId`. Such definitions use global legacy routing and cannot migrate to a provider until their target identifies one. Quick-chat targets always identify both.
+
+### Session template
+
+`IAutomationSessionTemplate` is the canonical session configuration for new definitions. It contains an optional model, optional custom agent, and opaque provider-owned configuration. Shared Automation code preserves this data but does not interpret provider Mode or Approvals vocabularies.
+
+Target identity remains separate from the template. The target owns provider selection, workspace, isolation, and branch. The template owns model, custom agent, Mode, Approvals, and other provider-defined session configuration.
+
+Saved template values are preferences, not durable permission grants. The owning provider resolves them against its current model and agent availability, configuration schema, feature enablement, and managed policy whenever a draft or run session is created. Policy may change the effective value without rewriting the saved preference.
+
+Legacy `modelId`, `mode`, and `permissionLevel` fields remain decode and input aliases for older ledgers and callers. New dialog and AHP projections write the session template. Compatibility aliases are translated at the owning store or provider boundary and have no authority to replace an explicit template.
 
 ### Run
 
@@ -125,6 +135,8 @@ Before Agent Host authority is activated, the legacy store owns:
 - session creation through Sessions;
 - session-resource linkage;
 - terminal lifecycle updates.
+
+The browser runner passes the complete saved session template into provider draft creation. Providers explicitly advertise support for restoring and capturing this configuration; execution fails rather than silently using defaults when a canonical template reaches an unsupported provider. Deprecated flat aliases also flow through ordinary model, mode, and permission operations for older providers. Workspace isolation and branch remain target-owned and are configured separately.
 
 Renderer-window leader election prevents duplicate scheduled execution across windows.
 
@@ -311,12 +323,17 @@ Updates that do not change the target remain allowed while an active run delays 
 8. Migration and retargeting preserve concurrent edits through snapshot comparison.
 9. Mixed expected deferrals and real failures are reported as failures.
 10. Provider-specific state stays behind `ISessionsProviderAutomations`; UI and tools consume provider-neutral models.
+11. Same-target edits preserve unknown template values unless the user explicitly changes them.
+12. Retargeting does not carry a previous provider's template into the new authority.
+13. Runtime policy and provider schema are revalidated for every run without treating saved configuration as a grant.
 
 ## Concrete behavior
 
 Focused tests own concrete migration, retry, repair, conflict, and execution behavior:
 
 - `contrib/automations/test/browser/automationService.test.ts`;
+- `contrib/automations/test/browser/automationRunner.test.ts`;
+- `contrib/automations/test/browser/automationTools.test.ts`;
 - `contrib/automations/test/browser/providerAutomationService.test.ts`;
 - `contrib/automations/test/browser/automationScheduler.test.ts`;
 - `contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts`.

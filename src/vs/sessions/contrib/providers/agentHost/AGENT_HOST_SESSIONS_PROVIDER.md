@@ -48,6 +48,10 @@ Within that contract, Agent Host providers expose the host's `ahp-automations://
 
 Imported prompts retain Automation provenance through `MessageKind.Automation`. The projection converts editor-qualified model identifiers to provider-native `ModelSelection.id` values at the AHP boundary while preserving the editor identity exposed to Sessions. The provider also mirrors `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` into host configuration; disabling Automations removes new run authority without deleting definitions or terminating sessions already running.
 
+`AutomationDefinition.session` is authoritative for host-owned model, custom-agent, and provider configuration. The projection removes target-owned working directory, isolation, and branch values from the editor-facing template and restores them only at the AHP boundary. Unknown provider values remain opaque and survive same-target edits.
+
+The browser fallback and host-owned executor both create sessions from this template. A draft restores it before the first `resolveSessionConfig` call and captures the provider-resolved state when saved. Initial values that are unavailable or policy-clamped remain saved preferences until the user explicitly changes them; the effective draft and every run still use current schema and managed-policy enforcement.
+
 ## Identity
 
 The local provider uses:
@@ -90,6 +94,8 @@ create draft
 ```
 
 The first send waits for tracked draft configuration. Cancellation disposes the draft. Later configuration changes are scoped to the committed session and do not recreate the entire facade.
+
+Automation drafts use the same `NewSession` implementation but are tracked separately by the management service. Agent Host providers advertise Automation configuration support, restore the initial template before configuration resolution, and capture it asynchronously after pending resolution. Capture rechecks draft identity, omits transient, permission-grant, target-owned, and host-owned values, preserves untouched opaque preferences, and rejects superseded drafts.
 
 Existing-session requests route by the provider resource and chat resource. Host notifications update adapters and catalog membership reactively.
 

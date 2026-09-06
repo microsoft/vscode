@@ -38,7 +38,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from 
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -3973,6 +3973,9 @@ export class CopilotAgentSession extends Disposable {
 	 * level. Agent mode is an orthogonal axis and does not affect approvals.
 	 */
 	private _isBypassApprovals(): boolean {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+			return false;
+		}
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
 			return true;
 		}
@@ -3989,6 +3992,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getConfiguredApprovalLevel(): string {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+			return 'default';
+		}
 		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
@@ -6567,14 +6573,26 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Subagent selected: ${e.data.agentName}`);
 		}));
 
+		const subagentIdsByStopHook = new Map<string, string>();
 		this._register(wrapper.onHookStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
+			if (e.data.hookType === 'subagentStop') {
+				// Some SDK stop hooks identify the subagent only in the start event's input.
+				const input = e.data.input;
+				const inputAgentId = input !== null && typeof input === 'object' && !Array.isArray(input) ? input.agentId : undefined;
+				const agentId = e.agentId ?? (isString(inputAgentId) ? inputAgentId : undefined);
+				if (agentId) {
+					subagentIdsByStopHook.set(e.data.hookInvocationId, agentId);
+				}
+			}
 		}));
 
 		this._register(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
-			if (e.data.hookType === 'agentStop') {
-				this._completeSubagentTurn(e.agentId);
+			const agentId = e.agentId ?? subagentIdsByStopHook.get(e.data.hookInvocationId);
+			subagentIdsByStopHook.delete(e.data.hookInvocationId);
+			if (e.data.hookType === 'agentStop' || e.data.hookType === 'subagentStop') {
+				this._completeSubagentTurn(agentId);
 			}
 		}));
 

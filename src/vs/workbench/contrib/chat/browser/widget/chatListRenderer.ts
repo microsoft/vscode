@@ -87,7 +87,6 @@ import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsCo
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
-import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from './chatTurnPills.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
@@ -597,8 +596,8 @@ export function shouldShowFileChangesSummaryForSettings(isComplete: boolean, isL
 	return isComplete && isLocalSession && showFileChanges;
 }
 
-export function shouldShowPillsSummaryForSettings(isComplete: boolean, isAgentHostSession: boolean, turnStatusPills: ChatTurnStatusPillsSetting | undefined): boolean {
-	return isComplete && isAgentHostSession && isChatTurnStatusPillsEnabled(turnStatusPills);
+export function shouldShowTurnPillsSummary(isComplete: boolean, isAgentHostSession: boolean): boolean {
+	return isComplete && isAgentHostSession;
 }
 
 export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.StateKind, hasConfirmationMessages: boolean, hasMcpAppData: boolean): boolean {
@@ -3127,10 +3126,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowPillsSummary(element: IChatResponseViewModel): boolean {
-		return shouldShowPillsSummaryForSettings(
+		return shouldShowTurnPillsSummary(
 			element.isComplete,
 			isAgentHostTarget(getChatSessionType(element.sessionResource)),
-			this.configService.getValue<ChatTurnStatusPillsSetting | undefined>(ChatConfiguration.TurnStatusPills),
 		);
 	}
 
