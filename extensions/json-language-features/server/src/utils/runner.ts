@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, ResponseError, LSPErrorCodes } from 'vscode-languageserver';
-import { RuntimeEnvironment } from '../jsonServer';
+import { RuntimeEnvironment } from '../jsonServer.js';
 
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {
@@ -65,6 +65,5 @@ export function runSafe<T, E>(runtime: RuntimeEnvironment, func: () => T, errorV
 }
 
 function cancelValue<E>() {
-	console.log('cancelled');
 	return new ResponseError<E>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
 }

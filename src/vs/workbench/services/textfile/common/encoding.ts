@@ -693,85 +693,90 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 		labelShort: 'ISO 8859-9',
 		order: 33
 	},
+	cp857: {
+		labelLong: 'Turkish (CP 857)',
+		labelShort: 'CP 857',
+		order: 34
+	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 34
+		order: 35
 	},
 	gbk: {
 		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 35
+		order: 36
 	},
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 36
+		order: 37
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 37,
+		order: 38,
 		guessableName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 38
+		order: 39
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 39,
+		order: 40,
 		guessableName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 40,
+		order: 41,
 		guessableName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 41,
+		order: 42,
 		guessableName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 42
+		order: 43
 	},
 	iso885911: {
 		labelLong: 'Latin/Thai (ISO 8859-11)',
 		labelShort: 'ISO 8859-11',
-		order: 43
+		order: 44
 	},
 	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 44
+		order: 45
 	},
 	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 45
+		order: 46
 	},
 	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 46,
+		order: 47,
 		guessableName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
 		labelShort: 'CP 865',
-		order: 47
+		order: 48
 	},
 	cp850: {
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
-		order: 48
+		order: 49
 	}
 };
 

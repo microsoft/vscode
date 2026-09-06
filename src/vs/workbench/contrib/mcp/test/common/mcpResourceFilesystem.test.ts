@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Barrier, timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -12,6 +13,7 @@ import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, IFi
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IAllowedMcpServersService } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -35,21 +37,23 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 	let fs: McpResourceFilesystem;
 
 	setup(() => {
+		const storageService = ds.add(new TestStorageService());
 		const services = new ServiceCollection(
 			[IFileService, { registerProvider: () => { } }],
-			[IStorageService, ds.add(new TestStorageService())],
+			[IStorageService, storageService],
 			[ILoggerService, ds.add(new TestLoggerService())],
 			[IWorkspaceContextService, new TestContextService()],
 			[IWorkbenchEnvironmentService, {}],
 			[ITelemetryService, NullTelemetryService],
 			[IProductService, TestProductService],
+			[IAllowedMcpServersService, { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }],
 		);
 
 		const parentInsta1 = ds.add(new TestInstantiationService(services));
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService()));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(

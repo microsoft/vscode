@@ -5,8 +5,8 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
 import { PromptsStorage } from '../service/promptsService.js';
 
 /**
@@ -131,6 +131,11 @@ export namespace PromptsConfig {
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 
 	/**
+	 * Search for configuration files in parent repositories of the workspace folder
+	 */
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
+
+	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}, {@link SKILLS_LOCATION_KEY}.
 	 */
@@ -193,7 +198,7 @@ export namespace PromptsConfig {
 
 				// determine location type in the general case
 				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
-				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigWorkspace : PromptFileSource.ConfigPersonal, storage });
 			}
 
 			return paths;

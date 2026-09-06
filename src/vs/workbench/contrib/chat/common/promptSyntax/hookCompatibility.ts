@@ -5,9 +5,10 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { HookType, IHookCommand, toHookType } from './hookSchema.js';
+import { IHookCommand, toHookType } from './hookSchema.js';
 import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
 import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
+import { HookType } from './hookTypes.js';
 
 /**
  * Represents a hook source with its original and normalized properties.

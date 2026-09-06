@@ -246,6 +246,26 @@ export class ExtHostWebviews extends Disposable implements extHostProtocol.ExtHo
 		return webview;
 	}
 
+	/**
+	 * Ensures that the main thread side of the webview has `localResourceRoots`
+	 * populated when the caller did not supply any.
+	 *
+	 * This honors the documented `WebviewOptions.localResourceRoots` contract
+	 * ("Default to ... the workspace folders and the extension's install
+	 * directory") for code paths that construct the webview's content options
+	 * outside of the extension host (e.g. custom editors), where the main
+	 * thread starts with empty content options.
+	 */
+	public ensureDefaultContentOptions(handle: extHostProtocol.WebviewHandle, contentOptions: extHostProtocol.IWebviewContentOptions, extension: IExtensionDescription): void {
+		if (contentOptions.localResourceRoots) {
+			return;
+		}
+		this._webviewProxy.$setOptions(handle, {
+			...contentOptions,
+			localResourceRoots: getDefaultLocalResourceRoots(extension, this.workspace),
+		});
+	}
+
 	public deleteWebview(handle: string) {
 		this._webviews.delete(handle);
 	}

@@ -12,13 +12,21 @@ import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+export interface IAnnotatedChatContent {
+	readonly content: IChatProgressRenderableResponseContent;
+	readonly sourceIndexes: readonly number[];
+}
+
+export function annotateSpecialMarkdownContentWithSource(response: Iterable<IChatProgressResponseContent>): IAnnotatedChatContent[] {
 	let refIdPool = 0;
 
-	const result: IChatProgressRenderableResponseContent[] = [];
+	const result: IAnnotatedChatContent[] = [];
+	let sourceIndex = 0;
 	for (const item of response) {
-		const previousItemIndex = result.findLastIndex(p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
-		const previousItem = result[previousItemIndex];
+		const currentSourceIndex = sourceIndex++;
+		const previousItemIndex = result.findLastIndex(p => p.content.kind !== 'textEditGroup' && p.content.kind !== 'undoStop');
+		const previousEntry = result[previousItemIndex];
+		const previousItem = previousEntry?.content;
 		if (item.kind === 'inlineReference') {
 			let label: string | undefined = item.name;
 			if (!label) {
@@ -39,9 +47,15 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 			if (isInsideCodeContext(previousText)) {
 				if (previousItem?.kind === 'markdownContent') {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(label));
-					result[previousItemIndex] = { ...previousItem, content: merged };
+					result[previousItemIndex] = {
+						content: { ...previousItem, content: merged },
+						sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+					};
 				} else {
-					result.push({ content: new MarkdownString(label), kind: 'markdownContent' });
+					result.push({
+						content: { content: new MarkdownString(label), kind: 'markdownContent' },
+						sourceIndexes: [currentSourceIndex],
+					});
 				}
 			} else {
 				const refId = refIdPool++;
@@ -52,23 +66,57 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 
 				if (previousItem?.kind === 'markdownContent') {
 					const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-					result[previousItemIndex] = { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } };
+					result[previousItemIndex] = {
+						content: { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } },
+						sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+					};
 				} else {
-					result.push({ content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' });
+					result.push({
+						content: { content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' },
+						sourceIndexes: [currentSourceIndex],
+					});
 				}
 			}
-		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
-			const merged = appendMarkdownString(previousItem.content, item.content);
-			result[previousItemIndex] = { ...previousItem, content: merged };
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
+			if (canMergeMarkdownStrings(previousItem.content, item.content)) {
+				const merged = appendMarkdownString(previousItem.content, item.content);
+				result[previousItemIndex] = {
+					content: { ...previousItem, content: merged },
+					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+				};
+			} else if (previousItem.inlineReferences && isContentRefOnly(previousItem.content.value)) {
+				// The previous item is a standalone inline reference whose MarkdownString
+				// was synthesized with default properties that don't match the incoming
+				// markdown (e.g., different isTrusted). Prepend the reference text and
+				// adopt the incoming item's properties so they render together in one block.
+				result[previousItemIndex] = {
+					content: {
+						...previousItem,
+						content: {
+							...item.content,
+							value: previousItem.content.value + item.content.value,
+						},
+					},
+					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+				};
+			} else {
+				result.push({ content: item, sourceIndexes: [currentSourceIndex] });
+			}
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[previousItemIndex] = { ...previousItem, content: merged };
+				result[previousItemIndex] = {
+					content: { ...previousItem, content: merged },
+					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+				};
 			} else {
-				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
+				result.push({
+					content: { content: new MarkdownString(markdownText), kind: 'markdownContent' },
+					sourceIndexes: [currentSourceIndex],
+				});
 			}
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
@@ -78,14 +126,35 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				// delete the previous and append to ensure that we don't reorder the edit before the undo stop containing it
 				result.splice(previousItemIndex, 1);
-				result.push({ ...previousItem, content: merged });
+				result.push({
+					content: { ...previousItem, content: merged },
+					sourceIndexes: [...previousEntry.sourceIndexes, currentSourceIndex],
+				});
 			}
+		} else if (item.kind === 'voiceProgress') {
+			continue;
 		} else {
-			result.push(item);
+			result.push({ content: item, sourceIndexes: [currentSourceIndex] });
 		}
 	}
 
 	return result;
+}
+
+export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+	return annotateSpecialMarkdownContentWithSource(response).map(entry => entry.content);
+}
+
+const contentRefPattern = new RegExp(`^(\\[.*?\\]\\(${contentRefUrl}/\\d+\\))+$`);
+
+/**
+ * Returns true when the text consists entirely of synthesized content-ref
+ * links (e.g. `[file.ts](http://_vscodecontentref_/0)`), with no other
+ * markdown text mixed in. Used to decide whether the MarkdownString
+ * properties are "synthetic defaults" that can safely be replaced.
+ */
+function isContentRefOnly(text: string): boolean {
+	return contentRefPattern.test(text);
 }
 
 /**
@@ -190,7 +259,12 @@ export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?:
 	if (match) {
 		const [all, isEdit, , encodedSubAgentId, uriString] = match;
 		if (uriString) {
-			const result = URI.parse(uriString);
+			let result: URI;
+			try {
+				result = URI.parse(uriString);
+			} catch {
+				return undefined;
+			}
 			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
 			let subAgentInvocationId: string | undefined;
 			if (encodedSubAgentId) {
@@ -220,6 +294,10 @@ export function extractSubAgentInvocationIdFromText(text: string): string | unde
 
 export function hasCodeblockUriTag(text: string): boolean {
 	return text.includes('<vscode_codeblock_uri');
+}
+
+export function hasEditCodeblockUriTag(text: string): boolean {
+	return text.includes('<vscode_codeblock_uri isEdit');
 }
 
 export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {

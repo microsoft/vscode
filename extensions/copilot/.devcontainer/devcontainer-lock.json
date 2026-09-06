@@ -1,0 +1,34 @@
+{
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "version": "1.2.7",
+      "resolved": "ghcr.io/devcontainers/features/azure-cli@sha256:91ffef641dbe5045b9982921487d743f7a3047cc05efd9226345833f446c8bce",
+      "integrity": "sha256:91ffef641dbe5045b9982921487d743f7a3047cc05efd9226345833f446c8bce"
+    },
+    "ghcr.io/devcontainers/features/desktop-lite:1": {
+      "version": "1.2.8",
+      "resolved": "ghcr.io/devcontainers/features/desktop-lite@sha256:14ac23fd59afab939e6562ba6a1f42a659a805e4c574a1be23b06f28eb3b0b71",
+      "integrity": "sha256:14ac23fd59afab939e6562ba6a1f42a659a805e4c574a1be23b06f28eb3b0b71"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2.16.1": {
+      "version": "2.16.1",
+      "resolved": "ghcr.io/devcontainers/features/docker-in-docker@sha256:ce078b7bf7d9ef3bcb9813b32103795d8d72172446890b64772cbe1dec6baafd",
+      "integrity": "sha256:ce078b7bf7d9ef3bcb9813b32103795d8d72172446890b64772cbe1dec6baafd"
+    },
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "2.2.2",
+      "resolved": "ghcr.io/devcontainers/features/dotnet@sha256:06f4ef2c23792da4832a74da195d478d8f64316c45c7624a0367d6bd5c3fc500",
+      "integrity": "sha256:06f4ef2c23792da4832a74da195d478d8f64316c45c7624a0367d6bd5c3fc500"
+    },
+    "ghcr.io/devcontainers/features/git-lfs:1": {
+      "version": "1.2.5",
+      "resolved": "ghcr.io/devcontainers/features/git-lfs@sha256:71c2b371cf12ab7fcec47cf17369c6f59156100dad9abf9e4c593049d789de72",
+      "integrity": "sha256:71c2b371cf12ab7fcec47cf17369c6f59156100dad9abf9e4c593049d789de72"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "1.7.1",
+      "resolved": "ghcr.io/devcontainers/features/python@sha256:cf9b6d879790a594b459845b207c5e1762a0c8f954bb8033ff396e497f9c301b",
+      "integrity": "sha256:cf9b6d879790a594b459845b207c5e1762a0c8f954bb8033ff396e497f9c301b"
+    }
+  }
+}

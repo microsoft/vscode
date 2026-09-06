@@ -6,9 +6,7 @@
 .chat-context-usage-widget {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	height: 22px;
-	width: 22px;
+	gap: 4px;
 	flex-shrink: 0;
 	cursor: pointer;
 	padding: 3px;
@@ -55,7 +53,7 @@
 
 .chat-context-usage-widget .progress-arc {
 	fill: none;
-	stroke: var(--vscode-descriptionForeground);
+	stroke: var(--vscode-icon-foreground);
 	stroke-width: 4;
 	stroke-linecap: round;
 	transform: rotate(-90deg);
@@ -69,4 +67,21 @@
 
 .chat-context-usage-widget.error .progress-arc {
 	stroke: var(--vscode-editorError-foreground);
+}
+
+.chat-context-usage-widget .percentage-label {
+	font-size: 11px;
+	line-height: 1;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	max-width: 0;
+	opacity: 0;
+	overflow: hidden;
+	transition: max-width 0.1s ease-out, opacity 0.1s ease-out;
+}
+
+.chat-context-usage-widget:hover .percentage-label,
+.chat-context-usage-widget:focus .percentage-label {
+	max-width: 4em;
+	opacity: 1;
 }

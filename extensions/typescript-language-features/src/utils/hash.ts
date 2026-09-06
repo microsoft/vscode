@@ -6,7 +6,7 @@
 /**
  * Return a hash value for an object.
  */
-export function hash(obj: any, hashVal = 0): number {
+export function hash(obj: unknown, hashVal = 0): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -24,7 +24,7 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'undefined':
 			return 937 * 31;
 		default:
-			return numberHash(obj, 617);
+			return stringHash(String(obj), 617);
 	}
 }
 
@@ -44,15 +44,15 @@ function stringHash(s: string, hashVal: number) {
 	return hashVal;
 }
 
-function arrayHash(arr: any[], initialHashVal: number): number {
+function arrayHash(arr: readonly unknown[], initialHashVal: number): number {
 	initialHashVal = numberHash(104579, initialHashVal);
-	return arr.reduce((hashVal, item) => hash(item, hashVal), initialHashVal);
+	return arr.reduce<number>((hashVal, item) => hash(item, hashVal), initialHashVal);
 }
 
-function objectHash(obj: any, initialHashVal: number): number {
+function objectHash(obj: object, initialHashVal: number): number {
 	initialHashVal = numberHash(181387, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
-		return hash(obj[key], hashVal);
+		return hash(Reflect.get(obj, key), hashVal);
 	}, initialHashVal);
 }

@@ -109,7 +109,11 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 			return false;
 		}
 
-		return editor instanceof UntitledTextEditorInput && isEqual(workingCopy.resource, editor.resource);
+		// Also match editors that are not UntitledTextEditorInput but share the
+		// same untitled resource (e.g. a text-based custom editor that wraps the
+		// same underlying text model). Without this, the backup restorer would
+		// create a duplicate UntitledTextEditorInput alongside the custom editor.
+		return isEqual(workingCopy.resource, editor.resource);
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {

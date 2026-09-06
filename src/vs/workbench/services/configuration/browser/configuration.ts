@@ -707,8 +707,8 @@ export class WorkspaceConfiguration extends Disposable {
 		return this.reparseWorkspaceSettings();
 	}
 
-	reparseWorkspaceSettings(): ConfigurationModel {
-		this._workspaceConfiguration.reparseWorkspaceSettings({ scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
+	reparseWorkspaceSettings(configurationParseOptions?: ConfigurationParseOptions): ConfigurationModel {
+		this._workspaceConfiguration.reparseWorkspaceSettings({ scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted(), ...configurationParseOptions });
 		return this.getConfiguration();
 	}
 

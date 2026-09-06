@@ -1,0 +1,50 @@
+[
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - (AML-10-28) field is never used",
+		"requests": [
+			"fe2caa9d5aab3aaa85068c1b9e1577207c9bf74663fa35e42601877bff69fb18"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - (AML-10-57) call is not awaited, execution continues",
+		"requests": [
+			"280564420c2a09d22d618175c45c6326a013798ba4ca9308c48352bdcf61d971"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - (AML-17-3523) has same name as",
+		"requests": [
+			"9b41f3926e0553ecc8265db9bcdc23e82e639a37b711290b1a0ae04c2b6306cd"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - does not contain a definition",
+		"requests": [
+			"318aa3159c3757fa1352bd85ad56fa6593c4f45f4004ff7edb2b7ef8c2dcad8e"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - does not exist",
+		"requests": [
+			"7079cd100f1950e9569ba27f4302a080cf251049029b7b84b95e3bb9332e24da"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - missing using directive",
+		"requests": [
+			"412c4959a717aa204bdd472d7ab645e5c005e630482341c7558688ea61b588ee"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - no argument given",
+		"requests": [
+			"2879abb3e3e7025fb38c573a4dbc775110c2f43438c4eeb2aa7d956c4c7d3bae"
+		]
+	},
+	{
+		"name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - semi-colon expected",
+		"requests": [
+			"a2baaf2baef93110ebc702d3940fe90b61563a877f03de99a656c6e00fb771d6"
+		]
+	}
+]

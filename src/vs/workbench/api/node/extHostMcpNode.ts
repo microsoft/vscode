@@ -73,6 +73,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			}
 		}
 		for (const [key, value] of Object.entries(launch.env)) {
+			// For PATH, we want to append to the existing PATH instead of overwriting it.
+			if (key.toUpperCase() === 'PATH' && value !== null) {
+				env[key] = env[key] ? `${env[key]}${path.delimiter}${String(value)}` : String(value);
+				continue;
+			}
 			env[key] = value === null ? undefined : String(value);
 		}
 
@@ -173,7 +178,7 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 		return {
 			status: undiciResponse.status,
 			statusText: undiciResponse.statusText,
-			headers: undiciResponse.headers,
+			headers: undiciResponse.headers as unknown as Headers, // undici `Headers` class no longer overlaps with lib.dom `Headers` (`SpecIterableIterator` vs `HeadersIterator`)
 			body: undiciResponse.body as ReadableStream, // Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required (yet can be `undefined`) in the standard type
 			url: undiciResponse.url,
 			json: () => undiciResponse.json(),
@@ -183,6 +188,8 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 }
 
 const windowsShellScriptRe = /\.(bat|cmd)$/i;
+
+export const escapeCmdArg = (s: string): string => `"${s.replace(/"/g, '""')}"`;
 
 /**
  * Formats arguments to avoid issues on Windows for CVE-2024-27980.
@@ -199,10 +206,9 @@ export const formatSubprocessArguments = async (
 
 	const found = await findExecutable(executable, cwd, undefined, env);
 	if (found && windowsShellScriptRe.test(found)) {
-		const quote = (s: string) => s.includes(' ') ? `"${s}"` : s;
 		return {
-			executable: quote(found),
-			args: args.map(quote),
+			executable: escapeCmdArg(found),
+			args: args.map(escapeCmdArg),
 			shell: true,
 		};
 	}

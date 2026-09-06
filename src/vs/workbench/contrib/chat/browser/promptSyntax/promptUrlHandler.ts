@@ -84,7 +84,7 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				return true;
 			}
 
-			const result = await this.requestService.request({ type: 'GET', url: urlString }, CancellationToken.None);
+			const result = await this.requestService.request({ type: 'GET', url: urlString, callSite: 'promptUrlHandler.resolveUrl' }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
 				this.logService.error(`[PromptUrlHandler] Failed to fetch URL: ${urlString}`);
 				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', urlString));

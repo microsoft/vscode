@@ -30,6 +30,7 @@ export class ExtHostChatStatus {
 			title: '',
 			description: '',
 			detail: '',
+			tooltip: undefined,
 		};
 
 		let disposed = false;
@@ -49,10 +50,10 @@ export class ExtHostChatStatus {
 		const item = Object.freeze<vscode.ChatStatusItem>({
 			id: id,
 
-			get title(): string | { label: string; link: string } {
+			get title(): string | { label: string; link: string; helpText?: string } {
 				return state.title;
 			},
-			set title(value: string | { label: string; link: string }) {
+			set title(value: string | { label: string; link: string; helpText?: string }) {
 				state.title = value;
 				syncState();
 			},
@@ -70,6 +71,14 @@ export class ExtHostChatStatus {
 			},
 			set detail(value: string | undefined) {
 				state.detail = value;
+				syncState();
+			},
+
+			get tooltip(): string | undefined {
+				return state.tooltip;
+			},
+			set tooltip(value: string | undefined) {
+				state.tooltip = value;
 				syncState();
 			},
 

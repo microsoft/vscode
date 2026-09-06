@@ -7,18 +7,48 @@ import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
+import type { IResponse } from '../../../common/model/chatModel.js';
+import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('omits the hidden workspace-continuation request text while preserving transition and provider response text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'systemNotification',
+						content: new MarkdownString('Now working in vscode'),
+						presentation: 'workspaceTransition',
+						accessibilityLabel: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Provider continued work') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Workspace changed. This session is now working in vscode using an isolated worktree.',
+			},
+			{
+				partIndex: 1,
+				text: 'Provider continued work',
+			},
+		]);
+	});
 
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
@@ -65,14 +95,13 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns description for subagent data', () => {
 			const subagentData: IChatSubagentToolInvocationData = {
 				kind: 'subagent',
-				agentName: 'TestAgent',
+				agentDisplayName: 'Test Agent',
+				agentName: 'test-agent',
 				description: 'Running analysis',
 				prompt: 'Analyze the code'
 			};
 			const result = getToolSpecificDataDescription(subagentData);
-			assert.ok(result.includes('TestAgent'));
-			assert.ok(result.includes('Running analysis'));
-			assert.ok(result.includes('Analyze the code'));
+			assert.strictEqual(result, 'Agent: Test Agent. Running analysis. Task: Analyze the code');
 		});
 
 		test('handles subagent with only description', () => {
@@ -208,6 +237,36 @@ suite('ChatResponseAccessibleView', () => {
 				values: []
 			};
 			assert.strictEqual(getToolSpecificDataDescription(resourcesData), '');
+		});
+
+		test('describes configured automation results', () => {
+			assert.deepStrictEqual([
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'created',
+				}),
+				getToolSpecificDataDescription({
+					kind: 'automationConfigured',
+					automationId: 'automation-1',
+					automationName: 'Morning review',
+					operation: 'updated',
+				}),
+			], [
+				'Created an automation: Morning review',
+				'Edited an automation: Morning review',
+			]);
+		});
+
+		test('describes a created session using its full title when available', () => {
+			const sessionData: IChatSessionCreatedData = {
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://local/session',
+				label: 'Implement issue',
+				fullTitle: 'Implement issue and validate the fix',
+			};
+			assert.strictEqual(getToolSpecificDataDescription(sessionData), 'Implement issue and validate the fix');
 		});
 	});
 
@@ -485,6 +544,165 @@ suite('ChatResponseAccessibleView', () => {
 			const content = provider.provideContent();
 			assert.ok(content.includes('Response content'));
 			assert.ok(content.includes('Thinking: Reasoning'));
+		});
+
+		test('includes file path for URI inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/path/to/index.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('See file ') },
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri, name: 'index.ts' },
+						{ kind: 'markdownContent', content: new MarkdownString(' for details') }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('index.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
+			assert.ok(content.includes('See file'));
+			assert.ok(content.includes('for details'));
+		});
+
+		test('includes file path and line number for Location inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const fileLocation: Location = {
+				uri: URI.file('/src/app/main.ts'),
+				range: new Range(42, 1, 42, 20)
+			};
+
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('Error at ') },
+						{ kind: 'inlineReference', inlineReference: fileLocation, name: 'main.ts' }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('main.ts'));
+			assert.ok(content.includes(`${fileLocation.uri.path}:42`));
+		});
+
+		test('uses basename as name for URI inline references without explicit name', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/workspace/src/utils.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('utils.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
 		});
 	});
 });

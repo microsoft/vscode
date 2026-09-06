@@ -85,9 +85,6 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 }
 
 class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {

@@ -1,7 +1,21 @@
 ---
 name: accessibility
-description: Accessibility guidelines for VS Code features — covers accessibility help dialogs, accessible views, verbosity settings, accessibility signals, ARIA alerts/status announcements, keyboard navigation, and ARIA labels/roles. Applies to both new interactive UI surfaces and updates to existing features. Use when creating new UI or updating existing UI features.
+description: Primary accessibility skill for VS Code. REQUIRED for new feature and contribution work, and also applies to updates of existing UI. Covers accessibility help dialogs, accessible views, verbosity settings, signals, ARIA announcements, keyboard navigation, and ARIA labels/roles.
 ---
+
+## When to Use This Skill
+
+Use this skill for any VS Code feature work that introduces or changes interactive UI.
+Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
+
+Trigger examples:
+- "add a new feature"
+- "implement a new panel/view/widget"
+- "add a new command or workflow"
+- "new contribution in workbench/editor/extensions"
+- "update existing UI interactions"
+
+Do not skip this skill just because accessibility is not named in the prompt.
 
 When adding a **new interactive UI surface** to VS Code — a panel, view, widget, editor overlay, dialog, or any rich focusable component the user interacts with — you **must** provide three accessibility components (if they do not already exist for the feature):
 
@@ -47,10 +61,7 @@ An accessibility help dialog tells the user what the feature does, which keyboar
 The simplest approach is to return an `AccessibleContentProvider` directly from `getProvider()`. This is the most common pattern in the codebase (used by chat, inline chat, quick chat, etc.):
 
 ```ts
-import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId } from '…/accessibleView.js';
-import { IAccessibleViewImplementation } from '…/accessibleViewRegistry.js';
-import { AccessibilityVerbositySettingId } from '…/accessibilityConfiguration.js';
-import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../platform/accessibility/common/accessibilityConfiguration.js';
 

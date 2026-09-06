@@ -10,7 +10,7 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { localize } from '../../../nls.js';
 import { OPTIONS, parseArgs } from '../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
-import { getLogLevel } from '../../log/common/log.js';
+import { getLogLevel, isDevConsoleLogForwardingEnabled, registerDevConsoleLogForwarder } from '../../log/common/log.js';
 import { LoggerChannel } from '../../log/common/logIpc.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
@@ -57,6 +57,8 @@ async function startPtyHost() {
 		server = new ChildProcessServer(TerminalIpcChannels.PtyHost);
 	}
 
+	const disposables = new DisposableStore();
+
 	// Services
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
 	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
@@ -64,6 +66,9 @@ async function startPtyHost() {
 	server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
 	const logService = new LogService(logger);
+	if (!environmentService.isBuilt && isDevConsoleLogForwardingEnabled) {
+		disposables.add(registerDevConsoleLogForwarder(logService));
+	}
 
 	// Log developer config
 	if (startupDelay) {
@@ -72,8 +77,6 @@ async function startPtyHost() {
 	if (simulatedLatency) {
 		logService.warn(`Pty host is simulating ${simulatedLatency}ms latency`);
 	}
-
-	const disposables = new DisposableStore();
 
 	// Heartbeat responsiveness tracking
 	const heartbeatService = new HeartbeatService();

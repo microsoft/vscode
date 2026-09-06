@@ -22,7 +22,7 @@ export class ChatEditingEditorAccessibility implements IWorkbenchContribution {
 		@IAccessibilitySignalService accessibilityService: IAccessibilitySignalService
 	) {
 
-		const activeUri = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditorPane?.input.resource);
+		const activeUri = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditorPane?.input?.resource);
 
 		this._store.add(autorun(r => {
 

@@ -291,7 +291,7 @@ Modes:
 
 	test('should supply mode if applicable', () => {
 		const issueReporterModel = new IssueReporterModel({
-			isUnsupported: true,
+			isInstallationPure: false,
 			restrictedMode: true
 		});
 		assert.strictEqual(issueReporterModel.serialize(),

@@ -39,12 +39,6 @@ export function setup(context: TestContext) {
 		await testServer(entryPoint);
 	});
 
-	context.test('server-web-linux-armhf', ['linux', 'arm32', 'browser'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-armhf-web');
-		const entryPoint = context.getServerEntryPoint(dir);
-		await testServer(entryPoint);
-	});
-
 	context.test('server-web-linux-x64', ['linux', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-x64-web');
 		const entryPoint = context.getServerEntryPoint(dir);
@@ -91,18 +85,20 @@ export function setup(context: TestContext) {
 
 				const url = context.getWebServerUrl(port, token, test.workspaceDir).toString();
 				const browser = await context.launchBrowser();
-				const page = await context.getPage(browser.newPage());
+				try {
+					const page = await context.getPage(browser.newPage());
 
-				context.log(`Navigating to ${url}`);
-				await page.goto(url, { waitUntil: 'networkidle' });
+					context.log(`Navigating to ${url}`);
+					await page.goto(url, { waitUntil: 'networkidle' });
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+					context.log('Waiting for the workbench to load');
+					await page.waitForSelector('.monaco-workbench');
 
-				await test.run(page);
-
-				context.log('Closing browser');
-				await browser.close();
+					await test.run(page);
+				} finally {
+					context.log('Closing browser');
+					await browser.close();
+				}
 
 				test.validate();
 				return true;

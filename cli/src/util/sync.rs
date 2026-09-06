@@ -2,8 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use async_trait::async_trait;
-use std::{marker::PhantomData, sync::Arc};
+use std::{future::Future, marker::PhantomData, pin::Pin, sync::Arc};
 use tokio::sync::{
 	broadcast, mpsc,
 	watch::{self, error::RecvError},
@@ -35,10 +34,9 @@ where
 	}
 }
 
-#[async_trait]
 impl<T: Clone + Send + Sync> Receivable<T> for Barrier<T> {
-	async fn recv_msg(&mut self) -> Option<T> {
-		self.wait().await.ok()
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move { self.wait().await.ok() })
 	}
 }
 
@@ -70,37 +68,35 @@ where
 }
 
 /// Type that can receive messages in an async way.
-#[async_trait]
 pub trait Receivable<T> {
-	async fn recv_msg(&mut self) -> Option<T>;
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>>;
 }
 
 // todo: ideally we would use an Arc in the broadcast::Receiver to avoid having
 // to clone bytes everywhere, requires updating rpc consumers as well.
-#[async_trait]
 impl<T: Clone + Send> Receivable<T> for broadcast::Receiver<T> {
-	async fn recv_msg(&mut self) -> Option<T> {
-		loop {
-			match self.recv().await {
-				Ok(v) => return Some(v),
-				Err(broadcast::error::RecvError::Lagged(_)) => continue,
-				Err(broadcast::error::RecvError::Closed) => return None,
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move {
+			loop {
+				match self.recv().await {
+					Ok(v) => return Some(v),
+					Err(broadcast::error::RecvError::Lagged(_)) => continue,
+					Err(broadcast::error::RecvError::Closed) => return None,
+				}
 			}
-		}
+		})
 	}
 }
 
-#[async_trait]
 impl<T: Send> Receivable<T> for mpsc::UnboundedReceiver<T> {
-	async fn recv_msg(&mut self) -> Option<T> {
-		self.recv().await
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move { self.recv().await })
 	}
 }
 
-#[async_trait]
 impl<T: Send> Receivable<T> for () {
-	async fn recv_msg(&mut self) -> Option<T> {
-		futures::future::pending().await
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move { futures::future::pending().await })
 	}
 }
 
@@ -120,21 +116,22 @@ impl<T: Send, A: Receivable<T>, B: Receivable<T>> ConcatReceivable<T, A, B> {
 	}
 }
 
-#[async_trait]
 impl<T: Send, A: Send + Receivable<T>, B: Send + Receivable<T>> Receivable<T>
 	for ConcatReceivable<T, A, B>
 {
-	async fn recv_msg(&mut self) -> Option<T> {
-		if let Some(left) = &mut self.left {
-			match left.recv_msg().await {
-				Some(v) => return Some(v),
-				None => {
-					self.left = None;
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move {
+			if let Some(left) = &mut self.left {
+				match left.recv_msg().await {
+					Some(v) => return Some(v),
+					None => {
+						self.left = None;
+					}
 				}
 			}
-		}
 
-		return self.right.recv_msg().await;
+			return self.right.recv_msg().await;
+		})
 	}
 }
 
@@ -154,30 +151,31 @@ impl<T: Send, A: Receivable<T>, B: Receivable<T>> MergedReceivable<T, A, B> {
 	}
 }
 
-#[async_trait]
 impl<T: Send, A: Send + Receivable<T>, B: Send + Receivable<T>> Receivable<T>
 	for MergedReceivable<T, A, B>
 {
-	async fn recv_msg(&mut self) -> Option<T> {
-		loop {
-			match (&mut self.left, &mut self.right) {
-				(Some(left), Some(right)) => {
-					tokio::select! {
-						left = left.recv_msg() => match left {
-							Some(v) => return Some(v),
-							None => { self.left = None; continue; },
-						},
-						right = right.recv_msg() => match right {
-							Some(v) => return Some(v),
-							None => { self.right = None; continue; },
-						},
+	fn recv_msg(&mut self) -> Pin<Box<dyn Future<Output = Option<T>> + Send + '_>> {
+		Box::pin(async move {
+			loop {
+				match (&mut self.left, &mut self.right) {
+					(Some(left), Some(right)) => {
+						tokio::select! {
+							left = left.recv_msg() => match left {
+								Some(v) => return Some(v),
+								None => { self.left = None; continue; },
+							},
+							right = right.recv_msg() => match right {
+								Some(v) => return Some(v),
+								None => { self.right = None; continue; },
+							},
+						}
 					}
+					(Some(a), None) => break a.recv_msg().await,
+					(None, Some(b)) => break b.recv_msg().await,
+					(None, None) => break None,
 				}
-				(Some(a), None) => break a.recv_msg().await,
-				(None, Some(b)) => break b.recv_msg().await,
-				(None, None) => break None,
 			}
-		}
+		})
 	}
 }
 

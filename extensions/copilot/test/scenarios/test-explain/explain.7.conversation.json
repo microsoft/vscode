@@ -1,0 +1,16 @@
+[
+    {
+        "question": "/explain",
+        "description": "includes function definitions from same file",
+        "stateFile": "./explain.7.state.json",
+        "keywords": {
+            "allOf": [
+                "Hello, Bob"
+            ],
+            "not": [
+                "Eve",
+                "lambda"
+            ]
+        }
+    }
+]

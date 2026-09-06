@@ -20,18 +20,8 @@
       "description": "%virtualWorkspaces%"
     },
     "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "typescript.tsdk",
-        "js/ts.tsdk.path",
-        "typescript.tsserver.pluginPaths",
-        "js/ts.tsserver.pluginPaths",
-        "typescript.npm",
-        "js/ts.tsserver.npm.path",
-        "typescript.tsserver.nodePath",
-        "js/ts.tsserver.node.path"
-      ]
+      "supported": false,
+      "description": "%workspaceTrust%"
     }
   },
   "engines": {
@@ -53,17 +43,17 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:typescript-language-features",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
-    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
-    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
+    "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -1919,10 +1909,10 @@
             "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
           },
-          "js/ts.suggest.completeJSDocs": {
+          "js/ts.suggest.jsdoc.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "scope": "language-overridable",
             "keywords": [
               "JavaScript",
@@ -1932,14 +1922,14 @@
           "javascript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
@@ -2421,7 +2411,7 @@
           },
           "js/ts.tsserver.node.path": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "scope": "window",
             "keywords": [
               "TypeScript"
@@ -2429,7 +2419,7 @@
           },
           "typescript.tsserver.nodePath": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "markdownDeprecationMessage": "%configuration.tsserver.nodePath.unifiedDeprecationMessage%",
             "scope": "window"
           },
@@ -2556,12 +2546,64 @@
               "TypeScript"
             ]
           },
+          "js/ts.tsserver.diagnosticDir": {
+            "type": "string",
+            "markdownDescription": "%configuration.tsserver.diagnosticDir%",
+            "scope": "machine",
+            "keywords": [
+              "TypeScript",
+              "diagnostic",
+              "memory"
+            ]
+          },
           "typescript.tsserver.maxTsServerMemory": {
             "type": "number",
             "default": 3072,
             "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
             "markdownDeprecationMessage": "%configuration.tsserver.maxTsServerMemory.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.heapSnapshot": {
+            "type": "number",
+            "default": 0,
+            "minimum": 0,
+            "markdownDescription": "%configuration.tsserver.heapSnapshot%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript",
+              "memory",
+              "diagnostics"
+            ]
+          },
+          "js/ts.tsserver.heapProfile": {
+            "type": "object",
+            "default": {
+              "enabled": false
+            },
+            "markdownDescription": "%configuration.tsserver.heapProfile%",
+            "scope": "machine",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "%configuration.tsserver.heapProfile.enabled%"
+              },
+              "dir": {
+                "type": "string",
+                "description": "%configuration.tsserver.heapProfile.dir%"
+              },
+              "interval": {
+                "type": "number",
+                "minimum": 1,
+                "description": "%configuration.tsserver.heapProfile.interval%"
+              }
+            },
+            "keywords": [
+              "TypeScript",
+              "memory",
+              "heap",
+              "profile"
+            ]
           },
           "js/ts.tsserver.watchOptions": {
             "description": "%configuration.tsserver.watchOptions%",
@@ -2835,22 +2877,26 @@
       {
         "command": "typescript.sortImports",
         "title": "%typescript.sortImports%",
-        "category": "TypeScript"
+        "category": "TypeScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "javascript.sortImports",
         "title": "%typescript.sortImports%",
-        "category": "JavaScript"
+        "category": "JavaScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "typescript.removeUnusedImports",
         "title": "%typescript.removeUnusedImports%",
-        "category": "TypeScript"
+        "category": "TypeScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "javascript.removeUnusedImports",
         "title": "%typescript.removeUnusedImports%",
-        "category": "JavaScript"
+        "category": "JavaScript",
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile"
       },
       {
         "command": "typescript.experimental.enableTsgo",
@@ -2921,19 +2967,19 @@
         },
         {
           "command": "typescript.sortImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^typescript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.sortImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^javascript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.sortImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         },
         {
           "command": "typescript.removeUnusedImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^typescript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^typescript(react)?$/"
         },
         {
           "command": "javascript.removeUnusedImports",
-          "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && typescript.isManagedFile && supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
         }
       ],
       "editor/context": [

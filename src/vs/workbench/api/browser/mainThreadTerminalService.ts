@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable, IDisposable, MutableDisposable, combinedDisposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier, TerminalQuickFix, ITerminalCommandDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, TerminalExitReason, TerminalLocation, type IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
+import { IProcessProperty, IProcessReadyWindowsPty, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalOutputMatch, ITerminalOutputMatcher, ProcessPropertyType, remoteResolverTerminal, TerminalExitReason, TerminalLocation, type IProcessPropertyMap } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalLink, ITerminalService } from '../../contrib/terminal/browser/terminal.js';
 import { TerminalProcessExtHostProxy } from '../../contrib/terminal/browser/terminalProcessExtHostProxy.js';
@@ -28,6 +28,10 @@ import { ITerminalCompletionService } from '../../contrib/terminalContrib/sugges
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { hasKey } from '../../../base/common/types.js';
 
+interface TerminalProcessProxyEntry extends IDisposable {
+	readonly proxy: ITerminalProcessExtHostProxy;
+}
+
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService extends Disposable implements MainThreadTerminalServiceShape {
 
@@ -39,10 +43,10 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	 * This comes in play only when dealing with terminals created on the extension host side
 	 */
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
-	private readonly _terminalProcessProxies = new Map<number, { proxy: ITerminalProcessExtHostProxy; store: DisposableStore }>();
-	private readonly _profileProviders = new Map<string, IDisposable>();
-	private readonly _completionProviders = new Map<string, IDisposable>();
-	private readonly _quickFixProviders = new Map<string, IDisposable>();
+	private readonly _terminalProcessProxies = this._register(new DisposableMap<number, TerminalProcessProxyEntry>());
+	private readonly _profileProviders = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _completionProviders = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _quickFixProviders = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _dataEventTracker = this._register(new MutableDisposable<TerminalDataEventTracker>());
 	private readonly _sendCommandEventListener = this._register(new MutableDisposable());
 
@@ -111,29 +115,11 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			});
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
-
-		this._store.add(toDisposable(() => {
-			for (const e of this._terminalProcessProxies.values()) {
-				e.proxy.dispose();
-				e.store.dispose();
-			}
-			this._terminalProcessProxies.clear();
-		}));
-
 		remoteAgentService.getEnvironment().then(async env => {
 			this._os = env?.os || OS;
 			this._updateDefaultProfile();
 		});
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile()));
-
-		this._register(toDisposable(() => {
-			for (const provider of this._profileProviders.values()) {
-				provider.dispose();
-			}
-			for (const provider of this._quickFixProviders.values()) {
-				provider.dispose();
-			}
-		}));
 	}
 
 	private async _updateDefaultProfile() {
@@ -170,6 +156,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			extHostTerminalId,
 			forceShellIntegration: launchConfig.forceShellIntegration,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
+			[remoteResolverTerminal]: launchConfig.isRemoteResolverTerminal || undefined,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 			isTransient: launchConfig.isTransient,
@@ -179,6 +166,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
+				cwd: launchConfig.isRemoteResolverTerminal ? shellLaunchConfig.cwd : undefined,
 				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
@@ -314,8 +302,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterCompletionProvider(id: string): void {
-		this._completionProviders.get(id)?.dispose();
-		this._completionProviders.delete(id);
+		this._completionProviders.deleteAndDispose(id);
 	}
 
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
@@ -328,8 +315,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterProfileProvider(id: string): void {
-		this._profileProviders.get(id)?.dispose();
-		this._profileProviders.delete(id);
+		this._profileProviders.deleteAndDispose(id);
 	}
 
 	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
@@ -370,8 +356,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterQuickFixProvider(id: string): void {
-		this._quickFixProviders.get(id)?.dispose();
-		this._quickFixProviders.delete(id);
+		this._quickFixProviders.deleteAndDispose(id);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {
@@ -399,12 +384,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
-		const proxy = this._terminalProcessProxies.get(terminalInstance.instanceId);
-		if (proxy) {
-			proxy.proxy.dispose();
-			proxy.store.dispose();
-			this._terminalProcessProxies.delete(terminalInstance.instanceId);
-		}
+		this._terminalProcessProxies.deleteAndDispose(terminalInstance.instanceId);
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
@@ -440,7 +420,8 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;
 		const store = new DisposableStore();
-		this._terminalProcessProxies.set(proxy.instanceId, { proxy, store });
+		store.add(proxy);
+		this._terminalProcessProxies.set(proxy.instanceId, { proxy, dispose: () => store.dispose() });
 
 		// Note that onResize is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
@@ -496,6 +477,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
  */
 class TerminalDataEventTracker extends Disposable {
 	private readonly _bufferer: TerminalDataBufferer;
+	private readonly _instanceListeners = this._register(new DisposableMap<number>());
 
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
@@ -509,12 +491,15 @@ class TerminalDataEventTracker extends Disposable {
 			this._registerInstance(instance);
 		}
 		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
-		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			this._bufferer.stopBuffering(instance.instanceId);
+			this._instanceListeners.deleteAndDispose(instance.instanceId);
+		}));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
-		this._register(this._bufferer.startBuffering(instance.instanceId, instance.onData));
+		this._instanceListeners.set(instance.instanceId, this._bufferer.startBuffering(instance.instanceId, instance.onData));
 	}
 }
 

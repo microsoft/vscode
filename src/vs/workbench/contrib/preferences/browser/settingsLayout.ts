@@ -6,6 +6,7 @@
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 export interface ITOCFilter {
 	include?: {
@@ -156,6 +157,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'workbench/screencastmode',
 					label: localize('screencastMode', "Screencast Mode"),
 					settings: ['screencastMode.*']
+				},
+				{
+					id: 'workbench/browser',
+					label: localize('browser', "Browser"),
+					settings: ['workbench.browser.*']
 				}
 			]
 		},
@@ -202,7 +208,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.alternativeToolAction.*',
 						'chat.codeBlock.*',
 						'chat.editing.explainChanges.enabled',
-						'chat.editMode.hidden',
 						'chat.editorAssociations',
 						'chat.extensionUnification.*',
 						'chat.inlineReferences.*',
@@ -232,8 +237,7 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('chatTools', "Tools"),
 					settings: [
 						'chat.tools.*',
-						'chat.extensionTools.*',
-						'chat.edits2.enabled'
+						'chat.extensionTools.*'
 					]
 				},
 				{
@@ -262,7 +266,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*',
 						'chat.useClaudeMdFile'
 					]
 				},
@@ -275,7 +278,7 @@ export const tocData: ITOCEntry<string> = {
 					id: 'chat/miscellaneous',
 					label: localize('chatMiscellaneous', "Miscellaneous"),
 					settings: [
-						'chat.disableAIFeatures',
+						ChatAIDisabledSettingId,
 						'chat.allowAnonymousAccess'
 					]
 				},

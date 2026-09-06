@@ -1,0 +1,5 @@
+#%% vscode.cell [id=CELL_ID_1] [language=python]
+import sys
+
+#%% vscode.cell [id=CELL_ID_0] [language=python]
+print(sys.executable)

@@ -71,6 +71,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
+	private _hasStarted: boolean = false;
 
 	public get pid(): number | null {
 		return this._extensionHost.pid;
@@ -152,6 +153,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 			}
 		);
 		this._proxy.then(() => {
+			this._hasStarted = true;
 			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent, ActivationKind.Normal));
 			this._register(registerLatencyTestProvider({
 				measure: () => this.measure()
@@ -194,6 +196,10 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 			down,
 			up
 		};
+	}
+
+	public get isReady(): boolean {
+		return this._hasStarted;
 	}
 
 	public async ready(): Promise<void> {

@@ -1,0 +1,26 @@
+{
+	"scenario": "Scenario: Send a chat message and verify response",
+	"generatedAt": "2026-03-06T04:23:25.470Z",
+	"steps": [
+		{
+			"description": "Type \"explain the code\" in the chat input",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"explain the code\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify there is a chat response",
+			"commands": [
+				"# ASSERT_VISIBLE: This project has a simple structure with a main entry point and utility functions."
+			]
+		}
+	]
+}

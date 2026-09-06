@@ -63,7 +63,7 @@ const height = 900;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
 
@@ -134,10 +134,32 @@ async function runTestsInBrowser(browserType: BrowserType, browserChannel: Brows
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	const targetUrl = path.extname(testWorkspacePath) === '.code-workspace'
+		? `${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`
+		: `${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`;
+
+	// The server prints "Web UI available at" before its HTTP listener is fully ready to
+	// accept connections on some platforms (notably Windows + Firefox). Retry the initial
+	// navigation a few times on connection-refused errors to avoid spurious test failures.
+	await gotoWithRetry(page, targetUrl);
+}
+
+async function gotoWithRetry(page: playwright.Page, targetUrl: string): Promise<void> {
+	const maxAttempts = 5;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await page.goto(targetUrl);
+			return;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			const isConnectionRefused = /NS_ERROR_CONNECTION_REFUSED|net::ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(message);
+			if (!isConnectionRefused || attempt >= maxAttempts) {
+				throw error;
+			}
+			const delayMs = 500 * attempt;
+			console.log(`page.goto failed with connection refused (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
 	}
 }
 
@@ -155,7 +177,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -169,7 +191,7 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust', '--enable-smoke-test-driver'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
@@ -219,7 +241,7 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 		serverProcess.stdout!.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
-				c({ endpoint: url.parse(matches[1]), server: serverProcess });
+				c({ endpoint: new URL(matches[1]), server: serverProcess });
 			}
 		});
 	});

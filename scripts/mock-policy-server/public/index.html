@@ -1,0 +1,402 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Mock Policy Server</title>
+	<link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+	<header>
+		<div class="header-content">
+			<div class="brand">
+				<h1>Mock Policy Server</h1>
+				<p>Test Copilot policy responses against a local server.</p>
+			</div>
+			<div class="header-actions">
+				<div class="page-nav">
+					<div class="setup-status-group">
+						<button id="setup-nav" type="button" class="setup-trigger" aria-haspopup="dialog"
+							aria-controls="setup-dialog" aria-expanded="false">Setup</button>
+						<div id="global-connection-status" class="global-status" data-state="checking" role="status" aria-live="polite">
+							<span class="status-indicator" aria-hidden="true"></span>
+							<span id="global-connection-label">Checking connection…</span>
+						</div>
+					</div>
+				</div>
+				<button id="theme-toggle" type="button" class="theme-toggle" aria-label="Switch to light mode">
+					<span class="theme-toggle-icon theme-toggle-light" aria-hidden="true">&#9788;</span>
+					<span class="theme-toggle-icon theme-toggle-dark" aria-hidden="true">&#9790;</span>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="app-main">
+		<dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+			<div class="dialog-actions">
+				<button id="close-setup" type="button" class="btn-secondary btn-compact">Close</button>
+			</div>
+			<section id="setup-page" class="setup-page" aria-labelledby="setup-title">
+			<div class="setup-intro">
+				<div>
+					<p class="eyebrow">Connect a client</p>
+					<h2 id="setup-title">Test managed settings in a client</h2>
+					<p class="setup-lede">
+						Learn about <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings" target="_blank" rel="noopener">configuring GitHub Copilot managed settings</a>
+						and review the <a href="https://docs.github.com/en/copilot/reference/enterprise-administrators/enterprise-managed-settings" target="_blank" rel="noopener">managed settings schema and supported agent policy keys</a>.
+					</p>
+				</div>
+			</div>
+
+			<fieldset class="delivery-picker">
+				<legend>Delivery mechanism</legend>
+				<div class="delivery-options">
+					<label id="setup-method-proxy-option" class="delivery-option" for="setup-method-proxy" data-selected="true">
+						<input id="setup-method-proxy" type="radio" name="setup-method" value="proxy"
+							aria-expanded="true" aria-controls="proxy-method-content" checked>
+						<span class="delivery-option-copy">
+							<strong>Mock Server API</strong>
+							<span>Route client requests to this server through an HTTPS rewriting proxy.</span>
+						</span>
+						<span class="method-badge">Recommended</span>
+					</label>
+					<label id="setup-method-file-option" class="delivery-option" for="setup-method-file" data-selected="false">
+						<input id="setup-method-file" type="radio" name="setup-method" value="file"
+							aria-expanded="false" aria-controls="file-method-content">
+						<span class="delivery-option-copy">
+							<strong>File-based</strong>
+							<span>Deploy <code>managed-settings.json</code> directly to a local client.</span>
+						</span>
+						<span class="method-badge secondary">No proxy</span>
+					</label>
+				</div>
+			</fieldset>
+
+			<div class="setup-methods">
+				<article id="proxy-method" class="setup-method recommended" data-selected="true">
+					<div class="method-heading">
+						<div class="method-copy">
+							<h3>System proxy</h3>
+							<span class="method-recommendation">Any HTTPS rewriting proxy works. <a href="https://proxyman.com/" target="_blank" rel="noopener noreferrer">Proxyman</a> is recommended.</span>
+							<p class="method-description">Routes policy requests from VS Code, Copilot CLI, and SDK clients to this server.</p>
+						</div>
+						<div class="method-status">
+							<div id="proxy-status" class="status-pill" data-state="checking" role="status" aria-live="polite">Checking…</div>
+							<p id="proxy-check-detail">Waiting for the automatic connection check.</p>
+						</div>
+					</div>
+
+					<div id="proxy-method-content" class="method-content">
+						<ol class="setup-steps">
+							<li>
+								<div class="step-number" aria-hidden="true">1</div>
+								<div class="step-content">
+									<h4>Configure the system proxy</h4>
+									<p>Configure an HTTPS rewrite from the managed settings URL to this local server. In Proxyman, create a Map Remote rule using these values.</p>
+									<div class="mapping-grid">
+										<div class="code-field">
+											<span class="label-small">Map from</span>
+											<code id="map-from" class="block"></code>
+										</div>
+										<div class="mapping-arrow" aria-hidden="true">→</div>
+										<div class="code-field">
+											<span class="label-small">Map to</span>
+											<code id="map-to" class="block"></code>
+										</div>
+									</div>
+									<button id="copy-map" type="button" class="btn-secondary">Copy Mapping</button>
+									<details data-persist-expanded="proxy-tips">
+										<summary>Proxyman tips</summary>
+										<ul>
+											<li>Keep the source and destination paths identical.</li>
+											<li>If HTTPS requests do not appear, install and trust Proxyman's certificate.</li>
+										</ul>
+										<div class="platform-tips">
+											<section>
+												<h5>macOS</h5>
+												<ul>
+													<li>Turn on <code>Tools &gt; macOS Proxy</code> before checking the connection.</li>
+												</ul>
+											</section>
+											<section>
+												<h5>Windows</h5>
+												<ul>
+													<li>Turn on <code>Tools &gt; Override Windows Proxy</code> before checking the connection. Proxyman still shows its listening port while this is off, but Windows leaves system proxying disabled, so clients connect directly and no requests are captured.</li>
+													<li>Confirm Windows picked up the change: <code>ProxyEnable</code> should be <code>1</code> and <code>ProxyServer</code> should be Proxyman's host and port under <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings</code>.</li>
+												</ul>
+											</section>
+										</div>
+									</details>
+									<div class="required-setting">
+										<p><strong>Required for VS Code:</strong> add this property inside the client's <code>settings.json</code>.</p>
+										<div class="code-field">
+											<span class="label-small">VS Code settings.json property</span>
+											<code id="proxy-settings" class="block settings-json"></code>
+										</div>
+										<button id="copy-proxy-settings" type="button" class="btn-secondary">Copy Setting Property</button>
+									</div>
+								</div>
+							</li>
+							<li>
+								<div class="step-number" aria-hidden="true">2</div>
+								<div class="step-content">
+									<h4>Request fresh policy in VS Code</h4>
+									<p>Run <code>&gt; Developer: Sync Account Policy</code>. For Local Agent Host, also run <code>&gt; Developer: Restart Local Agent Host</code>.</p>
+									<p class="helper-text">If no request appears under Live Requests on the Policies page, open Troubleshooting in the right sidebar, clear the SDK policy cache for your platform, and then run the commands again.</p>
+								</div>
+							</li>
+							<li>
+								<div class="step-number" aria-hidden="true">3</div>
+								<div class="step-content">
+									<h4>Filter responses in your proxy <span class="optional-label">Optional</span></h4>
+									<p>Use this display filter to show only real policy requests:</p>
+									<code class="block setup-filter">^(?!.*mockPolicySetupProbe).*managed_settings.*</code>
+									<p class="helper-text">Keep probes in the Map Remote rule; filter only the displayed traffic.</p>
+								</div>
+							</li>
+						</ol>
+						<aside class="setup-warning" aria-labelledby="setup-probe-title">
+							<h4 id="setup-probe-title" class="setup-warning-title">
+								<span aria-hidden="true">&#x26A0;</span> Automatic probe requests are expected
+							</h4>
+							<div class="setup-warning-content">
+								<p>This page sends an unauthenticated request every five seconds:</p>
+								<code id="setup-probe-shape" class="block"></code>
+								<p>The probe uses the same proxy mapping and drives the connection status. It is excluded from Live Requests.</p>
+							</div>
+						</aside>
+					</div>
+				</article>
+
+				<article id="file-method" class="setup-method alternative" data-selected="false" hidden inert>
+					<div class="method-heading">
+						<div class="method-copy">
+							<h3>File-based settings</h3>
+							<p class="method-description">Deploy <code>managed-settings.json</code> directly to a local client. It loads from disk without a proxy or server request.</p>
+						</div>
+						<div class="method-status">
+							<p>Not detectable from here. Deploy the file, restart the client, then verify inside the client.</p>
+						</div>
+					</div>
+
+					<div id="file-method-content" class="method-content" hidden inert>
+						<ol class="setup-steps compact">
+							<li>
+								<div class="step-number" aria-hidden="true">1</div>
+								<div class="step-content">
+									<h4>Write the policy file</h4>
+									<p>On the Policies page, edit the Managed Settings response body, then copy the command for the client platform from <strong>File Deployment</strong> and run it in a terminal.</p>
+									<button id="file-deploy-goto" type="button" class="btn-secondary">Go to Deploy as a File</button>
+									<details data-persist-expanded="file-locations">
+										<summary>File locations</summary>
+										<ul>
+											<li>macOS: <code>/Library/Application Support/GitHubCopilot/managed-settings.json</code></li>
+											<li>Windows: <code>%ProgramFiles%\GitHubCopilot/managed-settings.json</code></li>
+											<li>Linux: <code>/etc/github-copilot/managed-settings.json</code></li>
+										</ul>
+										<p>On macOS and Linux, Copilot CLI requires a regular file owned by <code>root</code> that is not group- or world-writable, so the copied command uses <code>sudo</code>.</p>
+									</details>
+								</div>
+							</li>
+							<li>
+								<div class="step-number" aria-hidden="true">2</div>
+								<div class="step-content">
+									<h4>Reload the client</h4>
+									<p>Restart the client so it loads the file, or in VS Code run <code>&gt; Developer: Sync Account Policy</code>. File-based settings persist across accounts and don't expire like the SDK policy cache.</p>
+									<p class="helper-text">Use this to avoid proxying entirely, or deploy it alongside a server-managed response to test precedence. <a href="https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings" target="_blank" rel="noopener">Deploying file-based settings</a></p>
+								</div>
+							</li>
+						</ol>
+					</div>
+				</article>
+			</div>
+
+			</section>
+		</dialog>
+
+		<section id="policies-page" class="policies-page" aria-labelledby="policies-title">
+			<h2 id="policies-title" class="sr-only" tabindex="-1">Policy Editor</h2>
+			<div class="policies-layout">
+				<section class="editor-panel">
+					<div class="tabs-header">
+						<nav id="tabs" class="tabs" aria-label="Policy endpoints"></nav>
+					</div>
+
+					<div class="content-section">
+						<p id="endpoint-meta" class="endpoint-meta"></p>
+
+						<div class="form-group">
+							<label for="response-mode">Response behavior</label>
+							<select id="response-mode">
+								<option value="json">JSON response</option>
+								<option value="malformed-json">Malformed JSON</option>
+								<option value="disconnect">Disconnect without response</option>
+								<option value="timeout">No response (client timeout)</option>
+							</select>
+						</div>
+
+						<div id="response-configuration" class="response-configuration">
+							<div class="form-group">
+								<label for="preset">Preset</label>
+								<select id="preset"></select>
+							</div>
+
+							<div class="form-group">
+								<label for="response-status">HTTP status code</label>
+								<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
+									inputmode="numeric" aria-describedby="response-status-validation">
+								<p id="response-status-validation" class="status" aria-live="polite"></p>
+							</div>
+
+							<div class="form-group">
+								<div class="label-row">
+									<label for="editor">Response body (JSON)</label>
+									<div class="editor-toolbar">
+										<button id="format-editor" type="button" class="btn-link" aria-keyshortcuts="Alt+Shift+F"
+											title="Format JSON (Alt+Shift+F)">Format JSON</button>
+										<span id="save-state" class="save-state" aria-live="polite"></span>
+									</div>
+								</div>
+								<textarea id="editor" spellcheck="false" autocomplete="off"
+									aria-describedby="editor-status"
+									aria-keyshortcuts="Tab Shift+Tab Alt+Shift+F Escape"></textarea>
+								<p id="editor-status" class="status" aria-live="polite"></p>
+								<div id="validation-results" hidden></div>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<aside class="sidebar-panel">
+					<div id="schema-section" class="section-block" hidden>
+						<h2 class="schema-heading">
+							<button type="button" class="section-header section-header-toggle" id="schema-toggle"
+								aria-expanded="false" aria-controls="schema-details">
+								<span class="chevron" id="schema-chevron" aria-hidden="true">&#9654;</span>
+								<span>Schema</span>
+								<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
+							</button>
+						</h2>
+						<div id="schema-details" class="schema-details" hidden>
+							<form id="schema-source-form" class="schema-source-form">
+								<div class="schema-source-label-row">
+									<label class="label-small" for="schema-source">Schema source</label>
+									<div class="info-tooltip-container">
+										<button type="button" class="info-button" aria-label="About the schema source"
+											aria-describedby="schema-source-tooltip">i</button>
+										<div id="schema-source-tooltip" class="info-tooltip" role="tooltip">
+											Point this to <code>schema/managed-settings-schema.json</code> from the <code>github/copilot-agent-runtime</code> repository. You can use a path from a local checkout, a <code>file:</code> URI, or an HTTP(S) URL.
+										</div>
+									</div>
+								</div>
+								<div class="schema-source-controls">
+									<input id="schema-source" class="schema-source-input" type="text" autocomplete="off"
+										spellcheck="false" aria-describedby="schema-source-status">
+									<button id="load-schema" type="submit" class="btn-secondary btn-compact"
+										title="Load schema from this source">Load</button>
+								</div>
+								<p id="schema-source-status" class="status" aria-live="polite"></p>
+							</form>
+							<button id="hydrate-schema" type="button" class="btn-secondary btn-compact"
+								title="Replace the response body with generated values for every schema field">Fill All Schema Fields</button>
+						</div>
+					</div>
+					<div class="section-block">
+						<div class="section-header">
+							<h2 id="live-requests-title">Live Requests</h2>
+							<button id="clear-log" type="button" class="btn-link">Clear</button>
+						</div>
+						<p id="log-empty" class="helper-text">No requests yet.</p>
+						<ul id="log" class="log" aria-labelledby="live-requests-title"></ul>
+					</div>
+					<details id="troubleshooting-section" class="section-block troubleshooting-section" data-persist-expanded="troubleshooting" hidden>
+						<summary class="section-header">
+							<span class="section-title">Troubleshooting</span>
+							<span class="troubleshooting-chevron" aria-hidden="true">&#x25B6;</span>
+						</summary>
+						<div class="troubleshooting-content">
+							<div class="section-header troubleshooting-content-header">
+								<h3>Clear SDK policy cache</h3>
+								<div class="info-tooltip-container">
+									<button type="button" class="info-button" aria-label="About the SDK policy cache"
+										aria-describedby="policy-cache-tooltip">i</button>
+									<div id="policy-cache-tooltip" class="info-tooltip" role="tooltip">
+										The Copilot SDK maintains its own managed-settings cache outside of VS Code. If a client keeps using stale policy or no policy request appears in Live Requests, run the command for its platform to delete that SDK cache file, then request policy again. These commands do not delete VS Code settings or the deployed <code>managed-settings.json</code> file.
+									</div>
+								</div>
+							</div>
+							<details class="cache-platform" data-persist-expanded="cache-macos">
+								<summary>macOS</summary>
+								<code id="macos-cache-command" class="block cache-command"></code>
+								<button id="copy-macos-cache-command" type="button" class="btn-secondary">Copy macOS Command</button>
+							</details>
+							<details class="cache-platform" data-persist-expanded="cache-windows">
+								<summary>Windows (PowerShell)</summary>
+								<code id="windows-cache-command" class="block cache-command"></code>
+								<button id="copy-windows-cache-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
+							</details>
+						</div>
+					</details>
+					<div id="file-deploy-section" class="section-block file-deploy-section" hidden>
+						<div class="section-header file-deploy-header">
+							<h2>File Deployment</h2>
+							<div class="info-tooltip-container">
+								<button type="button" class="info-button" aria-label="About File Deployment"
+									aria-describedby="file-deploy-tooltip">i</button>
+								<div id="file-deploy-tooltip" class="info-tooltip" role="tooltip">
+									Generate a ready-to-run command that deploys the current JSON as file-based Managed Settings in the correct location for your operating system. Commands update automatically as you edit the response. Run <strong>Install or update</strong> in an elevated terminal, then restart the client. Run <strong>Remove</strong> to unset the file-based policy. See <strong>Setup</strong> to learn when to use this delivery method.
+								</div>
+							</div>
+						</div>
+						<div id="file-deploy-details" class="file-deploy-details">
+							<div id="file-deploy-commands" class="file-deploy-commands">
+								<details class="file-deploy-platform" data-persist-expanded="deploy-macos">
+									<summary>macOS</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="macos-file-command" class="block file-deploy-command"></code>
+									<button id="copy-macos-file-command" type="button" class="btn-secondary">Copy macOS Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="macos-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-macos-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+								<details class="file-deploy-platform" data-persist-expanded="deploy-windows">
+									<summary>Windows (PowerShell)</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="windows-file-command" class="block file-deploy-command"></code>
+									<button id="copy-windows-file-command" type="button" class="btn-secondary">Copy PowerShell Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="windows-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-windows-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+								<details class="file-deploy-platform" data-persist-expanded="deploy-linux">
+									<summary>Linux</summary>
+									<span class="label-small file-deploy-command-label">Install or update</span>
+									<code id="linux-file-command" class="block file-deploy-command"></code>
+									<button id="copy-linux-file-command" type="button" class="btn-secondary">Copy Linux Command</button>
+									<span class="label-small file-deploy-command-label">Remove</span>
+									<code id="linux-file-remove-command" class="block file-deploy-command"></code>
+									<button id="copy-linux-file-remove-command" type="button" class="btn-secondary">Copy Remove Command</button>
+								</details>
+							</div>
+							<p id="file-deploy-hint" class="helper-text" hidden>Enter a valid JSON body to generate the deploy commands.</p>
+						</div>
+					</div>
+				</aside>
+			</div>
+		</section>
+	</main>
+
+	<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+	<script src="./endpoints.js"></script>
+	<script src="./app.js"></script>
+</body>
+
+</html>

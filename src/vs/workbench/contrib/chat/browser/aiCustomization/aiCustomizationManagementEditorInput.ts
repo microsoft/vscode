@@ -6,23 +6,31 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IUntypedEditorInput } from '../../../../common/editor.js';
+import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
  * This is a singleton-style input with no file resource.
  */
-export class AICustomizationManagementEditorInput extends EditorInput {
+export class AICustomizationManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
 	readonly resource = undefined;
 
-	private static _instance: AICustomizationManagementEditorInput | undefined;
+	private _isDirty = false;
+	private _saveHandler?: () => Promise<boolean>;
+	private _harnessLabel: string | undefined;
+	private _workspaceLabel: string | undefined;
 
-	private _sectionLabel: string | undefined;
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
+	}
+
+	private static _instance: AICustomizationManagementEditorInput | undefined;
 
 	/**
 	 * Gets or creates the singleton instance of this input.
@@ -47,27 +55,71 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		if (this._sectionLabel) {
-			return localize('aiCustomizationManagementEditorNameWithSection', "Customizations: {0}", this._sectionLabel);
-		}
-		return localize('aiCustomizationManagementEditorName', "Customizations");
+		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
-	/**
-	 * Updates the section label shown in the editor tab title.
-	 */
-	setSectionLabel(label: string): void {
-		if (this._sectionLabel !== label) {
-			this._sectionLabel = label;
-			this._onDidChangeLabel.fire();
+	override getDescription(): string | undefined {
+		if (this._harnessLabel && this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithHarnessAndWorkspace', "({0} · {1})", this._harnessLabel, this._workspaceLabel);
 		}
+		if (this._harnessLabel || this._workspaceLabel) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", this._harnessLabel ?? this._workspaceLabel);
+		}
+		return undefined;
 	}
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
 	}
 
+	override getLabelExtraClasses(): string[] {
+		return ['ai-customization-management-editor-label'];
+	}
+
+	getModalEditorOptions(): IModalEditorOptions {
+		return { compactHeader: true };
+	}
+
 	override async resolve(): Promise<null> {
 		return null;
+	}
+
+	override isDirty(): boolean {
+		return this._isDirty;
+	}
+
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+		if (options?.reason !== undefined && options.reason !== SaveReason.EXPLICIT) {
+			return undefined;
+		}
+		if (this._saveHandler) {
+			const saved = await this._saveHandler();
+			return saved ? this : undefined;
+		}
+		return undefined;
+	}
+
+	override async revert(): Promise<void> {
+		this.setDirty(false);
+	}
+
+	setDirty(dirty: boolean): void {
+		if (this._isDirty !== dirty) {
+			this._isDirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
+		this._saveHandler = handler;
+	}
+
+	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string): void {
+		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel) {
+			return;
+		}
+		this._harnessLabel = harnessLabel;
+		this._workspaceLabel = workspaceLabel;
+		this._onDidChangeLabel.fire();
 	}
 }

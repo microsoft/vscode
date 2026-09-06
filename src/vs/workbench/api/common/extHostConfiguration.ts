@@ -125,6 +125,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	$initializeConfiguration(data: IConfigurationInitData): void {
 		this._actual = new ExtHostConfigProvider(this._proxy, this._extHostWorkspace, data, this._logService);
+		// Push the config provider into ExtHostWorkspace so it can read settings synchronously
+		// (DI cycle: ExtHostConfiguration depends on ExtHostWorkspace, so we cannot inject the reverse).
+		this._extHostWorkspace.$setConfigProvider(this._actual);
 		this._barrier.open();
 	}
 

@@ -95,7 +95,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			return this._userInteractionService.createHoverTracker(elem.element, reader.store).read(reader);
 		});
 		this._renderTextEffect = derived(this, _reader => {
-			const tm = this._editor.model.get()!;
+			const tm = this._editor.model.read(undefined);
+			if (!tm) { return; }
 			const origLine = tm.getLineContent(this._viewData.edit.range.startLineNumber);
 
 			const edit = StringReplacement.replace(new OffsetRange(this._viewData.edit.range.startColumn - 1, this._viewData.edit.range.endColumn - 1), this._viewData.edit.text);
@@ -124,6 +125,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			}
 
 			const lineHeight = modifiedLineHeight.read(reader);
+			if (lineHeight <= 0) {
+				return undefined;
+			}
 			const scrollLeft = this._editor.scrollLeft.read(reader);
 			const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 

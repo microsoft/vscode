@@ -38,6 +38,7 @@
 	height: 100%;
 	align-items: center;
 	flex-flow: nowrap;
+	box-shadow: var(--vscode-shadow-sm);
 }
 
 .scm-view.hide-provider-counts .scm-provider > .count,
@@ -262,7 +263,7 @@
 }
 
 .scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-description {
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .scm-view .monaco-list-row .history-item > .actions {

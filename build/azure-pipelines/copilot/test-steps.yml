@@ -1,0 +1,56 @@
+parameters:
+  - name: runIntegrationTests
+    type: boolean
+    default: true
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'VS Code Development WIF'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: npm run setup
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Setup copilot test environment
+
+  - script: npm run setup:dotnet
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Install dotnet cli
+
+  - script: npm run typecheck
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Typecheck
+
+  - script: npm run lint
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Lint
+
+  - script: npm run compile
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Compile
+
+  - script: npm run test:unit
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run vitest unit tests
+
+  - script: npm run simulate-ci
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run simulation tests
+
+  - ${{ if eq(parameters.runIntegrationTests, true) }}:
+    - script: xvfb-run -a npm run test:extension
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run extension tests
+
+  - script: npm run test:prompt
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run prompt tests
+
+  - ${{ if eq(parameters.runIntegrationTests, true) }}:
+    - script: xvfb-run -a npm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run completions core tests
+
+    - script: xvfb-run -a npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run sanity tests

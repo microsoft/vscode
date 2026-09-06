@@ -706,6 +706,20 @@ suite('Configuration Resolver Service', () => {
 		});
 	});
 
+	test('contributed taskVar variable', () => {
+		const url = 'http://localhost:5678';
+		const variable = 'taskVar:componentExplorerUrl';
+		const configuration = {
+			'url': '${taskVar:componentExplorerUrl}/___explorer',
+		};
+		configurationResolverService!.contributeVariable(variable, async () => { return url; });
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
+			assert.deepStrictEqual({ ...result }, {
+				'url': `${url}/___explorer`
+			});
+		});
+	});
+
 	test('resolveWithEnvironment', async () => {
 		const env = {
 			'VAR_1': 'VAL_1',
@@ -795,6 +809,9 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+	getUriHome(): undefined {
+		return undefined;
+	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}

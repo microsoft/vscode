@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, HeadersReceivedResponse, OnBeforeSendHeadersListenerDetails, OnHeadersReceivedListenerDetails } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, CallbackResponse, Event, HeadersReceivedResponse, OnBeforeRequestListenerDetails, OnBeforeSendHeadersListenerDetails, OnHeadersReceivedListenerDetails, WebContentsWillFrameNavigateEventParams } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 
@@ -51,6 +54,7 @@ export class WebPageLoader extends Disposable {
 	private readonly _idleDebounceTimer = this._register(new TimeoutTimer());
 	private _onResult = (_result: WebContentExtractResult) => { };
 	private _didFinishLoad = false;
+	private _receivedMarkdown = false;
 
 	constructor(
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -58,6 +62,7 @@ export class WebPageLoader extends Disposable {
 		private readonly _uri: URI,
 		private readonly _options: IWebContentExtractorOptions | undefined,
 		private readonly _isTrustedDomain: (uri: URI) => boolean,
+		private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 
@@ -76,6 +81,8 @@ export class WebPageLoader extends Disposable {
 
 		this._register(toDisposable(() => this._window.destroy()));
 
+		this._window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
 		this._debugger = this._window.webContents.debugger;
 		this._debugger.attach('1.1');
 		this._debugger.on('message', this.onDebugMessage.bind(this));
@@ -84,9 +91,13 @@ export class WebPageLoader extends Disposable {
 			.once('did-start-loading', this.onStartLoading.bind(this))
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
+			.on('will-frame-navigate', this.onFrameNavigate.bind(this))
 			.on('will-navigate', this.onRedirect.bind(this))
 			.on('will-redirect', this.onRedirect.bind(this))
 			.on('select-client-certificate', (event) => event.preventDefault());
+
+		this._window.webContents.session.webRequest.onBeforeRequest(
+			this.onBeforeRequest.bind(this));
 
 		this._window.webContents.session.webRequest.onBeforeSendHeaders(
 			this.onBeforeSendHeaders.bind(this));
@@ -149,6 +160,39 @@ export class WebPageLoader extends Disposable {
 		}, time);
 	}
 
+	private getUriPolicyError(url: string): string | undefined {
+		let uri: URI;
+		try {
+			uri = URI.parse(url, true);
+		} catch {
+			return localize('webPageLoader.invalidUri', "Navigation to an invalid URI is not allowed.");
+		}
+
+		if (uri.scheme === Schemas.http || uri.scheme === Schemas.https || uri.scheme === 'ws' || uri.scheme === 'wss') {
+			return this._agentNetworkFilterService.isUriAllowed(uri)
+				? undefined
+				: this._agentNetworkFilterService.formatError(uri);
+		}
+
+		if (
+			(uri.scheme === 'about' && uri.path === 'blank') ||
+			uri.scheme === Schemas.data ||
+			uri.scheme === 'blob'
+		) {
+			return undefined;
+		}
+
+		return localize('webPageLoader.unsupportedUriScheme', "Navigation to the '{0}' URI scheme is not allowed.", uri.scheme);
+	}
+
+	private onBeforeRequest(details: OnBeforeRequestListenerDetails, callback: (response: CallbackResponse) => void): void {
+		const error = this.getUriPolicyError(details.url);
+		if (error) {
+			this.trace(`Blocking request to ${details.url}: ${error}`);
+		}
+		callback({ cancel: !!error });
+	}
+
 	/**
 	 * Updates HTTP headers for each web request.
 	 */
@@ -158,6 +202,12 @@ export class WebPageLoader extends Disposable {
 		// Request privacy for web-sites that respect these.
 		headers['DNT'] = '1';
 		headers['Sec-GPC'] = '1';
+
+		// For the main document request, prefer markdown responses from sites that
+		// support agent-friendly content negotiation (e.g. Microsoft Learn, Cloudflare docs).
+		if (details.resourceType === 'mainFrame') {
+			headers['Accept'] = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
+		}
 
 		callback({ requestHeaders: headers });
 	}
@@ -182,6 +232,14 @@ export class WebPageLoader extends Disposable {
 				}
 				if (lowerName === 'content-type') {
 					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			// Track whether the current main-frame response is markdown (redirects can change content-type)
+			if (details.resourceType === 'mainFrame') {
+				this._receivedMarkdown = contentType?.split(';')[0].trim() === 'text/markdown';
+				if (this._receivedMarkdown) {
+					this.trace('Received text/markdown response, will extract document text content directly');
 				}
 			}
 
@@ -279,9 +337,17 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
-		if (!this._options?.followRedirects) {
-			const toURI = URI.parse(url);
 
+		const policyError = this.getUriPolicyError(url);
+		if (policyError) {
+			this.trace(`Blocking navigation to ${url}: ${policyError}`);
+			event.preventDefault();
+			this._onResult({ status: 'error', error: policyError });
+			return;
+		}
+
+		const toURI = URI.parse(url);
+		if (!this._options?.followRedirects) {
 			// Allow redirect if authority is the same when ignoring www prefix
 			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
 				return;
@@ -302,6 +368,14 @@ export class WebPageLoader extends Disposable {
 			// Otherwise, prevent redirect and report it
 			event.preventDefault();
 			this._onResult({ status: 'redirect', toURI });
+		}
+	}
+
+	private onFrameNavigate(details: Event<WebContentsWillFrameNavigateEventParams>): void {
+		const policyError = this.getUriPolicyError(details.url);
+		if (policyError) {
+			this.trace(`Blocking frame navigation to ${details.url}: ${policyError}`);
+			details.preventDefault();
 		}
 	}
 
@@ -420,6 +494,14 @@ export class WebPageLoader extends Disposable {
 			const cts = new CancellationTokenSource();
 			try {
 				await raceTimeout((async () => {
+					// If the server returned text/markdown, the document is already plain text.
+					// Extract it directly from the document instead of running accessibility/DOM heuristics.
+					if (this._receivedMarkdown) {
+						this.trace('Extracting markdown text content from document');
+						result = await this._window.webContents.executeJavaScript('document.body?.textContent ?? document.documentElement?.textContent ?? ""') ?? '';
+						return;
+					}
+
 					if (!cts.token.isCancellationRequested) {
 						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
 					}
@@ -474,9 +556,16 @@ export class WebPageLoader extends Disposable {
 				return undefined;
 			}
 
-			const frameNodes = [frameTree];
-			for (let i = 0; i < frameNodes.length; i++) {
-				frameNodes.push(...frameNodes[i].childFrames ?? []);
+			const frameNodes: FrameTreeNode[] = [];
+			const pendingFrameNodes = [frameTree];
+			for (let i = 0; i < pendingFrameNodes.length; i++) {
+				const frameNode = pendingFrameNodes[i];
+				if (frameNode.frame.url && this.getUriPolicyError(frameNode.frame.url)) {
+					this.trace(`Skipping blocked frame content from ${frameNode.frame.url}`);
+					continue;
+				}
+				frameNodes.push(frameNode);
+				pendingFrameNodes.push(...frameNode.childFrames ?? []);
 			}
 
 			// Collect accessibility nodes from all frames

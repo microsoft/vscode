@@ -90,6 +90,10 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 		return actual;
 	}
 
+	public get isReady(): boolean {
+		return this._startCalled.isOpen() && (this._actual?.isReady ?? false);
+	}
+
 	public async ready(): Promise<void> {
 		await this._startCalled.wait();
 		if (this._actual) {

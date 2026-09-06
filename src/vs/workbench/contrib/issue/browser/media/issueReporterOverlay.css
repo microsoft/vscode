@@ -1,0 +1,1856 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Issue Reporter - Wizard UI (editor tab mode).
+ * The wizard renders inside an editor pane container.
+ * A floating capture bar appears on step 3.
+ */
+
+/* Wizard Panel - renders inside the editor tab */
+.issue-reporter-wizard {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	max-height: none;
+	overflow: visible;
+	height: 100%;
+	background: var(--vscode-editor-background, #1e1e1e);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
+	font-size: 13px;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.issue-reporter-wizard .wizard-toolbar {
+	-webkit-app-region: no-drag;
+}
+
+.issue-reporter-wizard .wizard-update-banner {
+	padding: 8px 16px;
+	text-align: center;
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-step-container {
+	flex: 1;
+	overflow: auto;
+}
+
+/* VS Code styled scrollbars for any scrollable region in the wizard */
+.issue-reporter-wizard *::-webkit-scrollbar,
+.issue-reporter-wizard ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-corner,
+.issue-reporter-wizard ::-webkit-scrollbar-corner,
+.issue-reporter-wizard *::-webkit-scrollbar-track,
+.issue-reporter-wizard ::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+	border-radius: 0;
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb:hover,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.issue-reporter-wizard *::-webkit-scrollbar-thumb:active,
+.issue-reporter-wizard ::-webkit-scrollbar-thumb:active {
+	background: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+}
+
+.issue-reporter-editor-tab {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.issue-reporter-editor-tab,
+.issue-reporter-editor-tab:focus,
+.issue-reporter-editor-tab:focus-visible,
+.issue-reporter-wizard:focus,
+.issue-reporter-wizard:focus-visible {
+	outline: none !important;
+}
+
+/* Floating Capture Bar (debug toolbar style) */
+.issue-reporter-floating-bar {
+	position: fixed;
+	top: 35px;
+	right: 30%;
+	z-index: 2520;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px 2px;
+	border-radius: var(--vscode-cornerRadius-large, 6px);
+	background: var(--vscode-debugToolBar-background);
+	border: 1px solid var(--vscode-debugToolBar-border, transparent);
+	box-shadow: var(--vscode-shadow-lg, 0 2px 8px rgba(0, 0, 0, 0.2));
+	-webkit-app-region: no-drag;
+	user-select: none;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	/* Lock against compression — the bar's width is determined by its content
+	and stays constant as the window resizes. Position-clamping (in JS)
+	handles keeping it inside the viewport. */
+	flex-shrink: 0;
+	white-space: nowrap;
+	width: max-content;
+	max-width: none;
+}
+
+.issue-reporter-floating-bar * {
+	flex-shrink: 0;
+}
+
+.issue-reporter-floating-bar .wizard-floating-drag {
+	cursor: grab;
+	width: 20px;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.issue-reporter-floating-bar .wizard-floating-drag.dragged {
+	cursor: grabbing;
+}
+
+.issue-reporter-floating-bar .wizard-nav-btn {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 10px;
+	font-size: 12px;
+	line-height: 1;
+}
+
+.issue-reporter-floating-bar .monaco-button {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	font-size: 12px;
+	line-height: 1;
+	width: auto;
+	flex: none;
+	height: 26px;
+	box-sizing: border-box;
+}
+
+.issue-reporter-floating-bar .wizard-nav-btn > * {
+	display: flex;
+	align-items: center;
+}
+
+.issue-reporter-floating-bar .wizard-floating-delay {
+	height: 24px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-input-border, #555);
+	border-radius: 4px;
+	background: var(--vscode-input-background, #3c3c3c);
+	color: var(--vscode-input-foreground, #ccc);
+	font-size: 12px;
+	cursor: pointer;
+	outline: none;
+}
+
+/* Segmented screenshot button */
+.issue-reporter-floating-bar .wizard-segmented-btn {
+	display: flex;
+	align-items: stretch;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.issue-reporter-floating-bar .wizard-segmented-main {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 10px;
+	cursor: pointer;
+	font-size: 12px;
+	border-radius: 4px 0 0 4px;
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	border: 1px solid var(--vscode-button-background, #0e639c);
+	border-right: none;
+	height: 26px;
+	box-sizing: border-box;
+}
+
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main {
+	display: inline-flex;
+	width: auto;
+	flex: 0 0 auto;
+	padding: 4px 10px;
+	height: 26px;
+	border-radius: 4px 0 0 4px;
+	border-right: none !important;
+	font-size: 12px;
+	line-height: 18px;
+	min-width: 0;
+	position: relative;
+}
+
+/* Thin white divider between the two segments */
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background: rgba(255, 255, 255, 0.3);
+}
+
+.issue-reporter-floating-bar .wizard-segmented-main:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.issue-reporter-floating-bar .wizard-segmented-main.disabled:hover {
+	background: var(--vscode-button-background, #0e639c);
+}
+
+.issue-reporter-floating-bar .wizard-segmented-main > * {
+	display: flex;
+	align-items: center;
+}
+
+.issue-reporter-floating-bar .wizard-segmented-dropdown {
+	display: flex;
+	align-items: center;
+	padding: 4px 4px;
+	cursor: pointer;
+	border-radius: 0 4px 4px 0;
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	border: 1px solid var(--vscode-button-background, #0e639c);
+	border-left: 1px solid rgba(255, 255, 255, 0.2);
+	height: 26px;
+	box-sizing: border-box;
+}
+
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-dropdown {
+	display: inline-flex;
+	width: auto;
+	flex: 0 0 auto;
+	padding: 4px 6px;
+	height: 26px;
+	border-radius: 0 4px 4px 0;
+	border-left: none !important;
+	min-width: 0;
+}
+
+.issue-reporter-floating-bar .wizard-segmented-dropdown:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.issue-reporter-floating-bar .wizard-segmented-dropdown.disabled:hover {
+	background: var(--vscode-button-background, #0e639c);
+}
+
+.issue-reporter-floating-bar .wizard-segmented-dropdown > * {
+	display: flex;
+	align-items: center;
+}
+
+/* Dim screenshot button in floating bar during recording (keep drag handle interactive) */
+/* Only dimmed via JS disabled class at N-1 attachments */
+
+/* Disabled state for segmented buttons when max attachments reached */
+.issue-reporter-floating-bar .wizard-segmented-main.disabled,
+.issue-reporter-floating-bar .wizard-segmented-dropdown.disabled,
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-main.disabled,
+.issue-reporter-floating-bar .monaco-button.wizard-segmented-dropdown.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Recording state in floating bar */
+.issue-reporter-floating-bar .wizard-nav-btn.recording,
+.issue-reporter-floating-bar .monaco-button.recording {
+	color: var(--vscode-testing-iconErrored, #f14c4c);
+	animation: issue-reporter-recording-pulse 1.5s ease-in-out infinite;
+}
+
+/* Toolbar */
+.issue-reporter-wizard .wizard-toolbar {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 8px 16px;
+	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
+	border-bottom: 1px solid var(--vscode-panel-border, #444);
+	flex-shrink: 0;
+}
+
+/* Progress area */
+.issue-reporter-wizard .wizard-progress-area {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.issue-reporter-wizard .wizard-progress-dots {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.issue-reporter-wizard .wizard-progress-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 2px solid var(--vscode-foreground, #888);
+	background: transparent;
+	transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+	opacity: 0.4;
+}
+
+.issue-reporter-wizard .wizard-progress-dot.active {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	opacity: 1;
+}
+
+.issue-reporter-wizard .wizard-progress-dot.completed {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	opacity: 0.7;
+}
+
+.issue-reporter-wizard .wizard-step-indicator {
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	color: var(--vscode-titleBar-activeForeground, #ccc);
+	font-variant-numeric: tabular-nums;
+}
+
+.issue-reporter-wizard .wizard-step-separator {
+	display: inline-block;
+	width: 2px;
+	height: 14px;
+	margin: 0 10px;
+	background: var(--vscode-titleBar-activeForeground, #888);
+	opacity: 0.6;
+	vertical-align: middle;
+}
+
+.issue-reporter-wizard .wizard-step-label {
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	color: var(--vscode-titleBar-activeForeground, #ccc);
+}
+
+/* Step Container */
+.issue-reporter-wizard .wizard-step-container {
+	flex: 1;
+	position: relative;
+	overflow: hidden;
+	min-height: 150px;
+}
+
+/* Individual Steps */
+.issue-reporter-wizard .wizard-step {
+	display: flex;
+	flex-direction: column;
+	padding: 24px 40px;
+	gap: 12px;
+	overflow-y: auto;
+	position: absolute;
+	inset: 0;
+}
+
+/* Wizard Typography */
+.issue-reporter-wizard .wizard-heading {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #eee);
+	line-height: 1.3;
+}
+
+.issue-reporter-wizard .wizard-subtitle {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #999);
+	line-height: 1.4;
+}
+
+.issue-reporter-wizard .wizard-shortcut-hint {
+	margin-top: 4px;
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.issue-reporter-wizard .wizard-shortcut.monaco-keybinding {
+	margin: 0 2px;
+	vertical-align: middle;
+}
+
+/* Wizard Inputs */
+.issue-reporter-wizard .wizard-textarea {
+	width: 100%;
+	min-height: 120px;
+	font-size: 13px;
+	font-family: inherit;
+	line-height: 1.5;
+	color: var(--vscode-input-foreground, #ccc);
+	background: var(--vscode-input-background, #3c3c3c);
+	border: 1px solid var(--vscode-input-border, #555);
+	border-radius: 4px;
+	padding: 10px 12px;
+	outline: none;
+	resize: none;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.issue-reporter-wizard .wizard-textarea:focus {
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.issue-reporter-wizard .wizard-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground, #888);
+}
+
+.issue-reporter-wizard .wizard-textarea.invalid-input {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
+}
+
+/* Category Buttons (Step 1) */
+.issue-reporter-wizard .wizard-type-buttons {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+}
+
+/* Inside a flex-column .wizard-field the parent already supplies the
+label/control gap, so the buttons must not add their own margin. */
+.issue-reporter-wizard .wizard-field > .wizard-type-buttons {
+	margin-top: 0;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn {
+	display: inline-flex;
+	flex: 0 0 auto;
+	width: auto;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	background: transparent !important;
+	color: var(--vscode-foreground, #ccc) !important;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	font-size: 13px;
+	line-height: normal;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn:hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06)) !important;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn .codicon {
+	margin-right: 0;
+}
+
+/* Radio circle before each category button */
+.issue-reporter-wizard .monaco-button.wizard-type-btn::before {
+	content: '';
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	border: 2px solid var(--vscode-input-border, #555);
+	background: transparent;
+	flex-shrink: 0;
+	transition: border-color 0.15s ease;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn:hover::before {
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn.selected::before {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	box-shadow: inset 0 0 0 2px var(--vscode-editor-background, #1e1e1e);
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn.selected {
+	border-color: transparent;
+	background: transparent !important;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+
+.issue-reporter-wizard .wizard-type-buttons.invalid-input .monaco-button.wizard-type-btn::before {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+}
+
+.issue-reporter-wizard .monaco-button.wizard-type-btn.hidden {
+	display: none;
+}
+
+/* Shortcut badge - shared style for keyboard shortcut indicators */
+.issue-reporter-wizard .wizard-shortcut-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 4px;
+	min-width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, #555);
+	font-size: 11px;
+	font-family: monospace;
+	color: var(--vscode-descriptionForeground, #888);
+	opacity: 0.7;
+	margin-left: 2px;
+}
+
+.issue-reporter-wizard .wizard-nav-btn.primary .wizard-shortcut-badge,
+.issue-reporter-wizard .monaco-button .wizard-shortcut-badge {
+	border-color: rgba(255, 255, 255, 0.3);
+	color: var(--vscode-button-foreground, #fff);
+	opacity: 0.7;
+}
+
+.issue-reporter-wizard .wizard-type-buttons.invalid-input .wizard-type-btn {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
+}
+
+.issue-reporter-wizard .wizard-field-error {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771)) !important;
+	font-size: 12px;
+	line-height: 1.4;
+	min-height: 1.4em;
+}
+
+.issue-reporter-wizard .wizard-field-error.hidden {
+	visibility: hidden;
+	min-height: 1.4em;
+}
+
+.issue-reporter-wizard .wizard-similar-issues {
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #999);
+}
+
+.issue-reporter-wizard .wizard-similar-heading {
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	margin-bottom: 4px;
+}
+
+.issue-reporter-wizard .wizard-similar-status {
+	line-height: 1.4;
+}
+
+.issue-reporter-wizard .wizard-similar-list {
+	margin: 0;
+	padding-left: 18px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.issue-reporter-wizard .wizard-similar-item {
+	line-height: 1.4;
+}
+
+.issue-reporter-wizard .wizard-similar-link {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: none;
+}
+
+.issue-reporter-wizard .wizard-similar-link:hover {
+	color: var(--vscode-textLink-activeForeground, #3794ff);
+	text-decoration: underline;
+}
+
+.issue-reporter-wizard .wizard-similar-state {
+	margin-left: 6px;
+	color: var(--vscode-descriptionForeground, #999);
+}
+
+.issue-reporter-wizard .wizard-type-icon {
+	display: flex;
+	align-items: center;
+	font-size: 16px;
+}
+
+/* Screenshot Cards (Step 3) */
+.issue-reporter-wizard .wizard-screenshots {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-content: flex-start;
+	min-height: 50px;
+}
+
+.issue-reporter-wizard .wizard-screenshots-empty {
+	color: var(--vscode-descriptionForeground, #888);
+	font-style: italic;
+	display: flex;
+	align-items: center;
+}
+
+.issue-reporter-wizard .wizard-screenshot-card {
+	position: relative;
+	width: 120px;
+	height: 75px;
+	border-radius: 6px;
+	overflow: hidden;
+	border: 1px solid var(--vscode-input-border, #555);
+	cursor: pointer;
+	transition: border-color 0.15s;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-screenshot-card:hover,
+.issue-reporter-wizard .wizard-screenshot-card:focus-visible {
+	border-color: var(--vscode-focusBorder, #007acc);
+	outline: none;
+}
+
+.issue-reporter-wizard .wizard-screenshot-card img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.issue-reporter-wizard .wizard-screenshot-delete {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+	border: 1px solid var(--vscode-contrastBorder, transparent);
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity .15s;
+}
+
+.issue-reporter-wizard .wizard-screenshot-delete:hover {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background, #1177bb));
+}
+
+.issue-reporter-wizard .wizard-screenshot-delete .codicon {
+	color: inherit;
+}
+
+.issue-reporter-wizard .wizard-screenshot-card:hover .wizard-screenshot-delete,
+.issue-reporter-wizard .wizard-screenshot-card:focus-within .wizard-screenshot-delete {
+	opacity: 1;
+}
+
+.issue-reporter-wizard .wizard-screenshot-add {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-style: dashed;
+	background: transparent;
+}
+
+.issue-reporter-wizard .wizard-screenshot-plus {
+	font-size: 28px;
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+.issue-reporter-wizard .wizard-screenshot-add:hover .wizard-screenshot-plus {
+	color: var(--vscode-focusBorder, #007acc);
+}
+
+.issue-reporter-wizard .wizard-screenshot-add.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.issue-reporter-wizard .wizard-screenshot-add.disabled:hover .wizard-screenshot-plus {
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+/* Screenshot Controls */
+
+.issue-reporter-wizard .wizard-screenshot-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-delay-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.issue-reporter-wizard .wizard-delay-label {
+	font-size: 12px;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground, #999);
+}
+
+.issue-reporter-wizard .wizard-delay-select {
+	min-width: 120px;
+}
+
+.issue-reporter-wizard .wizard-delay-select .monaco-select-box {
+	height: 28px;
+	padding: 2px 23px 2px 8px;
+}
+
+.issue-reporter-wizard .wizard-capture-btn {
+	gap: 6px;
+}
+
+.issue-reporter-wizard .wizard-capture-btn.disabled,
+.issue-reporter-wizard .monaco-button.wizard-capture-btn:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.issue-reporter-wizard .wizard-capture-icon {
+	display: flex;
+	font-size: 14px;
+}
+
+/* Review Step (Step 4) */
+.issue-reporter-wizard .wizard-field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.issue-reporter-wizard .wizard-field.hidden {
+	display: none;
+}
+
+.issue-reporter-wizard .wizard-field-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	margin-top: 8px;
+	margin-bottom: 0;
+	display: block;
+}
+
+.issue-reporter-wizard .wizard-field-label:first-child {
+	margin-top: 0;
+}
+
+.issue-reporter-wizard .wizard-describe-content {
+	display: flex;
+	flex-direction: column;
+}
+
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper > .input,
+.issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input .input {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1)) !important;
+}
+
+.issue-reporter-wizard .wizard-extension-field.invalid-input .monaco-select-box {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1)) !important;
+}
+
+.issue-reporter-wizard .wizard-extension-select {
+	max-width: 420px;
+}
+
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box {
+	min-height: 32px;
+	padding: 5px 23px 5px 8px;
+}
+
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row.option-disabled {
+	display: none !important;
+}
+
+.issue-reporter-wizard .wizard-extension-select .monaco-select-box-dropdown-container .monaco-list-row[data-index="0"].option-disabled ~ .monaco-list-row {
+	transform: translateY(-22px);
+}
+
+/* Status messages are absolutely positioned in the same slot as the field
+error (the 1.4em reserved line directly below the input/buttons). The error
+takes precedence when shown; otherwise the status text fills that slot.
+This keeps the row height constant regardless of which is visible. */
+.issue-reporter-wizard .wizard-source-field,
+.issue-reporter-wizard .wizard-extension-field {
+	position: relative;
+}
+
+.issue-reporter-wizard .wizard-target-status,
+.issue-reporter-wizard .wizard-extension-status {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: 12px;
+	line-height: 1.4;
+	pointer-events: none;
+}
+
+/* Hide the status while its sibling field-error is visible to avoid overlap. */
+.issue-reporter-wizard .wizard-source-field:has(> .wizard-field-error:not(.hidden)) .wizard-target-status,
+.issue-reporter-wizard .wizard-extension-field:has(> .wizard-field-error:not(.hidden)) .wizard-extension-status {
+	display: none;
+}
+
+/* Target row: source field + extension dropdown sit side-by-side.
+Wraps to a new line on narrow widths; collapses naturally when the
+extension field is hidden (no fixed-width placeholder needed). */
+.issue-reporter-wizard .wizard-target-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 24px;
+	align-items: flex-start;
+}
+
+.issue-reporter-wizard .wizard-target-row .wizard-source-field {
+	flex: 0 0 auto;
+}
+
+.issue-reporter-wizard .wizard-target-row .wizard-extension-field {
+	flex: 1 1 320px;
+	min-width: 240px;
+	max-width: 480px;
+}
+
+.issue-reporter-wizard .wizard-extension-field.hidden {
+	display: none;
+}
+
+/* Title label row: label + AI generate button */
+.issue-reporter-wizard .wizard-title-label-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.issue-reporter-wizard .wizard-title-label-row .wizard-field-label {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button {
+	width: auto;
+	padding: 2px 6px 2px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	gap: 4px;
+	white-space: nowrap;
+	font-size: 11px;
+	height: auto;
+	line-height: 1.4;
+}
+
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button[disabled],
+.issue-reporter-wizard .wizard-ai-title-btn.monaco-button.disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+/* Description guidance text */
+.issue-reporter-wizard .wizard-description-guidance {
+	margin-top: 0;
+	margin-bottom: 4px;
+	font-style: italic;
+	min-height: 1.4em;
+	white-space: pre-line;
+}
+
+.issue-reporter-wizard .wizard-md-hint {
+	margin-top: 0;
+	margin-bottom: 4px;
+}
+
+/* Review: description rendered content */
+.issue-reporter-wizard .review-value.review-description {
+	white-space: normal;
+	max-height: none;
+	overflow: visible;
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border, #444);
+	border-radius: 4px;
+}
+
+.issue-reporter-wizard .review-description .rendered-markdown {
+	color: inherit;
+}
+
+.issue-reporter-wizard .review-description .rendered-markdown p:first-child {
+	margin-top: 0;
+}
+
+.issue-reporter-wizard .review-description .rendered-markdown p:last-child {
+	margin-bottom: 0;
+}
+
+.issue-reporter-wizard .wizard-review-details {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 8px;
+}
+
+.issue-reporter-wizard .wizard-review-similar-section.hidden {
+	display: none;
+}
+
+.issue-reporter-wizard .review-thumbnails {
+	display: flex;
+	gap: 10px;
+	margin-top: 4px;
+	flex-wrap: wrap;
+}
+
+/* Review attachment cards - same size as step 3 cards */
+.issue-reporter-wizard .review-attachment-card {
+	cursor: pointer;
+}
+
+/* Upload Progress Overlay */
+.issue-reporter-wizard .review-progress-overlay {
+	position: absolute;
+	inset: 0;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.6);
+	border-radius: 5px;
+	z-index: 2;
+}
+
+.issue-reporter-wizard .upload-pending .review-progress-overlay,
+.issue-reporter-wizard .upload-uploading .review-progress-overlay,
+.issue-reporter-wizard .upload-done .review-progress-overlay {
+	display: flex;
+}
+
+/* Spinning ring */
+.issue-reporter-wizard .review-progress-ring {
+	width: 28px;
+	height: 28px;
+	border: 3px solid rgba(255, 255, 255, 0.3);
+	border-top-color: var(--vscode-focusBorder, #007acc);
+	border-radius: 50%;
+}
+
+.issue-reporter-wizard .upload-uploading .review-progress-ring {
+	animation: issue-reporter-spin 0.8s linear infinite;
+}
+
+.issue-reporter-wizard .upload-pending .review-progress-ring {
+	border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Checkmark */
+.issue-reporter-wizard .review-progress-check {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: var(--vscode-testing-runAction, #73c991);
+	color: #000;
+	font-size: 16px;
+}
+
+/* Button spinner */
+.issue-reporter-wizard .wizard-nav-btn.uploading,
+.issue-reporter-wizard .monaco-button.uploading {
+	pointer-events: none;
+	opacity: 0.8;
+}
+
+.issue-reporter-wizard .wizard-btn-spinner {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-top-color: #fff;
+	border-radius: 50%;
+	animation: issue-reporter-spin 0.8s linear infinite;
+	vertical-align: middle;
+	margin-left: 6px;
+}
+
+@keyframes issue-reporter-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.issue-reporter-wizard .wizard-submit-buttons {
+	display: none;
+}
+
+.issue-reporter-wizard .wizard-submit-btn {
+	padding: 8px 16px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	font-size: 13px;
+	cursor: pointer;
+	font-family: inherit;
+}
+
+.issue-reporter-wizard .wizard-submit-gist {
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+}
+
+.issue-reporter-wizard .wizard-submit-gist:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.issue-reporter-wizard .wizard-submit-playwright {
+	background: var(--vscode-button-secondaryBackground, #3a3d41);
+	color: var(--vscode-button-secondaryForeground, #fff);
+}
+
+.issue-reporter-wizard .wizard-submit-playwright:hover {
+	background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.issue-reporter-wizard .wizard-submit-preview,
+.issue-reporter-wizard .wizard-submit-manual {
+	background: transparent;
+	color: var(--vscode-foreground, #ccc);
+	border: 1px solid var(--vscode-input-border, #3c3c3c);
+}
+
+.issue-reporter-wizard .wizard-submit-preview:hover,
+.issue-reporter-wizard .wizard-submit-manual:hover {
+	background: var(--vscode-list-hoverBackground, #2a2d2e);
+}
+
+.issue-reporter-wizard .wizard-step-review {
+	gap: 8px;
+}
+
+.issue-reporter-wizard .review-section {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.issue-reporter-wizard .review-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.issue-reporter-wizard .review-value {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #999);
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 60px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.issue-reporter-wizard .review-target-repo {
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: 12px;
+}
+
+/* Diagnostic data sections (System Info, Extensions, Experiments) */
+.issue-reporter-wizard .review-diagnostics {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.issue-reporter-wizard .review-diag-heading {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+}
+
+.issue-reporter-wizard .review-diag-heading-title {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.issue-reporter-wizard .review-diag-bulk-actions {
+	display: flex;
+	justify-content: flex-start;
+	margin-bottom: 2px;
+}
+
+.issue-reporter-wizard .review-diag-toggle-all.monaco-button {
+	font-size: 12px;
+	padding: 2px 8px;
+	width: auto;
+	flex: none;
+}
+
+.issue-reporter-wizard .review-diag-group {
+	border: 1px solid var(--vscode-input-border, #444);
+	border-radius: 4px;
+	padding: 6px 12px;
+}
+
+.issue-reporter-wizard .review-performance-data {
+	border: 1px solid var(--vscode-input-border, #444);
+	border-radius: 4px;
+	padding: 8px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	position: relative;
+}
+
+.issue-reporter-wizard .review-performance-data.refreshing::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: 4px;
+	background: var(--vscode-editor-background, #1e1e1e);
+	opacity: 0.6;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.issue-reporter-wizard .review-performance-data.refreshing::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 18px;
+	height: 18px;
+	margin: -9px 0 0 -9px;
+	border: 2px solid var(--vscode-progressBar-background, var(--vscode-focusBorder, #007acc));
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: issue-reporter-review-performance-spin 0.8s linear infinite;
+	z-index: 2;
+	pointer-events: none;
+}
+
+@keyframes issue-reporter-review-performance-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.issue-reporter-wizard .review-performance-data .review-diag-group {
+	border: 0;
+	border-top: 1px solid var(--vscode-input-border, #444);
+	border-radius: 0;
+	padding: 6px 0 0;
+}
+
+.issue-reporter-wizard .review-performance-title-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.issue-reporter-wizard .review-performance-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.issue-reporter-wizard .review-performance-refresh.monaco-button {
+	flex: none;
+	width: auto;
+	font-size: 12px;
+	padding: 2px 8px;
+}
+
+.issue-reporter-wizard .review-performance-description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+.issue-reporter-wizard .review-diag-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 28px;
+}
+
+.issue-reporter-wizard .review-diag-check-wrap {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.issue-reporter-wizard .review-diag-checkbox {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .review-diag-check-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #888);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.issue-reporter-wizard .review-diag-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .review-diag-toggle.monaco-button {
+	flex-shrink: 0;
+	font-size: 12px;
+	padding: 2px 8px 2px 4px;
+	width: auto;
+	flex: none;
+}
+
+.issue-reporter-wizard .review-diag-content {
+	margin-top: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #888);
+	max-height: 200px;
+	overflow: auto;
+}
+
+.issue-reporter-wizard .review-diag-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.issue-reporter-wizard .review-diag-table td,
+.issue-reporter-wizard .review-diag-table th {
+	padding: 2px 8px 2px 0;
+	vertical-align: top;
+	text-align: left;
+	font-size: 12px;
+}
+
+.issue-reporter-wizard .review-diag-key {
+	white-space: nowrap;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	width: 120px;
+}
+
+.issue-reporter-wizard .review-ext-table th {
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	border-bottom: 1px solid var(--vscode-input-border, #444);
+	padding-bottom: 4px;
+}
+
+.issue-reporter-wizard .review-ext-table td {
+	font-size: 11px;
+	padding: 2px 12px 2px 0;
+}
+
+.issue-reporter-wizard .review-diag-sublabel {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+	margin-top: 6px;
+	margin-bottom: 2px;
+}
+
+.issue-reporter-wizard .review-diag-sublabel:first-child {
+	margin-top: 0;
+}
+
+.issue-reporter-wizard .review-diag-pre {
+	margin: 0;
+	font-size: 11px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.issue-reporter-wizard .review-diag-loading {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #888);
+	font-style: italic;
+	padding: 4px 0;
+}
+
+/* Navigation buttons row, placed under the step indicator in the toolbar. */
+.issue-reporter-wizard .wizard-nav {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+/* Button widget overrides for wizard nav */
+.issue-reporter-wizard .wizard-nav .monaco-button {
+	padding: 6px 16px;
+	white-space: nowrap;
+	width: auto;
+	flex: none;
+}
+
+/* Navigation buttons */
+.issue-reporter-wizard .wizard-nav-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	user-select: none;
+	white-space: nowrap;
+	color: var(--vscode-foreground, #ccc);
+	border: 1px solid var(--vscode-input-border, #555);
+	background: transparent;
+	transition: all 0.15s ease;
+}
+
+.issue-reporter-wizard .wizard-nav-btn:hover {
+	background: rgba(255, 255, 255, 0.06);
+	border-color: var(--vscode-foreground, #999);
+}
+
+.issue-reporter-wizard .wizard-nav-btn.primary {
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.issue-reporter-wizard .wizard-nav-btn.primary:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+	border-color: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.issue-reporter-wizard .wizard-nav-btn.submit {
+	background: var(--vscode-testing-runAction, #73c991);
+	border-color: var(--vscode-testing-runAction, #73c991);
+	color: #000;
+}
+
+.issue-reporter-wizard .wizard-nav-btn.submit:hover {
+	filter: brightness(1.1);
+}
+
+/* Annotation Editor Buttons */
+.issue-reporter-annotation-overlay .monaco-button {
+	border-radius: 4px;
+	height: 28px;
+	font-size: 13px;
+	min-width: 80px;
+	padding: 0 14px;
+	cursor: pointer;
+}
+
+/* Annotation Editor */
+.issue-reporter-annotation-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	background: var(--vscode-editor-background, #1e1e1e);
+	display: flex;
+	flex-direction: column;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
+	font-size: 13px;
+	color: var(--vscode-foreground, #ccc);
+	outline: none !important;
+}
+
+.issue-reporter-annotation-overlay:focus,
+.issue-reporter-annotation-overlay:focus-visible,
+.issue-reporter-annotation-overlay:focus-within {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 3px;
+	padding: 4px 10px;
+	min-height: 34px;
+	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
+	border-bottom: 1px solid var(--vscode-panel-border, #444);
+}
+
+.issue-reporter-annotation-overlay .annotation-crop-toolbar {
+	gap: 8px;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn {
+	width: 28px;
+	height: 28px;
+	min-width: 28px;
+	padding: 0;
+	border-radius: 4px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--vscode-foreground, #ccc);
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:hover {
+	background: rgba(255, 255, 255, .1);
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:focus {
+	outline: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:disabled:hover {
+	background: transparent;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active {
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active,
+.issue-reporter-annotation-overlay .annotation-toolbar .tool-btn.active .codicon {
+	color: var(--vscode-button-foreground, #fff) !important;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .toolbar-separator {
+	width: 1px;
+	height: 20px;
+	background: var(--vscode-panel-border, #555);
+	margin: 0 4px;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .toolbar-spacer {
+	flex: 1;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .monaco-button {
+	height: 26px;
+	min-width: 70px;
+	padding: 0 12px;
+	font-size: 12px;
+	width: auto;
+	flex: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .color-btn {
+	position: relative;
+}
+
+.issue-reporter-annotation-overlay .annotation-tool-options-popover {
+	position: absolute;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border: 1px solid var(--vscode-editorWidget-border, #555);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	z-index: 4;
+	min-width: 220px;
+}
+
+.issue-reporter-annotation-overlay .annotation-tool-options-popover::before {
+	content: '';
+	position: absolute;
+	top: -6px;
+	left: 50%;
+	transform: translateX(-50%) rotate(45deg);
+	width: 10px;
+	height: 10px;
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border-left: 1px solid var(--vscode-editorWidget-border, #555);
+	border-top: 1px solid var(--vscode-editorWidget-border, #555);
+}
+
+.issue-reporter-annotation-overlay .annotation-tool-options-group {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.issue-reporter-annotation-overlay .annotation-tool-options-label {
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: 11px;
+	min-width: 76px;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatches,
+.issue-reporter-annotation-overlay .annotation-size-buttons {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch {
+	position: relative;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	cursor: pointer;
+	border: 2px solid transparent;
+	flex-shrink: 0;
+	padding: 0;
+	background-clip: padding-box;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch.transparent {
+	background:
+		linear-gradient(45deg, transparent 46%, #d04b4b 48%, #d04b4b 52%, transparent 54%),
+		linear-gradient(45deg, #858585 25%, transparent 25%, transparent 75%, #858585 75%),
+		linear-gradient(45deg, #858585 25%, transparent 25%, transparent 75%, #858585 75%);
+	background-color: #fff;
+	background-position: 0 0, 0 0, 5px 5px;
+	background-size: 100% 100%, 10px 10px, 10px 10px;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch:hover,
+.issue-reporter-annotation-overlay .annotation-size-button:hover {
+	border-color: var(--vscode-focusBorder, rgba(255, 255, 255, .5));
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch:focus-visible,
+.issue-reporter-annotation-overlay .annotation-size-button:focus-visible,
+.issue-reporter-annotation-overlay .annotation-opacity-slider:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007acc);
+	outline-offset: 2px;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch.active::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 10px;
+	height: 6px;
+	border-left: 2px solid #fff;
+	border-bottom: 2px solid #fff;
+	transform: translate(-50%, -65%) rotate(-45deg);
+	pointer-events: none;
+}
+
+.issue-reporter-annotation-overlay .annotation-color-swatch.active.light-swatch::after {
+	border-color: #000;
+}
+
+.issue-reporter-annotation-overlay .annotation-size-button.active {
+	background: var(--vscode-list-activeSelectionBackground, rgba(0, 122, 204, 0.25));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground, #fff));
+	border-color: transparent;
+}
+
+.issue-reporter-annotation-overlay .annotation-size-button {
+	min-width: 28px;
+	height: 24px;
+	border-radius: 4px;
+	border: 1px solid transparent;
+	background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ccc));
+	cursor: pointer;
+	font-size: 11px;
+	padding: 0 6px;
+}
+
+.issue-reporter-annotation-overlay .annotation-opacity-options {
+	align-items: center;
+}
+
+.issue-reporter-annotation-overlay .annotation-opacity-slider {
+	flex: 1;
+	min-width: 92px;
+	accent-color: var(--vscode-focusBorder, #007acc);
+}
+
+.issue-reporter-annotation-overlay .annotation-opacity-value {
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: 11px;
+	width: 34px;
+	text-align: right;
+}
+
+.issue-reporter-annotation-overlay .annotation-hint {
+	text-align: center;
+	padding: 6px 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground, #999);
+	border-bottom: 1px solid var(--vscode-panel-border, #444);
+}
+
+.issue-reporter-annotation-overlay .annotation-canvas-container {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	position: relative;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #1e1e1e));
+}
+
+.issue-reporter-annotation-overlay .annotation-canvas-container canvas {
+	cursor: crosshair;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .crop-btn {
+	font-size: 16px;
+	line-height: 1;
+}
+
+/* Recording UI */
+
+.issue-reporter-floating-bar .wizard-record-btn,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn {
+	gap: 6px;
+	border-color: #c33 !important;
+	color: #c33 !important;
+}
+
+.issue-reporter-floating-bar .wizard-record-btn:hover,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn:hover {
+	background: rgba(204, 51, 51, 0.1) !important;
+}
+
+.issue-reporter-floating-bar .wizard-record-btn .wizard-record-icon {
+	display: flex;
+	font-size: 14px;
+	color: var(--vscode-charts-red, #c33);
+}
+
+.issue-reporter-floating-bar .wizard-record-btn.recording,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn.recording {
+	background: var(--vscode-statusBarItem-errorBackground, #c33) !important;
+	border-color: var(--vscode-statusBarItem-errorBackground, #c33) !important;
+	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff)) !important;
+	animation: issue-reporter-recording-pulse 1.5s ease-in-out infinite;
+	font-variant-numeric: tabular-nums;
+	min-width: 160px;
+}
+
+.issue-reporter-floating-bar .wizard-record-btn.recording .wizard-record-icon {
+	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff));
+}
+
+.issue-reporter-floating-bar .wizard-record-btn.recording:hover,
+.issue-reporter-floating-bar .monaco-button.wizard-record-btn.recording:hover {
+	background: var(--vscode-statusBarItem-errorBackground, #c33) !important;
+	border-color: var(--vscode-statusBarItem-errorBackground, #c33) !important;
+	color: var(--vscode-statusBarItem-errorForeground, var(--vscode-button-foreground, #fff)) !important;
+	filter: brightness(1.15);
+}
+
+.issue-reporter-floating-bar .wizard-recording-elapsed {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	opacity: 0.9;
+}
+
+@keyframes issue-reporter-recording-pulse {
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.7;
+	}
+}
+
+/* -- Recording card -- */
+.issue-reporter-wizard .wizard-recording-card {
+	background: var(--vscode-editor-background, #1a1a1a);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+}
+
+.issue-reporter-wizard .wizard-recording-card > .wizard-screenshot-img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: inherit;
+}
+
+.issue-reporter-wizard .wizard-recording-play {
+	font-size: 28px;
+	color: #fff;
+	opacity: 0.8;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1;
+}
+
+.issue-reporter-wizard .wizard-recording-card:hover .wizard-recording-play {
+	opacity: 1;
+}
+
+.issue-reporter-wizard .wizard-recording-duration {
+	position: absolute;
+	bottom: 4px;
+	right: 6px;
+	font-size: 10px;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.7);
+	padding: 1px 4px;
+	border-radius: 2px;
+	z-index: 1;
+}
+
+.issue-reporter-wizard .wizard-required-marker {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771));
+	margin-left: 4px;
+	font-weight: 600;
+}
+
+.issue-reporter-wizard .wizard-issue-guidance {
+	margin: 0 0 12px;
+	padding: 8px 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+	border-left: 3px solid var(--vscode-focusBorder, #007acc);
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #ccc);
+}
+.issue-reporter-wizard .wizard-issue-guidance a,
+.issue-reporter-wizard .wizard-issue-guidance a:focus,
+.issue-reporter-wizard .wizard-issue-guidance a:hover {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: underline;
+}
+
+.issue-reporter-wizard .wizard-description-guidance.wizard-description-guidance-with-link {
+	white-space: normal;
+}
+.issue-reporter-wizard .wizard-description-guidance-link {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.issue-reporter-wizard .review-diag-heading {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+.issue-reporter-wizard .review-diag-master-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.issue-reporter-wizard .review-diag-master-checkbox {
+	flex-shrink: 0;
+}
+.issue-reporter-wizard .review-diagnostics.all-excluded .review-diag-group {
+	display: none;
+}
+.issue-reporter-wizard .review-diag-group.excluded .review-diag-content {
+	opacity: 0.55;
+}
+.issue-reporter-wizard .review-diag-group.excluded .review-diag-title {
+	color: var(--vscode-descriptionForeground, #999);
+}
+.issue-reporter-wizard .review-diag-toggle-area {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	user-select: none;
+	flex: 1;
+}
+.issue-reporter-wizard .review-diag-toggle-area:hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+.issue-reporter-wizard .review-diag-toggle-area:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+.issue-reporter-wizard .review-diag-chevron {
+	display: inline-flex;
+	align-items: center;
+	color: var(--vscode-foreground, #ccc);
+	flex-shrink: 0;
+}
+
+/* Keep the floating capture bar above workbench overlays such as modal dialogs. */
+.issue-reporter-floating-bar {
+	z-index: 5000;
+}

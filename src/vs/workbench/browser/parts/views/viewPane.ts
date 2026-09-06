@@ -347,6 +347,16 @@ export abstract class ViewPane extends Pane implements IView {
 
 	readonly menuActions: ViewMenuActions;
 
+	/**
+	 * Additional menu groups (beyond `navigation`) whose actions should be
+	 * rendered as primary (inline) actions in the title action bar. Separators
+	 * are rendered between groups in the primary actions. Subclasses can
+	 * override this to customize grouping in the title action bar.
+	 */
+	protected get primaryActionGroups(): string[] | undefined {
+		return undefined;
+	}
+
 	private progressBar?: ProgressBar;
 	private progressIndicator?: IProgressIndicator;
 
@@ -393,7 +403,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
 		const childInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
+		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }, { primaryActionGroups: this.primaryActionGroups }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 	}
 

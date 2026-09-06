@@ -145,3 +145,4 @@ After fixing leaks, verify by:
 1. Checking listener counts before/after repeated operations
 2. Running `ensureNoDisposablesAreLeakedInTestSuite()` in tests
 3. Confirming object counts stabilize (don't grow linearly with usage)
+4. **For chat-specific leaks**: Run the chat memory leak checker via `npm run perf:chat-leak` (see the `chat-perf` skill). It sends N messages in a single session, forces GC between each, and uses linear regression on heap/DOM samples to detect per-message growth. A slope above 2 MB/msg indicates a leak. Use `--messages 20 --verbose` for more accurate results.

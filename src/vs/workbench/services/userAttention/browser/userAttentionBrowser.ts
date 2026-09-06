@@ -127,6 +127,11 @@ export class UserAttentionServiceEnv extends Disposable {
 			this._activityDebounceTimeout = undefined;
 		}, 500);
 	}
+
+	override dispose(): void {
+		clearTimeout(this._activityDebounceTimeout);
+		super.dispose();
+	}
 }
 
 const eventListenerOptions: AddEventListenerOptions = {

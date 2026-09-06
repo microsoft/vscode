@@ -7,22 +7,21 @@ import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/pr
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
+import { getExtensionForMimeType, Mimes, normalizeMimeType } from '../../../../../../../base/common/mime.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../../editor/common/languages/modesRegistry.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
+import { IToolResultInputOutputDetails, ToolInputOutputEmbedded } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { getToolApprovalMessage } from './chatToolPartUtilities.js';
+import { getToolApprovalMessage, shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	/** Remembers expanded tool parts on re-render */
@@ -42,22 +41,22 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		message: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		input: string,
+		inputLanguage: string | undefined,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
 		let codeBlockIndex = codeBlockStartIndex;
 
 		// Simple factory to create code part data objects
-		const createCodePart = (data: string): IChatCollapsibleIOCodePart => ({
+		const createCodePart = (data: string, languageId = 'json'): IChatCollapsibleIOCodePart => ({
 			kind: 'code',
 			data,
-			languageId: 'json',
+			languageId,
 			codeBlockIndex: codeBlockIndex++,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			options: {
@@ -71,6 +70,27 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			}
 		});
 
+		const getOutputLanguageId = (part: ToolInputOutputEmbedded): string => {
+			if (part.mimeType) {
+				const mimeType = normalizeMimeType(part.mimeType).split(';', 1)[0].trim();
+				if (mimeType === Mimes.markdown) {
+					return 'markdown';
+				}
+				if (mimeType === Mimes.text) {
+					return PLAINTEXT_LANGUAGE_ID;
+				}
+				if (mimeType === 'application/json' || mimeType.endsWith('+json')) {
+					return 'json';
+				}
+				const languageId = languageService.getLanguageIdByMimeType(mimeType);
+				if (languageId) {
+					return languageId;
+				}
+			}
+
+			return PLAINTEXT_LANGUAGE_ID;
+		};
+
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
@@ -82,7 +102,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			subtitle,
 			this.getAutoApproveMessageContent(),
 			context,
-			createCodePart(input),
+			createCodePart(input, inputLanguage),
 			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
@@ -95,7 +115,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (o.type === 'ref') {
 						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
 					} else if (o.isText && !o.asResource) {
-						return createCodePart(o.value);
+						return createCodePart(o.value, getOutputLanguageId(o));
 					} else {
 						// Defer base64 decoding to avoid expensive decode during scroll.
 						// The value will be decoded lazily in ChatToolOutputContentSubPart.
@@ -111,10 +131,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 				}),
 			} : undefined,
 			isError,
-			// Expand by default when there's an error (if setting enabled),
-			// otherwise use the stored expanded state (defaulting to false)
-			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
-			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
+			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			shouldShimmerForTool(toolInvocation, message),
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

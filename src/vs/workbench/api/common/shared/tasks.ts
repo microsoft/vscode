@@ -26,6 +26,7 @@ export interface ITaskPresentationOptionsDTO {
 
 export interface IRunOptionsDTO {
 	reevaluateOnRerun?: boolean;
+	runOn?: number;
 }
 
 export interface IExecutionOptionsDTO {

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { URL } from 'url';
 
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
-import * as MarkdownItType from 'markdown-it';
+import type MarkdownIt from 'markdown-it';
 
 import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
@@ -33,6 +33,7 @@ const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
+const apiProposalVersionNotSupported = l10n.t("API proposal versions are no longer supported. Remove the '@<version>' suffix.");
 
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
@@ -44,7 +45,7 @@ enum Context {
 }
 
 interface TokenAndPosition {
-	token: MarkdownItType.Token;
+	token: MarkdownIt.Token;
 	begin: number;
 	end: number;
 }
@@ -67,7 +68,7 @@ export class ExtensionLinter {
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timeout | undefined;
-	private markdownIt: MarkdownItType.MarkdownIt | undefined;
+	private markdownIt: MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
 	constructor() {
@@ -144,6 +145,18 @@ export class ExtensionLinter {
 				const publisher = findNodeAtLocation(tree, ['publisher']);
 				const name = findNodeAtLocation(tree, ['name']);
 				const enabledApiProposals = findNodeAtLocation(tree, ['enabledApiProposals']);
+				if (enabledApiProposals?.type === 'array' && enabledApiProposals.children) {
+					for (const child of enabledApiProposals.children) {
+						const proposalName = child.type === 'string' ? getNodeValue(child) : undefined;
+						if (typeof proposalName === 'string' && proposalName.includes('@')) {
+							const atIndex = proposalName.indexOf('@');
+							// child.offset points at the opening quote; +1 for the quote, +atIndex to reach '@'
+							const start = document.positionAt(child.offset + 1 + atIndex);
+							const end = document.positionAt(child.offset + child.length - 1);
+							diagnostics.push(new Diagnostic(new Range(start, end), apiProposalVersionNotSupported, DiagnosticSeverity.Warning));
+						}
+					}
+				}
 				if (publisher?.type === 'string' && name?.type === 'string' && enabledApiProposals?.type === 'array') {
 					const extensionId = `${getNodeValue(publisher)}.${getNodeValue(name)}`;
 					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];
@@ -292,7 +305,7 @@ export class ExtensionLinter {
 				this.markdownIt = new ((await import('markdown-it')).default);
 			}
 			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownIt.Token[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
@@ -313,7 +326,7 @@ export class ExtensionLinter {
 				});
 				return tokensAndPositions.concat(
 					...tokensAndPositions.filter(tnp => tnp.token.children && tnp.token.children.length)
-						.map(tnp => toTokensAndPositions.call(this, tnp.token.children, tnp.begin, tnp.end))
+						.map(tnp => toTokensAndPositions.call(this, tnp.token.children ?? [], tnp.begin, tnp.end))
 				);
 			}).call(this, tokens);
 
@@ -373,7 +386,7 @@ export class ExtensionLinter {
 		}
 	}
 
-	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string | null) {
+	private locateToken(text: string, begin: number, end: number, token: MarkdownIt.Token, content: string | null) {
 		if (content) {
 			const tokenBegin = text.indexOf(content, begin);
 			if (tokenBegin !== -1) {
@@ -479,6 +492,7 @@ export class ExtensionLinter {
 	}
 
 	public dispose() {
+		clearTimeout(this.timer);
 		this.disposables.forEach(d => d.dispose());
 		this.disposables = [];
 	}

@@ -55,7 +55,11 @@
 		document.body.classList.remove('loading');
 	});
 
-	if (settings.src === null) {
+	if (settings.isGitLfs) {
+		hasLoadedMedia = true;
+		document.body.classList.add('git-lfs');
+		document.body.classList.remove('loading');
+	} else if (settings.src === null) {
 		onLoaded();
 	} else {
 		audio.addEventListener('canplaythrough', () => {

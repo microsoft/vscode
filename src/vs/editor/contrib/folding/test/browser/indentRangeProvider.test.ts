@@ -332,4 +332,41 @@ suite('Folding with regions', () => {
 		/* 9*/	'#endregion',
 		], [r(1, 9, -1, true), r(3, 4, 0), r(6, 7, 0)], true, markers);
 	});
+	test('Markers with stateful flags', () => {
+		assertRanges([
+		/* 1*/	'#region',
+		/* 2*/	'content',
+		/* 3*/	'#endregion',
+		], [r(1, 3, -1, true)], false, {
+			start: /^\s*#region\b/g,
+			end: /^\s*#endregion\b/g
+		});
+
+		assertRanges([
+		/* 1*/	'#REGION',
+		/* 2*/	'content',
+		/* 3*/	'#endregion',
+		], [r(1, 3, -1, true)], false, {
+			start: /^\s*#region\b/gi,
+			end: /^\s*#endregion\b/g
+		});
+
+		assertRanges([
+		/* 1*/	'#REGION',
+		/* 2*/	'content',
+		/* 3*/	'#ENDREGION',
+		], [], false, {
+			start: /^\s*#region\b/gi,
+			end: /^\s*#endregion\b/g
+		});
+
+		assertRanges([
+		/* 1*/	'#REGION',
+		/* 2*/	'content',
+		/* 3*/	'#ENDREGION',
+		], [], false, {
+			start: /^\s*#region\b/g,
+			end: /^\s*#endregion\b/gi
+		});
+	});
 });

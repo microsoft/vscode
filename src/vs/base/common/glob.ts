@@ -334,7 +334,7 @@ export function isEmptyPattern(pattern: ParsedPattern | ParsedExpression): patte
 	return false;
 }
 
-function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
+function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions, cacheKey?: string): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;
 	}
@@ -355,13 +355,11 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		...options,
 		equals: ignoreCase ? equalsIgnoreCase : (a: string, b: string) => a === b,
 		endsWith: ignoreCase ? endsWithIgnoreCase : (str: string, candidate: string) => str.endsWith(candidate),
-		// TODO: the '!isLinux' part below is to keep current behavior unchanged, but it should probably be removed
-		// in favor of passing correct options from the caller.
-		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, !isLinux || ignoreCase)
+		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, options.ignoreCase ?? !isLinux /* preserve old behaviour for when option is not adopted */)
 	};
 
 	// Check cache
-	const patternKey = `${ignoreCase ? pattern.toLowerCase() : pattern}_${!!options.trimForExclusions}_${ignoreCase}`;
+	const patternKey = `${cacheKey === undefined ? `default:${ignoreCase ? pattern.toLowerCase() : pattern}` : `custom:${cacheKey}`}_${!!options.trimForExclusions}_${ignoreCase}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
 		return wrapRelativePattern(parsedPattern, arg1, internalOptions);
@@ -371,13 +369,13 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
 		parsedPattern = trivia1(pattern.substring(4), pattern, internalOptions); 			// common pattern: **/*.txt just need endsWith check
-	} else if (match = T2.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: **/some.txt just need basename check
+	} else if (match = T2.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern, internalOptions);
-	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
+	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { 					// repetition of common patterns (see above) {**/*.txt,**/*.png}
 		parsedPattern = trivia3(pattern, internalOptions);
-	} else if (match = T4.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: **/something/else just need endsWith check
+	} else if (match = T4.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: **/something/else just need endsWith check
 		parsedPattern = trivia4and5(match[1].substring(1), pattern, true, internalOptions);
-	} else if (match = T5.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: something/else just need equals check
+	} else if (match = T5.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: something/else just need equals check
 		parsedPattern = trivia4and5(match[1], pattern, false, internalOptions);
 	}
 
@@ -464,7 +462,7 @@ function trivia3(pattern: string, options: IGlobOptionsInternal): ParsedStringPa
 	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1)
 		.split(',')
 		.map(pattern => parsePattern(pattern, options))
-		.filter(pattern => pattern !== NULL), pattern);
+		.filter(pattern => pattern !== NULL), pattern, options.ignoreCase);
 
 	const patternsLength = parsedPatterns.length;
 	if (!patternsLength) {
@@ -619,7 +617,7 @@ export function getPathTerms(patternOrExpression: ParsedPattern | ParsedExpressi
 function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
 	const parsedPatterns = aggregateBasenameMatches(Object.getOwnPropertyNames(expression)
 		.map(pattern => parseExpressionPattern(pattern, expression[pattern], options))
-		.filter(pattern => pattern !== NULL));
+		.filter(pattern => pattern !== NULL), undefined, options.ignoreCase);
 
 	const patternsLength = parsedPatterns.length;
 	if (!patternsLength) {
@@ -752,7 +750,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 		return NULL; // pattern is disabled
 	}
 
-	const parsedPattern = parsePattern(pattern, options);
+	const parsedPattern = parsePattern(pattern, options, pattern);
 	if (parsedPattern === NULL) {
 		return NULL;
 	}
@@ -788,7 +786,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 	return parsedPattern;
 }
 
-function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string): Array<ParsedStringPattern | ParsedExpressionPattern> {
+function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string, ignoreCase?: boolean): Array<ParsedStringPattern | ParsedExpressionPattern> {
 	const basenamePatterns = parsedPatterns.filter(parsedPattern => !!(<ParsedStringPattern>parsedPattern).basenames);
 	if (basenamePatterns.length < 2) {
 		return parsedPatterns;
@@ -832,7 +830,7 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 			basename = path.substring(i);
 		}
 
-		const index = basenames.indexOf(basename);
+		const index = ignoreCase ? basenames.findIndex(candidate => equalsIgnoreCase(candidate, basename)) : basenames.indexOf(basename);
 		return index !== -1 ? patterns[index] : null;
 	};
 

@@ -13,7 +13,7 @@ LanguageName=简体中文
 ; If Language Name display incorrect, uncomment next line
 ; LanguageName=<7B80><4F53><4E2D><6587>
 LanguageID=$0804
-LanguageCodePage=936
+LanguageCodePage=0
 ; If the language you are translating to requires special font faces or
 ; sizes, uncomment any of the following entries and change them accordingly.
 ;DialogFontName=

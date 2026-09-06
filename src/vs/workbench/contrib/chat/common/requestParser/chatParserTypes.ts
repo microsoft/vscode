@@ -12,7 +12,7 @@ import { IChatSlashData } from '../participants/chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IToolData } from '../tools/languageModelToolsService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../attachments/chatVariableEntries.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, chatReferenceVariableEntryFromDynamicValue, isChatReferenceDynamicVariableValue } from '../attachments/chatVariableEntries.js';
 import { arrayEquals } from '../../../../../base/common/equals.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -183,14 +183,22 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 	static readonly Kind = 'prompt';
 	readonly kind = ChatRequestSlashPromptPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string) { }
+	readonly displayText?: string;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, displayText?: string) {
+		// Only set the own property when provided so the canonical
+		// form (no `displayText` field) stays compatible with snapshots
+		// and existing serialization.
+		if (displayText !== undefined) {
+			this.displayText = displayText;
+		}
+	}
 
 	get text(): string {
-		return `${chatSubcommandLeader}${this.name}`;
+		return this.displayText ?? `${chatSubcommandLeader}${this.name}`;
 	}
 
 	get promptText(): string {
-		return `${chatSubcommandLeader}${this.name}`;
+		return this.displayText ?? `${chatSubcommandLeader}${this.name}`;
 	}
 }
 
@@ -200,7 +208,7 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>, readonly isAttachmentReference?: boolean) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -215,7 +223,14 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
 		}
 
-		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon };
+		if (isChatReferenceDynamicVariableValue(this.data)) {
+			const entry = chatReferenceVariableEntryFromDynamicValue(this.data, this.id, this.fullName ?? this.referenceText, this.range, this._meta);
+			if (entry) {
+				return entry;
+			}
+		}
+
+		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon, _meta: this._meta };
 	}
 }
 
@@ -280,7 +295,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				return new ChatRequestSlashPromptPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestSlashPromptPart).name
+					(part as ChatRequestSlashPromptPart).name,
+					(part as ChatRequestSlashPromptPart).displayText
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(
@@ -293,7 +309,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).fullName,
 					(part as ChatRequestDynamicVariablePart).icon,
 					(part as ChatRequestDynamicVariablePart).isFile,
-					(part as ChatRequestDynamicVariablePart).isDirectory
+					(part as ChatRequestDynamicVariablePart).isDirectory,
+					(part as ChatRequestDynamicVariablePart)._meta,
+					(part as ChatRequestDynamicVariablePart).isAttachmentReference
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

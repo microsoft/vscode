@@ -100,7 +100,7 @@ export async function createSlowExtensionAction(
 	const url = `https://api.github.com/search/issues?q=is:issue+state:open+in:title+repo:${info.owner}/${info.repo}+%22Extension+causes+high+cpu+load%22`;
 	let res: IRequestContext;
 	try {
-		res = await requestService.request({ url }, CancellationToken.None);
+		res = await requestService.request({ url, callSite: 'extensionsSlowActions.getSlowExtensionAction' }, CancellationToken.None);
 	} catch {
 		return undefined;
 	}

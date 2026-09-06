@@ -5,8 +5,8 @@
 
 import { CancellationToken, Connection, Diagnostic, Disposable, DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportKind, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-html-languageservice';
-import { formatError, runSafe } from './runner';
-import { RuntimeEnvironment } from '../htmlServer';
+import { formatError, runSafe } from './runner.js';
+import { RuntimeEnvironment } from '../htmlServer.js';
 
 export type Validator = (textDocument: TextDocument) => Promise<Diagnostic[]>;
 export type DiagnosticsSupport = {

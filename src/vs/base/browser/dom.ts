@@ -958,9 +958,9 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
+export function findParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
+		if (typeof clazz === 'string' ? node.classList.contains(clazz) : clazz.every(candidate => node.classList.contains(candidate))) {
 			return node;
 		}
 
@@ -982,7 +982,7 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+export function hasParentWithClass(node: HTMLElement, clazz: string | readonly string[], stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
 }
 
@@ -1637,6 +1637,85 @@ export function windowOpenPopup(url: string): void {
 	);
 }
 
+let reservedExternalWindow: Window | undefined;
+
+function isUsable(candidate: Window | undefined): candidate is Window {
+	return !!candidate && !candidate.closed;
+}
+
+/**
+ * Opens a blank window now, for a later {@link windowOpenWithSuccess} to navigate.
+ *
+ * Browsers only allow `window.open` while a click's user activation is still live.
+ * Sign-in shows a dialog, activates an extension and fetches an authorization URL
+ * first, so by then the gesture has expired and the window is refused — fatal in an
+ * installed web app (PWA), where there is no tab to fall back to.
+ *
+ * Callers must consume or {@link releaseReservedWindowForExternalOpen} the
+ * reservation, or a blank window is left covering the app.
+ *
+ * @param targetWindow the window that was clicked; activation belongs to it.
+ * @param placeholder already-translated text, since `vs/base` cannot localize.
+ */
+export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, placeholder?: string): void {
+	if (isUsable(reservedExternalWindow)) {
+		return;
+	}
+
+	reservedExternalWindow = targetWindow.open() ?? undefined;
+	if (!isUsable(reservedExternalWindow)) {
+		reservedExternalWindow = undefined;
+		return;
+	}
+
+	if (placeholder) {
+		showMessageInWindow(reservedExternalWindow, placeholder);
+	}
+}
+
+/** Uses `textContent` so the message cannot inject markup. */
+function showMessageInWindow(target: Window, message: string): void {
+	try {
+		const doc = target.document;
+		doc.title = message; // otherwise announced as `about:blank`
+		doc.documentElement.style.cssText = 'color-scheme:light dark';
+		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
+		doc.body.textContent = message;
+	} catch {
+		// the window may already have navigated
+	}
+}
+
+function takeReservedWindowForExternalOpen(): Window | undefined {
+	const reserved = reservedExternalWindow;
+	reservedExternalWindow = undefined;
+	return isUsable(reserved) ? reserved : undefined;
+}
+
+/**
+ * Closes an unused reservation.
+ *
+ * @param fallbackMessage shown if the window refuses to close — an in-app browser
+ * view on iOS may ignore `close()`, and a blank window covering the app is worse
+ * than the problem this solves.
+ */
+export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): void {
+	const reserved = takeReservedWindowForExternalOpen();
+	if (!reserved) {
+		return;
+	}
+
+	try {
+		reserved.close();
+	} catch {
+		// the window may already have navigated
+	}
+
+	if (!reserved.closed && fallbackMessage) {
+		showMessageInWindow(reserved, fallbackMessage);
+	}
+}
+
 /**
  * Attempts to open a window and returns whether it succeeded. This technique is
  * not appropriate in certain contexts, like for example when the JS context is
@@ -1650,10 +1729,11 @@ export function windowOpenPopup(url: string): void {
  * @param url the url to open
  * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
  * (true) unless you trust the url that is being opened.
+ * @param targetWindow the window to open from when no window was reserved.
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = mainWindow.open();
+export function windowOpenWithSuccess(url: string, noOpener = true, targetWindow: Window = mainWindow): boolean {
+	const newTab = takeReservedWindowForExternalOpen() ?? targetWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
@@ -2048,15 +2128,61 @@ export class DragAndDropObserver extends Disposable {
 }
 
 /**
- * A wrapper around ResizeObserver that is disposable.
+ * A wrapper around `ResizeObserver` that is disposable.
+ *
+ * Behavior is intentionally identical to using `new ResizeObserver(callback)`
+ * directly: the user-supplied callback runs synchronously inside the
+ * browser's resize-observation phase, with the entries the browser delivered.
+ * The wrapper adds three things on top:
+ *
+ * 1. Lifetime management: `dispose()` disconnects the underlying observer.
+ * 2. Auxiliary-window support: pass `targetWindow` so the observer is
+ *    constructed in the realm of the element being observed.
+ * 3. Context for the
+ *    `ResizeObserver loop completed with undelivered notifications` warning:
+ *    each instance carries a stable `name`, and just before invoking the user
+ *    callback we add that name to a bounded, per-window set that is cleared
+ *    at the next animation frame. The warning is delivered as a stackless
+ *    `ErrorEvent` on `window` after callbacks run, so error telemetry can
+ *    include the wrapped observers that recently ran in that window (see
+ *    {@link getRecentDisposableResizeObserverContextForLoopError}). This is
+ *    delivery context, not causal attribution: the browser does not expose
+ *    which observer or skipped target caused the warning.
+ *
+ * @param name Stable identifier used in loop-warning context. Prefer one that
+ * survives minification and refactors (e.g. the consumer class + purpose)
+ * since callstacks change across releases.
+ * @param callback Invoked synchronously when the browser delivers resize
+ * notifications, with the same entries the native `ResizeObserver` would
+ * have delivered.
+ * @param targetWindow The window whose `ResizeObserver` constructor should
+ * be used. Defaults to `mainWindow`. Pass the containing window when
+ * creating an observer for elements that live in an auxiliary window.
+ * @param options Optional configuration. `resizeObserverCtor` is a test
+ * seam that defaults to `targetWindow.ResizeObserver`.
  */
 export class DisposableResizeObserver extends Disposable {
 
 	private readonly observer: ResizeObserver;
+	readonly name: string;
 
-	constructor(callback: ResizeObserverCallback) {
+	constructor(
+		name: string,
+		callback: ResizeObserverCallback,
+		targetWindow: CodeWindow = mainWindow,
+		options?: { resizeObserverCtor?: typeof ResizeObserver },
+	) {
 		super();
-		this.observer = new ResizeObserver(callback);
+		this.name = name;
+		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
+		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
+			recordDisposableResizeObserverInvocation(targetWindow, this.name);
+			try {
+				callback(entries, observer);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
 		this._register(toDisposable(() => this.observer.disconnect()));
 	}
 
@@ -2064,6 +2190,78 @@ export class DisposableResizeObserver extends Disposable {
 		this.observer.observe(target, options);
 		return toDisposable(() => this.observer.unobserve(target));
 	}
+}
+
+/**
+ * Keep the context bounded so a large delivery phase cannot create an
+ * unbounded telemetry value. Names are static component identifiers, and are
+ * sorted when read so equivalent phases share a stable bucket.
+ */
+const maxRecentDisposableResizeObservers = 8;
+
+/**
+ * Wrapped observers that ran recently in one window. This is deliberately
+ * scoped by window because auxiliary windows have independent documents and
+ * resize-observation delivery loops.
+ */
+interface IRecentDisposableResizeObserverContext {
+	readonly names: Set<string>;
+	overflow: boolean;
+}
+
+const recentDisposableResizeObserverContexts = new WeakMap<CodeWindow, IRecentDisposableResizeObserverContext>();
+
+function recordDisposableResizeObserverInvocation(targetWindow: CodeWindow, name: string): void {
+	let context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		context = { names: new Set(), overflow: false };
+		recentDisposableResizeObserverContexts.set(targetWindow, context);
+
+		// ResizeObserver callbacks and the synthetic loop error are delivered
+		// after requestAnimationFrame callbacks in the rendering update. A
+		// request made here therefore clears this context at the next frame,
+		// after telemetry has observed any warning from the current update.
+		targetWindow.requestAnimationFrame(() => recentDisposableResizeObserverContexts.delete(targetWindow));
+	}
+
+	if (context.names.has(name)) {
+		return;
+	}
+	if (context.names.size < maxRecentDisposableResizeObservers) {
+		context.names.add(name);
+	} else {
+		context.overflow = true;
+		const largestName = Array.from(context.names).sort().at(-1)!;
+		if (name < largestName) {
+			context.names.delete(largestName);
+			context.names.add(name);
+		}
+	}
+}
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return a stable
+ * context string containing the wrapped observers that ran recently in
+ * `targetWindow`. The names are delivery context only; the browser does not
+ * expose the observer or skipped target that caused the warning. Returns
+ * `undefined` for unrelated messages or when no wrapped observer has fired.
+ */
+export function getRecentDisposableResizeObserverContextForLoopError(
+	message: string | undefined | null,
+	targetWindow: CodeWindow = mainWindow,
+): string | undefined {
+	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
+		return undefined;
+	}
+	const context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		return undefined;
+	}
+	const names = Array.from(context.names).sort();
+	if (context.overflow) {
+		names.push('<overflow>');
+	}
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

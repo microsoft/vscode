@@ -9,6 +9,7 @@ import { isUNC } from '../../../../base/common/extpath.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getWebviewContentMimeType } from '../../../../platform/webview/common/mimeTypes.js';
@@ -24,6 +25,7 @@ export namespace WebviewResourceResponse {
 			public readonly etag: string | undefined,
 			public readonly mtime: number | undefined,
 			public readonly mimeType: string,
+			public readonly size: number,
 		) { }
 	}
 
@@ -43,16 +45,19 @@ export namespace WebviewResourceResponse {
 }
 
 export async function loadLocalResource(
+	accessor: ServicesAccessor,
 	requestUri: URI,
 	options: {
 		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
+		range?: { readonly start: number; readonly end?: number };
 	},
-	uriIdentityService: IUriIdentityService,
-	fileService: IFileService,
-	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
+	const uriIdentityService = accessor.get(IUriIdentityService);
+	const fileService = accessor.get(IFileService);
+	const logService = accessor.get(ILogService);
+
 	const resourceToLoad = getResourceToLoad(requestUri, options.roots, uriIdentityService);
 
 	logService.trace(`Webview.loadLocalResource - trying to load resource. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
@@ -65,9 +70,19 @@ export async function loadLocalResource(
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch }, token);
+		const readOptions: { etag?: string; position?: number; length?: number } = { etag: options.ifNoneMatch };
+		if (options.range) {
+			readOptions.position = options.range.start;
+			if (options.range.end !== undefined) {
+				if (options.range.end < options.range.start) {
+					return WebviewResourceResponse.Failed;
+				}
+				readOptions.length = options.range.end - options.range.start + 1;
+			}
+		}
+		const result = await fileService.readFileStream(resourceToLoad, readOptions, token);
 		logService.trace(`Webview.loadLocalResource - Loaded. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
-		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime, result.size);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
 			const result = err.fileOperationResult;

@@ -23,13 +23,11 @@
 	padding: 0px 10px 11px 0;
 }
 
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container {
+.keybindings-editor > .keybindings-header > .search-container {
 	position: relative;
-	flex: 1;
-	min-width: 0;
 }
 
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container > .keybindings-search-actions-container {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container {
 	position: absolute;
 	top: 0;
 	right: 10px;
@@ -37,22 +35,22 @@
 	display: flex;
 }
 
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container > .keybindings-search-actions-container > .recording-badge {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
 	margin-right: 8px;
 	padding: 4px;
 }
 
-.keybindings-editor > .keybindings-header.small > .search-row-container > .search-container > .keybindings-search-actions-container > .recording-badge,
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container > .keybindings-search-actions-container > .recording-badge.disabled {
+.keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge.disabled {
 	display: none;
 }
 
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item > .icon {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item > .icon {
 	width: 16px;
 	height: 18px;
 }
 
-.keybindings-editor > .keybindings-header > .search-row-container > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
 
@@ -86,21 +84,6 @@
 
 .keybindings-editor > .keybindings-header .open-keybindings-container > .file-name:focus {
 	opacity: 1;
-}
-
-.keybindings-editor > .keybindings-header > .search-row-container {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.keybindings-editor > .keybindings-header > .search-row-container > .open-keybindings-json {
-	flex-shrink: 0;
-}
-
-.keybindings-editor > .keybindings-header > .search-row-container > .open-keybindings-json > .monaco-button {
-	padding: 2px 8px;
-	line-height: 18px;
 }
 
 /** Table styling **/

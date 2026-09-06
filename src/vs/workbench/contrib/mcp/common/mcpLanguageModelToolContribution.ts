@@ -23,6 +23,7 @@ import { mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagem
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { isContributionEnabled } from '../../chat/common/enablement.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/model/chatModel.js';
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/tools/languageModelToolsService.js';
@@ -59,6 +60,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 			const toDelete = new Set(previous.keys());
 			for (const server of servers) {
+				// Skip disabled servers — don't register their tools.
+				if (!isContributionEnabled(server.enablement.read(reader))) {
+					continue;
+				}
+
 				const previousRec = previous.get(server);
 				if (previousRec) {
 					toDelete.delete(server);
@@ -80,7 +86,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						referenceName,
 						{
 							icon: Codicon.mcp,
-							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
+							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label),
+							deprecated: true,
 						}
 					));
 
@@ -246,6 +253,7 @@ class McpToolImplementation implements IToolImpl {
 				kind: 'input',
 				rawInput: context.parameters,
 				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					kind: 'local',
 					resourceUri: tool.uiResourceUri,
 					serverDefinitionId: server.definition.id,
 					collectionId: server.collection.id,
@@ -260,7 +268,12 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionResource: invocation.context?.sessionResource }, token);
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, {
+			chatRequestId: invocation.chatRequestId,
+			chatSessionResource: invocation.context?.sessionResource,
+			traceparent: invocation.traceparent,
+			tracestate: invocation.tracestate,
+		}, token);
 		const details: Mutable<IToolResultInputOutputDetails> = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
@@ -366,7 +379,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.chatStreamToolCallId || invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}

@@ -1,0 +1,6 @@
+# Model prompts
+src/extension/prompts/node/agent/openAIPrompts.tsx @dileepyavan @kcutler
+src/extension/prompts/node/agent/anthropicPrompts.tsx @bhavyaus @bryanchen-d
+src/extension/prompts/node/agent/geminiPrompts.tsx @vijayupadya @pwang347
+src/extension/prompts/node/agent/xAIPrompts.tsx @pwang347 @vijayupadya
+src/extension/prompts/node/agent/vscModelPrompts.tsx @karthiknadig @eleanorjboyd

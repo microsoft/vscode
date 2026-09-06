@@ -10,10 +10,11 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -377,6 +378,7 @@ const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
+	readonly targetName?: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
@@ -432,14 +434,16 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		if (!options.targetName) {
+			while (count < 20 && await new Promise(c => exists(folderPath, c))) {
+				folderName = `${baseFolderName}-${count++}`;
+				folderPath = path.join(options.parentPath, folderName);
+			}
 		}
 
 		await mkdirp(options.parentPath);
@@ -1073,7 +1077,7 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 
 		let uri = originalUri;
 		let renameUri = originalUri;
-		let status = Status.UNTRACKED;
+		let status: Status = Status.UNTRACKED;
 
 		// Copy or Rename status comes with a number (ex: 'R100').
 		// We don't need the number, we use only first character of the status.
@@ -1138,7 +1142,7 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 
 			let uri = originalUri;
 			let renameUri = originalUri;
-			let status = Status.UNTRACKED;
+			let status: Status = Status.UNTRACKED;
 
 			switch (change[0]) {
 				case 'A':
@@ -1687,7 +1691,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -2241,11 +2245,15 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+	async addWorktree(options: { path: string; commitish: string; branch?: string; noTrack?: boolean }): Promise<void> {
 		const args = ['worktree', 'add'];
 
 		if (options.branch) {
 			args.push('-b', options.branch);
+		}
+
+		if (options.noTrack) {
+			args.push('--no-track');
 		}
 
 		args.push(options.path, options.commitish);
@@ -2341,6 +2349,26 @@ export class Repository {
 		}
 	}
 
+	async restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length > 0) {
+			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+				await this.exec([...args, '--', ...chunk]);
+			}
+		} else {
+			await this.exec([...args, '--', '.']);
+		}
+	}
+
 	async addRemote(name: string, url: string): Promise<void> {
 		const args = ['remote', 'add', name, url];
 		await this.exec(args);
@@ -2420,7 +2448,7 @@ export class Repository {
 		await this.exec(args, spawnOptions);
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
 		const args = ['pull'];
 
 		if (options.tags) {
@@ -2446,10 +2474,11 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, {
+			const result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
+			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;

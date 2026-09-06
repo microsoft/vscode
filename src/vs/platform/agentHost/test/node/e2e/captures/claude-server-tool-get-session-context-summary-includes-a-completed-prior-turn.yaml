@@ -1,0 +1,54 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+    response:
+      content: CONTEXT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+        - role: assistant
+          content: CONTEXT_READY
+        - role: user
+          content: Call get_session_context exactly once with session "claude:/${uuid_0}", then reply exactly "read".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: mcp__host__get_session_context
+          input:
+            session: claude:/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+        - role: assistant
+          content: CONTEXT_READY
+        - role: user
+          content: Call get_session_context exactly once with session "claude:/${uuid_0}", then reply exactly "read".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: mcp__host__get_session_context
+              input:
+                session: claude:/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"claude:/${uuid_0}","openLink":"agent-host-session://claude/${uuid_0}","detail":"summary","transcript":[{"turn":1,"state":"complete","user":"Reply exactly \"CONTEXT_READY\".","assistant":"CONTEXT_READY"},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"claude:/${uuid_0}\", then reply exactly \"read\"."}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

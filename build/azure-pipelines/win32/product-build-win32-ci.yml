@@ -12,6 +12,7 @@ jobs:
     timeoutInMinutes: 50
     variables:
       VSCODE_ARCH: x64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -26,7 +27,7 @@ jobs:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Node Modules
           sbomEnabled: false
-          isProduction: false
+          isProduction: true
           condition: failed()
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/logs

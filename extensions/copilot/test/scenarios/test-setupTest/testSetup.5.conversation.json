@@ -1,0 +1,16 @@
+[
+  {
+    "name": "phpLaravelApp",
+    "question": "/setupTests phpunit",
+    "expectations": {
+      "filePatterns": ["^tests/.*Test\\.php$"],
+      "installCommandPattern": "composer require.*phpunit",
+      "runCommandPattern": "phpunit"
+    },
+    "files": [
+      "app/Http/Controllers/Controller.php",
+      "composer.json",
+      "phpunit.xml"
+    ]
+  }
+]
