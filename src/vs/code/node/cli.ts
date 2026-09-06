@@ -104,19 +104,19 @@ export async function main(argv: string[]): Promise<void> {
 	// Help (update)
 	else if (args.update?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options, { noInputFiles: true, commandPath: ['update'] }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options, { noInputFiles: true, noPipe: true, commandPath: ['update'] }));
 	}
 
 	// Help (update status)
 	else if (args.update?.status?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.status.options, { noInputFiles: true, commandPath: ['update', 'status'] }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.status.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'status'] }));
 	}
 
 	// Help (update install)
 	else if (args.update?.install?.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.install.options, { noInputFiles: true, commandPath: ['update', 'install'] }));
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.update.options.install.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'install'] }));
 	}
 
 	// Version Info

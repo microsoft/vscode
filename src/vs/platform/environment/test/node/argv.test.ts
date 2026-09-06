@@ -213,7 +213,11 @@ suite('update command', () => {
 			['update', 'install', '--commit', '0123456789abcdef'],
 			['--close'],
 			['--force-close'],
-			['update', 'status', 'file.txt']
+			['update', 'status', 'file.txt'],
+			['update', 'install', '--version', '12.124.124.124'],
+			['update', 'install', '--version', '1.2'],
+			['update', 'install', '--version', '01.2.3'],
+			['update', 'install', '--version', '1.2.3-insider']
 		];
 		const results = inputs.map(input => {
 			try {
@@ -224,13 +228,24 @@ suite('update command', () => {
 			}
 		});
 
-		assert.deepStrictEqual(results, [2, 2, 2, 2, 2]);
+		assert.deepStrictEqual(results, [2, 2, 2, 2, 2, 2, 2, 2, 2]);
 	});
 
 	test('builds nested help usage', () => {
-		assert.ok(buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options, { noInputFiles: true, commandPath: ['update'] }).includes('Usage: code update [options]'));
-		assert.ok(buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.status.options, { noInputFiles: true, commandPath: ['update', 'status'] }).includes('Usage: code update status [options]'));
-		assert.ok(buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.install.options, { noInputFiles: true, commandPath: ['update', 'install'] }).includes('Usage: code update install [options]'));
+		const helpMessages = [
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options, { noInputFiles: true, noPipe: true, commandPath: ['update'] }),
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.status.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'status'] }),
+			buildHelpMessage('Code', 'code', '1.2.3', OPTIONS.update.options.install.options, { noInputFiles: true, noPipe: true, commandPath: ['update', 'install'] })
+		];
+
+		assert.deepStrictEqual(helpMessages.map(message => ({
+			usage: message.match(/Usage: .*/)?.[0],
+			hasStdinHint: message.includes('To read from stdin')
+		})), [
+			{ usage: 'Usage: code update [options]', hasStdinHint: false },
+			{ usage: 'Usage: code update status [options]', hasStdinHint: false },
+			{ usage: 'Usage: code update install [options]', hasStdinHint: false }
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

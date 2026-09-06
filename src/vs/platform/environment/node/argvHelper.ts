@@ -84,6 +84,11 @@ function validateUpdateArguments(args: NativeParsedArgs): void {
 	if (command._.length) {
 		throw new CliUsageError(localize('updatePathsUnsupported', "The update command does not accept file or folder paths."));
 	}
+
+	const version = update.install?.version;
+	if (version && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+		throw new CliUsageError(localize('invalidUpdateVersion', "Version '{0}' is invalid. Use MAJOR.MINOR.PATCH format, for example '1.105.0'.", version));
+	}
 }
 
 function stripAppPath(argv: string[]): string[] | undefined {
