@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { NotificationAccessibilityProvider, NotificationsList } from '../../browser/parts/notifications/notificationsList.js';
-import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
-import { DEFAULT_NOTIFICATION_ROW_HEIGHT, NotificationTemplateRenderer, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
-import { NotificationViewItem, NotificationsModel, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
+import { NotificationViewItem, INotificationsFilter, INotificationViewItem, NotificationsModel } from '../../common/notifications.js';
 import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ITestInstantiationService, workbenchInstantiationService } from './workbenchTestServices.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
 
 suite('NotificationsList row height', () => {
 	suiteSetup(() => {
@@ -194,58 +194,60 @@ suite('NotificationsList AccessibilityProvider', () => {
 
 suite('NotificationsCenter', () => {
 
-	const disposables = new DisposableStore();
-	let instantiationService: ITestInstantiationService;
-	let container: HTMLElement;
-	let model: NotificationsModel;
-	let center: NotificationsCenter;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	setup(() => {
-		instantiationService = workbenchInstantiationService(undefined, disposables);
-		container = document.createElement('div');
+	test('updates dismissal affordances when progress starts, completes, and restarts', () => {
+		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
 		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 
-		model = disposables.add(new NotificationsModel());
-		center = disposables.add(instantiationService.createInstance(NotificationsCenter, container, model));
-	});
-
-	teardown(() => {
-		const rendererStatics = NotificationTemplateRenderer as unknown as {
-			closeNotificationAction?: { dispose(): void };
-			expandNotificationAction?: { dispose(): void };
-			collapseNotificationAction?: { dispose(): void };
-		};
-		rendererStatics.closeNotificationAction?.dispose();
-		rendererStatics.expandNotificationAction?.dispose();
-		rendererStatics.collapseNotificationAction?.dispose();
-		rendererStatics.closeNotificationAction = undefined;
-		rendererStatics.expandNotificationAction = undefined;
-		rendererStatics.collapseNotificationAction = undefined;
-		(center as unknown as { notificationsList?: { dispose(): void } }).notificationsList?.dispose();
-		container.remove();
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('completed progress notifications regain clear affordances', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const model = store.add(new NotificationsModel());
+		store.add(toDisposable(() => {
+			for (const notification of [...model.notifications]) {
+				notification.close();
+			}
+		}));
+		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
 		const handle = model.addNotification({
 			severity: Severity.Info,
-			message: 'Working...',
-			progress: { infinite: true }
+			message: 'Working...'
 		});
 
 		center.show();
 
-		const clearAllAction = (center as unknown as { clearAllAction: { enabled: boolean } }).clearAllAction;
+		const clearAllAction = container.querySelector<HTMLElement>('.notifications-center-header-toolbar .codicon-notifications-clear-all');
 		assert.ok(clearAllAction);
-		assert.strictEqual(clearAllAction.enabled, false);
-		assert.strictEqual(container.querySelectorAll('.notification-list-item .notification-list-item-toolbar-container .action-item').length, 0);
+		const states: { closeActionVisible: boolean; clearAllDisabled: boolean }[] = [];
+		const captureState = () => states.push({
+			closeActionVisible: !!container.querySelector('.notification-list-item-toolbar-container .codicon-notifications-clear'),
+			clearAllDisabled: clearAllAction.getAttribute('aria-disabled') === 'true'
+		});
 
-		handle.progress.done();
+		captureState();
+		const progress = handle.progress;
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.total(100);
+		captureState();
+		progress.done();
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.done();
+		captureState();
 
-		assert.strictEqual(clearAllAction.enabled, true);
-		assert.strictEqual(container.querySelectorAll('.notification-list-item .notification-list-item-toolbar-container .action-item').length, 1);
+		assert.deepStrictEqual(states, [
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false }
+		]);
 
 		center.clearAll();
 		assert.strictEqual(model.notifications.length, 0);

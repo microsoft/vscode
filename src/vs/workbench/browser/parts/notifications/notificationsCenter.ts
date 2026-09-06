@@ -127,6 +127,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
+
 	private onDidChangeFilter(): void {
 		if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
 			this.hide(); // hide the notification center when we have a error filter enabled
@@ -194,7 +195,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
-			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
+			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasActiveProgress);
 		}
 	}
 
@@ -336,7 +337,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 						}
 						break;
 					case NotificationViewItemContentChangeKind.PROGRESS:
-						if (!e.item.hasProgress) {
+						if (e.activeProgressChanged) {
 							notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 						}
 						break;
@@ -454,11 +455,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Close all
 		for (const notification of [...this.model.notifications] /* copy array since we modify it from closing */) {
-			if (!notification.hasProgress) {
+			if (!notification.hasActiveProgress) {
 				notification.close();
 			}
 			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}
 	}
 }
-

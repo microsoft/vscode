@@ -104,7 +104,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 
 		// Prepare offset helper depending on toolbar actions count
 		let actions = 0;
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			actions++; // close
 		}
 		if (notification.canCollapse) {
@@ -395,7 +395,7 @@ export class NotificationTemplateRenderer extends Disposable {
 			}
 		}));
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
-			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
+			if (!notification.hasActiveProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
 				notification.close();
@@ -492,7 +492,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		}
 
 		// Close (unless progress is showing)
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			actions.push(NotificationTemplateRenderer.closeNotificationAction);
 		}
 
@@ -568,7 +568,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			this.template.progress.stop().hide();
 
 			return;

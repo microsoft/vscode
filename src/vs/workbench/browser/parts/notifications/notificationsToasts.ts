@@ -329,7 +329,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 					}
 					break;
 				case NotificationViewItemContentChangeKind.PROGRESS:
-					if (!item.hasProgress) {
+					if (e.activeProgressChanged) {
 						notificationList.updateNotificationsList(0, 1, [item]);
 					}
 					break;
