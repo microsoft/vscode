@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set EXIT_CODE=0
 
 title VSCode Dev
 
@@ -25,6 +26,7 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 set DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+if "%~1"=="update" set DISABLE_TEST_EXTENSION=""
 for %%A in (%*) do (
 	if "%%~A"=="--extensionTestsPath" (
 		set DISABLE_TEST_EXTENSION=""
@@ -33,13 +35,15 @@ for %%A in (%*) do (
 
 :: Launch Code
 %CODE% --inspect=5874 out\cli.js %~dp0.. %DISABLE_TEST_EXTENSION% %*
+set EXIT_CODE=%ERRORLEVEL%
 goto end
 
 :builtin
 %CODE% build/builtin
+set EXIT_CODE=%ERRORLEVEL%
 
 :end
 
 popd
 
-endlocal
+endlocal & exit /b %EXIT_CODE%
