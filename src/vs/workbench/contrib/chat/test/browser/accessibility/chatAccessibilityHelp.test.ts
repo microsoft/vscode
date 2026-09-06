@@ -6,11 +6,22 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents model details and activating Auto through its tiers', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			details: help.includes('selected model\'s details open beside the list'),
+			immediatePreview: help.includes('updates the details immediately without selecting a model'),
+			inactiveTiers: help.includes('tiers remain visible while Auto is off'),
+			activation: help.includes('Enter or Space to choose a tier and turn Auto on'),
+		}, { details: true, immediatePreview: true, inactiveTiers: true, activation: true });
+	});
 
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
@@ -53,6 +64,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
 			petThrowing: helpText.includes('flick it in any direction') && helpText.includes('gravity pulls it down') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petBouncing: helpText.includes('Pointer collisions are ignored for half a second after a drag release') && helpText.includes('while the pet is falling, move the pointer into it to bounce it upward') && helpText.includes('Sideways and upward travel do not start the bounce counter') && helpText.includes('counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing') && helpText.includes('until the pet next reacts or interacts') && helpText.includes('at least twenty bounces triggers confetti unless reduced motion is enabled') && helpText.includes('press Enter or Space to bounce it upward'),
 			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
 			petScale: helpText.includes('position and selected size are shared across chats and windows') && helpText.includes('remembered after you restart'),
 		}, {
@@ -62,6 +74,7 @@ suite('Chat Accessibility Help', () => {
 			petMovement: true,
 			petHopping: true,
 			petThrowing: true,
+			petBouncing: true,
 			petRevival: true,
 			petScale: true,
 		});
@@ -112,6 +125,26 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents session status pill keyboard interaction', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
+			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			agentQuickChat: false,
+			quickChat: false,
+			inlineChat: false,
 		});
 	});
 

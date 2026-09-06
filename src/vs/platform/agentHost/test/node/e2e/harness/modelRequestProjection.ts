@@ -56,6 +56,34 @@ const ORDINAL_UUID_RE = /\$\{uuid_\d+\}/g;
 const PATH_PLACEHOLDER = '${path}';
 
 /**
+ * A runtime-authored change-notice preamble the CLI prepends to the user
+ * message. `<tools_changed_notice>` (tool availability and model switches),
+ * `<mode_changed_notice>`, `<working_directory_changed>`, and
+ * `<additional_directories_changed>` are all composed by the `@github/copilot`
+ * runtime from session state (which tools are exposed this turn, the active
+ * mode, the working directory) rather than being host-authored prompt
+ * structure. Their wording, which blocks appear, and when the runtime decides
+ * to emit them all move with the CLI version — a plan-mode turn that drops
+ * `exit_plan_mode` began emitting a "Tools no longer available" block, so a
+ * capture recorded before that change no longer matches a live run against a
+ * newer CLI even though the host composed the identical turn.
+ *
+ * These blocks are therefore treated as environment-derived, like the
+ * `tool_result` payload and the model id: elided symmetrically from both the
+ * recorded and the live request so what the host actually authored — the user's
+ * question and the retained history around it — stays asserted while the
+ * runtime's own preamble does not desync the comparison on a CLI bump. The
+ * elision runs before path elision so the closing `</…>` tag, which
+ * {@link elidePaths} would otherwise rewrite into a path placeholder, is still
+ * intact when the block is matched.
+ */
+const CHANGE_NOTICE_RE = /<(tools_changed_notice|mode_changed_notice|working_directory_changed|additional_directories_changed)>[\s\S]*?<\/\1>\n*/g;
+
+function elideChangeNotices(text: string): string {
+	return text.replace(CHANGE_NOTICE_RE, '');
+}
+
+/**
  * A path: a recorder placeholder root (`${workdir}`, with or without a
  * trailing segment), a Windows absolute path (`C:\x\y`), or a POSIX absolute
  * path (`/x/y`). Stops at whitespace and at the punctuation that typically
@@ -105,7 +133,7 @@ export interface IProjectedModelRequest {
 }
 
 function elideRuntimeIds(text: string): string {
-	return elidePaths(text.replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
+	return elidePaths(elideChangeNotices(text).replace(RAW_UUID_RE, RUNTIME_ID_PLACEHOLDER).replace(ORDINAL_UUID_RE, RUNTIME_ID_PLACEHOLDER));
 }
 
 function projectValue(value: unknown): unknown {

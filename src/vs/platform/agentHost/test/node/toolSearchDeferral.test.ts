@@ -48,9 +48,9 @@ suite('toolSearchDeferral', () => {
 			}
 		});
 
-		test('temporarily rejects OpenAI GPT-5.4, GPT-5.5, and GPT-5.6 variants', () => {
+		test('supports OpenAI GPT-5.4, GPT-5.5, and GPT-5.6 variants', () => {
 			for (const id of ['gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
-				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
+				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
 			}
 		});
 

@@ -7,6 +7,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -89,11 +91,46 @@ const sampleNotification: IChatInputNotification = {
 	autoDismissOnMessage: false,
 };
 
+const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
+	schema: {
+		type: 'object',
+		properties: {
+			[SessionConfigKey.Mode]: {
+				type: 'string',
+				title: 'Mode',
+				enum: ['interactive', 'autopilot'],
+				enumLabels: ['Agent', 'Autopilot'],
+				default: 'interactive',
+			},
+			[SessionConfigKey.AutoApprove]: {
+				type: 'string',
+				title: 'Permissions',
+				enum: ['default', 'autoApprove', 'autopilot'],
+				enumLabels: ['Default permissions', 'Allow all', 'Autopilot'],
+				default: 'default',
+			},
+		},
+	},
+	values: {
+		[SessionConfigKey.Mode]: 'interactive',
+		[SessionConfigKey.AutoApprove]: 'default',
+	},
+};
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
-	CompactWithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels, width: 260 }) }),
+	CompactWithProviderIcon: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor chat input shows compact picker controls as 12-pixel codicons centered with equal padding inside matching 22-pixel square controls, aligned with the expanded toolbar height.'],
+		render: context => renderChatInput(context, { models: sampleModels, width: 180 })
+	}),
+	CopilotHarnessCompactPickers: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor chat input renders the real Copilot Agent Host mode and permissions pickers in compact state. Each compact icon is centered with equal padding inside a 22-pixel square control.'],
+		render: context => renderChatInput(context, { agentHostSessionConfig: copilotHarnessSessionConfig, width: 500, resizeWidths: [180] }),
+	}),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	// The notice/input seam, the subject of #330483. Driven through the real
 	// notification service so the squared corner comes from the stack.

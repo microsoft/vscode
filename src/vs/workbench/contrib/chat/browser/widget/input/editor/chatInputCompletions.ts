@@ -45,7 +45,7 @@ import { LifecyclePhase } from '../../../../../../services/lifecycle/common/life
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../../../common/participants/chatAgents.js';
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
@@ -1229,7 +1229,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 			for (const workspace of workspaces) {
-				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 				for (const file of files) {
 					if (!seen.has(file)) {
 						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));

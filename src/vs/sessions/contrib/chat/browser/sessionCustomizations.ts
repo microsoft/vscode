@@ -13,7 +13,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind, type IChat } from '../../../services/sessions/common/session.js';
@@ -21,20 +20,6 @@ import type { IActiveSession } from '../../../services/sessions/common/sessionsM
 
 /** Action id of the customizations pill. */
 export const SESSION_CUSTOMIZATIONS_PILL_ID = 'sessions.chatPills.customizations';
-
-/** Presentation of the customizations pill. */
-export const chatCustomizationPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'chatCustomizations',
-	icon: Codicon.bookmark,
-	title: localize('chatCustomizations.title', "Customizations"),
-	summaryLabel: count => count === 1
-		? localize('chatCustomizations.countSingle', "1 Customization")
-		: localize('chatCustomizations.count', "{0} Customizations", count),
-	summaryAriaLabel: count => count === 1
-		? localize('chatCustomizations.showSingle', "Show 1 customization")
-		: localize('chatCustomizations.show', "Show {0} customizations", count),
-	singleEntry: ChatPillSingleEntry.Summary,
-};
 
 const customizationIcons: ReadonlyMap<SessionCustomizationKind, ThemeIcon> = new Map([
 	[SessionCustomizationKind.Agent, Codicon.robot],

@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
+import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import {
 	ResponsePartKind,
+	ROOT_STATE_URI,
 	ToolCallConfirmationReason,
 	ToolResultContentType,
 	buildDefaultChatUri,
@@ -22,12 +25,154 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 } from '../../../../common/state/sessionState.js';
-import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
+
+	function createCustomAgentWorkspace(prefix: string): string {
+		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const agentsDirectory = join(workspace, '.github', 'agents');
+		mkdirSync(agentsDirectory, { recursive: true });
+		writeFileSync(join(agentsDirectory, 'display-name-child.agent.md'), [
+			'---',
+			'name: e2e-display-name-child',
+			'description: Returns the custom child sentinel',
+			'tools:',
+			'  - view',
+			'---',
+			'Reply exactly "CUSTOM_AGENT_CHILD_OK". Do not call tools.',
+		].join('\n'));
+		tempDirs.push(workspace);
+		return workspace;
+	}
+
+	async function createCustomAgentSession(prefix: string): Promise<string> {
+		const workspace = createCustomAgentWorkspace(prefix);
+		const sessionUri = await createRealSession(context.client, config, prefix, createdSessions, URI.file(workspace));
+		context.client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq: 1,
+			action: {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostConfigKey.SessionCustomizationDiscoveryMode]: 'scan' },
+			},
+		});
+		return sessionUri;
+	}
+
+	function subagentChatFromReceived(parentChat: string): string | undefined {
+		for (const notification of context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallContentChanged'))) {
+			const envelope = getActionEnvelope(notification);
+			if (envelope.channel !== parentChat) {
+				continue;
+			}
+			const content = (envelope.action as { content: readonly ToolResultContent[] }).content;
+			const subagent = content.find((item): item is ToolResultSubagentContent => item.type === ToolResultContentType.Subagent);
+			if (subagent) {
+				return subagent.resource;
+			}
+		}
+		return undefined;
+	}
+
+	function markdownText(state: ChatState | undefined): string {
+		return state?.turns.flatMap(turn => turn.responseParts)
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('') ?? '';
+	}
+
+	function responsePartIds(turns: ISessionWithDefaultChat['turns']): string[] {
+		return turns.flatMap(turn => turn.responseParts.flatMap(part => {
+			const id = Reflect.get(part, 'id');
+			return typeof id === 'string' ? [id] : [];
+		}));
+	}
+
+	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
+
+	// The bundled runtime currently rejects the SDK's optional displayName field; keep this executable in known-issue recording until that runtime fix ships.
+	(context.runKnownIssueTests && copilotCustomAgentTest ? test : test.skip)('custom agent without a display name completes as a subagent', async function () {
+		this.timeout(180_000);
+
+		const sessionUri = await createCustomAgentSession('ahp-custom-agent-display-name-');
+		const parentChat = buildDefaultChatUri(sessionUri);
+		await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-custom-agent-display-name',
+			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "PARENT_DONE".',
+			2,
+		);
+
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the parent tool call should expose the custom subagent chat');
+		const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+		assert.match(markdownText(snapshot.snapshot?.state as ChatState | undefined), /CUSTOM_AGENT_CHILD_OK/);
+	});
+
+	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent has no transcript', async function () {
+		this.timeout(240_000);
+
+		const sessionUri = await createCustomAgentSession('ahp-missing-custom-agent-transcript-');
+		const parentChat = buildDefaultChatUri(sessionUri);
+		const setup = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-create-missing-subagent-transcript',
+			'Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".',
+			2,
+		);
+		assert.match(setup.responseText, /SETUP_DONE/);
+		assert.ok(subagentChatFromReceived(parentChat), 'the failed custom subagent should remain in the parent chat catalog');
+
+		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
+		const liveResponsePartIds = responsePartIds(liveParent.turns);
+		assert.ok(liveResponsePartIds.length > 0);
+
+		const unsubscribeParent = () => {
+			context.client.notify('unsubscribe', { channel: parentChat });
+			context.client.notify('unsubscribe', { channel: sessionUri });
+		};
+		unsubscribeParent();
+
+		await retry(async () => {
+			const restored = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredResponsePartIds = responsePartIds(restored.turns);
+			if (restoredResponsePartIds.length === liveResponsePartIds.length
+				&& restoredResponsePartIds.every((id, index) => id === liveResponsePartIds[index])) {
+				unsubscribeParent();
+				throw new Error('parent session has not been reconstructed from persisted provider state');
+			}
+		}, 50, 100);
+
+		context.client.clearReceived();
+		dispatchTurn(context.client, sessionUri, 'turn-after-missing-subagent-transcript', 'Reply exactly "PARENT_RECOVERED".', 3);
+		const started = await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnStarted')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnStarted
+				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+		}, 30_000);
+		assert.strictEqual(getActionEnvelope(started).rejectionReason, undefined);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnComplete')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === parentChat
+				&& envelope.action.type === ActionType.ChatTurnComplete
+				&& envelope.action.turnId === 'turn-after-missing-subagent-transcript';
+		}, 90_000);
+		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
+	});
+
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
 		this.timeout(180_000);
 
@@ -228,12 +373,6 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 		const assistantText = (turns: ISessionWithDefaultChat['turns']): string =>
 			turns.map(t => t.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('')).join('\n');
-
-		const responsePartIds = (turns: ISessionWithDefaultChat['turns']): string[] =>
-			turns.flatMap(turn => turn.responseParts.flatMap(part => {
-				const id = Reflect.get(part, 'id');
-				return typeof id === 'string' ? [id] : [];
-			}));
 
 		const liveParent = await fetchSessionWithChat(context.client, sessionUri);
 		const liveParentResponsePartIds = responsePartIds(liveParent.turns);

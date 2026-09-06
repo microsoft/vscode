@@ -6,6 +6,8 @@
 .sessions-chat-agent-host-config {
 	display: flex;
 	align-items: center;
+	/* Each config control carries its own surface, so they need a gap. */
+	gap: var(--vscode-spacing-size20);
 	min-width: 0;
 }
 

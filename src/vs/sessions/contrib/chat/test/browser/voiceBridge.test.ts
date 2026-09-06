@@ -6,14 +6,17 @@
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
-import { SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
+import { prepareNewVoiceSession, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
 
 suite('SessionsVoiceNewComposerContribution', () => {
 
@@ -33,12 +36,14 @@ suite('SessionsVoiceNewComposerContribution', () => {
 
 	function createController(isConnected: ISettableObservable<boolean>, isConnecting = constObservable(false)) {
 		let disconnectCount = 0;
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
 		const controller = new class extends mock<IVoiceSessionController>() {
 			override readonly isConnected = isConnected;
 			override readonly isConnecting = isConnecting;
+			override readonly hasDraftTarget = hasDraftTarget;
 			override disconnect(): void { disconnectCount++; }
 		};
-		return { controller, getDisconnectCount: () => disconnectCount };
+		return { controller, hasDraftTarget, getDisconnectCount: () => disconnectCount };
 	}
 
 	function createTarget(): NewChatVoiceTargetService {
@@ -63,6 +68,41 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
 
 		// Opening a new session mounts a fresh welcome composer.
+		const b = composer();
+		disposables.add(target.registerComposer(b));
+
+		assert.strictEqual(getDisconnectCount(), 1);
+	});
+
+	test('keeps voice connected when voice creates a fresh session composer', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, getDisconnectCount } = createController(isConnected);
+
+		const a = composer();
+		disposables.add(target.registerComposer(a));
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+
+		const transition = target.beginVoiceTransition();
+		const b = composer();
+		disposables.add(target.registerComposer(b));
+		transition.dispose();
+
+		assert.strictEqual(getDisconnectCount(), 0);
+	});
+
+	test('disconnects for an unrelated composer even when voice owns a draft', () => {
+		const target = disposables.add(createTarget());
+		const isConnected = observableValue<boolean>('isConnected', false);
+		const { controller, hasDraftTarget, getDisconnectCount } = createController(isConnected);
+
+		const a = composer();
+		disposables.add(target.registerComposer(a));
+		hasDraftTarget.set(true, undefined);
+		isConnected.set(true, undefined);
+		disposables.add(new SessionsVoiceNewComposerContribution(controller, target));
+
 		const b = composer();
 		disposables.add(target.registerComposer(b));
 
@@ -115,5 +155,117 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		disposables.add(target.registerComposer(b));
 
 		assert.strictEqual(getDisconnectCount(), 0);
+	});
+
+	test('creates and sends a voice-requested session without waiting for its composer', async () => {
+		const workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly uri = URI.file('/workspace');
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly workspace = constObservable(workspace);
+			override readonly isQuickChat = constObservable(false);
+		}();
+		const chat = new class extends mock<IChat>() { }();
+		const createdSession = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable(chat);
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async openNewSession() {
+				return { session: createdSession, trustDeclined: false };
+			}
+		}();
+		const sent: { session: ISession; query: string }[] = [];
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override isNewSessionTargetAvailable(): boolean { return false; }
+			override async sendNewChatRequest(session: ISession, options: { query: string }): Promise<void> {
+				sent.push({ session, query: options.query });
+			}
+		}();
+		const targetSession = observableValue<URI | undefined>('targetSession', URI.parse('agent-host-copilot:/existing'));
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
+			override readonly targetSession = targetSession;
+			override readonly hasDraftTarget = hasDraftTarget;
+			override setDraftTarget(): void {
+				targetSession.set(undefined, undefined);
+				hasDraftTarget.set(true, undefined);
+			}
+			override setTargetSession(resource: URI | undefined): void {
+				hasDraftTarget.set(false, undefined);
+				targetSession.set(resource, undefined);
+			}
+		}();
+
+		const result = await prepareNewVoiceSession(
+			'refactor the upload service',
+			sessionsService,
+			sessionsManagementService,
+			voiceSessionController,
+			() => false,
+			() => ({ dispose() { } }),
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			hasDraftTarget: hasDraftTarget.get(),
+			sent,
+		}, {
+			result: 'sent',
+			hasDraftTarget: true,
+			sent: [{ session: createdSession, query: 'refactor the upload service' }],
+		});
+	});
+
+	test('restores the previous voice target when new-session preparation is declined', async () => {
+		const previousTarget = URI.parse('agent-host-copilot:/existing');
+		const workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly uri = URI.file('/workspace');
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly workspace = constObservable(workspace);
+			override readonly isQuickChat = constObservable(false);
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async openNewSession() {
+				return { session: undefined, trustDeclined: true };
+			}
+		}();
+		const targetSession = observableValue<URI | undefined>('targetSession', previousTarget);
+		const hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
+			override readonly targetSession = targetSession;
+			override readonly hasDraftTarget = hasDraftTarget;
+			override setDraftTarget(): void {
+				targetSession.set(undefined, undefined);
+				hasDraftTarget.set(true, undefined);
+			}
+			override setTargetSession(resource: URI | undefined): void {
+				hasDraftTarget.set(false, undefined);
+				targetSession.set(resource, undefined);
+			}
+		}();
+
+		const result = await prepareNewVoiceSession(
+			'refactor the upload service',
+			sessionsService,
+			new class extends mock<ISessionsManagementService>() { }(),
+			voiceSessionController,
+			() => false,
+			() => ({ dispose() { } }),
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual({
+			result,
+			targetSession: targetSession.get()?.toString(),
+			hasDraftTarget: hasDraftTarget.get(),
+		}, {
+			result: 'failed',
+			targetSession: previousTarget.toString(),
+			hasDraftTarget: false,
+		});
 	});
 });

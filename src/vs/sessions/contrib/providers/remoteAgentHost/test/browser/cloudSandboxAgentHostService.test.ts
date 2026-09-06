@@ -16,7 +16,7 @@ import {
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -76,6 +76,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly onDidChangeConnections = Event.None;
 		override readonly connections = [];
 		override getConnection() { return undefined; }
+		override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) { return { dispose() { } }; }
 	}());
 	instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
 		override readonly logsHome = URI.file('/logs');

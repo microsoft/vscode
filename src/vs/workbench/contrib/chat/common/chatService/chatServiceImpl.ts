@@ -62,9 +62,10 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
-import { AICustomizationManagementCommands, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
 
 const serializedChatKey = 'interactive.sessions';
 const customizationMigrationHintShownStateKey = 'customizationMigrationHintShown';
@@ -222,7 +223,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationHintProvider: ((sessionResource: URI) => Promise<string | undefined>) | undefined;
+	private _customizationMigrationHintProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -242,7 +243,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI) => Promise<string | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
 		if (this._customizationMigrationHintProvider) {
 			throw new BugIndicatingError('A customization migration hint provider is already registered');
 		}
@@ -886,9 +887,17 @@ export class ChatService extends Disposable implements IChatService {
 
 		let lastRequest: ChatRequestModel | undefined;
 		let lastResponseCompletedAt: number | undefined;
-		const completeLastResponse = () => {
+		/**
+		 * @param finishedNow Whether the response is finishing as it is watched rather
+		 * than being finalized from replayed history. Replayed history carries the time
+		 * each response originally finished, or none when that time was never recorded,
+		 * while a response finishing now completes at a time that is known.
+		 */
+		const completeLastResponse = (finishedNow = false) => {
 			if (Number.isFinite(lastResponseCompletedAt)) {
 				lastRequest?.response?.complete(lastResponseCompletedAt);
+			} else if (finishedNow) {
+				lastRequest?.response?.complete();
 			} else {
 				lastRequest?.response?.completeWithoutTimestamp();
 			}
@@ -933,6 +942,7 @@ export class ChatService extends Disposable implements IChatService {
 					message.timestamp ?? null,
 					message.isHidden,
 					message.origin,
+					message.isRequestHidden,
 				);
 			} else {
 				// response
@@ -961,6 +971,11 @@ export class ChatService extends Disposable implements IChatService {
 		const hasProgressStreaming = providedSession.progressObs && providedSession.interruptActiveResponseCallback;
 		if (hasProgressStreaming) {
 			let lastProgressLength = 0;
+			// Completion state as of the previous observation, or undefined before the
+			// first one. A session that is already complete when first observed is
+			// finalizing replayed history, while a session seen running and completing
+			// afterwards holds a turn that finished while it was watched.
+			let wasComplete: boolean | undefined;
 
 			const cancellationListener = disposables.add(new MutableDisposable());
 			const createCancellationListener = (token: CancellationToken) => {
@@ -993,7 +1008,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1007,7 +1022,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
-						completeLastResponse();
+						completeLastResponse(true);
 					}
 
 					// Create a new request in the model
@@ -1033,6 +1048,7 @@ export class ChatService extends Disposable implements IChatService {
 						timestamp,
 						isHidden,
 						origin,
+						isRequestHidden,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1086,6 +1102,8 @@ export class ChatService extends Disposable implements IChatService {
 			disposables.add(autorun(reader => {
 				const progressArray = providedSession.progressObs?.read(reader) ?? [];
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+				const justCompleted = wasComplete === false && isComplete;
+				wasComplete = isComplete;
 
 				// Backstop: keep the streamed turn tracked as in-progress across immediate-steer dispatches.
 				if (!isComplete) {
@@ -1105,7 +1123,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (isComplete && lastRequest) {
 					this._pendingRequests.deleteAndDispose(model.sessionResource);
 					cancellationListener.clear();
-					completeLastResponse();
+					completeLastResponse(justCompleted);
 					// Flush any message queued/steered during the streamed turn (no-op if none, or server-managed).
 					this.processPendingRequests(model.sessionResource);
 				}
@@ -1515,7 +1533,6 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedCommand: IChatAgentCommand | undefined;
 
 			// Gate /troubleshoot and the troubleshoot skill behind the file logging flag.
-			// agentDebugLog.enabled is deprecated; only fileLogging.enabled is authoritative.
 			{
 				const fileLoggingEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 				if (!fileLoggingEnabled) {
@@ -1577,22 +1594,23 @@ export class ChatService extends Disposable implements IChatService {
 				return { hooks: collectedHooks, hasDisabledClaudeHooks };
 			};
 
-			const collectCustomizationMigrationHint = async (): Promise<string | undefined> => {
+			const collectCustomizationMigrationHint = async (): Promise<ICustomizationMigrationHint | undefined> => {
 				const sessionType = getChatSessionType(sessionResource);
 				const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
 				const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+				const showOnce = hintMode === CustomizationMigrationHintMode.Once;
 				if (!isAgentHostTarget(sessionType)
-					|| (hintMode !== CustomizationMigrationHintMode.Once && hintMode !== CustomizationMigrationHintMode.Always)
+					|| (!showOnce && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
-					|| (hintMode === CustomizationMigrationHintMode.Once && hintAlreadyShown)
+					|| (showOnce && hintAlreadyShown)
 					|| !this._customizationMigrationHintProvider) {
 					return undefined;
 				}
 
 				try {
-					const message = await this._customizationMigrationHintProvider(sessionResource);
-					if (message && !token.isCancellationRequested) {
-						return message;
+					const hint = await this._customizationMigrationHintProvider(sessionResource, token);
+					if (hint && !token.isCancellationRequested) {
+						return hint;
 					}
 					return undefined;
 				} catch (error) {
@@ -1801,21 +1819,30 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
-					const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
-					if (customizationMigrationHint
-						&& !token.isCancellationRequested
-						&& (hintMode !== CustomizationMigrationHintMode.Once || !hintAlreadyShown)) {
-						if (hintMode === CustomizationMigrationHintMode.Once) {
+					const showCustomizationMigrationHint = (hint: ICustomizationMigrationHint | undefined): void => {
+						const hintAlreadyShown = model.inputModel.state.get()?.contrib[customizationMigrationHintShownStateKey] === true;
+						const hintMode = this.configurationService.getValue<CustomizationMigrationHintMode>(ChatConfiguration.ChatCustomizationsMigrationHint);
+						const showOnce = hintMode === CustomizationMigrationHintMode.Once;
+						if (!hint || token.isCancellationRequested || (showOnce && hintAlreadyShown)) {
+							return;
+						}
+
+						if (showOnce) {
 							model.inputModel.setState({
 								contrib: { ...model.inputModel.state.get()?.contrib, [customizationMigrationHintShownStateKey]: true }
 							});
 						}
 
+						const reviewArguments = hint.target === CustomizationMigrationHintTarget.FileMigrations
+							? [{ migration: true }]
+							: hint.target === CustomizationMigrationHintTarget.McpServers
+								? [{ section: AICustomizationManagementSection.McpServers }]
+								: undefined;
 						const reviewLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.OpenEditor,
 							text: localize('customizationMigrationHint.review', "Review customizations"),
 							tooltip: localize('customizationMigrationHint.review.tooltip', "Open Chat Customizations"),
+							arguments: reviewArguments,
 						});
 						const dismissLink = createMarkdownCommandLink({
 							id: AICustomizationManagementCommands.DismissMigrationHint,
@@ -1825,12 +1852,13 @@ export class ChatService extends Disposable implements IChatService {
 						progressCallback([{
 							kind: 'systemNotification',
 							content: new MarkdownString(
-								localize('customizationMigrationHint', "*{0} {1} | {2}*", customizationMigrationHint, reviewLink, dismissLink),
+								localize('customizationMigrationHint', "*{0} {1} | {2}*", hint.message, reviewLink, dismissLink),
 								{ isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor, AICustomizationManagementCommands.DismissMigrationHint] } }
 							),
 							icon: Codicon.info,
 						}]);
-					}
+					};
+					showCustomizationMigrationHint(customizationMigrationHint);
 
 					// Check for disabled Claude Code hooks and notify the user once per workspace.
 					// Only set the flag when actually showing the hint, so the setup agent flow

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatSetup.css';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, getWindow, releaseReservedWindowForExternalOpen, reserveWindowForExternalOpen } from '../../../../../base/browser/dom.js';
+import { isSafari, isMobileStandalone } from '../../../../../base/browser/browser.js';
+import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -93,6 +95,24 @@ export interface IChatSetupDialogOptions {
 	readonly renderFooter?: (container: HTMLElement) => IDisposable | undefined;
 }
 
+/**
+ * Whether this strategy sends the user to a provider's sign-in page. `DefaultSetup`
+ * is excluded: for an already signed-in user it installs and signs up with no
+ * browser round trip.
+ */
+function entersProviderAuthentication(strategy: ChatSetupStrategy): boolean {
+	switch (strategy) {
+		case ChatSetupStrategy.SetupWithEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithoutEnterpriseProvider:
+		case ChatSetupStrategy.SetupWithGoogleProvider:
+		case ChatSetupStrategy.SetupWithAppleProvider:
+		case ChatSetupStrategy.SetupWithMicrosoftProvider:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export class ChatSetupDialog extends Disposable {
 
 	private readonly dialog: Dialog;
@@ -135,7 +155,26 @@ export class ChatSetupDialog extends Disposable {
 				},
 				buttonOptions: options.buttons.map(button => {
 					const classes = button.classes;
-					return classes ? { styleButton: control => control.element.classList.add(...classes) } : undefined;
+					// Claim the sign-in window while the click's activation is still live;
+					// see `reserveWindowForExternalOpen`. Only installed mobile apps (fatal,
+					// no tab to fall back to) and Safari (recoverable via "Retry") need this.
+					const opensBrowser = (isMobileStandalone() || isSafari) && entersProviderAuthentication(button.strategy);
+					if (!classes && !opensBrowser) {
+						return undefined;
+					}
+					return {
+						styleButton: (control: IButton) => {
+							if (classes?.length) {
+								control.element.classList.add(...classes);
+							}
+							if (opensBrowser) {
+								this._register(control.onDidClick(() => reserveWindowForExternalOpen(
+									getWindow(control.element),
+									localize('signingInPlaceholder', "Signing in…")
+								)));
+							}
+						}
+					};
 				})
 			}, keybindingService, layoutService, hostService)
 		));
@@ -372,6 +411,10 @@ export class ChatSetup {
 			}
 		} finally {
 			setupCancellation.dispose();
+			// no browser window was opened, so the reservation is still blank
+			releaseReservedWindowForExternalOpen(
+				localize('signInDidNotComplete', "Sign-in did not complete. You can close this window.")
+			);
 		}
 
 		if (success) {

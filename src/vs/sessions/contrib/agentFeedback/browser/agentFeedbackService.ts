@@ -179,6 +179,8 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+	/** Associate legacy PR-review feedback with its originating pull request. */
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void;
 
 	/**
 	 * Mark an existing feedback item as resolved. Resolving moves the item to
@@ -675,6 +677,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return;
 		}
 		backend.upsert({ ...existing, text: newText });
+	}
+
+	updateFeedbackSourcePullRequest(sessionResource: URI, feedbackId: string, sourcePullRequest: IFeedbackPullRequest): void {
+		const backend = this._backendForSession(sessionResource);
+		const existing = backend.getItems(sessionResource).find(item => item.id === feedbackId);
+		if (!existing || existing.sourcePullRequest) {
+			return;
+		}
+		backend.upsert({ ...existing, sourcePullRequest });
 	}
 
 	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void {

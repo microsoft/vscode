@@ -18,7 +18,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 
 const $ = DOM.$;
 
@@ -26,6 +26,7 @@ export interface IMcpServerDetailInput {
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
+	readonly installState: McpServerInstallState;
 	readonly config?: IMcpServerConfiguration;
 	readonly source?: {
 		readonly uri: URI;
@@ -38,6 +39,7 @@ export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer)
 		id: server.id,
 		name: server.name,
 		label: server.label,
+		installState: server.installState,
 		config: server.config,
 		source: server.local?.mcpResource ? { uri: server.local.mcpResource } : undefined,
 	};
@@ -151,7 +153,9 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 		this.nameEl.textContent = server.label || server.name;
 		this.pathEl.textContent = server.source ? basename(server.source.uri) : 'mcp.json';
-		if (server.config) {
+		if (server.installState !== McpServerInstallState.Installed) {
+			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
+		} else if (server.config) {
 			this.setDefinition(`${JSON.stringify({ servers: { [server.name]: server.config } }, null, '\t')}\n`);
 		} else if (server.source) {
 			this.setDefinition(undefined, localize('mcpDefinitionLoading', "Loading MCP server definition..."));

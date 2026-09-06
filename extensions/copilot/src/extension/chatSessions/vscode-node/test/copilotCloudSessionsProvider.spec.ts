@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -58,6 +58,59 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			`Folder: ${vscode.Uri.file('/workspace/docs').fsPath}`,
 			undefined,
 		]);
+	});
+
+	it('parses pasted GitHub issue and pull request URLs for the matching picker', () => {
+		expect({
+			issue: parseGitHubContextUrl(' https://github.com/microsoft/vscode/ISSUES/333149#issuecomment-1 ', 'issue'),
+			pullRequest: parseGitHubContextUrl('https://www.github.com/microsoft/vscode/pull/333149/', 'pullRequest'),
+			wrongPicker: parseGitHubContextUrl('https://github.com/microsoft/vscode/pull/333149', 'issue'),
+			unrelated: parseGitHubContextUrl('https://example.com/microsoft/vscode/issues/333149', 'issue'),
+		}).toEqual({
+			issue: {
+				repoId: 'microsoft/vscode',
+				url: 'https://github.com/microsoft/vscode/issues/333149',
+				label: 'microsoft/vscode#333149',
+			},
+			pullRequest: {
+				repoId: 'microsoft/vscode',
+				url: 'https://github.com/microsoft/vscode/pull/333149',
+				label: 'microsoft/vscode#333149',
+			},
+			wrongPicker: undefined,
+			unrelated: undefined,
+		});
+	});
+
+	it('resolves a GitHub context repository from the selected workspace folder', async () => {
+		const gitService = new TestGitService();
+		gitService.getRepositoryFetchUrls = vi.fn(async () => ({
+			rootUri: vscode.Uri.file('/workspace/docs'),
+			remoteFetchUrls: ['https://github.com/microsoft/vscode-docs.git'],
+		}));
+
+		expect({
+			folder: await resolveGitHubContextRepository(gitService, vscode.Uri.file('/workspace/docs')),
+			repository: await resolveGitHubContextRepository(gitService, 'microsoft/vscode'),
+		}).toEqual({
+			folder: 'microsoft/vscode-docs',
+			repository: 'microsoft/vscode',
+		});
+	});
+
+	it('offers repository selection only when a selected folder cannot be resolved', async () => {
+		const gitService = new TestGitService();
+		gitService.getRepositoryFetchUrls = vi.fn(async () => undefined);
+		const pickRepository = vi.fn(async () => 'microsoft/vscode');
+
+		expect({
+			selectedFolder: await resolveOrPickGitHubContextRepository(gitService, vscode.Uri.file('/workspace/vscode'), pickRepository),
+			noFolder: await resolveOrPickGitHubContextRepository(gitService, undefined, pickRepository),
+		}).toEqual({
+			selectedFolder: 'microsoft/vscode',
+			noFolder: undefined,
+		});
+		expect(pickRepository).toHaveBeenCalledTimes(1);
 	});
 
 	it('coerces object-shaped initialSessionOptions into option entries', () => {

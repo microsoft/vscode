@@ -38,6 +38,7 @@ import {
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
 	computeSSHConnectionKey,
 	isSSHHostKeyDeniedError,
+	SSH_HOST_KEY_DENIED_ERROR_NAME,
 	SSHAuthMethod,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
@@ -193,25 +194,40 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 
 		const stagedConfig = this._stagedConfigurations.get(entry.connection.address);
 		this._stagedConfigurations.delete(entry.connection.address);
-		const result = stagedConfig
-			? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
-			: entry.connection.sshConfigHost
-				? await this._mainService.reconnect(
-					entry.connection.sshConfigHost,
-					entry.name,
-					this._getRemoteAgentHostCommand(),
-					this._isSSHAgentForwardingEnabled(),
-					options.userInitiated,
-					this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: entry.connection.sshConfigHost })),
-				)
-				: await this._mainService.connect(this._augmentConfig({
-					host: entry.connection.hostName,
-					port: entry.connection.port,
-					username: entry.connection.user ?? entry.connection.hostName,
-					authMethod: SSHAuthMethod.Agent,
-					name: entry.name,
-					userInitiated: options.userInitiated,
-				}));
+		let result;
+		try {
+			result = stagedConfig
+				? await this._mainService.connect(this._augmentConfig({ ...stagedConfig, userInitiated: stagedConfig.userInitiated ?? options.userInitiated }))
+				: entry.connection.sshConfigHost
+					? await this._mainService.reconnect(
+						entry.connection.sshConfigHost,
+						entry.name,
+						this._getRemoteAgentHostCommand(),
+						this._isSSHAgentForwardingEnabled(),
+						options.userInitiated,
+						this._locationPreferenceService.getPreference(computeSSHConnectionKey({ sshConfigHost: entry.connection.sshConfigHost })),
+					)
+					: await this._mainService.connect(this._augmentConfig({
+						host: entry.connection.hostName,
+						port: entry.connection.port,
+						username: entry.connection.user ?? entry.connection.hostName,
+						authMethod: SSHAuthMethod.Agent,
+						name: entry.name,
+						userInitiated: options.userInitiated,
+					}));
+		} catch (error) {
+			// A refused host key is the user's decision, not a transient fault.
+			// Report it in the shared vocabulary for "do not retry" while keeping
+			// the host-key-denial name, which `isSSHHostKeyDeniedError` matches
+			// across IPC — telemetry and the contribution's pause policy both
+			// depend on that identity surviving.
+			if (isSSHHostKeyDeniedError(error)) {
+				const denied = new NonReconnectableTransportError(error instanceof Error ? error.message : String(error));
+				denied.name = SSH_HOST_KEY_DENIED_ERROR_NAME;
+				throw denied;
+			}
+			throw error;
+		}
 		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
 
 		const existing = this._connections.get(result.connectionId);
@@ -238,6 +254,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				return {
 					connection: this._createRelayClient(result),
 					transportDisposable: this._createTransportDisposable(result.connectionId, existing, this._observeSuccessfulConnection(result, options.userInitiated)),
+					reconnectTransfersTransportOwnership: true,
 				};
 			}
 			this._logService.info(`[SSHRemoteAgentHost] Replacing stale connection handle for ${result.address}`);
@@ -267,6 +284,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			return {
 				connection: this._createRelayClient(result),
 				transportDisposable: this._createTransportDisposable(result.connectionId, handle, endpointSelectionObserver),
+				reconnectTransfersTransportOwnership: true,
 			};
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);

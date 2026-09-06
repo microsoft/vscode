@@ -92,7 +92,7 @@ suite('AgentHostStorageService', () => {
 		try {
 			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
 
-			assert.throws(() => service.set('automations', { catalog: { automations: [] } }), /persisted data could not be loaded/);
+			assert.throws(() => service.set('automations', { catalog: { entries: [] } }), /persisted data could not be loaded/);
 			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
 			assert.deepStrictEqual({
 				hasLoadError: service.loadError instanceof Error,

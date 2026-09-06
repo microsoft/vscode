@@ -257,7 +257,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 					this.logService.warn(`Agent-host session type ${sessionType} has no item provider`);
 					return new EmptyItemProviderItemSource(sessionResource);
 				}
-				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer, this.promptsService, this.workspaceService);
+				return new PureItemProviderItemSource(sessionResource, descriptor.itemProvider, this.itemNormalizer);
 			} else {
 				const itemProvider = descriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 				return new ItemProviderItemSource(

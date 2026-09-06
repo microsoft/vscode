@@ -27,7 +27,7 @@
 		display: inline-flex;
 		align-items: center;
 		line-height: 1.5em;
-		font-size: 13px;
+		font-size: var(--vscode-chat-font-size-body-m);
 
 		&.chat-thinking-title-with-diff {
 			padding-right: var(--vscode-spacing-size20);

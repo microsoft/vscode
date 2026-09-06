@@ -8,6 +8,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -15,6 +16,7 @@ import { DiffEditorCommandsService, IDiffEditorCommandsService } from '../../../
 import { TextDiffEditor } from '../../../../workbench/browser/parts/editor/textDiffEditor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
 import { IDiffEditorOptionsService } from '../common/diffEditorOptionsService.js';
 import { DiffEditorOptionsService } from './diffEditorOptionsService.js';
@@ -33,8 +35,12 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 
 	override async toggleRenderSideBySide(args: unknown[]): Promise<void> {
 		const resource = args[0] instanceof URI ? args[0] : undefined;
-		if (resource || !(this.editorService.activeEditorPane instanceof SessionChangesEditor)) {
+		if (resource || !(this.editorService.activeEditorPane instanceof SessionChangesEditor || this.editorService.activeEditorPane instanceof MultiDiffEditor)) {
 			for (const pane of [this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes]) {
+				if (pane instanceof MultiDiffEditor) {
+					this.diffEditorOptionsService.toggleRenderSideBySide();
+					return;
+				}
 				if (!(pane instanceof TextDiffEditor)) {
 					continue;
 				}
@@ -54,7 +60,7 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 			}
 		}
 
-		if (this.editorService.activeEditorPane instanceof SessionChangesEditor) {
+		if (this.editorService.activeEditorPane instanceof SessionChangesEditor || this.editorService.activeEditorPane instanceof MultiDiffEditor) {
 			this.diffEditorOptionsService.toggleRenderSideBySide();
 			return;
 		}
@@ -65,6 +71,38 @@ export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService
 		}
 
 		return super.toggleRenderSideBySide(args);
+	}
+
+	override async setViewMode(args: unknown[], mode: DiffEditorViewMode): Promise<void> {
+		const resource = args[0] instanceof URI ? args[0] : undefined;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor || activeEditorPane instanceof MultiDiffEditor) {
+			this.diffEditorOptionsService.setViewMode(mode);
+			if (mode === 'automatic') {
+				activeEditorPane.resetDiffEditorWidthBasedLayout();
+			}
+			return;
+		}
+
+		for (const pane of [this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes]) {
+			if (!(pane instanceof TextDiffEditor)) {
+				continue;
+			}
+			const control = pane.getControl();
+			if (!isDiffEditor(control)) {
+				continue;
+			}
+			const modifiedResource = control.getModifiedEditor().getModel()?.uri;
+			if (!resource || modifiedResource && isEqual(resource, modifiedResource)) {
+				this.diffEditorOptionsService.setViewMode(mode);
+				if (mode === 'automatic') {
+					control.resetWidthBasedLayout();
+				}
+				return;
+			}
+		}
+
+		return super.setViewMode(args, mode);
 	}
 }
 
@@ -80,19 +118,24 @@ export class SessionsDiffEditorLayoutContribution extends Disposable implements 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.applyLayout()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.applyLayout()));
 		this._register(autorun(reader => {
-			this.diffEditorOptionsService.renderSideBySide.read(reader);
+			this.diffEditorOptionsService.viewMode.read(reader);
 			this.applyLayout();
 		}));
 	}
 
 	private applyLayout(): void {
-		const renderSideBySide = this.diffEditorOptionsService.renderSideBySide.get();
+		const viewMode = this.diffEditorOptionsService.viewMode.get();
 		for (const pane of new Set([this.editorService.activeEditorPane, ...this.editorService.visibleEditorPanes])) {
 			if (pane instanceof TextDiffEditor) {
 				const control = pane.getControl();
 				if (isDiffEditor(control)) {
-					control.updateOptions({ renderSideBySide, useInlineViewWhenSpaceIsLimited: true });
+					control.updateOptions({
+						renderSideBySide: viewMode !== 'inline',
+						useInlineViewWhenSpaceIsLimited: viewMode === 'automatic',
+					});
 				}
+			} else if (pane instanceof MultiDiffEditor) {
+				pane.setDiffEditorViewMode(viewMode);
 			}
 		}
 	}

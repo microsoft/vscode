@@ -105,6 +105,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	get(sessionResource: URI): URI | undefined;
 
+	/** Working directories used to create the current provisional generation. */
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined;
+
 	/**
 	 * Initial config the editor window applies to every new Agent Host session.
 	 * Returns `undefined` in the Agents window, where the sessions provider owns
@@ -371,6 +374,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		return this._generationMatchingDesiredState(entry)?.backendSession;
+	}
+
+	getProvisionalWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed) {
+			return undefined;
+		}
+		return this._generationMatchingDesiredState(entry)?.workingDirectories;
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {

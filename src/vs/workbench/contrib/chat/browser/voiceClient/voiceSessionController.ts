@@ -66,7 +66,9 @@ export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'err
 
 export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
 	return isProUser(chatEntitlementService.entitlement)
-		&& (chatEntitlementService.entitlement !== ChatEntitlement.Enterprise || chatEntitlementService.isInternal);
+		&& (chatEntitlementService.isInternal
+			|| (chatEntitlementService.entitlement !== ChatEntitlement.Business
+				&& chatEntitlementService.entitlement !== ChatEntitlement.Enterprise));
 }
 
 /** One buffered audio chunk of a deferred response. */
@@ -317,6 +319,19 @@ export interface IVoiceSessionController {
 }
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
+
+export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
+
+/** Whether a chat input owns the current Voice Mode session. */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+	if (hasDraftTarget) {
+		return false;
+	}
+	if (targetSession) {
+		return !!sessionResource && isEqual(targetSession, sessionResource);
+	}
+	return inputFocused;
+}
 
 export class VoiceSessionController extends Disposable implements IVoiceSessionController {
 
@@ -849,6 +864,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 			});
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('agents.voice.enabled') && !this._isVoiceModeEnabled()) {
+				this.disconnect();
+			}
+		}));
 
 		// Track the focused chat session so we can defer voice responses that
 		// arrive for a session the user isn't currently looking at, and flush
@@ -1050,9 +1070,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		if (!this._isVoiceModeEnabled()) {
+			this.notificationService.warn(localize('voiceMode.disabled', "Voice Mode is disabled."));
+			return;
+		}
 		if (!isVoiceEntitled(this.chatEntitlementService)) {
-			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
-				? localize('voiceMode.enterpriseUnavailable', "Voice Mode is not available for GitHub Copilot Enterprise accounts.")
+			this.notificationService.warn(this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise
+				? localize('voiceMode.organizationUnavailable', "Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.")
 				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
 			return;
 		}
@@ -2008,15 +2032,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (text !== rawText && e.args) {
 					e.args['text'] = text;
 				}
-				if (e.args?.['new_session'] === true) {
-					// Pin this submission to the new target so it outranks any
-					// stale focus-change pin.
-					this._setPinnedSubmitSession(undefined);
-					this.newSessionAsTarget();
-					if (text.trim()) {
-						this._setPinnedSubmitSession(this._targetSession.get());
-					}
-				}
+				const createNewSession = e.args?.['new_session'] === true;
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -2032,9 +2048,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 					this.voiceClientService.sendToolResult(e.callId, result);
 				};
-				const sendPromise = shouldSend
-					? this._sendTranscriptionToChat(text)
-					: Promise.resolve(false);
+				const sendPromise = this._prepareNewSessionTarget(createNewSession, text).then(result => {
+					if (result === 'failed') {
+						return false;
+					}
+					if (result === 'sent' || !shouldSend) {
+						return true;
+					}
+					return this._sendTranscriptionToChat(text);
+				});
 				sendPromise.then(sent => {
 					if (!sent) {
 						this._clearAwaitingReply();
@@ -2157,6 +2179,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Re-arm so the WebSocket handshake gets a fresh timeout window
 		// independent of how long the awaited auth/transcript work took above.
 		this._armConnectWatchdog();
+	}
+
+	private _isVoiceModeEnabled(): boolean {
+		return this.configurationService.getValue<boolean>('agents.voice.enabled') === true;
 	}
 
 	setActiveWindow(window: Window & typeof globalThis): void {
@@ -3671,6 +3697,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
 			return accepted;
 		}
+	}
+
+	private async _prepareNewSessionTarget(createNewSession: boolean, text: string): Promise<VoiceNewSessionPreparationResult> {
+		if (!createNewSession) {
+			return 'prepared';
+		}
+
+		this._setPinnedSubmitSession(undefined);
+		if (CommandsRegistry.getCommand('_chat.voice.prepareNewSession')) {
+			try {
+				return await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text) ?? 'failed';
+			} catch (error) {
+				this.logService.error('Failed to prepare a host session for Voice Mode:', error);
+				return 'failed';
+			}
+		}
+
+		this.newSessionAsTarget();
+		if (text.trim()) {
+			this._setPinnedSubmitSession(this._targetSession.get());
+		}
+		return 'prepared';
 	}
 
 	/**

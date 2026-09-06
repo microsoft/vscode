@@ -14,7 +14,8 @@ import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView } from './edit
 
 export class EditorHeaderControl extends Disposable {
 
-	static readonly HEIGHT = 29;
+	static readonly DEFAULT_HEIGHT = 32;
+	static readonly COMPACT_HEIGHT = 28;
 
 	private readonly headerContainer: HTMLElement | undefined;
 	private readonly actionsContainer: HTMLElement | undefined;
@@ -33,7 +34,10 @@ export class EditorHeaderControl extends Disposable {
 
 	get height(): number {
 		if (this.headerContainer) {
-			return this.visible ? EditorHeaderControl.HEIGHT : 0;
+			if (!this.visible) {
+				return 0;
+			}
+			return this.groupsView.partOptions.tabHeight === 'compact' ? EditorHeaderControl.COMPACT_HEIGHT : EditorHeaderControl.DEFAULT_HEIGHT;
 		}
 		return this.breadcrumbsControl?.isHidden() === false ? BreadcrumbsControl.HEIGHT : 0;
 	}
@@ -41,7 +45,7 @@ export class EditorHeaderControl extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		private readonly groupView: IEditorGroupView,
-		groupsView: IEditorGroupsView,
+		private readonly groupsView: IEditorGroupsView,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		showHeader: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

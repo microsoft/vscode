@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { formatGuardianDenialNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
+import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from '../../../node/codex/codexGuardianReview.js';
 import type { ItemGuardianApprovalReviewCompletedNotification } from '../../../node/codex/protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 
 suite('codexGuardianReview', () => {
@@ -142,6 +142,19 @@ suite('codexGuardianReview', () => {
 			[
 				'\n\n> ⚠️ **Auto-review denied** — Network access: `https://example.com`\n>\n> Blocked for safety.\n',
 				'\n\n> ⚠️ **Auto-review denied** — Elevated permissions\n',
+			]
+		);
+	});
+
+	test('formatGuardianReviewStatusNotification separates the compact title from review details', () => {
+		assert.deepStrictEqual(
+			[
+				formatGuardianReviewStatusNotification({ title: 'Network access', detail: 'https://example.com' }, 'timedOut', 'The reviewer did not respond in time.'),
+				formatGuardianReviewStatusNotification({ title: 'Elevated permissions', detail: '' }, 'aborted', null),
+			],
+			[
+				'Auto-review timed out\nRequested action: Network access `https://example.com`\n\nThe reviewer did not respond in time.',
+				'Auto-review stopped\nRequested action: Elevated permissions',
 			]
 		);
 	});
