@@ -45,6 +45,7 @@ import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCL
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
@@ -7625,6 +7626,61 @@ suite('AgentService (node dispatcher)', () => {
 				/could not be detached from an untrusted working directory/,
 			);
 			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined);
+		});
+
+		test('loads workspace transitions alongside provider history from the existing restore database', async () => {
+			class DelayedTransitionDatabase extends TestSessionDatabase {
+				private readonly _releaseTransitionRead = new DeferredPromise<void>();
+				transitionReadPending = false;
+
+				override async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
+					this.transitionReadPending = true;
+					await this._releaseTransitionRead.p;
+					this.transitionReadPending = false;
+					return super.getTurnWorkspaceTransitions();
+				}
+
+				releaseTransitionRead(): void {
+					this._releaseTransitionRead.complete();
+				}
+			}
+
+			const database = new DelayedTransitionDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id });
+			await database.setTurnWorkspaceTransition('provider-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in project',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'project',
+			}));
+			let providerSawTransitionRead = false;
+			agent.chats.getMessages = async () => {
+				providerSawTransitionRead = database.transitionReadPending;
+				database.releaseTransitionRead();
+				return [{
+					id: 'provider-turn',
+					message: { text: 'Continue work', origin: { kind: MessageKind.SystemNotification } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response-1', content: 'Provider output' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}];
+			};
+			getStateManager(svc).deleteSession(session.toString());
+
+			await svc.restoreSession(session);
+
+			const restoredTurn = getStateManager(svc).getChatState(buildDefaultChatUri(session))?.turns[0];
+			assert.deepStrictEqual({
+				providerSawTransitionRead,
+				transitionQueryCalls: database.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				providerSawTransitionRead: true,
+				transitionQueryCalls: 1,
+				responseParts: ['Now working in project', ResponsePartKind.Markdown],
+			});
 		});
 
 		test('marks only an explicit restore as an activating metadata read', async () => {

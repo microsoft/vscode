@@ -21,7 +21,7 @@ import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWork
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
@@ -243,20 +243,6 @@ suite('SessionWorkspaceConversionService', () => {
 		return harness.service.updateSessionWorkspace(harness.chat.toString(), 'turn-1');
 	}
 
-	function createHydrationStateManager(session: URI, hasWorkspaceTransitions: boolean): AgentHostStateManager {
-		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		stateManager.createSession({
-			resource: session.toString(),
-			provider: 'copilot',
-			title: hasWorkspaceTransitions ? 'Converted Session' : 'Normal Session',
-			status: SessionStatus.Idle,
-			createdAt: new Date(0).toISOString(),
-			modifiedAt: new Date(0).toISOString(),
-			_meta: withSessionHasWorkspaceTransitions(undefined, hasWorkspaceTransitions),
-		});
-		return stateManager;
-	}
-
 	test('keeps a visible continuation in progress while converting after the invoking turn', async () => {
 		const trustDecision = new DeferredPromise<boolean>();
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), () => trustDecision.p);
@@ -450,24 +436,11 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
-	test('skips transition storage for a normal loaded session', async () => {
+	test('does not hydrate workspace transitions when none were loaded', () => {
 		const session = URI.parse('copilot:/normal-session');
-		const database = new TestSessionDatabase();
-		const baseSessionDataService = createSessionDataService(database);
-		let databaseOpenCalls = 0;
-		const sessionDataService = {
-			...baseSessionDataService,
-			tryOpenDatabase: async (resource: URI) => {
-				databaseOpenCalls++;
-				return baseSessionDataService.tryOpenDatabase(resource);
-			},
-		};
 		const contribution = disposables.add(new SessionWorkspaceConversionContribution(
 			new class extends mock<IAgentHostChatContributionContext>() { }(),
 			new class extends mock<ISessionWorkspaceConversionService>() { }(),
-			createHydrationStateManager(session, false),
-			sessionDataService,
-			new NullLogService(),
 		));
 		const turns: Turn[] = [{
 			id: 'turn-1',
@@ -477,20 +450,12 @@ suite('SessionWorkspaceConversionService', () => {
 			state: TurnState.Complete,
 		}];
 
-		const hydrated = await contribution.onHydrateTurns({
+		const hydrated = contribution.onHydrateTurns({
 			session: session.toString(),
 			chat: buildDefaultChatUri(session),
 		}, turns);
 
-		assert.deepStrictEqual({
-			sameTurns: hydrated === turns,
-			databaseOpenCalls,
-			transitionQueryCalls: database.getTurnWorkspaceTransitionsCalls,
-		}, {
-			sameTurns: true,
-			databaseOpenCalls: 0,
-			transitionQueryCalls: 0,
-		});
+		assert.strictEqual(hydrated, turns);
 	});
 
 	test('restores one durable transition before provider output after service restart', async () => {
@@ -517,13 +482,9 @@ suite('SessionWorkspaceConversionService', () => {
 			conversionDatabase = undefined;
 
 			restoredDatabase = await SessionDatabase.open(databasePath);
-			const restoredStateManager = createHydrationStateManager(harness.session, true);
 			const restoredContribution = disposables.add(new SessionWorkspaceConversionContribution(
 				new class extends mock<IAgentHostChatContributionContext>() { }(),
 				new class extends mock<ISessionWorkspaceConversionService>() { }(),
-				restoredStateManager,
-				createSessionDataService(restoredDatabase),
-				new NullLogService(),
 			));
 			const providerTurns: Turn[] = [{
 				id: 'provider-continuation',
@@ -539,13 +500,16 @@ suite('SessionWorkspaceConversionService', () => {
 				usage: undefined,
 				state: TurnState.Complete,
 			}];
+			const workspaceTransitions = await restoredDatabase.getTurnWorkspaceTransitions();
 			const restoredOnce = await restoredContribution.onHydrateTurns({
 				session: harness.session.toString(),
 				chat: harness.chat.toString(),
+				workspaceTransitions,
 			}, providerTurns);
 			const restoredTwice = await restoredContribution.onHydrateTurns({
 				session: harness.session.toString(),
 				chat: harness.chat.toString(),
+				workspaceTransitions,
 			}, restoredOnce);
 			const restoredTurn = restoredTwice[0];
 
@@ -560,7 +524,7 @@ suite('SessionWorkspaceConversionService', () => {
 					kind: part.kind,
 					content: part.kind === ResponsePartKind.Markdown ? part.content : undefined,
 				}),
-				persistedTransitions: [...(await restoredDatabase.getTurnWorkspaceTransitions()).keys()],
+				persistedTransitions: [...workspaceTransitions.keys()],
 			}, {
 				requestHidden: true,
 				workspaceContinuation: true,
@@ -587,15 +551,6 @@ suite('SessionWorkspaceConversionService', () => {
 
 	test('restores every persisted workspace conversion at its own turn boundary', async () => {
 		const database = new TestSessionDatabase();
-		const baseSessionDataService = createSessionDataService(database);
-		let databaseOpenCalls = 0;
-		const sessionDataService = {
-			...baseSessionDataService,
-			tryOpenDatabase: async (resource: URI) => {
-				databaseOpenCalls++;
-				return baseSessionDataService.tryOpenDatabase(resource);
-			},
-		};
 		await database.setTurnWorkspaceTransition('turn-1', serializeAgentWorkspaceTransition({
 			content: 'Now working in first',
 			workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
@@ -609,9 +564,6 @@ suite('SessionWorkspaceConversionService', () => {
 		const contribution = disposables.add(new SessionWorkspaceConversionContribution(
 			new class extends mock<IAgentHostChatContributionContext>() { }(),
 			new class extends mock<ISessionWorkspaceConversionService>() { }(),
-			createHydrationStateManager(URI.parse('copilot:/workspace-less'), true),
-			sessionDataService,
-			new NullLogService(),
 		));
 		const turns = ['turn-1', 'turn-2'].map((id): Turn => ({
 			id,
@@ -624,20 +576,19 @@ suite('SessionWorkspaceConversionService', () => {
 		const restored = await contribution.onHydrateTurns({
 			session: 'copilot:/workspace-less',
 			chat: buildDefaultChatUri('copilot:/workspace-less'),
+			workspaceTransitions: await database.getTurnWorkspaceTransitions(),
 		}, turns);
 
 		assert.deepStrictEqual({
 			responseParts: restored.map(turn => turn.responseParts.map(part =>
 				part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind
 			)),
-			databaseOpenCalls,
 			transitionQueryCalls: database.getTurnWorkspaceTransitionsCalls,
 		}, {
 			responseParts: [
 				['Now working in first', ResponsePartKind.Markdown],
 				['Now working in second', ResponsePartKind.Markdown],
 			],
-			databaseOpenCalls: 1,
 			transitionQueryCalls: 1,
 		});
 	});
@@ -653,9 +604,6 @@ suite('SessionWorkspaceConversionService', () => {
 		const contribution = disposables.add(new SessionWorkspaceConversionContribution(
 			new class extends mock<IAgentHostChatContributionContext>() { }(),
 			new class extends mock<ISessionWorkspaceConversionService>() { }(),
-			createHydrationStateManager(session, true),
-			createSessionDataService(database),
-			new NullLogService(),
 		));
 		const turns: Turn[] = [{
 			id: 'turn-1',
@@ -668,6 +616,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const restored = await contribution.onHydrateTurns({
 			session: session.toString(),
 			chat: buildChatUri(session, 'peer-chat'),
+			workspaceTransitions: await database.getTurnWorkspaceTransitions(),
 		}, turns);
 
 		assert.deepStrictEqual(restored[0].responseParts.map(part =>
