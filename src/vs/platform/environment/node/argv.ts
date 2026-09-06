@@ -62,6 +62,33 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'help': { type: 'boolean', alias: 'h', description: localize('help', "Print usage.") }
 		}
 	},
+	'update': {
+		type: 'subcommand',
+		description: localize('update', "Manage application updates."),
+		options: {
+			'status': {
+				type: 'subcommand',
+				description: localize('updateStatus', "Show whether an update is available."),
+				options: {
+					'_': { type: 'string[]' },
+					'json': { type: 'boolean', cat: 'o', description: localize('updateStatusJson', "Print the update status as JSON.") },
+					'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
+				}
+			},
+			'install': {
+				type: 'subcommand',
+				description: localize('updateInstall', "Install an application update."),
+				options: {
+					'_': { type: 'string[]' },
+					'version': { type: 'string', cat: 'o', args: 'version', description: localize('updateInstallVersion', "Install the specified application version.") },
+					'force': { type: 'boolean', cat: 'o', description: localize('updateInstallForce', "Close without prompting after best-effort saving, and allow downgrades.") },
+					'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
+				}
+			},
+			'_': { type: 'string[]' },
+			'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") }
+		}
+	},
 	'serve-web': {
 		type: 'subcommand',
 		description: 'Run a server that displays the editor UI in browsers.',
@@ -462,14 +489,14 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<unknown> | Record<string, Option<'boolean'> | Option<'string'> | Option<'string[]'> | Subcommand<Record<string, unknown>>>, capabilities?: { noPipe?: boolean; noInputFiles?: boolean; isChat?: boolean; commandPath?: readonly string[] }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
 	const inputFiles = capabilities?.noInputFiles ? '' : capabilities?.isChat ? ` [${localize('cliPrompt', 'prompt')}]` : ` [${localize('paths', 'paths')}...]`;
-	const subcommand = capabilities?.isChat ? ' chat' : '';
+	const commandPath = capabilities?.commandPath?.length ? ` ${capabilities.commandPath.join(' ')}` : capabilities?.isChat ? ' chat' : '';
 
 	const help = [`${productName} ${version}`];
 	help.push('');
-	help.push(`${localize('usage', "Usage")}: ${executableName}${subcommand} [${localize('options', "options")}]${inputFiles}`);
+	help.push(`${localize('usage', "Usage")}: ${executableName}${commandPath} [${localize('options', "options")}]${inputFiles}`);
 	help.push('');
 	if (capabilities?.noPipe !== true) {
 		help.push(buildStdinMessage(executableName, capabilities?.isChat));

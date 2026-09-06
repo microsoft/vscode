@@ -29,6 +29,8 @@ import { IProxyAuthService, ProxyAuthService } from '../../platform/native/elect
 import { localize } from '../../nls.js';
 import { IBackupMainService } from '../../platform/backup/electron-main/backup.js';
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
+import { getUpdateCliRequest, ICliControlMainService } from '../../platform/cli/common/cliControl.js';
+import { CliControlMainService } from '../../platform/cli/electron-main/cliControlMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
 import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
@@ -777,6 +779,19 @@ export class CodeApplication extends Disposable {
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
+		const updateCliRequest = getUpdateCliRequest(this.environmentMainService.args);
+		if (updateCliRequest) {
+			const result = await appInstantiationService.invokeFunction(accessor => accessor.get(ICliControlMainService).runUpdateCommand(updateCliRequest));
+			if (result.stdout) {
+				console.log(result.stdout);
+			}
+			if (result.stderr) {
+				console.error(result.stderr);
+			}
+			this.lifecycleMainService.kill(result.exitCode);
+			return;
+		}
+
 		// Open Windows
 		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
 
@@ -1209,6 +1224,9 @@ export class CodeApplication extends Disposable {
 		// Launch
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService, undefined, false /* proxied to other processes */));
 
+		// CLI Control
+		services.set(ICliControlMainService, new SyncDescriptor(CliControlMainService, undefined, false /* proxied to other processes */));
+
 		// Diagnostics
 		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
@@ -1342,6 +1360,9 @@ export class CodeApplication extends Disposable {
 
 		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), disposables, { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+
+		const cliControlChannel = ProxyChannel.fromService(accessor.get(ICliControlMainService), disposables, { disableMarshalling: true });
+		this.mainProcessNodeIpcServer.registerChannel('cliControl', cliControlChannel);
 
 		// Policies (main & shared process)
 		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));
