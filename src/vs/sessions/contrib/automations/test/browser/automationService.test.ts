@@ -11,10 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
+import { hashAutomationTelemetryId } from '../../../../../platform/telemetry/common/automationTelemetry.js';
 import { AutomationService, AutomationStore } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationActiveRunError, type AutomationCatalogueState, isAutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
+import { createAutomationService, RecordingAutomationTelemetryService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -90,11 +92,127 @@ suite('AutomationService', () => {
 		});
 	});
 
+	test('records creation without replaying it on update, import or reload', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const telemetry = new RecordingAutomationTelemetryService();
+		const service = teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+		const created = await service.createAutomation({
+			name: 'Private title',
+			prompt: 'Private prompt',
+			schedule: dailySchedule(),
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			sessionTemplate: { config: { mode: 'plan', autoApprove: 'assisted' } },
+		});
+		await service.updateAutomation(created.id, { name: 'Updated private title' });
+		await service.importAutomationSnapshot({ automation: { ...created, id: 'imported' }, runs: [] });
+		await service.upsertAutomationSnapshot({ automation: { ...created, id: 'imported' }, runs: [] });
+		teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.created'), [{
+			name: 'automation.created',
+			data: {
+				provider: 'copilotcli',
+				model: undefined,
+				modelSelectionKind: 'default',
+				mode: 'plan',
+				permissionLevel: 'assisted',
+				isolationMode: 'none',
+				targetKind: 'quickChat',
+				folderCount: 0,
+				hasCustomAgent: false,
+				automationId: hashAutomationTelemetryId(created.id),
+				executionAuthority: 'browser',
+				enabled: true,
+				scheduleKind: 'scheduled',
+			},
+		}]);
+	});
+
+	test('only the winning terminal transition emits and later updates cannot reopen the run', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const telemetry = new RecordingAutomationTelemetryService();
+		const first = teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+		const second = teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+		const created = await first.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const run = await claimRun(first, created.id, 'manual');
+		await Promise.all([
+			first.updateRun(run.id, { status: 'failed', outcome: 'timeout', errorMessage: 'Timed out' }),
+			second.updateRun(run.id, { status: 'completed' }),
+		]);
+		await second.updateRun(run.id, { status: 'running' });
+		await first.updateRun(run.id, { status: 'failed', outcome: 'cancelled', errorMessage: 'Cancelled' });
+
+		assert.deepStrictEqual({
+			states: [first, second].map(service => service.runs.get().map(run => ({ status: run.status, outcome: run.outcome, errorMessage: run.errorMessage }))),
+			outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+		}, {
+			states: [[{ status: 'failed', outcome: 'timeout', errorMessage: 'Timed out' }], [{ status: 'failed', outcome: 'timeout', errorMessage: 'Timed out' }]],
+			outcomes: ['timeout'],
+		});
+	});
+
+	test('recovery emits interruptions once, including claims without a created session', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const telemetry = new RecordingAutomationTelemetryService();
+		const original = teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+		const first = await original.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const second = await original.createAutomation({ name: 'B', prompt: 'q', schedule: dailySchedule(), target: workspaceTarget() });
+		await claimRun(original, first.id, 'manual');
+		const running = await claimRun(original, second.id, 'schedule');
+		await original.updateRun(running.id, { status: 'running', sessionResource: URI.parse('agent-host-copilotcli:/recovered-session'), sessionId: 'local-agent-host:agent-host-copilotcli:/recovered-session' });
+		original.dispose();
+		const restored = teardown.add(createAutomationService(storage, new NullLogService(), telemetry));
+		await restored.markStaleRunsFailed('Interrupted by app shutdown');
+		await restored.markStaleRunsFailed('Repeated recovery');
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+			outcome: event.data.outcome,
+			sessionCreated: event.data.sessionCreated,
+			agentSessionId: event.data.agentSessionId,
+		})), [
+			{ outcome: 'interrupted', sessionCreated: true, agentSessionId: 'recovered-session' },
+			{ outcome: 'interrupted', sessionCreated: false, agentSessionId: undefined },
+		]);
+	});
+
+	test('does not emit lifecycle events for failed durable writes', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const telemetry = new RecordingAutomationTelemetryService();
+		const automationStorage = new class extends TestAutomationStorageService {
+			fail = true;
+
+			override async compareAndSwap(key: string, expected: string | undefined, value: string) {
+				if (this.fail) {
+					throw new Error('write failed');
+				}
+				return super.compareAndSwap(key, expected, value);
+			}
+		}(storage);
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), telemetry, automationStorage, new NullLanguageModelsService()));
+		const options = { name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() };
+		await assert.rejects(service.createAutomation(options), /write failed/);
+		const afterFailedCreate = [...telemetry.events];
+		automationStorage.fail = false;
+		const automation = await service.createAutomation(options);
+		const run = await claimRun(service, automation.id, 'manual');
+		automationStorage.fail = true;
+		await assert.rejects(service.updateRun(run.id, { status: 'failed' }), /write failed/);
+		const failedCompletions = telemetry.events.filter(event => event.name === 'automation.runCompleted');
+		automationStorage.fail = false;
+		await service.updateRun(run.id, { status: 'failed' });
+
+		assert.deepStrictEqual({
+			afterFailedCreate,
+			failedCompletions,
+			outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+		}, { afterFailedCreate: [], failedCompletions: [], outcomes: ['error'] });
+	});
+
 	test('provider stores isolate ledgers by storage key', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const automationStorage = new TestAutomationStorageService(storage);
-		const first = teardown.add(new AutomationStore('automations.first', storage, new NullLogService(), NullTelemetryService, automationStorage));
-		const second = teardown.add(new AutomationStore('automations.second', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const first = teardown.add(new AutomationStore('automations.first', storage, new NullLogService(), NullTelemetryService, automationStorage, new NullLanguageModelsService()));
+		const second = teardown.add(new AutomationStore('automations.second', storage, new NullLogService(), NullTelemetryService, automationStorage, new NullLanguageModelsService()));
 
 		await first.createAutomation({ name: 'First', prompt: 'first', schedule: dailySchedule(), target: workspaceTarget() });
 		await second.createAutomation({ name: 'Second', prompt: 'second', schedule: dailySchedule(), target: workspaceTarget() });

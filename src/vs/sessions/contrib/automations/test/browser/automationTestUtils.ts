@@ -6,6 +6,9 @@
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import type { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../../common/automationStorageService.js';
 
@@ -31,6 +34,14 @@ export class TestAutomationStorageService implements IAutomationStorageService {
 	}
 }
 
-export function createAutomationService(storageService: IStorageService, logService: ILogService, telemetryService: ITelemetryService): AutomationService {
-	return new AutomationService(storageService, logService, telemetryService, new TestAutomationStorageService(storageService));
+export function createAutomationService(storageService: IStorageService, logService: ILogService, telemetryService: ITelemetryService, languageModelsService: ILanguageModelsService = new NullLanguageModelsService()): AutomationService {
+	return new AutomationService(storageService, logService, telemetryService, new TestAutomationStorageService(storageService), languageModelsService);
+}
+
+export class RecordingAutomationTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(name?: string, data?: Record<string, unknown>): void {
+		this.events.push({ name: name ?? '', data: data ?? {} });
+	}
 }

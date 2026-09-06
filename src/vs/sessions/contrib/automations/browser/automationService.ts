@@ -10,6 +10,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logAutomationCreated, logAutomationRunCompleted } from '../../../../platform/telemetry/common/automationTelemetry.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
@@ -38,6 +40,7 @@ import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUp
 import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
+import { getAutomationConfigurationTelemetry, getAutomationRunTelemetry } from './automationTelemetry.js';
 
 const LEGACY_TARGET_SCHEMA_VERSIONS = new Set([1, 2]);
 const CURRENT_TARGET_SCHEMA_VERSIONS = new Set([3, 4]);
@@ -139,6 +142,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -212,6 +216,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			result: undefined,
 		}), mutationGuard);
 		publishAutomationCreated(this.telemetryService, automation);
+		logAutomationCreated(this.telemetryService, {
+			...getAutomationConfigurationTelemetry(automation, this.languageModelsService),
+			automationId: automation.id,
+			executionAuthority: 'browser',
+			enabled: automation.enabled,
+			scheduleKind: automation.schedule.interval === 'manual' ? 'manual' : 'scheduled',
+		});
 		return automation;
 	}
 
@@ -406,17 +417,23 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	}
 
 	async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		return this.mutateLedger(ledger => {
+		const result = await this.mutateLedger<{ run: IAutomationRun | undefined; completedAt: string | undefined }>(ledger => {
 			const current = ledger.runs.find(run => run.id === runId);
 			if (!current) {
-				return { kind: 'noChange', result: undefined };
+				return { kind: 'noChange', result: { run: undefined, completedAt: undefined } };
 			}
+			const wasTerminal = current.status === 'completed' || current.status === 'failed';
+			const status = wasTerminal ? current.status : patch.status ?? current.status;
+			const completed = !wasTerminal && (status === 'completed' || status === 'failed');
+			const completedAt = completed ? patch.completedAt ?? this._now().toISOString() : undefined;
 			const updated: IAutomationRun = Object.freeze({
 				...current,
-				status: patch.status ?? current.status,
+				status,
 				sessionResource: patch.sessionResource ?? current.sessionResource,
-				completedAt: patch.completedAt ?? current.completedAt,
-				errorMessage: patch.errorMessage ?? current.errorMessage,
+				sessionId: patch.sessionId ?? current.sessionId,
+				completedAt: completedAt ?? current.completedAt,
+				errorMessage: wasTerminal ? current.errorMessage : patch.errorMessage ?? current.errorMessage,
+				outcome: completed ? status === 'completed' ? 'success' : patch.outcome ?? 'error' : current.outcome,
 			});
 			return {
 				kind: 'commit',
@@ -424,9 +441,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 					automations: ledger.automations,
 					runs: ledger.runs.map(run => run.id === runId ? updated : run),
 				},
-				result: updated,
+				result: { run: updated, completedAt },
 			};
 		});
+		if (result.completedAt !== undefined && result.run) {
+			this.logRunCompleted(result.run, result.completedAt);
+		}
+		return result.run;
 	}
 
 	async deleteRun(runId: string): Promise<void> {
@@ -451,23 +472,35 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
 		const completedAt = this._now().toISOString();
-		await this.mutateLedger(ledger => {
-			let changed = false;
+		const completed = await this.mutateLedger<readonly IAutomationRun[]>(ledger => {
+			const completed: IAutomationRun[] = [];
 			const runs = ledger.runs.map(run => {
 				if (run.status === 'pending' || run.status === 'running') {
-					changed = true;
-					return Object.freeze({ ...run, status: 'failed' as const, completedAt, errorMessage: reason });
+					const interrupted: IAutomationRun = Object.freeze({ ...run, status: 'failed', outcome: 'interrupted', completedAt, errorMessage: reason });
+					completed.push(interrupted);
+					return interrupted;
 				}
 				return run;
 			});
-			if (!changed) {
-				return { kind: 'noChange', result: undefined };
+			if (completed.length === 0) {
+				return { kind: 'noChange', result: completed };
 			}
 			return {
 				kind: 'commit',
 				ledger: { automations: ledger.automations, runs },
-				result: undefined,
+				result: completed,
 			};
+		});
+		for (const run of completed) {
+			this.logRunCompleted(run, completedAt);
+		}
+	}
+
+	private logRunCompleted(run: IAutomationRun, completedAt: string): void {
+		logAutomationRunCompleted(this.telemetryService, {
+			...getAutomationRunTelemetry(run),
+			outcome: run.outcome ?? (run.status === 'completed' ? 'success' : 'error'),
+			durationMs: Date.parse(completedAt) - Date.parse(run.startedAt),
 		});
 	}
 
@@ -617,8 +650,9 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAutomationStorageService automationStorageService: IAutomationStorageService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
-		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
+		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService, languageModelsService);
 	}
 
 	startStaleRunRecovery(reason: string): Promise<void> {
@@ -668,6 +702,8 @@ function isSerializedAutomationRun(value: unknown): value is ISerializedAutomati
 		&& typeof run['startedAt'] === 'string'
 		&& typeof run['leaderWindowId'] === 'number'
 		&& (run['sessionResource'] === undefined || typeof run['sessionResource'] === 'string')
+		&& (run['sessionId'] === undefined || typeof run['sessionId'] === 'string')
+		&& (run['outcome'] === undefined || run['outcome'] === 'success' || run['outcome'] === 'error' || run['outcome'] === 'cancelled' || run['outcome'] === 'timeout' || run['outcome'] === 'interrupted')
 		&& (run['completedAt'] === undefined || typeof run['completedAt'] === 'string')
 		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');
 }

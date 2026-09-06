@@ -13,12 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
+import { createAutomationService, RecordingAutomationTelemetryService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
@@ -156,7 +157,7 @@ suite('AutomationSchedulerCore', () => {
 	test('does not dispatch automations whose provider owns scheduling', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new HostScheduledAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new HostScheduledAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage), new NullLanguageModelsService()));
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(false);
 		let now = T0;
@@ -368,7 +369,7 @@ suite('AutomationSchedulerCore', () => {
 	test('leadership transitions activate and deactivate stale-run recovery', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new RecordingRecoveryAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new RecordingRecoveryAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage), new NullLanguageModelsService()));
 		const leader = new FakeLeaderElection(false);
 		const core = teardown.add(new AutomationSchedulerCore(service, new RecordingRunner(service), storage, log, {
 			leaderElection: leader,
@@ -400,7 +401,7 @@ suite('AutomationSchedulerCore', () => {
 		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
-		const inFlight = (await service.recordRunStart(a.id, 'schedule', 1)).run;
+		await service.recordRunStart(a.id, 'schedule', 1);
 
 		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
@@ -416,10 +417,7 @@ suite('AutomationSchedulerCore', () => {
 		// care that the *next* enable→disable→enable cycle does not
 		// repeat that recovery.
 		await core.waitForPendingRuns();
-		// Reset the row back to running so we can observe whether the
-		// toggle re-triggers recovery. Note: updateRun's patch
-		// semantics treat undefined fields as "no change", so we
-		// cannot clear errorMessage from here; assert only on status.
+		const inFlight = (await service.recordRunStart(a.id, 'manual', 1)).run;
 		await service.updateRun(inFlight.id, { status: 'running' });
 
 		enabled = false;
@@ -436,7 +434,8 @@ suite('AutomationSchedulerCore', () => {
 	test('runOneWithTimeout: a hung run is cancelled, marked failed, and the next due automation still fires', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const telemetry = new RecordingAutomationTelemetryService();
+		const service = teardown.add(createAutomationService(storage, log, telemetry));
 
 		let now = T0;
 		service.setClockForTesting(() => now);
@@ -515,5 +514,9 @@ suite('AutomationSchedulerCore', () => {
 		// by the timeout path.
 		const otherRun = service.runs.get().find(r => r.automationId === otherId);
 		assert.notStrictEqual(otherRun?.status, 'failed');
+		assert.deepStrictEqual({
+			outcome: hungRun?.outcome,
+			completions: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+		}, { outcome: 'timeout', completions: ['timeout'] });
 	});
 });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
+import { toTelemetryModel, type ModelTelemetryKind } from '../../telemetry/common/languageModelTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
@@ -196,7 +197,7 @@ export interface IAgentHostClientConnectionReport {
 }
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
-export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
+export type AgentHostModelTelemetryKind = ModelTelemetryKind;
 type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
 export type { AgentHostTurnFailureStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
@@ -847,16 +848,6 @@ export interface IAgentHostStalledToolCallCompletedReport extends IAgentHostTurn
 	result: ToolInvokedResult;
 	totalTimeMs: number;
 	timeAfterStallMs: number;
-}
-
-function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): string | TelemetryTrustedValue<string> | undefined {
-	if (model === undefined) {
-		return undefined;
-	}
-	if (modelTelemetryKind === 'trusted') {
-		return new TelemetryTrustedValue(model);
-	}
-	return modelTelemetryKind === 'byok' ? 'byokModel' : 'unknown';
 }
 
 export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryContext | undefined): IAgentHostInitiatorTelemetry {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -14,7 +15,12 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
+import { createAutomationService, RecordingAutomationTelemetryService, TestAutomationStorageService } from './automationTestUtils.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import type { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
+import { hashAutomationTelemetryId } from '../../../../../platform/telemetry/common/automationTelemetry.js';
+import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationRunClaim } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -136,12 +142,23 @@ class ExternalDispatchAutomationService extends AutomationService {
 }
 
 function fakeSession(id: string, status = observableValue(`status-${id}`, SessionStatus.Completed), chatStatus = status): ISession {
+	const resource = URI.from({ scheme: 'vscode-chat-session', authority: 'test', path: `/${id}` });
 	return upcastPartial<ISession>({
 		sessionId: id,
-		resource: URI.from({ scheme: 'vscode-chat-session', authority: 'test', path: `/${id}` }),
+		resource,
 		status,
-		mainChat: observableValue(`main-chat-${id}`, upcastPartial<IChat>({ status: chatStatus })),
+		mainChat: observableValue(`main-chat-${id}`, upcastPartial<IChat>({ status: chatStatus, resource })),
 	});
+}
+
+class TestAutomationChatService extends mock<IChatService>() {
+	response: IChatResponseModel | undefined;
+
+	override getSession(): IChatModel | undefined {
+		return this.response ? upcastPartial<IChatModel>({
+			getRequests: () => [upcastPartial<IChatRequestModel>({ response: this.response })],
+		}) : undefined;
+	}
 }
 
 suite('AutomationRunner', () => {
@@ -151,11 +168,13 @@ suite('AutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const telemetry = new RecordingAutomationTelemetryService();
+		const service = teardown.add(createAutomationService(storage, log, telemetry));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		const notifications = new RecordingNotificationService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
-		return { service, sessionsMgmt, runner, notifications };
+		const chatService = new TestAutomationChatService();
+		const runner = new AutomationRunner(service, sessionsMgmt, log, telemetry, notifications, new NullLanguageModelsService(), chatService);
+		return { service, sessionsMgmt, runner, notifications, telemetry, chatService };
 	}
 
 	test('creates a session for the automation prompt and marks the run completed', async () => {
@@ -178,12 +197,146 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs[0].leaderWindowId, 99);
 	});
 
+	test('emits one correlated start and completion for each manual, scheduled and catch-up run', async () => {
+		const { service, sessionsMgmt, runner, telemetry } = setup();
+		const resource = URI.parse('agent-host-copilotcli:/session-1');
+		const sessionId = `local-agent-host:${resource.toString()}`;
+		sessionsMgmt.nextSession = {
+			...fakeSession(sessionId),
+			resource,
+		};
+		const automation = await service.createAutomation({
+			name: 'Private name', prompt: 'Private prompt', schedule: hourly(),
+			target: workspaceTarget(FOLDER_A, { providerId: 'local-agent-host', sessionTypeId: 'copilotcli', isolation: { kind: 'worktree', branch: 'private-branch' } }),
+			sessionTemplate: { config: { mode: 'plan', autoApprove: 'assisted' } },
+		});
+		for (const trigger of ['manual', 'schedule', 'catch_up'] as const) {
+			await runner.runOnce(automation, trigger, 1).whenCompleted;
+		}
+		const starts = telemetry.events.filter(event => event.name === 'automation.runStarted');
+		const completions = telemetry.events.filter(event => event.name === 'automation.runCompleted');
+		assert.deepStrictEqual({
+			starts: starts.map(event => event.data),
+			completions: completions.map(event => ({ ...event.data, durationMs: Number(event.data.durationMs) >= 0 })),
+		}, {
+			starts: service.runs.get().slice().reverse().map(run => ({
+				provider: 'copilotcli',
+				model: undefined,
+				modelSelectionKind: 'default',
+				mode: 'plan',
+				permissionLevel: 'assisted',
+				isolationMode: 'worktree',
+				targetKind: 'workspace',
+				folderCount: 1,
+				hasCustomAgent: false,
+				automationId: hashAutomationTelemetryId(automation.id),
+				runId: hashAutomationTelemetryId(run.id),
+				executionAuthority: 'browser',
+				trigger: run.trigger,
+				runCreatedAt: run.startedAt,
+				sessionProvider: 'copilotcli',
+				agentSessionId: 'session-1',
+				agentsWindowSessionId: hashSessionIdForTelemetry(sessionId),
+				sessionCreated: true,
+			})),
+			completions: service.runs.get().slice().reverse().map(run => ({
+				automationId: hashAutomationTelemetryId(automation.id),
+				runId: hashAutomationTelemetryId(run.id),
+				executionAuthority: 'browser',
+				trigger: run.trigger,
+				runCreatedAt: run.startedAt,
+				sessionProvider: 'copilotcli',
+				agentSessionId: 'session-1',
+				agentsWindowSessionId: hashSessionIdForTelemetry(sessionId),
+				sessionCreated: true,
+				outcome: 'success',
+				durationMs: true,
+			})),
+		});
+	});
+
+	test('captures the run configuration rather than a concurrent definition edit', async () => {
+		const { service, sessionsMgmt, runner, telemetry } = setup();
+		const automation = await service.createAutomation({
+			name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget(),
+			sessionTemplate: { config: { mode: 'plan', autoApprove: 'assisted' } },
+		});
+		sessionsMgmt.nextSession = fakeSession('session');
+		sessionsMgmt.onSendHook = async () => {
+			await service.updateAutomation(automation.id, { sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'autoApprove' } } });
+		};
+		await runner.runOnce(automation, 'manual', 1).whenCompleted;
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runStarted').map(event => ({
+			mode: event.data.mode, permissionLevel: event.data.permissionLevel,
+		})), [{ mode: 'plan', permissionLevel: 'assisted' }]);
+	});
+
+	test('reports user cancellation from the chat response instead of completed session status', async () => {
+		const { service, sessionsMgmt, runner, telemetry, chatService } = setup();
+		const status = observableValue('status', SessionStatus.InProgress);
+		const response = { isCanceled: false };
+		chatService.response = upcastPartial<IChatResponseModel>(response);
+		sessionsMgmt.nextSession = fakeSession('cancelled-session', status);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		const operation = runner.runOnce(automation, 'manual', 1);
+		await operation.whenDispatched;
+		response.isCanceled = true;
+		status.set(SessionStatus.Completed, undefined);
+		await operation.whenCompleted;
+
+		assert.deepStrictEqual({
+			outcome: service.runs.get()[0].outcome,
+			completions: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+		}, { outcome: 'cancelled', completions: ['cancelled'] });
+	});
+
+	test('records cancelled dispatch without a session when preparation throws cancellation', async () => {
+		const { service, sessionsMgmt, runner, telemetry } = setup();
+		sessionsMgmt.nextError = new CancellationError();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+		await runner.runOnce(automation, 'manual', 1).whenCompleted;
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+			outcome: event.data.outcome, sessionCreated: event.data.sessionCreated,
+		})), [{ outcome: 'cancelled', sessionCreated: false }]);
+	});
+
+	for (const alreadyCompleted of [false, true]) {
+		test(`completes after history deletion without ${alreadyCompleted ? 'duplicating a prior outcome' : 'losing the outcome'}`, async () => {
+			const { service, sessionsMgmt, runner, telemetry } = setup();
+			const status = observableValue('deletion-status', SessionStatus.InProgress);
+			sessionsMgmt.nextSession = fakeSession('deleted-history', status);
+			const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
+			const operation = runner.runOnce(automation, 'manual', 1);
+			const dispatched = await operation.whenDispatched;
+			assert.strictEqual(dispatched.kind, 'started');
+			if (alreadyCompleted) {
+				await service.updateRun(service.runs.get()[0].id, { status: 'failed', outcome: 'timeout' });
+			}
+			await service.deleteAutomation(automation.id);
+			status.set(SessionStatus.Completed, undefined);
+			await operation.whenCompleted;
+
+			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+				outcome: event.data.outcome,
+				sessionCreated: event.data.sessionCreated,
+				agentsWindowSessionId: event.data.agentsWindowSessionId,
+			})), [{
+				outcome: alreadyCompleted ? 'timeout' : 'success',
+				sessionCreated: true,
+				agentsWindowSessionId: hashSessionIdForTelemetry('deleted-history'),
+			}]);
+		});
+	}
+
 	test('reports an authority-dispatched run as started without creating another session', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage), new NullLanguageModelsService()));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new RecordingNotificationService());
+		const telemetry = new RecordingAutomationTelemetryService();
+		const runner = new AutomationRunner(service, sessionsMgmt, log, telemetry, new RecordingNotificationService(), new NullLanguageModelsService(), new TestAutomationChatService());
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		const operation = runner.runOnce(automation, 'manual', 0);
@@ -220,13 +373,14 @@ suite('AutomationRunner', () => {
 
 		await service.completion.complete();
 		await operation.whenCompleted;
+		assert.deepStrictEqual(telemetry.events, []);
 	});
 
 	test('forwards cancellation to an authority-dispatched run', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
-		const runner = new AutomationRunner(service, new FakeSessionsManagementService(), log, NullTelemetryService, new RecordingNotificationService());
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage), new NullLanguageModelsService()));
+		const runner = new AutomationRunner(service, new FakeSessionsManagementService(), log, NullTelemetryService, new RecordingNotificationService(), new NullLanguageModelsService(), new TestAutomationChatService());
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		const cancellation = new CancellationTokenSource();
 		const operation = runner.runOnce(automation, 'manual', 0, cancellation.token);
@@ -442,7 +596,7 @@ suite('AutomationRunner', () => {
 	});
 
 	test('skips when another active run exists for the same automation', async () => {
-		const { service, sessionsMgmt, runner } = setup();
+		const { service, sessionsMgmt, runner, telemetry } = setup();
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		await service.recordRunStart(a.id, 'manual', 1);
@@ -451,6 +605,7 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'pending');
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runStarted' || event.name === 'automation.runCompleted'), []);
 	});
 
 	test('marks the run failed when the cancellation token is already cancelled', async () => {
@@ -544,16 +699,25 @@ suite('AutomationRunner', () => {
 		cts.dispose();
 	});
 
-	test('completes the run even when the service returns undefined', async () => {
-		const { service, runner } = setup();
+	test('records failure without a start event when session creation returns undefined', async () => {
+		const { service, runner, telemetry } = setup();
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		await runner.runOnce(a, 'schedule', 1, CancellationToken.None).whenCompleted;
 
 		const runs = service.runs.get();
-		assert.strictEqual(runs.length, 1);
-		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionResource, undefined);
+		assert.deepStrictEqual({
+			runs: runs.map(run => ({ status: run.status, outcome: run.outcome, sessionResource: run.sessionResource })),
+			starts: telemetry.events.filter(event => event.name === 'automation.runStarted'),
+			completions: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+				outcome: event.data.outcome,
+				sessionCreated: event.data.sessionCreated,
+			})),
+		}, {
+			runs: [{ status: 'failed', outcome: 'error', sessionResource: undefined }],
+			starts: [],
+			completions: [{ outcome: 'error', sessionCreated: false }],
+		});
 	});
 
 	test('passes the captured providerId and sessionTypeId through to createAndSendNewChatRequest', async () => {

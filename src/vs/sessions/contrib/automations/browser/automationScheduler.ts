@@ -183,6 +183,7 @@ export class AutomationSchedulerCore extends Disposable {
 				if (active) {
 					const updated = await this.automationService.updateRun(active.id, {
 						status: 'failed',
+						outcome: 'timeout',
 						errorMessage: localize('automation.timedOut', "Timed out after {0} minute(s).", Math.round(timeoutMs / 60_000)),
 						completedAt: this._now().toISOString(),
 					});

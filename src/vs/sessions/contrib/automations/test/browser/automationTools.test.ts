@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -339,7 +340,7 @@ suite('AutomationTools', () => {
 		if (raw !== undefined) {
 			storageService.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
-		return teardown.add(new AutomationService(storageService, new NullLogService(), NullTelemetryService, automationStorageService));
+		return teardown.add(new AutomationService(storageService, new NullLogService(), NullTelemetryService, automationStorageService, new NullLanguageModelsService()));
 	}
 
 	test('tool data is gated by AI and Automations context keys', () => {
