@@ -36,8 +36,8 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use the view's toolbar actions to switch between Tree and List modes."));
 		content.push(localize('sessionsChanges.operations', "When available, the Changes toolbar or editor title bar also provides actions to commit, merge, sync, or create a pull request. When Agent Merge is the primary action, activate it to toggle Agent Merge and use its dropdown to configure it. Use Tab and Shift+Tab to move between the file list and toolbar actions."));
 		content.push(layoutService.isSinglePaneLayoutEnabled
-			? localize('sessionsChanges.diffView.singlePane', "File diffs can prefer side-by-side or inline layout. Unless screen reader optimized mode is enabled, side-by-side diffs automatically use inline layout when space is limited. Use Always Show Inline Diff in the editor header's More Actions menu, or use the Toggle Preferred Diff View command to switch the preference{0}.", '<keybinding:toggle.diff.renderSideBySide>')
-			: localize('sessionsChanges.diffView.classic', "File diffs can use side-by-side or inline layout. Use Inline View in the editor title area's More Actions menu, or use the Toggle Inline View command to switch the layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+			? localize('sessionsChanges.diffView.singlePane', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>')
+			: localize('sessionsChanges.diffView.classic', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsChanges,

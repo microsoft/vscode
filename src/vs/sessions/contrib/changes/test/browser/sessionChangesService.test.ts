@@ -22,7 +22,9 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionFileChange, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
@@ -31,6 +33,9 @@ suite('SessionChangesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noActiveSessionResource = constObservable<URI | undefined>(undefined);
 	const noChanges = constObservable<readonly ISessionFileChange[]>([]);
+	const noActiveSession = new class extends mock<ISessionsService>() {
+		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+	};
 	const emptyDecorationsService = new class extends mock<IDecorationsService>() {
 		override registerDecorationsProvider() {
 			return Disposable.None;
@@ -102,6 +107,7 @@ suite('SessionChangesService', () => {
 				layoutService,
 				changesViewService,
 				emptyDecorationsService,
+				noActiveSession,
 			));
 			instantiationService.stub(ISessionChangesService, service);
 
@@ -145,6 +151,7 @@ suite('SessionChangesService', () => {
 			layoutService,
 			changesViewService,
 			emptyDecorationsService,
+			noActiveSession,
 		));
 		const sessionResource = URI.parse('agent-host:test-session');
 
@@ -214,7 +221,7 @@ suite('SessionChangesService', () => {
 		}();
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, emptyDecorationsService));
+		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, emptyDecorationsService, noActiveSession));
 		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {
@@ -223,13 +230,24 @@ suite('SessionChangesService', () => {
 		assert.deepStrictEqual(selections, ['turn:request']);
 	});
 
-	test('registers one decoration provider across repeated Changes editor opens', async () => {
+	test('decorates only an untitled session with the uncommitted changeset selected', async () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const activeSessionResource = observableValue<URI | undefined>('activeSessionResource', undefined);
+		const sessionStatus = observableValue('sessionStatus', SessionStatus.Untitled);
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
+			status: sessionStatus,
+		}));
+		const activeChangeset = observableValue<ISessionChangeset | undefined>('activeChangeset', upcastPartial<ISessionChangeset>({
+			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+		}));
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = activeSessionResource;
+			override readonly activeSessionChangesetObs = activeChangeset;
 			override readonly activeSessionChangesObs = changes;
+		};
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
 		};
 		const providers: IDecorationsProvider[] = [];
 		const decorationsService = new class extends mock<IDecorationsService>() {
@@ -264,6 +282,7 @@ suite('SessionChangesService', () => {
 			layoutService,
 			changesViewService,
 			decorationsService,
+			sessionsService,
 		));
 		instantiationService.stub(ISessionChangesService, service);
 		activeSessionResource.set(sessionResource, undefined);
@@ -277,18 +296,28 @@ suite('SessionChangesService', () => {
 		await service.openChangesEditor(sessionResource);
 		await service.openChangesEditor(sessionResource);
 
+		const editorResource = service.getChangesEditorResource(sessionResource);
+		const newSessionDecoration = providers[0].provideDecorations(editorResource, CancellationToken.None);
+		sessionStatus.set(SessionStatus.Completed, undefined);
+		const createdSessionCount = service.activeSessionChangeCountObs.get();
+		sessionStatus.set(SessionStatus.Untitled, undefined);
+		activeChangeset.set(upcastPartial<ISessionChangeset>({ id: TURN_CHANGES_CHANGESET_ID }), undefined);
+		const turnChangesCount = service.activeSessionChangeCountObs.get();
+
 		assert.deepStrictEqual({
 			providerCount: providers.length,
-			changeCount: service.activeSessionChangeCountObs.get(),
-			decoration: providers[0].provideDecorations(service.getChangesEditorResource(sessionResource), CancellationToken.None),
+			newSessionDecoration,
+			createdSessionCount,
+			turnChangesCount,
 		}, {
 			providerCount: 1,
-			changeCount: 1,
-			decoration: {
+			newSessionDecoration: {
 				weight: 100,
 				letter: '1',
 				tooltip: '1 file',
 			},
+			createdSessionCount: undefined,
+			turnChangesCount: undefined,
 		});
 	});
 });

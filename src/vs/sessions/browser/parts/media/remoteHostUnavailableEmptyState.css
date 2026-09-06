@@ -18,6 +18,7 @@
 }
 
 .remote-host-unavailable-empty-state.hidden,
+.remote-host-unavailable-empty-state-description.hidden,
 .remote-host-unavailable-empty-state-progress.hidden,
 .remote-host-unavailable-empty-state-action.hidden,
 .remote-host-unavailable-empty-state-auto-connect.hidden {

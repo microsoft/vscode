@@ -10,7 +10,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveCompareEditorCanSwapContext, ActiveCustomEditorDiffCanToggleLayoutContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { DiffEditorViewMode, FocusTextDiffEditorMode, IDiffEditorCommandsService } from './diffEditorCommandsService.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
+import { FocusTextDiffEditorMode, IDiffEditorCommandsService } from './diffEditorCommandsService.js';
 
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const SET_DIFF_VIEW_MODE_INLINE = 'diffEditor.setViewMode.inline';

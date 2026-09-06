@@ -16,12 +16,14 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -231,8 +233,13 @@ class CapturingActionWidgetHolder {
 
 function setupServices(
 	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
-	options?: { devContainerWorktreeEnabled?: boolean },
-	onCheckout?: () => Promise<void>,
+	options?: {
+		devContainerWorktreeEnabled?: boolean;
+		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
+		checkoutDialogShown?: DeferredPromise<void>;
+		checkoutDialogRelease?: DeferredPromise<void>;
+	},
+	onCheckout?: (_meta?: Record<string, unknown>) => Promise<void>,
 ) {
 	const emitter = store.add(new Emitter<string>());
 	const branchSelectionEvents: string[] = [];
@@ -253,7 +260,21 @@ function setupServices(
 	instantiationService.stub(IConfigurationService, new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: options?.devContainerWorktreeEnabled ?? false,
 	}));
-	instantiationService.stub(IDialogService, new (class extends mock<IDialogService>() { })());
+	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
+	instantiationService.stub(IDialogService, {
+		prompt: async <T,>(prompt: IPrompt<T>): Promise<IPromptResult<T>> => {
+			checkoutDialogs.push({
+				message: prompt.message,
+				buttons: prompt.buttons?.map(button => button.label) ?? [],
+				cancelButton: prompt.cancelButton === true,
+				alignment: typeof prompt.custom === 'object' ? prompt.custom.alignment : undefined,
+			});
+			options?.checkoutDialogShown?.complete();
+			await options?.checkoutDialogRelease?.p;
+			const button = prompt.buttons?.find(button => button.label === options?.checkoutDialogChoice);
+			return { result: button ? await button.run({ checkboxChecked: undefined }) : undefined };
+		},
+	} as Partial<IDialogService> as IDialogService);
 	instantiationService.stub(IStorageService, new (class extends mock<IStorageService>() { })());
 	instantiationService.stub(IContextKeyService, new (class extends mock<IContextKeyService>() {
 		override readonly onDidChangeContext = Event.None;
@@ -301,7 +322,7 @@ function setupServices(
 		override async invokeOperation(operationId: string, _target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
 			checkoutInvocations.push({ operationId, _meta });
 			branchSelectionEvents.push('checkout');
-			await onCheckout?.();
+			await onCheckout?.(_meta);
 		}
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
@@ -313,7 +334,7 @@ function setupServices(
 		override readonly changesets = changesetsObs;
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents };
+	return { instantiationService, provider, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -658,7 +679,7 @@ suite('Agent Host Session Config Picker', () => {
 				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
 				_meta: { treeish: 'dev' },
 			}],
-			branchSelectionEvents: ['set:dev', 'checkout'],
+			branchSelectionEvents: ['checkout', 'set:dev'],
 		});
 	});
 
@@ -693,7 +714,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('failed folder branch checkout restores the previous configuration value', async () => {
+	test('failed folder branch checkout keeps the previous configuration value', async () => {
 		const services = setupServices(store, {}, async () => {
 			throw new Error('Checkout failed');
 		});
@@ -716,15 +737,131 @@ suite('Agent Host Session Config Picker', () => {
 			branchSelectionEvents: services.branchSelectionEvents,
 		}, {
 			branch: 'main',
-			configUpdates: [
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
-			],
+			configUpdates: [],
 			checkoutInvocations: [{
 				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
 				_meta: { treeish: 'featureA' },
 			}],
-			branchSelectionEvents: ['set:featureA', 'checkout', 'set:main'],
+			branchSelectionEvents: ['checkout'],
+		});
+	});
+
+	test('dirty folder branch checkout offers stash, commit, and cancel actions', async () => {
+		const outcomes: {
+			choice: 'Stash' | 'Commit' | 'Cancel';
+			branch: unknown;
+			checkoutInvocations: readonly { operationId: string; _meta: Record<string, unknown> | undefined }[];
+			dialogs: readonly { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[];
+		}[] = [];
+
+		for (const choice of ['Stash & Checkout', 'Commit & Checkout', undefined] as const) {
+			const services = setupServices(store, { checkoutDialogChoice: choice }, async meta => {
+				if (!meta?.preCheckoutAction) {
+					throw new ProtocolError(
+						JsonRpcErrorCodes.InvalidParams,
+						'Dirty working tree',
+						checkoutOperationDirtyWorkingTreeErrorData(),
+					);
+				}
+			});
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+
+			await picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'dev');
+			outcomes.push({
+				choice: choice?.startsWith('Stash') ? 'Stash' : choice?.startsWith('Commit') ? 'Commit' : 'Cancel',
+				branch: services.provider.config.values[SessionConfigKey.Branch],
+				checkoutInvocations: services.checkoutInvocations,
+				dialogs: services.checkoutDialogs,
+			});
+		}
+
+		const dialog = {
+			message: 'Your local changes would be overwritten when checking out \'dev\'.',
+			buttons: ['Stash & Checkout', 'Commit & Checkout'],
+			cancelButton: true,
+			alignment: undefined,
+		};
+		assert.deepStrictEqual(outcomes, [
+			{
+				choice: 'Stash',
+				branch: 'dev',
+				checkoutInvocations: [
+					{ operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, _meta: { treeish: 'dev' } },
+					{ operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, _meta: { treeish: 'dev', preCheckoutAction: 'stash' } },
+				],
+				dialogs: [dialog],
+			},
+			{
+				choice: 'Commit',
+				branch: 'dev',
+				checkoutInvocations: [
+					{ operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, _meta: { treeish: 'dev' } },
+					{ operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, _meta: { treeish: 'dev', preCheckoutAction: 'commit' } },
+				],
+				dialogs: [dialog],
+			},
+			{
+				choice: 'Cancel',
+				branch: 'main',
+				checkoutInvocations: [
+					{ operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, _meta: { treeish: 'dev' } },
+				],
+				dialogs: [dialog],
+			},
+		]);
+	});
+
+	test('keeps the confirmed branch label while the dirty checkout dialog is open', async () => {
+		const checkoutDialogShown = new DeferredPromise<void>();
+		const checkoutDialogRelease = new DeferredPromise<void>();
+		const services = setupServices(store, {
+			checkoutDialogChoice: 'Commit & Checkout',
+			checkoutDialogShown,
+			checkoutDialogRelease,
+		}, async meta => {
+			if (!meta?.preCheckoutAction) {
+				throw new ProtocolError(
+					JsonRpcErrorCodes.InvalidParams,
+					'Dirty working tree',
+					checkoutOperationDirtyWorkingTreeErrorData(),
+				);
+			}
+		});
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		const checkout = picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'dev');
+		await checkoutDialogShown.p;
+		const whilePrompting = {
+			label: branchLabel(container),
+			branch: services.provider.config.values[SessionConfigKey.Branch],
+			configUpdates: [...services.provider.setSessionConfigValueArguments],
+		};
+
+		checkoutDialogRelease.complete();
+		await checkout;
+
+		assert.deepStrictEqual({
+			whilePrompting,
+			afterCheckout: {
+				label: branchLabel(container),
+				branch: services.provider.config.values[SessionConfigKey.Branch],
+				configUpdates: services.provider.setSessionConfigValueArguments,
+			},
+		}, {
+			whilePrompting: {
+				label: 'main',
+				branch: 'main',
+				configUpdates: [],
+			},
+			afterCheckout: {
+				label: 'dev',
+				branch: 'dev',
+				configUpdates: [{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'dev' }],
+			},
 		});
 	});
 
@@ -762,11 +899,9 @@ suite('Agent Host Session Config Picker', () => {
 			configUpdates: services.provider.setSessionConfigValueArguments,
 			checkoutInvocations: services.checkoutInvocations,
 		}, {
-			label: 'featureA',
-			branch: 'featureA',
-			configUpdates: [
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
-			],
+			label: 'main',
+			branch: 'main',
+			configUpdates: [],
 			checkoutInvocations: [{
 				operationId: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
 				_meta: { treeish: 'featureA' },
@@ -793,7 +928,7 @@ suite('Agent Host Session Config Picker', () => {
 				_meta: { treeish: 'main' },
 			}],
 		});
-		assert.deepStrictEqual(services.branchSelectionEvents, ['set:featureA', 'checkout', 'set:main', 'checkout']);
+		assert.deepStrictEqual(services.branchSelectionEvents, ['checkout', 'set:featureA', 'checkout', 'set:main']);
 	});
 
 	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
@@ -828,7 +963,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('rolls back failed queued checkouts to the last checked-out branch', async () => {
+	test('keeps the last checked-out branch while queued checkouts fail', async () => {
 		const firstCheckoutStarted = new DeferredPromise<void>();
 		const releaseFirstCheckout = new DeferredPromise<void>();
 		const secondCheckoutStarted = new DeferredPromise<void>();
@@ -857,7 +992,7 @@ suite('Agent Host Session Config Picker', () => {
 		await firstCheckoutStarted.p;
 		services.actionWidget.delegate?.onSelect({ value: 'featureB', label: 'featureB' });
 		await new Promise(resolve => setTimeout(resolve));
-		assert.strictEqual(branchLabel(container), 'featureA');
+		assert.strictEqual(branchLabel(container), 'main');
 
 		releaseFirstCheckout.complete();
 		await secondCheckoutStarted.p;
@@ -869,13 +1004,8 @@ suite('Agent Host Session Config Picker', () => {
 			branchSelectionEvents: services.branchSelectionEvents,
 		}, {
 			branch: 'main',
-			configUpdates: [
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureA' },
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'featureB' },
-				{ sessionId: SESSION_ID, property: SessionConfigKey.Branch, value: 'main' },
-			],
-			branchSelectionEvents: ['set:featureA', 'checkout', 'set:main', 'set:featureB', 'checkout', 'set:main'],
+			configUpdates: [],
+			branchSelectionEvents: ['checkout', 'checkout'],
 		});
 	});
 

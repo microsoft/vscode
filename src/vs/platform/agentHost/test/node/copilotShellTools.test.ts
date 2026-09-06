@@ -41,6 +41,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	readonly writes: { uri: string; data: string }[] = [];
 	readonly sentTexts: { uri: string; data: string; options: ISendTextOptions }[] = [];
 	readonly existingTerminalUris = new Set<string>();
+	readonly disposedTerminalUris: string[] = [];
 	commandDetectionSupported = false;
 	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
 	private readonly _onCommandFinished = new Emitter<ICommandFinishedEvent>();
@@ -87,7 +88,10 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(uri: string): boolean { return this.existingTerminalUris.has(uri); }
 	supportsCommandDetection(): boolean { return this.commandDetectionSupported; }
-	disposeTerminal(): void { }
+	disposeTerminal(uri: string): void {
+		this.disposedTerminalUris.push(uri);
+		this.existingTerminalUris.delete(uri);
+	}
 	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(): undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
@@ -253,6 +257,101 @@ suite('CopilotShellTools', () => {
 			worktreePath,
 			explicitCwd,
 		]);
+	});
+
+	test('setWorkingDirectory disposes idle shells, resets associations, and uses the new cwd', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const initialWorkingDirectory = URI.file('/workspace/initial');
+		const newWorkingDirectory = URI.file('/workspace/reanchored');
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const initialShell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
+		terminalManager.existingTerminalUris.add(initialShell.object.terminalUri);
+		initialShell.dispose();
+
+		shellManager.setWorkingDirectory(newWorkingDirectory);
+		const shellCountAfterReanchor = shellManager.listShells().length;
+		const reanchoredShell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-2', 'tool-2');
+
+		assert.deepStrictEqual({
+			workingDirectory: shellManager.workingDirectory?.toString(),
+			disposedTerminalUris: terminalManager.disposedTerminalUris,
+			oldAssociation: shellManager.getTerminalUriForToolCall('tool-1'),
+			shellCountAfterReanchor,
+			createdCwds: terminalManager.created.map(entry => entry.params.cwd),
+		}, {
+			workingDirectory: newWorkingDirectory.toString(),
+			disposedTerminalUris: [initialShell.object.terminalUri],
+			oldAssociation: undefined,
+			shellCountAfterReanchor: 0,
+			createdCwds: [initialWorkingDirectory.fsPath, newWorkingDirectory.fsPath],
+		});
+		reanchoredShell.dispose();
+	});
+
+	test('setWorkingDirectory rejects while a shell is busy without changing state', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const initialWorkingDirectory = URI.file('/workspace/initial');
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
+		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
+
+		assert.throws(() => shellManager.setWorkingDirectory(URI.file('/workspace/rejected')), /while a shell is busy/);
+		assert.deepStrictEqual({
+			workingDirectory: shellManager.workingDirectory?.toString(),
+			shellIds: shellManager.listShells().map(shell => shell.id),
+			toolCallTerminalUri: shellManager.getTerminalUriForToolCall('tool-1'),
+			disposedTerminalUris: terminalManager.disposedTerminalUris,
+		}, {
+			workingDirectory: initialWorkingDirectory.toString(),
+			shellIds: [shell.object.id],
+			toolCallTerminalUri: shell.object.terminalUri,
+			disposedTerminalUris: [],
+		});
+		shell.dispose();
+	});
+
+	test('assertCanSetWorkingDirectory rejects without changing shell state', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const initialWorkingDirectory = URI.file('/workspace/initial');
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
+		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
+
+		assert.throws(() => shellManager.assertCanSetWorkingDirectory(), /while a shell is busy/);
+		assert.deepStrictEqual({
+			workingDirectory: shellManager.workingDirectory?.toString(),
+			shellIds: shellManager.listShells().map(shell => shell.id),
+			toolCallTerminalUri: shellManager.getTerminalUriForToolCall('tool-1'),
+			disposedTerminalUris: terminalManager.disposedTerminalUris,
+		}, {
+			workingDirectory: initialWorkingDirectory.toString(),
+			shellIds: [shell.object.id],
+			toolCallTerminalUri: shell.object.terminalUri,
+			disposedTerminalUris: [],
+		});
+		shell.dispose();
+	});
+
+	test('setWorkingDirectory rejects a held shell even after its reference is released', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const initialWorkingDirectory = URI.file('/workspace/initial');
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
+		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
+		shellManager.holdShellUntilCommandFinishes(shell.object);
+		shell.dispose();
+
+		assert.throws(() => shellManager.setWorkingDirectory(URI.file('/workspace/rejected')), /while a shell is busy/);
+		assert.deepStrictEqual({
+			workingDirectory: shellManager.workingDirectory?.toString(),
+			toolCallTerminalUri: shellManager.getTerminalUriForToolCall('tool-1'),
+			disposedTerminalUris: terminalManager.disposedTerminalUris,
+		}, {
+			workingDirectory: initialWorkingDirectory.toString(),
+			toolCallTerminalUri: shell.object.terminalUri,
+			disposedTerminalUris: [],
+		});
+		terminalManager.fireCommandFinished({ commandId: 'cmd-1', exitCode: 0, command: 'sleep 100', output: '' });
 	});
 
 	test('opts every managed shell into shell-history suppression and non-interactive mode', async () => {
@@ -712,6 +811,39 @@ suite('CopilotShellTools', () => {
 		const engineB = shellManager.getOrCreateSandboxEngine();
 
 		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
+	});
+
+	test('setWorkingDirectory invalidates the captured sandbox engine roots', async () => {
+		const createdFiles = new Map<string, string>();
+		const initialWorkingDirectory = URI.file('/workspace/initial');
+		const newWorkingDirectory = URI.file('/workspace/reanchored');
+		const { instantiationService } = createServices({ sandboxEnabled: true, createdFiles });
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const engine = shellManager.getOrCreateSandboxEngine();
+		await engine.wrapCommand('echo initial');
+		const sandboxConfigPath = [...createdFiles.keys()].find(path => /vscode-sandbox-settings-.*\.json$/.test(path));
+		assert.ok(sandboxConfigPath);
+		const initialConfig = JSON.parse(createdFiles.get(sandboxConfigPath)!);
+
+		shellManager.setWorkingDirectory(newWorkingDirectory);
+		await engine.wrapCommand('echo reanchored');
+		const reanchoredConfig = JSON.parse(createdFiles.get(sandboxConfigPath)!);
+		const initialWritablePaths: string[] = platform.isWindows ? initialConfig.filesystem.readwritePaths : initialConfig.filesystem.allowWrite;
+		const reanchoredWritablePaths: string[] = platform.isWindows ? reanchoredConfig.filesystem.readwritePaths : reanchoredConfig.filesystem.allowWrite;
+		const initialPath = platform.isWindows ? '\\workspace\\initial' : '/workspace/initial';
+		const reanchoredPath = platform.isWindows ? '\\workspace\\reanchored' : '/workspace/reanchored';
+
+		assert.deepStrictEqual({
+			enginePreserved: shellManager.getOrCreateSandboxEngine() === engine,
+			initialRootPresent: initialWritablePaths.includes(initialPath),
+			oldRootPresent: reanchoredWritablePaths.includes(initialPath),
+			newRootPresent: reanchoredWritablePaths.includes(reanchoredPath),
+		}, {
+			enginePreserved: true,
+			initialRootPresent: true,
+			oldRootPresent: false,
+			newRootPresent: true,
+		});
 	});
 
 	test('primary shell tool schema only exposes requestUnsandboxedExecution params when the sandbox is enabled', async () => {
