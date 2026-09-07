@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -23,7 +23,7 @@ import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, StateComponents } from '../../.
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentHostAutomationStore } from '../../browser/agentHostAutomationStore.js';
@@ -33,14 +33,18 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { TestAutomationStorageService } from '../../../../automations/test/browser/automationTestUtils.js';
 import { AutomationStore } from '../../../../automations/browser/automationService.js';
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
+import type { AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 class TestAutomationConnection {
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidCatalogChange = new Emitter<AutomationState>();
+	private readonly _onDidCatalogError = new Emitter<Error>();
 	private readonly _onDidRootChange = new Emitter<RootState>();
 	private _catalog: AutomationState = { entries: [] };
+	private _catalogError: Error | undefined;
+	private _catalogAvailable: boolean;
 	private _root: RootState;
 	private _serverSeq = 0;
 	private _migrationComplete: boolean;
@@ -54,8 +58,9 @@ class TestAutomationConnection {
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 
-	constructor(migrationComplete: boolean) {
+	constructor(migrationComplete: boolean, catalogAvailable = true) {
 		this._migrationComplete = migrationComplete;
+		this._catalogAvailable = catalogAvailable;
 		this._root = {
 			agents: [],
 			activeSessions: 0,
@@ -110,14 +115,26 @@ class TestAutomationConnection {
 		const connection = this;
 		return {
 			object: {
-				get value() { return connection._catalog; },
-				get verifiedValue() { return connection._catalog; },
+				get value() { return connection._catalogError ?? (connection._catalogAvailable ? connection._catalog : undefined); },
+				get verifiedValue() { return connection._catalogAvailable ? connection._catalog : undefined; },
 				onDidChange: this._onDidCatalogChange.event,
+				onDidError: this._onDidCatalogError.event,
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
 			dispose: () => { },
 		};
+	}
+
+	setCatalogError(error: Error): void {
+		this._catalogError = error;
+		this._onDidCatalogError.fire(error);
+	}
+
+	setCatalogAvailable(available = true): void {
+		this._catalogAvailable = available;
+		this._catalogError = undefined;
+		this._onDidCatalogChange.fire(this._catalog);
 	}
 
 	dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
@@ -287,6 +304,7 @@ class TestAutomationConnection {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidCatalogChange.dispose();
+		this._onDidCatalogError.dispose();
 		this._onDidRootChange.dispose();
 	}
 }
@@ -409,6 +427,120 @@ suite('AgentHostAutomationStore', () => {
 			}],
 		};
 	}
+
+	test('reports loading until the authoritative catalogue is ready', () => {
+		const connection = new TestAutomationConnection(false, false);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const loading = store.catalogueState.get();
+		connection.setCatalogAvailable();
+
+		assert.deepStrictEqual({
+			loading,
+			afterSnapshot: store.catalogueState.get(),
+		}, {
+			loading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('reports catalogue errors after the ready state was observed', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+
+		const ready = store.catalogueState.get();
+		connection.setCatalogError(new Error('catalogue unavailable'));
+		const afterError = store.catalogueState.get();
+		connection.setCatalogAvailable();
+
+		assert.deepStrictEqual({
+			ready,
+			afterError,
+			afterRecovery: store.catalogueState.get(),
+		}, {
+			ready: 'ready',
+			afterError: 'error',
+			afterRecovery: 'ready',
+		});
+	});
+
+	for (const hasHostAutomation of [false, true]) {
+		test(`does not mask an unreadable legacy source with a ${hasHostAutomation ? 'populated' : 'empty'} host snapshot`, async () => {
+			const connection = disposables.add(new TestAutomationConnection(true));
+			const storage = disposables.add(new InMemoryStorageService());
+			const automationStorage = new TestAutomationStorageService(storage);
+			if (hasHostAutomation) {
+				const hostStore = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+				await hostStore.createAutomation({
+					name: 'Known host automation',
+					prompt: 'Review changes.',
+					schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+					target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+				});
+			}
+			const storageKey = providerAutomationStorageKey('local-agent-host');
+			storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+			await assert.rejects(store.completeMigration(), /cannot be migrated safely/);
+
+			assert.deepStrictEqual({
+				legacyState: legacy.catalogueState.get(),
+				hostState: store.catalogueState.get(),
+				canCompleteMigration: legacy.canCompleteMigration(),
+				names: store.automations.get().map(automation => automation.name),
+				completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+			}, {
+				legacyState: 'error',
+				hostState: 'error',
+				canCompleteMigration: false,
+				names: hasHostAutomation ? ['Known host automation'] : [],
+				completions: 0,
+			});
+		});
+	}
+
+	test('rechecks legacy readability after waiting for the host catalogue', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false, false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const storageKey = providerAutomationStorageKey('local-agent-host');
+		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = assert.rejects(store.completeMigration(), /cannot be migrated safely/);
+		storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		connection.setCatalogAvailable();
+		await migration;
+		const afterFailure = {
+			state: store.catalogueState.get(),
+			completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+		};
+
+		storage.store(storageKey, JSON.stringify({ schemaVersion: 4, revision: 1, automations: [], runs: [] }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			afterFailure,
+			afterRepair: {
+				state: store.catalogueState.get(),
+				completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+			},
+		}, {
+			afterFailure: { state: 'error', completions: 0 },
+			afterRepair: { state: 'ready', completions: 1 },
+		});
+	});
 
 	test('uses the exact catalogue channel and projects authoritative creates', async () => {
 		const connection = new TestAutomationConnection(true);
@@ -2096,6 +2228,76 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			subscriptions: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			completionRequests: 1,
+		});
+	});
+
+	test('reports disconnected authority as non-authoritative without a false-ready emission', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+		const initiallyDisconnected = store.catalogueState.get();
+		const emissionsBeforeConnect = emissions.length;
+		store.setConnection(connection);
+		const connectEmissions = emissions.slice(emissionsBeforeConnect);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const connected = store.catalogueState.get();
+		const emissionsBeforeDisconnect = emissions.length;
+		store.clearConnection();
+		const disconnectEmissions = emissions.slice(emissionsBeforeDisconnect);
+		const afterDisconnect = store.catalogueState.get();
+		connection.setCatalogAvailable(false);
+		store.setConnection(connection);
+		const duringReconnect = { state: store.catalogueState.get(), count: store.automations.get().length };
+		connection.setCatalogAvailable();
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			initiallyDisconnected,
+			connectEmissions,
+			connected,
+			afterDisconnect,
+			disconnectEmissions,
+			duringReconnect,
+			afterReconnect: { state: store.catalogueState.get(), count: store.automations.get().length },
+		}, {
+			initiallyDisconnected: 'unavailable',
+			connectEmissions: [
+				{ automationCount: 0, catalogueState: 'loading' },
+				{ automationCount: 0, catalogueState: 'ready' },
+			],
+			connected: 'ready',
+			afterDisconnect: 'unavailable',
+			disconnectEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
+			duringReconnect: { state: 'loading', count: 0 },
+			afterReconnect: { state: 'ready', count: 1 },
 		});
 	});
 

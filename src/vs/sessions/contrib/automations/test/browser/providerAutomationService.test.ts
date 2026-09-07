@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
+import { autorun, type ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,7 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAutomation, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AutomationActiveRunError } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationActiveRunError, AutomationCatalogueState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { AutomationStore } from '../../browser/automationService.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService, providerAutomationStorageKey } from '../../common/automationStorageService.js';
@@ -29,6 +30,15 @@ const SESSION_TYPE_ID = 'copilotcli';
 class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 	override async markStaleRunsFailed(): Promise<void> {
 		throw new Error('Provider unavailable.');
+	}
+}
+
+class MutableCatalogueAutomationStore extends AutomationStore {
+	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
+	override readonly catalogueState = this.state;
+
+	setCatalogueState(state: AutomationCatalogueState, tx?: ITransaction): void {
+		this.state.set(state, tx);
 	}
 }
 
@@ -127,12 +137,19 @@ class DestinationDeletingTransferAutomationStore extends AutomationStore {
 suite('ProviderAutomationService', () => {
 	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(legacyRaw?: string, providerRaw?: string, providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'acknowledgement' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback'): {
+	function createService(
+		legacyRaw?: string,
+		providerRaw?: string,
+		providerFailure?: 'staleRunRecovery' | 'migration' | 'transfer' | 'acknowledgement' | 'concurrentMigrationUpdate' | 'concurrentMigrationDelete' | 'concurrentMigrationRun' | 'continuousMigrationUpdate' | 'concurrentTransferRun' | 'destinationDeleteDuringRollback',
+		registerDefaultProvider = true,
+		initialProvidersSettled = true,
+	): {
 		readonly service: ProviderAutomationService;
 		readonly providerStore: AutomationStore;
 		readonly storage: InMemoryStorageService;
 		readonly automationStorage: TestAutomationStorageService;
 		readonly addProvider: (provider: ISessionsProvider) => void;
+		readonly settleInitialProviders: () => void;
 	} {
 		const storage = teardown.add(new InMemoryStorageService());
 		if (legacyRaw) {
@@ -196,7 +213,7 @@ suite('ProviderAutomationService', () => {
 			order: 0,
 			automations: providerStore,
 		});
-		const registeredProviders: ISessionsProvider[] = [provider];
+		const registeredProviders: ISessionsProvider[] = registerDefaultProvider ? [provider] : [];
 		const providersChanged = teardown.add(new Emitter<ISessionsProvidersChangeEvent>());
 		const providers = upcastPartial<ISessionsProvidersService>({
 			onDidChangeProviders: providersChanged.event,
@@ -210,7 +227,8 @@ suite('ProviderAutomationService', () => {
 		instantiationService.stub(IAutomationStorageService, automationStorage);
 		instantiationService.stub(ISessionsProvidersService, providers);
 		instantiationService.stub(IInstantiationService, instantiationService);
-		const service = teardown.add(instantiationService.createInstance(ProviderAutomationService));
+		const providersSettled = observableValue('initialProvidersSettled', initialProvidersSettled);
+		const service = teardown.add(instantiationService.createInstance(ProviderAutomationService, providersSettled));
 		return {
 			service,
 			providerStore,
@@ -220,8 +238,141 @@ suite('ProviderAutomationService', () => {
 				registeredProviders.push(addedProvider);
 				providersChanged.fire({ added: [addedProvider], removed: [] });
 			},
+			settleInitialProviders: () => providersSettled.set(true, undefined),
 		};
 	}
+
+	test('aggregates provider catalogue state', () => {
+		const { service, storage, automationStorage, addProvider } = createService();
+		const emissions: AutomationCatalogueState[] = [];
+		teardown.add(autorun(reader => emissions.push(service.catalogueState.read(reader))));
+		const store = teardown.add(new MutableCatalogueAutomationStore(
+			providerAutomationStorageKey('stateful-provider'),
+			storage,
+			new NullLogService(),
+			NullTelemetryService,
+			automationStorage,
+		));
+		store.setCatalogueState('loading');
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'stateful-provider', order: 1, automations: store }));
+		const loading = service.catalogueState.get();
+		store.setCatalogueState('error');
+		const error = service.catalogueState.get();
+		store.setCatalogueState('unavailable');
+		const unavailable = service.catalogueState.get();
+		store.setCatalogueState('ready');
+		const ready = service.catalogueState.get();
+
+		assert.deepStrictEqual({ loading, error, unavailable, ready, emissions }, {
+			loading: 'loading',
+			error: 'error',
+			unavailable: 'unavailable',
+			ready: 'ready',
+			emissions: ['ready', 'loading', 'error', 'unavailable', 'ready'],
+		});
+	});
+
+	test('settles a provider-less catalogue after initial provider contributions complete', () => {
+		const { service, providerStore, addProvider, settleInitialProviders } = createService(undefined, undefined, undefined, false, false);
+		const beforeSettlement = service.catalogueState.get();
+		settleInitialProviders();
+		const afterSettlement = service.catalogueState.get();
+		addProvider(upcastPartial<ISessionsProvider>({ id: PROVIDER_ID, order: 0, automations: providerStore }));
+
+		assert.deepStrictEqual({
+			beforeSettlement,
+			afterSettlement,
+			afterRegistration: service.catalogueState.get(),
+		}, {
+			beforeSettlement: 'loading',
+			afterSettlement: 'ready',
+			afterRegistration: 'ready',
+		});
+	});
+
+	test('keeps registered providers loading until initial contributions settle', () => {
+		const { service, providerStore, addProvider, settleInitialProviders } = createService(undefined, undefined, undefined, false, false);
+		const emissions: AutomationCatalogueState[] = [];
+		teardown.add(autorun(reader => emissions.push(service.catalogueState.read(reader))));
+		addProvider(upcastPartial<ISessionsProvider>({ id: PROVIDER_ID, order: 0, automations: providerStore }));
+		const beforeSettlement = service.catalogueState.get();
+		settleInitialProviders();
+
+		assert.deepStrictEqual({ beforeSettlement, emissions }, {
+			beforeSettlement: 'loading',
+			emissions: ['loading', 'ready'],
+		});
+	});
+
+	test('legacy rows do not make initial provider discovery authoritative', async () => {
+		const { service, settleInitialProviders } = createService(undefined, undefined, undefined, false, false);
+		await service.createAutomation({
+			name: 'Legacy only',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } },
+		});
+		const beforeSettlement = service.catalogueState.get();
+		settleInitialProviders();
+
+		assert.deepStrictEqual({
+			beforeSettlement,
+			afterSettlement: service.catalogueState.get(),
+			names: service.automations.get().map(automation => automation.name),
+		}, {
+			beforeSettlement: 'loading',
+			afterSettlement: 'ready',
+			names: ['Legacy only'],
+		});
+	});
+
+	test('aggregates error, loading, and unavailable states independently of provider order', () => {
+		const { service, storage, automationStorage, addProvider } = createService();
+		const first = teardown.add(new MutableCatalogueAutomationStore('first', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const second = teardown.add(new MutableCatalogueAutomationStore('second', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'first', order: 1, automations: first }));
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'second', order: 2, automations: second }));
+		let observedState: AutomationCatalogueState = 'ready';
+		teardown.add(autorun(reader => observedState = service.catalogueState.read(reader)));
+		const states: readonly AutomationCatalogueState[] = ['ready', 'unavailable', 'loading', 'error'];
+		const actual = states.map(firstState => states.map(secondState => {
+			transaction(tx => {
+				first.setCatalogueState(firstState, tx);
+				second.setCatalogueState(secondState, tx);
+			});
+			return observedState;
+		}));
+
+		assert.deepStrictEqual(actual, [
+			['ready', 'unavailable', 'loading', 'error'],
+			['unavailable', 'unavailable', 'loading', 'error'],
+			['loading', 'loading', 'loading', 'error'],
+			['error', 'error', 'error', 'error'],
+		]);
+	});
+
+	test('does not let provider loading mask a legacy catalogue error', () => {
+		const { service, storage, automationStorage, addProvider } = createService('{', undefined, undefined, false);
+		const emissions: AutomationCatalogueState[] = [];
+		teardown.add(autorun(reader => emissions.push(service.catalogueState.read(reader))));
+		const store = teardown.add(new MutableCatalogueAutomationStore(
+			providerAutomationStorageKey('loading-provider'),
+			storage,
+			new NullLogService(),
+			NullTelemetryService,
+			automationStorage,
+		));
+		store.setCatalogueState('loading');
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'loading-provider', order: 1, automations: store }));
+
+		assert.deepStrictEqual({
+			catalogueState: service.catalogueState.get(),
+			emissions,
+		}, {
+			catalogueState: 'error',
+			emissions: ['error'],
+		});
+	});
 
 	test('routes new Automations to their provider store', async () => {
 		const { service, providerStore, storage } = createService();

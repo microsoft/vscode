@@ -5,6 +5,7 @@
 
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -23,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { assertAutomationSessionTemplate, type AutomationRunTrigger, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationActiveRunError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, combineAutomationCatalogueStates, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
@@ -76,6 +77,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _catalogReference: IReference<IAgentSubscription<AutomationState>>;
 	private readonly _catalog: IAgentSubscription<AutomationState>;
 	private readonly _catalogChanged;
+	private readonly _catalogError;
 	private readonly _ready = observableValue(this, false);
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly _pendingWaits = this._register(new DisposableMap<number, DisposableStore>());
@@ -87,6 +89,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly _providerId: string,
@@ -115,6 +118,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		));
 		this._catalog = this._catalogReference.object;
 		this._catalogChanged = observableSignalFromEvent(this, this._catalog.onDidChange);
+		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
+		this.catalogueState = derived(this, reader => {
+			this._catalogChanged.read(reader);
+			this._catalogError.read(reader);
+			const hostState = this._catalog.value instanceof Error ? 'error' : this._catalog.verifiedValue ? 'ready' : 'loading';
+			const legacyState = this._ready.read(reader) ? 'ready' : this._legacySource?.catalogueState.read(reader) ?? 'ready';
+			return combineAutomationCatalogueStates([hostState, legacyState]);
+		});
 		if (this._catalog.onDidError) {
 			this._register(this._catalog.onDidError(error => this._logService.error(`[AgentHostAutomationStore] Catalogue subscription failed: ${error.message}`)));
 		}
@@ -125,7 +136,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				&& (isAgentHostAutomationCatalogMigrated(catalog)
 					|| catalog.entries.some(automation => automation.operations.includes(AutomationOperation.Run)))
 				&& !catalog.entries.some(automation => isAgentHostLegacyAutomationImportPending(automation.definition))
-				&& (!this._legacySource || this._legacySource.automations.read(reader).length === 0)
+				&& (!this._legacySource || (
+					this._legacySource.catalogueState.read(reader) === 'ready'
+					&& this._legacySource.canCompleteMigration?.() !== false
+					&& this._legacySource.automations.read(reader).length === 0
+				))
 				&& !this._migrationPromise
 				&& !this._ready.read(reader)) {
 				this._ready.set(true, undefined);
@@ -452,9 +467,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		let migratedCount = 0;
 		let failedCount = 0;
 		try {
-			if (source?.canCompleteMigration?.() === false) {
-				throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
-			}
+			this._requireLegacySourceReadable();
 			const failures: Error[] = [];
 			for (const automation of discovered) {
 				try {
@@ -480,6 +493,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 			this._requireLegacySourceDrained();
 			await this._waitForCatalog(() => true);
+			this._requireLegacySourceDrained();
 			const resources = discovered.map(automation => automationResource(automation.id));
 			this._connection.dispatch(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
@@ -497,6 +511,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			// covers reconnect races and cross-provider transfers that stage
 			// pending without a subsequent acknowledgement path.
 			await this._drainPendingImports();
+			this._requireLegacySourceDrained();
 			this._ready.set(true, undefined);
 			const durationMs = Date.now() - startedAt;
 			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
@@ -545,7 +560,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 	}
 
+	private _requireLegacySourceReadable(): void {
+		if (this._legacySource && (this._legacySource.catalogueState.get() !== 'ready' || this._legacySource.canCompleteMigration?.() === false)) {
+			throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
+		}
+	}
+
 	private _requireLegacySourceDrained(): void {
+		this._requireLegacySourceReadable();
 		const remaining = this._legacySource?.automations.get().length ?? 0;
 		if (remaining > 0) {
 			throw new Error(`Automation migration source changed during migration; ${remaining} definition(s) remain.`);
