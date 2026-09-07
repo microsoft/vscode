@@ -7,6 +7,7 @@ import { createHash } from 'crypto';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
@@ -123,7 +124,8 @@ export async function discoverCodexWorkspaceSkills(
 			continue;
 		}
 		seenDirectories.add(directoryKey);
-		const skills = (await readSkills(workingDirectory, [directory], fileService, { childDirectoriesOnly: true }))
+		const skills = [...await readSkills(workingDirectory, [directory], fileService, { childDirectoriesOnly: true, deduplicateByName: false })]
+			.sort((left, right) => left.name.localeCompare(right.name) || compare(left.uri.toString(), right.uri.toString()))
 			.filter(skill => {
 				if (seenNames.has(skill.name)) {
 					return false;
@@ -148,6 +150,23 @@ export async function discoverCodexWorkspaceSkills(
 		});
 	}
 	return containers;
+}
+
+export function excludeCodexWorkspaceSkillDuplicates(
+	nativeContainers: readonly DirectoryCustomization[],
+	workspaceSkills: readonly DirectoryCustomization[],
+): DirectoryCustomization[] {
+	const workspaceSkillIds = new Set(workspaceSkills.flatMap(container => container.children?.map(child => child.id) ?? []));
+	return nativeContainers.flatMap(container => {
+		if (container.contents !== CustomizationType.Skill) {
+			return [container];
+		}
+		const children = container.children?.filter(child => !workspaceSkillIds.has(child.id));
+		if (!children || children.length === container.children?.length) {
+			return [container];
+		}
+		return children.length > 0 ? [{ ...container, children }] : [];
+	});
 }
 
 /**

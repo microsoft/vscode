@@ -31,7 +31,7 @@ import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCrea
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
@@ -46,6 +46,7 @@ import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
 import type { ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
@@ -1363,6 +1364,60 @@ suite('CodexAgent prewarm eviction', () => {
 			materializedMcpSig: undefined,
 			needsResume: true,
 			unsubscribeBeforeResume: true,
+		});
+	});
+
+	test('workspace skills retain invocation metadata when the native catalog repeats them', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillUri = URI.joinPath(workspace, '.github', 'skills', 'website', 'SKILL.md');
+		const nativeSkillUri = URI.joinPath(workspace, '.agents', 'skills', 'website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: website\ndescription: Workspace website\nuser-invocable: false\ndisable-model-invocation: true\n---\nInclude a footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatOf(session);
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const nativeSkill = { name: 'website', description: 'Native website', path: skillUri.fsPath, scope: 'repo' as const, enabled: true };
+		let catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [nativeSkill, { ...nativeSkill, path: nativeSkillUri.fsPath }], errors: [] }] });
+		const nativeContainerId = catalog[0].id;
+		agent['_fetchSkillHookContainers'] = async () => catalog;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const summarize = (customizations: readonly Customization[]) => customizations
+			.flatMap(customization => customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+			.filter(child => child.type === CustomizationType.Skill)
+			.map(skill => ({
+				uri: skill.uri,
+				description: skill.description,
+				disableUserInvocation: skill.disableUserInvocation,
+				disableModelInvocation: skill.disableModelInvocation,
+			}));
+		const refreshed = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated ? [signal.action.customization] : []);
+		const workspaceSkill = { uri: skillUri.toString(), description: 'Workspace website', disableUserInvocation: true, disableModelInvocation: true };
+		const expected = [workspaceSkill, { uri: nativeSkillUri.toString(), description: 'Native website', disableUserInvocation: undefined, disableModelInvocation: undefined }];
+
+		const snapshot = await agent.getChatCustomizations(chat, chatContext(session, chat));
+		await agent['_refreshSkillHookCustomizations'](entry);
+		const firstRefresh = summarize(refreshed());
+		signals.length = 0;
+		catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [nativeSkill], errors: [] }] });
+		await agent['_refreshSkillHookCustomizations'](entry);
+		const finalSnapshot = await agent.getChatCustomizations(chat, chatContext(session, chat));
+
+		assert.deepStrictEqual({
+			snapshot: summarize(snapshot),
+			firstRefresh,
+			finalRefresh: summarize(refreshed()),
+			finalSnapshot: summarize(finalSnapshot),
+			removedIds: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved ? [signal.action.id] : []),
+			publishedDirectoryIds: [...entry.publishedDirectoryCustomizationIds],
+		}, {
+			snapshot: expected,
+			firstRefresh: expected,
+			finalRefresh: [workspaceSkill],
+			finalSnapshot: [workspaceSkill],
+			removedIds: [nativeContainerId],
+			publishedDirectoryIds: [snapshot[0].id],
 		});
 	});
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -172,6 +173,57 @@ suite('codexCustomizations', () => {
 			{ uri: URI.joinPath(primary, '.github', 'skills').toString(), children: [{ name: 'shared', uri: primarySkill.toString() }] },
 			{ uri: URI.joinPath(secondary, '.github', 'skills').toString(), children: [{ name: 'extra', uri: secondarySkill.toString() }] },
 		]);
+	});
+
+	test('workspace skill name precedence is independent of directory and read order', async () => {
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const directory = URI.joinPath(workspace, '.github', 'skills');
+		const firstSkill = URI.joinPath(directory, 'a-first', 'SKILL.md');
+		const lastSkill = URI.joinPath(directory, 'z-last', 'SKILL.md');
+		const firstReadStarted = new DeferredPromise<void>();
+		const lastReadFinished = new DeferredPromise<void>();
+		const releaseFirstRead = new DeferredPromise<void>();
+		const fileService = disposables.add(new class extends FileService {
+			override async readFile(resource: URI) {
+				if (resource.toString() === firstSkill.toString()) {
+					firstReadStarted.complete();
+					await releaseFirstRead.p;
+				}
+				const result = await super.readFile(resource);
+				if (resource.toString() === lastSkill.toString()) {
+					lastReadFinished.complete();
+				}
+				return result;
+			}
+		}(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		await fileService.writeFile(lastSkill, VSBuffer.fromString('---\nname: shared\ndescription: Last skill\n---\nDo not use the duplicate.'));
+		await fileService.writeFile(firstSkill, VSBuffer.fromString('---\nname: shared\ndescription: First skill\nuser-invocable: false\ndisable-model-invocation: true\n---\nUse this skill.'));
+
+		const discovery = discoverCodexWorkspaceSkills([workspace], fileService);
+		try {
+			await Promise.all([firstReadStarted.p, lastReadFinished.p]);
+			await new Promise<void>(resolve => setImmediate(resolve));
+		} finally {
+			releaseFirstRead.complete();
+		}
+		const containers = await discovery;
+
+		assert.deepStrictEqual(containers.flatMap(container => container.children ?? [])
+			.filter(child => child.type === CustomizationType.Skill)
+			.map(skill => ({
+				name: skill.name,
+				uri: skill.uri,
+				description: skill.description,
+				disableUserInvocation: skill.disableUserInvocation,
+				disableModelInvocation: skill.disableModelInvocation,
+			})), [{
+				name: 'shared',
+				uri: firstSkill.toString(),
+				description: 'First skill',
+				disableUserInvocation: true,
+				disableModelInvocation: true,
+			}]);
 	});
 
 	test('ignores missing and non-directory workspace skill roots', async () => {

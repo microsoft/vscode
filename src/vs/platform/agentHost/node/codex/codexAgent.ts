@@ -43,7 +43,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills } from './codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
@@ -7151,7 +7151,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				controller.applyAll(inventoryToSdkServers(this._mcpInventory.forThread(session.threadId)));
 				this._refreshMcpCustomizationIds(session, controller);
 			}
-			const [workspaceAgents, workspaceInstructions, workspaceSkills, skillHookContainers] = await Promise.all([
+			const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
 				discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
 				discoverCodexWorkspaceInstructions(this._workingDirectories(session), this._fileService),
 				discoverCodexWorkspaceSkills(this._workingDirectories(session), this._fileService),
@@ -7160,6 +7160,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (session.disposed || (catalogConnection !== undefined && !this._isCurrentConnection(catalogConnection))) {
 				return [];
 			}
+			const skillHookContainers = excludeCodexWorkspaceSkillDuplicates(nativeSkillHookContainers, workspaceSkills);
 			const directoryCustomizations = [...workspaceAgents.containers, ...workspaceInstructions, ...workspaceSkills, ...skillHookContainers];
 			session.publishedDirectoryCustomizationIds.clear();
 			for (const customization of directoryCustomizations) {
@@ -7219,7 +7220,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const catalogConnection = this._connection.kind === 'ready' ? this._connection : undefined;
-		const [workspaceAgents, workspaceInstructions, workspaceSkills, skillHookContainers] = await Promise.all([
+		const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
 			discoverCodexWorkspaceInstructions(this._workingDirectories(session), this._fileService),
 			discoverCodexWorkspaceSkills(this._workingDirectories(session), this._fileService),
@@ -7228,6 +7229,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed || (catalogConnection !== undefined && !this._isCurrentConnection(catalogConnection))) {
 			return;
 		}
+		const skillHookContainers = excludeCodexWorkspaceSkillDuplicates(nativeSkillHookContainers, workspaceSkills);
 		const containers = [...workspaceAgents.containers, ...workspaceInstructions, ...workspaceSkills, ...skillHookContainers];
 		const nextIds = new Set(containers.map(container => container.id));
 		for (const id of session.publishedDirectoryCustomizationIds) {
