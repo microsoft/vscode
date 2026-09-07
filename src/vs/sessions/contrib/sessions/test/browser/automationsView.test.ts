@@ -962,6 +962,7 @@ suite('AutomationsCardsWidget', () => {
 
 			assert.deepStrictEqual({
 				dialogOptions: automationDialogService.lastOptions,
+				visibleDescription: templateCard?.querySelector('.automations-template-card-prompt')?.textContent,
 				accessibleDescription: describedBy ? widget.element.querySelector(`#${describedBy}`)?.textContent : undefined,
 			}, {
 				dialogOptions: {
@@ -971,7 +972,8 @@ suite('AutomationsCardsWidget', () => {
 						schedule: template.schedule,
 					},
 				},
-				accessibleDescription: template.prompt,
+				visibleDescription: template.description,
+				accessibleDescription: template.description,
 			});
 		});
 	}
@@ -2219,12 +2221,16 @@ suite('AutomationsCardsWidget', () => {
 		);
 	});
 
-	test('accessible view includes templates when there are no automations', () => {
+	test('accessible view summarizes templates without reading full prompts', () => {
 		const template = AUTOMATION_TEMPLATES[0];
-		assert.strictEqual(
-			buildAutomationsAccessibleContent([], [], 'ready').includes(`${template.name}, Daily at 9:00 AM. ${template.prompt}`),
-			true,
-		);
+		const content = buildAutomationsAccessibleContent([], [], 'ready');
+		assert.deepStrictEqual({
+			includesTemplateSummary: content.includes(`${template.name}, Daily at 9:00 AM. ${template.description}`),
+			includesFullPrompts: AUTOMATION_TEMPLATES.some(template => content.includes(template.prompt)),
+		}, {
+			includesTemplateSummary: true,
+			includesFullPrompts: false,
+		});
 	});
 
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
@@ -2273,7 +2279,7 @@ suite('AutomationsCardsWidget', () => {
 			return {
 				state,
 				claimsEmpty: content.includes('No automations.'),
-				templatesIncluded: AUTOMATION_TEMPLATES.every(template => content.includes(template.name) && content.includes(template.prompt)),
+				templatesIncluded: AUTOMATION_TEMPLATES.every(template => content.includes(template.name) && content.includes(template.description)),
 			};
 		});
 
