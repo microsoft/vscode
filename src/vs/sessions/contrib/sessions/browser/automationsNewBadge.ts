@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,7 +14,6 @@ import { IAutomationService } from '../../../../workbench/contrib/chat/common/au
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsConstants.js';
 
@@ -43,7 +42,6 @@ export class AutomationsNewBadgeState extends Disposable {
 	private readonly forcePreview = observableValue(this, false);
 	private readonly startupDecision = observableValue<AutomationsNewBadgeStartupDecision>(this, 'pending');
 	private readonly automationEvidenceObserver = this._register(new MutableDisposable());
-	private readonly providersChanged: IObservable<void>;
 	private observersRegistered = false;
 	private initializationPromise: Promise<void> | undefined;
 	private styleRequest = 0;
@@ -66,12 +64,10 @@ export class AutomationsNewBadgeState extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsWindowUsageService private readonly sessionsWindowUsageService: ISessionsWindowUsageService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 		this.seen = this._register(automationsNewBadgeSeenMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, storageService));
-		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 	}
 
 	initialize(): Promise<void> {
@@ -100,13 +96,8 @@ export class AutomationsNewBadgeState extends Disposable {
 				if (this.forcePreview.read(reader) || this.seen.read(reader) || this.startupDecision.read(reader) !== 'eligible') {
 					return;
 				}
-				this.providersChanged.read(reader);
-				for (const provider of this.sessionsProvidersService.getProviders()) {
-					if (provider.automations
-						&& (provider.automations.initialDiscoveryState?.read(reader) ?? 'ready') !== 'ready') {
-						this.startupDecision.set('suppressed', undefined);
-						return;
-					}
+				if (this.automationService.initialDiscoveryState.read(reader) !== 'ready') {
+					this.startupDecision.set('suppressed', undefined);
 				}
 			}));
 		}
@@ -133,7 +124,7 @@ export class AutomationsNewBadgeState extends Disposable {
 	}
 
 	private async doInitialize(): Promise<void> {
-		if (this.seen.get() || this.forcePreview.get()) {
+		if (this._store.isDisposed || this.seen.get() || this.forcePreview.get()) {
 			return;
 		}
 
@@ -143,14 +134,11 @@ export class AutomationsNewBadgeState extends Disposable {
 		}
 
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
-		if (this.seen.get() || this.forcePreview.get()) {
+		if (this._store.isDisposed || this.seen.get() || this.forcePreview.get()) {
 			return;
 		}
 
-		const providersReady = this.sessionsProvidersService.getProviders()
-			.every(provider => !provider.automations
-				|| (provider.automations.initialDiscoveryState?.get() ?? 'ready') === 'ready');
-		if (!providersReady) {
+		if (this.automationService.initialDiscoveryState.get() !== 'ready') {
 			this.startupDecision.set('suppressed', undefined);
 			return;
 		}
@@ -187,7 +175,7 @@ export class AutomationsNewBadgeState extends Disposable {
 	}
 
 	private canResolveStyle(): boolean {
-		return !this.seen.get() && (this.forcePreview.get() || this.startupDecision.get() === 'eligible');
+		return !this._store.isDisposed && !this.seen.get() && (this.forcePreview.get() || this.startupDecision.get() === 'eligible');
 	}
 
 	private normalizeStyle(value: string | undefined): AutomationsNewBadgeStyle {

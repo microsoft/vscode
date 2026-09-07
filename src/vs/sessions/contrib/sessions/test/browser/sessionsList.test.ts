@@ -283,6 +283,7 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
+					override readonly initialDiscoveryState = constObservable('ready' as const);
 				});
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;

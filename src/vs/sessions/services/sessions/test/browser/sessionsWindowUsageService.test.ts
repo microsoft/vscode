@@ -5,45 +5,56 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionsWindowUsageService } from '../../browser/sessionsWindowUsageService.js';
 
 suite('SessionsWindowUsageService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('captures prior use before recording each Agents window open', () => {
+	test('snapshots prior use before recording each window open', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const firstWindow = new SessionsWindowUsageService(storageService);
-		const firstSnapshot = {
-			hadPriorWindowOpen: firstWindow.hadPriorWindowOpen,
-			windowOpenCount: firstWindow.windowOpenCount,
-		};
-		const repeatedConsumerSnapshot = {
-			hadPriorWindowOpen: firstWindow.hadPriorWindowOpen,
-			windowOpenCount: firstWindow.windowOpenCount,
-		};
 		const secondWindow = new SessionsWindowUsageService(storageService);
 
 		assert.deepStrictEqual({
-			firstSnapshot,
-			repeatedConsumerSnapshot,
-			secondSnapshot: {
+			firstWindow: {
+				hadPriorWindowOpen: firstWindow.hadPriorWindowOpen,
+				windowOpenCount: firstWindow.windowOpenCount,
+			},
+			secondWindow: {
 				hadPriorWindowOpen: secondWindow.hadPriorWindowOpen,
 				windowOpenCount: secondWindow.windowOpenCount,
 			},
+			storedCount: storageService.getNumber('agentSessions.telemetry.summary.appLaunchCount', StorageScope.APPLICATION),
+			machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
 		}, {
-			firstSnapshot: {
+			firstWindow: {
 				hadPriorWindowOpen: false,
 				windowOpenCount: 1,
 			},
-			repeatedConsumerSnapshot: {
-				hadPriorWindowOpen: false,
-				windowOpenCount: 1,
-			},
-			secondSnapshot: {
+			secondWindow: {
 				hadPriorWindowOpen: true,
 				windowOpenCount: 2,
 			},
+			storedCount: 2,
+			machineKeys: ['agentSessions.telemetry.summary.appLaunchCount'],
+		});
+	});
+
+	test('recognizes launches recorded before the badge without session history', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('agentSessions.telemetry.summary.appLaunchCount', 7, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const usage = new SessionsWindowUsageService(storageService);
+
+		assert.deepStrictEqual({
+			hadPriorWindowOpen: usage.hadPriorWindowOpen,
+			windowOpenCount: usage.windowOpenCount,
+			storedCount: storageService.getNumber('agentSessions.telemetry.summary.appLaunchCount', StorageScope.APPLICATION),
+		}, {
+			hadPriorWindowOpen: true,
+			windowOpenCount: 8,
+			storedCount: 8,
 		});
 	});
 });

@@ -38,6 +38,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, Resour
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -88,6 +89,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override get rootState(): IAgentSubscription<RootState> { return this._rootStateSubscription; }
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
+	private readonly _onAgentHostExit = new Emitter<number>();
+	override readonly onAgentHostExit = this._onAgentHostExit.event;
 	override readonly initializeResult = constObservable({
 		protocolVersion: '1',
 		serverSeq: 0,
@@ -381,6 +384,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onAgentHostStart.fire();
 	}
 
+	fireAgentHostExit(): void {
+		this._onAgentHostExit.fire(0);
+	}
+
 	setRootStateError(): void {
 		const error = new Error('root state failed');
 		this._rootStateValue = error;
@@ -401,6 +408,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateChange.dispose();
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
+		this._onAgentHostExit.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -671,6 +679,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Provider identity -------
+
+	test('Automation discovery follows local Agent Host connection lifetime', () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
+		});
+		const initial = provider.automations.initialDiscoveryState?.get();
+
+		agentHost.fireAgentHostExit();
+		const disconnected = provider.automations.initialDiscoveryState?.get();
+		agentHost.fireAgentHostStart();
+
+		assert.deepStrictEqual({
+			initial,
+			disconnected,
+			reconnected: provider.automations.initialDiscoveryState?.get(),
+		}, {
+			initial: 'ready',
+			disconnected: 'unavailable',
+			reconnected: 'ready',
+		});
+	});
 
 	test('has correct id, label, and sessionType from rootState agents', () => {
 		const provider = createProvider(disposables, agentHost);

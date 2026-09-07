@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -14,14 +14,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationInitialDiscoveryState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import type { AutomationInitialDiscoveryState, ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
 import { AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT, AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 
@@ -56,7 +54,7 @@ suite('AutomationsNewBadgeState', () => {
 		readonly activeView?: ICustomViewDescriptor;
 		readonly seen?: boolean;
 		readonly hadPriorWindowOpen?: boolean;
-		readonly providerStates?: readonly AutomationInitialDiscoveryState[];
+		readonly initialDiscoveryState?: AutomationInitialDiscoveryState;
 		readonly eventuallyReady?: boolean;
 		readonly style?: AutomationsNewBadgeStyle;
 		readonly configuredStyle?: AutomationsNewBadgeStyle;
@@ -69,9 +67,11 @@ suite('AutomationsNewBadgeState', () => {
 		const automations = observableValue<readonly IAutomationDescriptor[]>(disposables, options.automations ?? []);
 		const runs = observableValue<readonly IAutomationRun[]>(disposables, options.runs ?? []);
 		const activeView = observableValue<ICustomViewDescriptor | undefined>(disposables, options.activeView);
+		const initialDiscoveryState = observableValue<AutomationInitialDiscoveryState>(disposables, options.initialDiscoveryState ?? 'ready');
 		const automationService = new class extends mock<IAutomationService>() {
 			override readonly automations = automations;
 			override readonly runs = runs;
+			override readonly initialDiscoveryState = initialDiscoveryState;
 		};
 		const customViewService = new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = activeView;
@@ -82,31 +82,6 @@ suite('AutomationsNewBadgeState', () => {
 		if (options.configuredStyle) {
 			void configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.configuredStyle);
 		}
-		const providersChanged = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
-		const providers: ISessionsProvider[] = [];
-		const providerDiscoveryStates: ISettableObservable<AutomationInitialDiscoveryState, void>[] = [];
-		const addProvider = (state: AutomationInitialDiscoveryState) => {
-			const initialDiscoveryState = observableValue<AutomationInitialDiscoveryState>(disposables, state);
-			const provider = upcastPartial<ISessionsProvider>({
-				id: `provider-${providers.length}`,
-				order: providers.length,
-				automations: upcastPartial<ISessionsProviderAutomations>({ initialDiscoveryState }),
-			});
-			providers.push(provider);
-			providerDiscoveryStates.push(initialDiscoveryState);
-			providersChanged.fire({ added: [provider], removed: [] });
-			return initialDiscoveryState;
-		};
-		for (const state of options.providerStates ?? []) {
-			addProvider(state);
-		}
-		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
-			override readonly onDidChangeProviders = providersChanged.event;
-			override getProviders(): ISessionsProvider[] { return [...providers]; }
-			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
-				return providers.find(provider => provider.id === providerId) as T | undefined;
-			}
-		};
 		const sessionsWindowUsageService = new class extends mock<ISessionsWindowUsageService>() {
 			override readonly hadPriorWindowOpen = options.hadPriorWindowOpen ?? true;
 			override readonly windowOpenCount = this.hadPriorWindowOpen ? 2 : 1;
@@ -129,7 +104,6 @@ suite('AutomationsNewBadgeState', () => {
 			configurationService,
 			new NullLogService(),
 			sessionsWindowUsageService,
-			sessionsProvidersService,
 			lifecycleService,
 		));
 		return {
@@ -141,8 +115,7 @@ suite('AutomationsNewBadgeState', () => {
 			assignmentService,
 			configurationService,
 			refetchAssignments,
-			addProvider,
-			providerDiscoveryStates,
+			initialDiscoveryState,
 			completeEventually: () => eventually.complete(),
 		};
 	}
@@ -186,10 +159,10 @@ suite('AutomationsNewBadgeState', () => {
 	test('never reveals after initial provider discovery is suppressed', async () => {
 		const snapshots = [];
 		for (const initialState of ['pending', 'unavailable'] as const) {
-			const fixture = createState({ providerStates: [initialState], style: 'accent' });
+			const fixture = createState({ initialDiscoveryState: initialState, style: 'accent' });
 
 			await fixture.state.initialize();
-			fixture.providerDiscoveryStates[0].set('ready', undefined);
+			fixture.initialDiscoveryState.set('ready', undefined);
 			await fixture.configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'soft');
 			fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 				affectsConfiguration: key => key === AUTOMATIONS_NEW_BADGE_STYLE_SETTING,
@@ -247,41 +220,41 @@ suite('AutomationsNewBadgeState', () => {
 		});
 	});
 
-	test('suppresses for the window when an unresolved provider is added after presentation', async () => {
+	test('suppresses for the window when aggregate discovery becomes pending after presentation', async () => {
 		const fixture = createState();
 		await fixture.state.initialize();
-		const beforeProvider = fixture.state.presentation.get();
+		const beforeDiscoveryChange = fixture.state.presentation.get();
 
-		fixture.addProvider('pending').set('ready', undefined);
+		fixture.initialDiscoveryState.set('pending', undefined);
+		fixture.initialDiscoveryState.set('ready', undefined);
 		fixture.refetchAssignments.fire();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			beforeProvider,
-			afterProvider: fixture.state.presentation.get(),
+			beforeDiscoveryChange,
+			afterDiscoveryChange: fixture.state.presentation.get(),
 			stored: fixture.storageService.get(AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, StorageScope.APPLICATION),
 		}, {
-			beforeProvider: 'outline',
-			afterProvider: undefined,
+			beforeDiscoveryChange: 'outline',
+			afterDiscoveryChange: undefined,
 			stored: undefined,
 		});
 	});
 
-	test('suppresses for the window when a registered provider becomes unresolved', async () => {
-		const fixture = createState({ providerStates: ['ready'] });
+	test('suppresses for the window when aggregate discovery becomes unavailable', async () => {
+		const fixture = createState();
 		await fixture.state.initialize();
-		const beforeProviderChange = fixture.state.presentation.get();
+		const beforeDiscoveryChange = fixture.state.presentation.get();
 
-		fixture.providerDiscoveryStates[0].set('pending', undefined);
-		fixture.providerDiscoveryStates[0].set('ready', undefined);
+		fixture.initialDiscoveryState.set('unavailable', undefined);
 
 		assert.deepStrictEqual({
-			beforeProviderChange,
-			afterProviderChange: fixture.state.presentation.get(),
+			beforeDiscoveryChange,
+			afterDiscoveryChange: fixture.state.presentation.get(),
 			stored: fixture.storageService.get(AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, StorageScope.APPLICATION),
 		}, {
-			beforeProviderChange: 'outline',
-			afterProviderChange: undefined,
+			beforeDiscoveryChange: 'outline',
+			afterDiscoveryChange: undefined,
 			stored: undefined,
 		});
 	});

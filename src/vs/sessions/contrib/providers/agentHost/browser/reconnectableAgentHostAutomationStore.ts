@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, isAutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import type { AutomationInitialDiscoveryState, IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
@@ -35,20 +35,6 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 	private readonly _authorityState = observableValue<AutomationAuthorityState>(this, { kind: 'disconnected' });
 	private readonly _disposeCancellation = new CancellationTokenSource();
 
-	readonly initialDiscoveryState = derived<AutomationInitialDiscoveryState>(this, reader => {
-		const state = this._authorityState.read(reader);
-		switch (state.kind) {
-			case 'supported':
-				return state.store.initialDiscoveryState.read(reader);
-			case 'unsupported':
-				return 'ready';
-			case 'initializing':
-				return 'pending';
-			case 'disconnected':
-			case 'disabled':
-				return 'unavailable';
-		}
-	});
 	readonly automations = derived(this, reader => this._currentStore.read(reader)?.automations.read(reader) ?? this._legacySource?.automations.read(reader) ?? []);
 	readonly runs = derived(this, reader => this._currentStore.read(reader)?.runs.read(reader) ?? this._legacySource?.runs.read(reader) ?? []);
 	readonly catalogueState: IObservable<AutomationCatalogueState> = derived(this, reader => {

@@ -10,6 +10,7 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { MAX_TRACKED_SESSIONS, MAX_TYPED_FILES_PER_SESSION, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
@@ -98,15 +99,14 @@ suite('SessionsLifecycleTracker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let storage: InMemoryStorageService;
 	let tracker: SessionsLifecycleTracker;
-	let appLaunchCount: number;
 
 	function createTracker(): SessionsLifecycleTracker {
-		return disposables.add(new SessionsLifecycleTracker(storage, ++appLaunchCount));
+		const usage = new SessionsWindowUsageService(storage);
+		return disposables.add(new SessionsLifecycleTracker(storage, usage.windowOpenCount));
 	}
 
 	setup(() => {
 		storage = disposables.add(new InMemoryStorageService());
-		appLaunchCount = 0;
 		tracker = createTracker();
 	});
 
