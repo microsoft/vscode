@@ -405,7 +405,7 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
-	scopes: readonly string[],
+	scopes: readonly string[] | undefined,
 	token: string,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
