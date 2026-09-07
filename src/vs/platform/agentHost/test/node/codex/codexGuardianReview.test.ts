@@ -64,6 +64,23 @@ suite('codexGuardianReview', () => {
 		});
 	});
 
+	test('writeStdin preserves approval identity and exact terminal input', () => {
+		const notification: ItemGuardianApprovalReviewCompletedNotification = {
+			...deniedNetworkReview,
+			action: { type: 'writeStdin', approvalId: 'approval-stdin', processId: 'process-1', stdin: 'yes\n', cwd: '/workspace' },
+		};
+		assert.deepStrictEqual({
+			event: toGuardianAssessmentEventJson(notification),
+			summary: summarizeGuardianReviewAction(notification.action),
+		}, {
+			event: {
+				...toGuardianAssessmentEventJson(deniedNetworkReview) as object,
+				action: { type: 'write_stdin', approval_id: 'approval-stdin', process_id: 'process-1', stdin: 'yes\n', cwd: '/workspace' },
+			},
+			summary: { title: 'Send input to terminal', detail: 'yes\n', toolKind: 'terminal' },
+		});
+	});
+
 	test('summarizeGuardianReviewAction unwraps the OS shell wrapper so the card matches the terminal pill', () => {
 		assert.deepStrictEqual({
 			command: summarizeGuardianReviewAction({
