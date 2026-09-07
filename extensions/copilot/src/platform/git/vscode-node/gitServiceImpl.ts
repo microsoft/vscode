@@ -21,7 +21,7 @@ import { isEqual } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ILogService } from '../../log/common/logService';
 import { IGitExtensionService } from '../common/gitExtensionService';
-import { IGitService, RepoContext } from '../common/gitService';
+import { getOrderedRemoteUrlsFromContext, IGitService, RepoContext } from '../common/gitService';
 import { parseGitRemotes } from '../common/utils';
 import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
@@ -197,27 +197,49 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	async getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined> {
 		this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] URI: ${uri.toString()}`);
 
+		const openRepositoryRemotes = this.getOpenRepositoryFetchUrls(uri);
+		if (openRepositoryRemotes) {
+			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (open repository): ${JSON.stringify(openRepositoryRemotes)}`);
+			return openRepositoryRemotes;
+		}
+
+		if (uri.scheme === 'file') {
+			try {
+				const uriStat = await vscode.workspace.fs.stat(uri);
+				if ((uriStat.type & vscode.FileType.Directory) !== 0) {
+					const config = await this.readLocalGitConfig(uri);
+					const parsedRemotes = parseGitRemotes(config);
+					const origin = parsedRemotes.find(remote => remote.name === 'origin');
+					const orderedRemotes = origin
+						? [origin, ...parsedRemotes.filter(remote => remote !== origin)]
+						: parsedRemotes;
+					const remotes = {
+						rootUri: uri,
+						remoteFetchUrls: orderedRemotes.map(remote => remote.fetchUrl),
+					};
+					if (remotes.remoteFetchUrls.length > 0) {
+						this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (direct .git/config): ${JSON.stringify(remotes)}`);
+						return remotes;
+					}
+				}
+			} catch (error) {
+				this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Could not read remotes directly from .git/config: ${error.message}`);
+			}
+		}
+
 		// Answering before discovery settles reports the file as belonging to no repository, which
 		// content exclusion reads as "no repository rules apply to this file".
 		await this.waitForInitialDiscovery();
 
+		const discoveredRepositoryRemotes = this.getOpenRepositoryFetchUrls(uri);
+		if (discoveredRepositoryRemotes) {
+			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (open repository): ${JSON.stringify(discoveredRepositoryRemotes)}`);
+			return discoveredRepositoryRemotes;
+		}
+
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		if (!gitAPI) {
 			return undefined;
-		}
-
-		// Query opened repositories
-		const repository = gitAPI.getRepository(uri);
-		if (repository) {
-			await this.waitForRepositoryState(repository);
-
-			const remotes = {
-				rootUri: repository.rootUri,
-				remoteFetchUrls: repository.state.remotes.map(r => r.fetchUrl),
-			};
-
-			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (open repository): ${JSON.stringify(remotes)}`);
-			return remotes;
 		}
 
 		if (uri.scheme !== 'file') {
@@ -227,7 +249,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 		try {
 			const uriStat = await vscode.workspace.fs.stat(uri);
-			if (uriStat.type !== vscode.FileType.Directory) {
+			if ((uriStat.type & vscode.FileType.Directory) === 0) {
 				uri = URI.file(path.dirname(uri.fsPath));
 			}
 
@@ -252,6 +274,45 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			this.logService.error(`[GitServiceImpl][getRepositoryFetchUrls] Failed to read remotes from .git/config: ${error.message}`);
 			return undefined;
 		}
+	}
+
+	private getOpenRepositoryFetchUrls(uri: URI): Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined {
+		const repository = this.gitExtensionService.getExtensionApi()?.getRepository(uri);
+		if (!repository) {
+			return undefined;
+		}
+
+		const repositoryContext = GitServiceImpl.repoToRepoContext(repository);
+		return {
+			rootUri: repository.rootUri,
+			remoteFetchUrls: repositoryContext ? Array.from(getOrderedRemoteUrlsFromContext(repositoryContext)) : [],
+		};
+	}
+
+	private async readLocalGitConfig(rootUri: URI): Promise<string> {
+		const dotGitUri = URI.file(path.join(rootUri.fsPath, '.git'));
+		const dotGitStat = await vscode.workspace.fs.stat(dotGitUri);
+		let gitDirectory = dotGitUri.fsPath;
+
+		if ((dotGitStat.type & vscode.FileType.File) !== 0) {
+			const dotGit = (await vscode.workspace.fs.readFile(dotGitUri)).toString();
+			const gitDirectoryMatch = /^gitdir:\s*(?<path>.+)\s*$/m.exec(dotGit);
+			if (!gitDirectoryMatch?.groups?.path) {
+				throw new Error(`Invalid Git directory pointer: ${dotGitUri.fsPath}`);
+			}
+			gitDirectory = path.resolve(rootUri.fsPath, gitDirectoryMatch.groups.path);
+
+			try {
+				const commonDirectory = (await vscode.workspace.fs.readFile(URI.file(path.join(gitDirectory, 'commondir')))).toString().trim();
+				if (commonDirectory) {
+					gitDirectory = path.resolve(gitDirectory, commonDirectory);
+				}
+			} catch (error) {
+				this.logService.trace(`[GitServiceImpl][readLocalGitConfig] No common Git directory for ${gitDirectory}: ${error.message}`);
+			}
+		}
+
+		return (await vscode.workspace.fs.readFile(URI.file(path.join(gitDirectory, 'config')))).toString();
 	}
 
 	async add(uri: URI, paths: string[]): Promise<void> {
