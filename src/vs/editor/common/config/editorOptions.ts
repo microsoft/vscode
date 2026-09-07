@@ -6879,9 +6879,7 @@ export const EditorOptions = {
 		{
 			markdownDescription: nls.localize({
 				key: 'wordWrapIndicator',
-				comment: [
-					'- `editor.wordWrap` refers to a different setting and should not be localized.'
-				]
+				comment: []
 			}, "Controls whether an indicator is rendered at the end of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),

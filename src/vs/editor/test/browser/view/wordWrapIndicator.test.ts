@@ -13,7 +13,6 @@ import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
-import { TextDirection } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
@@ -143,14 +142,6 @@ function indicator(left: number, lineHeight: number = LINE_HEIGHT): string {
 	return `<div class="wwi" style="left:${left}px;height:${lineHeight}px;">↩</div>`;
 }
 
-/**
- * `left` is still the position of `maxColumn`, which on a right-to-left line is the visual left
- * edge of the text. The glyph is mirrored and pulled back over that edge by `wwi-rtl`.
- */
-function rtlIndicator(left: number): string {
-	return `<div class="wwi wwi-rtl" style="left:${left}px;height:${LINE_HEIGHT}px;">↪</div>`;
-}
-
 function scrollEvent(changed: { scrollTopChanged?: boolean; scrollLeftChanged?: boolean }): viewEvents.ViewScrollChangedEvent {
 	const source: ScrollEvent = {
 		inSmoothScrolling: false,
@@ -275,21 +266,6 @@ suite('WordWrapIndicatorOverlay', () => {
 		assert.deepStrictEqual(
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, { unrenderedLines: [1] }),
 			['', indicator(60), '', '', indicator(60), '']
-		);
-	});
-
-	test('renders a mirrored indicator for right-to-left view lines', () => {
-		assert.deepStrictEqual(
-			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, {
-				prepare: (viewModel, model) => {
-					// Covers the whole first model line, i.e. view lines 1 through 3.
-					model.deltaDecorations([], [{
-						range: new Range(1, 1, 1, model.getLineMaxColumn(1)),
-						options: { description: 'rtl', textDirection: TextDirection.RTL }
-					}]);
-				}
-			}),
-			[rtlIndicator(60), rtlIndicator(60), '', '', indicator(60), '']
 		);
 	});
 

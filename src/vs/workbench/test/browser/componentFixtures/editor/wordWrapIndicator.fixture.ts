@@ -8,7 +8,7 @@ import { IEditorConstructionOptions } from '../../../../../editor/browser/config
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
-import { IModelDeltaDecoration, ITextModel, TextDirection } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../../editor/common/model.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 /**
@@ -19,20 +19,6 @@ const SAMPLE_TEXT = [
 	'The quick brown fox jumps over the lazy dog near the river bank.',
 	'A short line.',
 	'Pack my box with five dozen liquor jugs.',
-].join('\n');
-
-const RTL_SAMPLE_TEXT = [
-	'שועל חום מהיר קופץ מעל הכלב העצלן ליד גדת הנהר.',
-	'שורה קצרה.',
-].join('\n');
-
-/**
- * A right-to-left line above a left-to-right one, both long enough to wrap, so that the two
- * glyph variants and the two edges they are pinned to show up side by side.
- */
-const MIXED_DIRECTION_TEXT = [
-	'שועל חום מהיר קופץ מעל הכלב העצלן ליד גדת הנהר.',
-	'The quick brown fox jumps over the lazy dog.',
 ].join('\n');
 
 /**
@@ -63,8 +49,7 @@ interface IWordWrapIndicatorFixtureOptions {
 	readonly text?: string;
 	readonly options?: IEditorConstructionOptions;
 	/**
-	 * Decorations to apply once the model is attached, e.g. to override the line height or the
-	 * text direction of a line.
+	 * Decorations to apply once the model is attached, e.g. to override the line height of a line.
 	 */
 	readonly decorations?: (model: ITextModel) => IModelDeltaDecoration[];
 	/**
@@ -139,28 +124,6 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 			decorations: model => [{
 				range: new Range(1, 1, 1, model.getLineMaxColumn(1)),
 				options: { description: 'fixture-line-height', lineHeight: 2 },
-			}],
-		}),
-	}),
-	WordWrapIndicatorRightToLeft: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Right-to-left Hebrew text, right aligned and wrapping onto several view lines. Every view line that continues onto the next one ends with a small muted hooked arrow glyph at its left edge, immediately left of the last character and pointing rightwards, mirroring the left-pointing glyph used on left-to-right lines. The final view line of the wrapped line and the short unwrapped line have no glyph.'],
-		render: context => renderWordWrapIndicator(context, {
-			text: RTL_SAMPLE_TEXT,
-			decorations: model => [{
-				range: new Range(1, 1, 1, model.getLineMaxColumn(1)),
-				options: { description: 'fixture-rtl', textDirection: TextDirection.RTL },
-			}],
-		}),
-	}),
-	WordWrapIndicatorMixedDirection: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A right-to-left Hebrew line above a left-to-right English line, both wrapping onto further view lines. The wrapped view lines of the Hebrew line carry a rightwards hooked arrow at their left edge, the wrapped view lines of the English line a leftwards hooked arrow at their right edge, so each glyph sits where its own line ends and points back along its own reading direction.'],
-		render: context => renderWordWrapIndicator(context, {
-			text: MIXED_DIRECTION_TEXT,
-			decorations: model => [{
-				range: new Range(1, 1, 1, model.getLineMaxColumn(1)),
-				options: { description: 'fixture-rtl', textDirection: TextDirection.RTL },
 			}],
 		}),
 	}),

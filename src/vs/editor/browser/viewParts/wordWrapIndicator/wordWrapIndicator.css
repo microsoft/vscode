@@ -8,8 +8,3 @@
 	pointer-events: none;
 	color: var(--vscode-editorWordWrapIndicator-foreground);
 }
-
-/* A right-to-left line ends at its left edge, so the glyph has to sit left of the anchor. */
-.monaco-editor .wwi-rtl {
-	transform: translateX(-100%);
-}

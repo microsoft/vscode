@@ -8,21 +8,15 @@ import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
 import { RenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorLayoutInfo, EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { Position } from '../../../common/core/position.js';
-import { TextDirection } from '../../../common/model.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 
 /**
- * U+21A9 - LEFTWARDS ARROW WITH HOOK, used on left-to-right lines.
+ * U+21A9 - LEFTWARDS ARROW WITH HOOK.
  */
-const WORD_WRAP_INDICATOR_LTR_CHAR_CODE = 0x21A9;
-
-/**
- * U+21AA - RIGHTWARDS ARROW WITH HOOK, the mirror image of
- * {@link WORD_WRAP_INDICATOR_LTR_CHAR_CODE}, used on right-to-left lines.
- */
-const WORD_WRAP_INDICATOR_RTL_CHAR_CODE = 0x21AA;
+const WORD_WRAP_INDICATOR_CHAR_CODE = 0x21A9;
 
 /**
  * The word wrap indicator overlay renders a small glyph at the end of every view line
@@ -33,16 +27,17 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 	private _options: WordWrapIndicatorOptions;
 	private _renderResult: string[] | null;
-	private _renderedStartLineNumber: number;
-	private _renderedEndLineNumber: number;
+	private _renderRange: {
+		startLineNumber: number;
+		endLineNumber: number;
+	};
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._options = new WordWrapIndicatorOptions(this._context.configuration);
 		this._renderResult = null;
-		this._renderedStartLineNumber = 1;
-		this._renderedEndLineNumber = 0;
+		this._renderRange = { startLineNumber: -1, endLineNumber: -1 };
 		this._context.addEventHandler(this);
 	}
 
@@ -63,14 +58,13 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (!this._isEnabled) {
+			return false;
+		}
 		const newOptions = new WordWrapIndicatorOptions(this._context.configuration);
 		const optionsChanged = !this._options.equals(newOptions);
 		this._options = newOptions;
-		if (optionsChanged) {
-			return true;
-		}
-		// Both move the measured end of a view line without changing the options read above.
-		return this._isEnabled && (e.hasChanged(EditorOption.layoutInfo) || e.hasChanged(EditorOption.fontInfo));
+		return optionsChanged;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return this._isEnabled;
@@ -99,7 +93,7 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 			return false;
 		}
 		// Token styles (bold, italic) change the measured width of a line.
-		return e.ranges.some(range => range.fromLineNumber <= this._renderedEndLineNumber && this._renderedStartLineNumber <= range.toLineNumber);
+		return e.ranges.some(range => range.fromLineNumber <= this._renderRange.endLineNumber && this._renderRange.startLineNumber <= range.toLineNumber);
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return this._isEnabled;
@@ -109,24 +103,21 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	public prepareRender(ctx: RenderingContext): void {
 		if (!this._isEnabled) {
 			this._renderResult = null;
-			this._renderedStartLineNumber = 1;
-			this._renderedEndLineNumber = 0;
+			this._renderRange.startLineNumber = -1;
+			this._renderRange.endLineNumber = -1;
 			return;
 		}
-
-		this._renderedStartLineNumber = ctx.viewportData.startLineNumber;
-		this._renderedEndLineNumber = ctx.viewportData.endLineNumber;
+		this._renderRange.startLineNumber = ctx.viewportData.startLineNumber;
+		this._renderRange.endLineNumber = ctx.viewportData.endLineNumber;
 		this._renderResult = [];
-		for (let lineNumber = this._renderedStartLineNumber; lineNumber <= this._renderedEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - this._renderedStartLineNumber;
+		for (let lineNumber = this._renderRange.startLineNumber; lineNumber <= this._renderRange.endLineNumber; lineNumber++) {
+			const lineIndex = lineNumber - this._renderRange.startLineNumber;
 			this._renderResult[lineIndex] = this._renderLine(ctx, lineNumber);
 		}
 	}
 
 	/**
-	 * Renders the glyph for `lineNumber`, anchored at the visual end of its text. On a right-to-left
-	 * line that end is the line's left edge, so the glyph is mirrored and pulled back over the anchor
-	 * by `wwi-rtl`, keeping it clear of the text in both directions.
+	 * Renders the glyph for `lineNumber`, anchored at the end of its text.
 	 */
 	private _renderLine(ctx: RenderingContext, lineNumber: number): string {
 		const lineData = ctx.viewportData.getViewLineRenderingData(lineNumber);
@@ -135,15 +126,11 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 			return '';
 		}
 		const lineEnd = ctx.visibleRangeForPosition(new Position(lineNumber, lineData.maxColumn));
-		if (!lineEnd || lineEnd.outsideRenderedLine) {
-			// Past `stopRenderingLineAfter` the reported position is only an approximation.
+		if (!lineEnd) {
 			return '';
 		}
-		const isRTL = (lineData.textDirection === TextDirection.RTL);
-		const charCode = isRTL ? WORD_WRAP_INDICATOR_RTL_CHAR_CODE : WORD_WRAP_INDICATOR_LTR_CHAR_CODE;
-		const className = isRTL ? 'wwi wwi-rtl' : 'wwi';
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
-		return `<div class="${className}" style="left:${lineEnd.left}px;height:${lineHeight}px;">${String.fromCharCode(charCode)}</div>`;
+		return `<div class="wwi" style="left:${lineEnd.left}px;height:${lineHeight}px;">${String.fromCharCode(WORD_WRAP_INDICATOR_CHAR_CODE)}</div>`;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -166,17 +153,23 @@ class WordWrapIndicatorOptions {
 
 	public readonly wordWrapIndicator: boolean;
 	public readonly isWrapping: boolean;
+	public readonly layoutInfo: EditorLayoutInfo;
+	public readonly fontInfo: FontInfo;
 
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
 		this.wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		this.isWrapping = (options.get(EditorOption.wrappingInfo).wrappingColumn !== -1);
+		this.layoutInfo = options.get(EditorOption.layoutInfo);
+		this.fontInfo = options.get(EditorOption.fontInfo);
 	}
 
 	public equals(other: WordWrapIndicatorOptions): boolean {
 		return (
 			this.wordWrapIndicator === other.wordWrapIndicator
 			&& this.isWrapping === other.isWrapping
+			&& this.layoutInfo === other.layoutInfo
+			&& this.fontInfo === other.fontInfo
 		);
 	}
 }
