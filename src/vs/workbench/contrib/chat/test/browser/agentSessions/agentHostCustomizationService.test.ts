@@ -398,7 +398,12 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 	 */
 	class LiveSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 		private readonly _onDidChange = new Emitter<SessionState>();
-		override readonly onDidChange = this._onDidChange.event;
+		/** Number of listeners installed on this subscription, including readiness waits. */
+		listenerCount = 0;
+		override readonly onDidChange: Event<SessionState> = (listener, thisArgs?, disposables?) => {
+			this.listenerCount++;
+			return this._onDidChange.event(listener, thisArgs, disposables);
+		};
 		private readonly _onDidError = new Emitter<Error>();
 		override readonly onDidError = this._onDidError.event;
 		private current: SessionState | Error | undefined;
@@ -430,6 +435,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 	}
 
 	function createReadinessSut() {
+		/** Keeps the bounded wait short so timeout coverage costs no real time. */
+		class TestTimeoutCustomizationService extends WorkbenchAgentHostCustomizationService {
+			protected override readonly _snapshotTimeoutMs = 20;
+		}
 		const sessionResource = URI.parse('untitled:chat');
 		const backendSession = URI.parse('copilot:/session');
 		const subscription = store.add(new LiveSessionSubscription());
@@ -458,7 +467,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			getChannelDescriptor: () => undefined,
 			showChannel: async () => { },
 		});
-		const service = store.add(new WorkbenchAgentHostCustomizationService(
+		const service = store.add(new TestTimeoutCustomizationService(
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 			}(),
@@ -533,5 +542,30 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		await ready;
 
 		assert.strictEqual(resolved, true);
+	});
+
+	test('whenCustomizationsReady shares one bounded wait across every prompt-type query', async () => {
+		const { service, subscription, sessionResource } = createReadinessSut();
+
+		// `createFileMigration` queries source folders once per target prompt
+		// type, sequentially, so a never-hydrating subscription must cost one
+		// deadline for the whole hint rather than one per type. Counting
+		// listeners keeps this deterministic; a wall-clock bound would be flaky.
+		// The expected two are the subscription entry's own listener plus the
+		// single shared readiness wait; the point is that it stops growing.
+		await service.whenCustomizationsReady(sessionResource);
+		const afterFirstQuery = subscription.listenerCount;
+		await service.whenCustomizationsReady(sessionResource);
+		await service.whenCustomizationsReady(sessionResource);
+
+		assert.deepStrictEqual({
+			afterFirstQuery,
+			afterThreeQueries: subscription.listenerCount,
+			stillUnresolved: subscription.value === undefined,
+		}, {
+			afterFirstQuery: 2,
+			afterThreeQueries: 2,
+			stillUnresolved: true,
+		});
 	});
 });
