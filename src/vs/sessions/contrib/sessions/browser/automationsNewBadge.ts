@@ -96,7 +96,7 @@ export class AutomationsNewBadgeState extends Disposable {
 				if (this.forcePreview.read(reader) || this.seen.read(reader) || this.startupDecision.read(reader) !== 'eligible') {
 					return;
 				}
-				if (this.automationService.initialDiscoveryState.read(reader) !== 'ready') {
+				if (this.automationService.catalogueState.read(reader) !== 'ready') {
 					this.startupDecision.set('suppressed', undefined);
 				}
 			}));
@@ -138,7 +138,7 @@ export class AutomationsNewBadgeState extends Disposable {
 			return;
 		}
 
-		if (this.automationService.initialDiscoveryState.get() !== 'ready') {
+		if (this.automationService.catalogueState.get() !== 'ready') {
 			this.startupDecision.set('suppressed', undefined);
 			return;
 		}

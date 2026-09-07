@@ -14,7 +14,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationInitialDiscoveryState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -54,7 +54,7 @@ suite('AutomationsNewBadgeState', () => {
 		readonly activeView?: ICustomViewDescriptor;
 		readonly seen?: boolean;
 		readonly hadPriorWindowOpen?: boolean;
-		readonly initialDiscoveryState?: AutomationInitialDiscoveryState;
+		readonly catalogueState?: AutomationCatalogueState;
 		readonly eventuallyReady?: boolean;
 		readonly style?: AutomationsNewBadgeStyle;
 		readonly configuredStyle?: AutomationsNewBadgeStyle;
@@ -67,11 +67,11 @@ suite('AutomationsNewBadgeState', () => {
 		const automations = observableValue<readonly IAutomationDescriptor[]>(disposables, options.automations ?? []);
 		const runs = observableValue<readonly IAutomationRun[]>(disposables, options.runs ?? []);
 		const activeView = observableValue<ICustomViewDescriptor | undefined>(disposables, options.activeView);
-		const initialDiscoveryState = observableValue<AutomationInitialDiscoveryState>(disposables, options.initialDiscoveryState ?? 'ready');
+		const catalogueState = observableValue<AutomationCatalogueState>(disposables, options.catalogueState ?? 'ready');
 		const automationService = new class extends mock<IAutomationService>() {
 			override readonly automations = automations;
 			override readonly runs = runs;
-			override readonly initialDiscoveryState = initialDiscoveryState;
+			override readonly catalogueState = catalogueState;
 		};
 		const customViewService = new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = activeView;
@@ -115,7 +115,7 @@ suite('AutomationsNewBadgeState', () => {
 			assignmentService,
 			configurationService,
 			refetchAssignments,
-			initialDiscoveryState,
+			catalogueState,
 			completeEventually: () => eventually.complete(),
 		};
 	}
@@ -156,13 +156,13 @@ suite('AutomationsNewBadgeState', () => {
 		]);
 	});
 
-	test('never reveals after initial provider discovery is suppressed', async () => {
+	test('never reveals after initial catalogue discovery is suppressed', async () => {
 		const snapshots = [];
-		for (const initialState of ['pending', 'unavailable'] as const) {
-			const fixture = createState({ initialDiscoveryState: initialState, style: 'accent' });
+		for (const initialState of ['loading', 'unavailable', 'error'] as const) {
+			const fixture = createState({ catalogueState: initialState, style: 'accent' });
 
 			await fixture.state.initialize();
-			fixture.initialDiscoveryState.set('ready', undefined);
+			fixture.catalogueState.set('ready', undefined);
 			await fixture.configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'soft');
 			fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 				affectsConfiguration: key => key === AUTOMATIONS_NEW_BADGE_STYLE_SETTING,
@@ -178,8 +178,9 @@ suite('AutomationsNewBadgeState', () => {
 		}
 
 		assert.deepStrictEqual(snapshots, [
-			{ initialState: 'pending', showNewBadge: false, stored: undefined, treatments: [] },
+			{ initialState: 'loading', showNewBadge: false, stored: undefined, treatments: [] },
 			{ initialState: 'unavailable', showNewBadge: false, stored: undefined, treatments: [] },
+			{ initialState: 'error', showNewBadge: false, stored: undefined, treatments: [] },
 		]);
 	});
 
@@ -220,13 +221,13 @@ suite('AutomationsNewBadgeState', () => {
 		});
 	});
 
-	test('suppresses for the window when aggregate discovery becomes pending after presentation', async () => {
+	test('suppresses for the window when the aggregate catalogue starts loading after presentation', async () => {
 		const fixture = createState();
 		await fixture.state.initialize();
 		const beforeDiscoveryChange = fixture.state.presentation.get();
 
-		fixture.initialDiscoveryState.set('pending', undefined);
-		fixture.initialDiscoveryState.set('ready', undefined);
+		fixture.catalogueState.set('loading', undefined);
+		fixture.catalogueState.set('ready', undefined);
 		fixture.refetchAssignments.fire();
 		await Promise.resolve();
 
@@ -241,22 +242,28 @@ suite('AutomationsNewBadgeState', () => {
 		});
 	});
 
-	test('suppresses for the window when aggregate discovery becomes unavailable', async () => {
-		const fixture = createState();
-		await fixture.state.initialize();
-		const beforeDiscoveryChange = fixture.state.presentation.get();
+	test('suppresses for the window when the aggregate catalogue becomes unavailable or errors', async () => {
+		const snapshots = [];
+		for (const catalogueState of ['unavailable', 'error'] as const) {
+			const fixture = createState();
+			await fixture.state.initialize();
+			const beforeDiscoveryChange = fixture.state.presentation.get();
 
-		fixture.initialDiscoveryState.set('unavailable', undefined);
+			fixture.catalogueState.set(catalogueState, undefined);
+			fixture.catalogueState.set('ready', undefined);
 
-		assert.deepStrictEqual({
-			beforeDiscoveryChange,
-			afterDiscoveryChange: fixture.state.presentation.get(),
-			stored: fixture.storageService.get(AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, StorageScope.APPLICATION),
-		}, {
-			beforeDiscoveryChange: 'outline',
-			afterDiscoveryChange: undefined,
-			stored: undefined,
-		});
+			snapshots.push({
+				catalogueState,
+				beforeDiscoveryChange,
+				afterDiscoveryChange: fixture.state.presentation.get(),
+				stored: fixture.storageService.get(AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY, StorageScope.APPLICATION),
+			});
+		}
+
+		assert.deepStrictEqual(snapshots, [
+			{ catalogueState: 'unavailable', beforeDiscoveryChange: 'outline', afterDiscoveryChange: undefined, stored: undefined },
+			{ catalogueState: 'error', beforeDiscoveryChange: 'outline', afterDiscoveryChange: undefined, stored: undefined },
+		]);
 	});
 
 	test('lets the hidden setting override and live-update the treatment', async () => {

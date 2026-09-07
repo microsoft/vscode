@@ -368,7 +368,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
 				override readonly runs = automationRuns;
-				override readonly initialDiscoveryState = constObservable('ready' as const);
+				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 				override readonly onDidRefetchAssignments = Event.None;
