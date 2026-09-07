@@ -11626,6 +11626,45 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(!registered.includes(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id').toString()), 'the backing session must not leak into the registered session list');
 		});
 
+		test('restores workspace transitions from a peer chat database', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: agent.id });
+			const peer = URI.parse(buildChatUri(session, 'peer-with-transition'));
+			const sessionDatabase = sessionData.database(session);
+			const peerDatabase = sessionData.database(peer);
+			await sessionDatabase.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString(), providerData: 'peer-backing' }]));
+			await peerDatabase.setTurnWorkspaceTransition('peer-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in peer workspace',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'peer workspace',
+			}));
+			agent.chats.getMessages = async chat => isDefaultChatUri(chat) ? [] : [{
+				id: 'peer-turn',
+				message: { text: 'Continue peer work', origin: { kind: MessageKind.SystemNotification } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response', content: 'Peer output' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}];
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			await localService.subscribe(peer, 'peer-reader');
+
+			const restoredTurn = getStateManager(localService).getChatState(peer.toString())?.turns[0];
+			assert.deepStrictEqual({
+				sessionTransitionQueries: sessionDatabase.getTurnWorkspaceTransitionsCalls,
+				peerTransitionQueries: peerDatabase.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				sessionTransitionQueries: 0,
+				peerTransitionQueries: 1,
+				responseParts: ['Now working in peer workspace', ResponsePartKind.Markdown],
+			});
+		});
+
 		test('persists a replacement backing reported after peer chat materialization', async () => {
 			class RematerializingPeerAgent extends MockAgent {
 				private readonly _materialized = new Emitter<IAgentMaterializeChatEvent>();
