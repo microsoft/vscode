@@ -376,6 +376,33 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(sessions[5].getId(), thirdSession.getId());
 	});
 
+	test('replacing an inactive root session removes its child sessions', async () => {
+		const oldRoot = createTestSession(model);
+		model.addSession(oldRoot);
+		const oldChild = createTestSession(model, 'oldChild', { parentSession: oldRoot });
+		model.addSession(oldChild);
+		await oldChild.terminate();
+		await oldRoot.terminate();
+
+		const replacement = disposables.add(createTestSession(model));
+		model.addSession(replacement);
+
+		assert.deepStrictEqual(model.getSessions(true).map(session => session.getId()), [replacement.getId()]);
+	});
+
+	test('adding a concurrent root session preserves inactive children of an active root session', async () => {
+		const activeRoot = disposables.add(createTestSession(model));
+		model.addSession(activeRoot);
+		const inactiveChild = disposables.add(createTestSession(model, 'inactiveChild', { parentSession: activeRoot }));
+		model.addSession(inactiveChild);
+		await inactiveChild.terminate();
+
+		const concurrentRoot = disposables.add(createTestSession(model));
+		model.addSession(concurrentRoot);
+
+		assert.deepStrictEqual(model.getSessions(true).map(session => session.getId()), [activeRoot.getId(), inactiveChild.getId(), concurrentRoot.getId()]);
+	});
+
 	test('decorations', () => {
 		const session = createTestSession(model);
 		disposables.add(session);

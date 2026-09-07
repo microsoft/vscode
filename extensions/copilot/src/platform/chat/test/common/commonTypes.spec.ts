@@ -20,7 +20,7 @@ function makeQuotaExceededError(capiError?: { code?: string; message?: string })
 
 describe('getErrorDetailsFromChatFetchError', () => {
 	describe('QuotaExceeded with additional_spend_limit_reached', () => {
-		test('returns upgrade message and additional_spend_limit_reached code', () => {
+		test('returns manage budget link for individual plan', () => {
 			const result = getErrorDetailsFromChatFetchError(
 				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
 				'individual',
@@ -30,7 +30,33 @@ describe('getErrorDetailsFromChatFetchError', () => {
 			expect(result.isQuotaExceeded).toBe(true);
 			expect(result.code).toBe('additional_spend_limit_reached');
 			expect(result.message).toContain('additional usage limit');
-			expect(result.message).toContain('Upgrade');
+			expect(result.message).toContain('Manage Budget');
+			expect(result.message).toContain('https://github.com/settings/copilot/features');
+		});
+
+		test('returns contact admin message for business plan', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
+				'business',
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.isQuotaExceeded).toBe(true);
+			expect(result.code).toBe('additional_spend_limit_reached');
+			expect(result.message).toContain('additional usage limit');
+			expect(result.message).toContain('contact your admin');
+		});
+
+		test('returns contact admin message for enterprise plan', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
+				'enterprise',
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.isQuotaExceeded).toBe(true);
+			expect(result.code).toBe('additional_spend_limit_reached');
+			expect(result.message).toContain('contact your admin');
 		});
 	});
 
@@ -120,6 +146,41 @@ describe('getErrorDetailsFromChatFetchError', () => {
 			expect(result.code).toBe('unknown_error');
 			expect(result.message).toContain('Something went wrong');
 			expect(result.message).toContain('unknown_error');
+		});
+	});
+
+	describe('BadRequest/Failed with vision attachment inaccessible', () => {
+		test('BadRequest with vision reason and serverRequestId shows guidance with IDs', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.BadRequest, reason: 'vision_attachment_not_accessible', requestId: 'req-1', serverRequestId: 'srv-1' },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('no longer accessible');
+			expect(result.message).toContain('req-1');
+			expect(result.message).toContain('srv-1');
+		});
+
+		test('Failed without serverRequestId shows guidance', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.Failed, reason: 'request failed', reasonDetail: 'attachment is not accessible', requestId: 'req-2', serverRequestId: undefined },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('no longer accessible');
+			expect(result.message).toContain('req-2');
+		});
+
+		test('generic BadRequest retains generic message', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				{ type: ChatFetchResponseType.BadRequest, reason: 'bad request', requestId: 'req-3', serverRequestId: undefined },
+				undefined,
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.message).toContain('Please try again');
 		});
 	});
 });

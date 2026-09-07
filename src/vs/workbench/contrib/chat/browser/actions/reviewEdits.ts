@@ -39,7 +39,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
 		kind: undefined,
-		modeId: 'applyCodeBlock',
+		telemetryModeId: 'applyCodeBlock',
 		modeInstructions: undefined,
 		isBuiltin: true,
 		applyCodeBlockSuggestionId,

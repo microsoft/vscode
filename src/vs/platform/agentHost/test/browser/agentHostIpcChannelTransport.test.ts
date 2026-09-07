@@ -6,9 +6,14 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../../browser/agentHostIpcChannelTransport.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 
 class FakeChannel extends Disposable implements IChannel {
 	readonly frameEmitter = this._register(new Emitter<string>());
@@ -84,5 +89,34 @@ suite('AgentHostIpcChannelTransport', () => {
 		transport.send({ jsonrpc: '2.0', id: 1, result: {} });
 		assert.strictEqual(closed, 1);
 		assert.strictEqual(channel.calls.find(c => c.command === 'send'), undefined);
+	});
+
+	test('logs real frames and redacts authentication tokens', async () => {
+		const channel = ds.add(new FakeChannel());
+		const fileService = ds.add(new FileService(new NullLogService()));
+		ds.add(fileService.registerProvider('file', ds.add(new InMemoryFileSystemProvider())));
+		const logger = ds.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'local-client', transport: 'local' },
+			fileService,
+			new NullLogService(),
+		));
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, logger));
+
+		await transport.connect();
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://example.com', token: 'secret-token' } });
+		channel.frameEmitter.fire('{"jsonrpc":"2.0","id":1,"result":{}}');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.map(entry => ({
+			id: entry.id,
+			method: entry.method,
+			params: entry.params,
+			dir: entry._ahpLog.dir,
+			byteLength: entry._ahpLog.byteLength,
+		})), [
+			{ id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://example.com', token: '<redacted>' }, dir: 'c2s', byteLength: 139 },
+			{ id: 1, method: undefined, params: undefined, dir: 's2c', byteLength: 36 },
+		]);
 	});
 });

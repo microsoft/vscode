@@ -1,0 +1,12 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gemini-2.0-flash
+      system: ${system}
+      messages:
+        - role: user
+          content: Say exactly "ok"
+    response:
+      content: ok
+      stopReason: end_turn

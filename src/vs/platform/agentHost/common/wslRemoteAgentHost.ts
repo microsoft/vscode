@@ -16,6 +16,16 @@ export const WSL_REMOTE_AGENT_HOST_CHANNEL = 'wslRemoteAgentHost';
 export const WSL_INSTALL_DOCS_URL = 'https://aka.ms/vscode-remote/wsl/install-wsl';
 
 /**
+ * Prefix for WSL display addresses (`wsl:<distro>`). This is NOT a `ws://`
+ * URL — it identifies a managed WSL connection and must never be funneled
+ * into the raw WebSocket connect path.
+ */
+export const WSL_ADDRESS_PREFIX = 'wsl:';
+
+/** Controls whether opening a chat automatically starts its stopped WSL host. */
+export const WslAutoStartSettingId = 'chat.agentHost.wsl.autoStart';
+
+/**
  * A WSL distribution discovered via `wsl --list`. Only WSL 2 distros are
  * surfaced — WSL 1 lacks the kernel features needed to host the agent.
  */
@@ -32,6 +42,8 @@ export interface IWSLAgentHostConfig {
 	readonly name: string;
 	/** Dev override: custom command to start the remote agent host. See SSH equivalent. */
 	readonly remoteAgentHostCommand?: string;
+	/** Whether an explicit user action initiated the connection. */
+	readonly userInitiated?: boolean;
 }
 
 export interface IWSLConnectProgress {
@@ -55,6 +67,18 @@ export interface IWSLAgentHostConnection extends IDisposable {
 	readonly onDidClose: Event<void>;
 }
 
+/**
+ * A WSL distro the user has connected to during this or a previous window.
+ * Persisted by {@link IWSLRemoteAgentHostService} so its connection factory
+ * can supply startup entries. This is the WSL analogue of the tunnel
+ * service's cached-tunnels list — WSL connections are managed in-memory and
+ * are never written to the remote agent hosts setting.
+ */
+export interface IWSLCachedDistro {
+	readonly distro: string;
+	readonly name: string;
+}
+
 export const IWSLRemoteAgentHostService = createDecorator<IWSLRemoteAgentHostService>('wslRemoteAgentHostService');
 
 /**
@@ -76,16 +100,22 @@ export interface IWSLRemoteAgentHostService {
 	listRunningDistros(): Promise<string[]>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLAgentHostConnection>;
 	disconnect(distro: string): Promise<void>;
-	/** Used by the contribution's auto-reconnect loop on startup. */
-	reconnect(distro: string, name: string): Promise<IWSLAgentHostConnection>;
+	/** Reconnect a cached distro, optionally as an automatic recovery attempt. */
+	reconnect(distro: string, name: string, userInitiated?: boolean): Promise<IWSLAgentHostConnection>;
+	/**
+	 * Distros the user has connected to, persisted across windows. Drives the
+	 * remote agent host service's startup auto-connect. WSL connections
+	 * themselves live in-memory, mirroring how tunnels are handled.
+	 */
+	getCachedDistros(): readonly IWSLCachedDistro[];
 }
 
 export const IWSLRemoteAgentHostMainService = createDecorator<IWSLRemoteAgentHostMainService>('wslRemoteAgentHostMainService');
 
 /**
  * Main-process service that performs the actual WSL work. The renderer
- * calls this over IPC and handles registration with
- * {@link IRemoteAgentHostService} locally.
+ * calls this over IPC; the renderer-side WSL connection factory owns protocol
+ * client creation and registration with {@link IRemoteAgentHostService}.
  */
 export interface IWSLRemoteAgentHostMainService {
 	readonly _serviceBrand: undefined;
@@ -103,5 +133,5 @@ export interface IWSLRemoteAgentHostMainService {
 	listRunningDistros(): Promise<string[]>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult>;
 	disconnect(distro: string): Promise<void>;
-	reconnect(distro: string, name: string, remoteAgentHostCommand?: string): Promise<IWSLConnectResult>;
+	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult>;
 }

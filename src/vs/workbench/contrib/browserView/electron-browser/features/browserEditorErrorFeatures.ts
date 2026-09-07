@@ -16,6 +16,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IBrowserViewCertificateError, IBrowserViewLoadError } from '../../../../../platform/browserView/common/browserView.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import {
 	BrowserEditor,
@@ -51,6 +52,7 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 	constructor(
 		editor: BrowserEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super(editor);
 		this._element.style.display = 'none';
@@ -58,7 +60,8 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 		this._content = { location: BrowserWidgetLocation.ContentArea, element: this._element, order: 300 };
 
 		this._siteInfoWidget = this._register(instantiationService.createInstance(SiteInfoWidget, this._siteInfoSlot, editor));
-		this._preUrlWidget = { location: BrowserWidgetLocation.PreUrl, element: this._siteInfoSlot, order: 0 };
+		this._preUrlWidget = { location: BrowserWidgetLocation.PreUrl, element: this._siteInfoSlot, order: 10 };
+		this._register(this.agentNetworkFilterService.onDidChange(() => this._updateError()));
 	}
 
 	override get widgets(): readonly IBrowserEditorWidget[] {
@@ -142,6 +145,28 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 			const extraWarning = $('b.browser-error-detail');
 			extraWarning.textContent = localize('browser.certErrorExtraWarning', " Your connection is not private.");
 			errorMessage.appendChild(extraWarning);
+		}
+
+		// Failures to connect via remote proxy can surface as unusual errors.
+		// We add a readable label in these cases as a hint to the user.
+		if (this.editor.model?.isRemoteSession) {
+			const remoteWarning = error.errorCode === -111 || error.errorCode === -324
+				? localize('browser.remoteErrorExtraWarning', "This usually means the host could not be found.\nEnsure the URL is correct and the server is accessible from the remote machine.")
+				: '';
+			if (remoteWarning) {
+				const remoteWarningEl = $('.browser-error-detail.hint');
+				remoteWarningEl.textContent = remoteWarning;
+				errorMessage.appendChild(remoteWarningEl);
+			}
+		}
+
+		if (error.errorCode === -20 && this.agentNetworkFilterService.isEnabled()) {
+			const networkPolicyWarning = $('.browser-error-detail.hint');
+			networkPolicyWarning.textContent = localize(
+				'browser.networkPolicyErrorExtraWarning',
+				"The request was most likely blocked by network domain policy.\nCheck the configured allowed and denied network domains."
+			);
+			errorMessage.appendChild(networkPolicyWarning);
 		}
 
 		const errorUrl = $('.browser-error-detail');

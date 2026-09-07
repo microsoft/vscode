@@ -63,7 +63,7 @@ await Promise.all([
 		entryPoints: {
 			'index': path.join(previewSrcDir, 'markdown', 'index.ts'),
 		},
-		srcDir: rootDir,
+		srcDir: previewSrcDir,
 		outdir: path.join(rootDir, 'markdown-preview-out'),
 		additionalOptions: mermaidMarkdownBuildOptions,
 	}, process.argv),
@@ -72,7 +72,7 @@ await Promise.all([
 		entryPoints: {
 			'index': path.join(previewSrcDir, 'notebook', 'index.ts'),
 		},
-		srcDir: rootDir,
+		srcDir: previewSrcDir,
 		outdir: path.join(rootDir, 'notebook-out'),
 		additionalOptions: {
 			...mermaidMarkdownBuildOptions,

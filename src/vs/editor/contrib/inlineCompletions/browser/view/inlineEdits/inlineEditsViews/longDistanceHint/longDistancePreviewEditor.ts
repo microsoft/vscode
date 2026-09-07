@@ -9,6 +9,7 @@ import { clamp } from '../../../../../../../../base/common/numbers.js';
 import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../../../../common/config/editorOptions.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { IDimension } from '../../../../../../../common/core/2d/dimension.js';
@@ -36,6 +37,17 @@ export interface ILongDistancePreviewProps {
 	 * When undefined (or same as the editor's model URI), the edit targets the current file.
 	 */
 	target: TextModelValueReference;
+}
+
+/**
+ * Widens the previewed range around `targetLineNumber` by `contextLineCount` lines on each side,
+ * clamped to the model bounds. With `contextLineCount === 0` this returns just the target line.
+ */
+function expandLineRangeWithContext(targetLineNumber: number, contextLineCount: number, lineCount: number): LineRange {
+	const clampedTarget = Math.max(1, Math.min(lineCount, targetLineNumber));
+	const startLineNumber = Math.max(1, clampedTarget - contextLineCount);
+	const endLineNumberExclusive = Math.min(lineCount + 1, clampedTarget + contextLineCount + 1);
+	return new LineRange(startLineNumber, endLineNumberExclusive);
 }
 
 export class LongDistancePreviewEditor extends Disposable {
@@ -107,7 +119,7 @@ export class LongDistancePreviewEditor extends Disposable {
 				return;
 			}
 			// Ensure there is enough space to the left of the line number for the gutter indicator to fits.
-			const lineNumberDigets = state.visibleLineRange.startLineNumber.toString().length;
+			const lineNumberDigets = (state.visibleLineRange.endLineNumberExclusive - 1).toString().length;
 			this.previewEditor.updateOptions({ lineNumbersMinChars: lineNumberDigets + 1 });
 		}));
 
@@ -121,7 +133,7 @@ export class LongDistancePreviewEditor extends Disposable {
 				if (!props) { return undefined; }
 				return new InlineEditsGutterIndicatorData(
 					props.inlineSuggestInfo,
-					LineRange.ofLength(state.visibleLineRange.startLineNumber, 1),
+					LineRange.ofLength(state.targetLineNumber, 1),
 					props.model,
 					undefined,
 				);
@@ -137,6 +149,7 @@ export class LongDistancePreviewEditor extends Disposable {
 
 	private readonly _state = derived<{
 		mode: 'original' | 'modified';
+		targetLineNumber: number;
 		visibleLineRange: LineRange;
 		textModel: TextModelValueReference | undefined;
 		diff: DetailedLineRangeMapping[];
@@ -147,18 +160,18 @@ export class LongDistancePreviewEditor extends Disposable {
 		}
 
 		let mode: 'original' | 'modified';
-		let visibleRange: LineRange;
+		let targetLineNumber: number;
 
 		if (props.nextCursorPosition !== null) {
 			mode = 'original';
-			visibleRange = LineRange.ofLength(props.nextCursorPosition.lineNumber, 1);
+			targetLineNumber = props.nextCursorPosition.lineNumber;
 		} else {
 			if (props.diff[0].innerChanges?.every(c => c.modifiedRange.isEmpty())) {
 				mode = 'original';
-				visibleRange = LineRange.ofLength(props.diff[0].original.startLineNumber, 1);
+				targetLineNumber = props.diff[0].original.startLineNumber;
 			} else {
 				mode = 'modified';
-				visibleRange = LineRange.ofLength(props.diff[0].modified.startLineNumber, 1);
+				targetLineNumber = props.diff[0].modified.startLineNumber;
 			}
 		}
 
@@ -166,9 +179,15 @@ export class LongDistancePreviewEditor extends Disposable {
 			? TextModelValueReference.snapshot(this._previewTextModel)
 			: props.target;
 
+		// Optionally widen the previewed range with surrounding context lines (e.g. when the target line is empty).
+		const contextLineCount = this._parentEditorObs.getOption(EditorOption.inlineSuggest).read(reader).edits.longDistanceHintContextLineCount;
+		const displayModel = mode === 'modified' ? this._previewTextModel : props.target.dangerouslyGetUnderlyingModel();
+		const visibleLineRange = expandLineRangeWithContext(targetLineNumber, contextLineCount, displayModel.getLineCount());
+
 		return {
 			mode,
-			visibleLineRange: visibleRange,
+			targetLineNumber,
+			visibleLineRange,
 			textModel,
 			diff: props.diff,
 		};
@@ -250,8 +269,8 @@ export class LongDistancePreviewEditor extends Disposable {
 			return constObservable(null);
 		}
 
-		const previewEditorHeight = this._previewEditorObs.observeLineHeightForLine(viewState.visibleLineRange.startLineNumber);
-		return previewEditorHeight;
+		return this._previewEditorObs.observeLineHeightsForLineRange(viewState.visibleLineRange)
+			.map(heights => heights.reduce((sum, height) => sum + height, 0));
 	}).flatten();
 
 	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, reader: IReader) {
@@ -403,5 +422,5 @@ function growUntilVariableBoundaries(textModel: ITextModel, range: Range, maxGro
 		endColumn++;
 	}
 
-	return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endColumn + 1);
+	return new Range(startPosition.lineNumber, startColumn, endPosition.lineNumber, endColumn + 1);
 }

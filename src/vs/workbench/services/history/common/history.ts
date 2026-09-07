@@ -11,6 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
+export const MOUSE_BACK_FORWARD_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
+
 /**
  * Limit editor navigation to certain kinds.
  */

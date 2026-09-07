@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as l10n from '@vscode/l10n';
 import { createSha256Hash } from '../../../util/common/crypto';
 import { CallTracker, TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
 import { raceCancellationError } from '../../../util/vs/base/common/async';
@@ -58,23 +57,32 @@ export class UrlChunkEmbeddingsIndex extends Disposable {
 		super();
 	}
 
+	/**
+	 * Compute query-relevance chunk scores for each fetched URL.
+	 *
+	 * Returns `undefined` when ranking is unavailable (no GitHub session, no
+	 * embedding types, or the chunking endpoint failed). Callers should fall
+	 * back to returning the raw fetched content rather than blocking on auth,
+	 * since the page itself has already been retrieved.
+	 */
 	async findInUrls(
 		files: ReadonlyArray<{ readonly uri: URI; readonly content: string }>,
 		query: string,
 		token: CancellationToken,
-	): Promise<FileChunkAndScore[][]> {
-		const embeddingType = await raceCancellationError(this._availableEmbeddingTypesService.getPreferredType(/*silent*/ false), token);
+	): Promise<FileChunkAndScore[][] | undefined> {
+		const embeddingType = await raceCancellationError(this._availableEmbeddingTypesService.getPreferredType(/*silent*/ true), token);
 		if (!embeddingType) {
-			throw new Error('No embedding types available');
+			this._logService.info('urlChunkEmbeddingsIndex: No embedding types available, skipping chunk ranking.');
+			return undefined;
 		}
 
-		// Acquire auth up front (this may prompt sign-in) so the parallel query embedding doesn't race against it
-		// and return empty results from the "no GitHub session" guard while file embeddings concurrently succeed.
+		// Acquire auth silently — never prompt sign-in just to rank chunks of an
+		// already-fetched page (see https://github.com/microsoft/vscode/issues/320070).
 		this._logService.trace(`urlChunkEmbeddingsIndex: Getting auth token `);
 		const authToken = await raceCancellationError(this.tryGetAuthToken(), token);
 		if (!authToken) {
-			this._logService.error('urlChunkEmbeddingsIndex: Unable to get auth token');
-			throw new Error('Unable to get auth token');
+			this._logService.info('urlChunkEmbeddingsIndex: No GitHub session, skipping chunk ranking.');
+			return undefined;
 		}
 
 		const [queryEmbedding, fileChunksAndEmbeddings] = await raceCancellationError(Promise.all([
@@ -133,7 +141,7 @@ export class UrlChunkEmbeddingsIndex extends Disposable {
 	}
 
 	private async tryGetAuthToken(): Promise<string | undefined> {
-		return (await this._authService.getGitHubSession('any', { createIfNone: { detail: l10n.t('Sign in to GitHub to access URL chunk embeddings.') } }))?.accessToken;
+		return (await this._authService.getGitHubSession('any', { silent: true }))?.accessToken;
 	}
 }
 

@@ -139,18 +139,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
 		},
-		'search.useRipgrep': {
-			type: 'boolean',
-			description: nls.localize('useRipgrep', "This setting is deprecated and now falls back on \"search.usePCRE2\"."),
-			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
-			default: true
-		},
-		'search.maintainFileSearchCache': {
-			type: 'boolean',
-			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
-			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
-			default: false
-		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
 			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
@@ -211,13 +199,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
 		},
-		'search.location': {
-			type: 'string',
-			enum: ['sidebar', 'panel'],
-			default: 'sidebar',
-			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
-		},
 		'search.maxResults': {
 			type: ['number', 'null'],
 			default: DEFAULT_MAX_SEARCH_RESULTS,
@@ -243,12 +224,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.showLineNumbers', "Controls whether to show line numbers for search results."),
-		},
-		'search.usePCRE2': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.usePCRE2', "Whether to use the PCRE2 regex engine in text search. This enables using some advanced regex features like lookahead and backreferences. However, not all PCRE2 features are supported - only features that are also supported by JavaScript."),
-			deprecationMessage: nls.localize('usePCRE2Deprecated', "Deprecated. PCRE2 will be used automatically when using regex features that are only supported by PCRE2."),
 		},
 		'search.actionsPosition': {
 			type: 'string',

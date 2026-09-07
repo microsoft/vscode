@@ -22,11 +22,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise, videoStartedAt } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options, videoStartedAt)
 	};
 }
 
@@ -128,20 +128,36 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		}
 	}
 
+	// Recording is per page and starts when the page is created, so sample the
+	// origin here rather than at context creation: tracing startup above can take
+	// long enough to visibly skew offsets measured against it.
+	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
+	// Match the recording canvas while recording, so the capture has no empty
+	// margins; keep the established size otherwise so smoke runs are unchanged.
+	const viewport = options.videosPath ? { width: 1920, height: 1080 } : { width: 1440, height: 900 };
+	await measureAndLog(() => page.setViewportSize(viewport), 'page.setViewportSize', logger);
+
+	// Always log failed requests and console errors/warnings (even without
+	// `--verbose`) so that hard-to-reproduce startup stalls can be root caused
+	// from CI logs. A stalled or aborted module fetch can prevent the workbench
+	// from rendering (e.g. `.monaco-workbench` never appears) without producing
+	// a page error, crash or HTTP error response, making it otherwise invisible.
+	context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	page.on('console', e => {
+		if (options.verbose || e.type() === 'error' || e.type() === 'warning') {
+			logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`);
+		}
+	});
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
-		context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
-
-		page.on('console', e => logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`));
 		page.on('dialog', () => logger.log(`Playwright (Browser): page.on('dialog')`));
 		page.on('domcontentloaded', () => logger.log(`Playwright (Browser): page.on('domcontentloaded')`));
 		page.on('load', () => logger.log(`Playwright (Browser): page.on('load')`));
 		page.on('popup', () => logger.log(`Playwright (Browser): page.on('popup')`));
 		page.on('framenavigated', () => logger.log(`Playwright (Browser): page.on('framenavigated')`));
-		page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
 	}
 
 	page.on('pageerror', async (error) => logger.log(`Playwright (Browser) ERROR: page error: ${error}`));
@@ -173,7 +189,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 
 	await gotoPromise;
 
-	return { browser, context, page, pageLoadedPromise };
+	return { browser, context, page, pageLoadedPromise, videoStartedAt };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

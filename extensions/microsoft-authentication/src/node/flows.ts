@@ -75,7 +75,8 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			windowHandle,
 			claims,
 			resource,
-			redirectUri
+			redirectUri,
+			responseMode: 'form_post'
 		});
 	}
 }
@@ -106,7 +107,8 @@ class UrlHandlerFlow implements IMsalFlow {
 			windowHandle,
 			claims,
 			resource,
-			redirectUri
+			redirectUri,
+			responseMode: 'form_post'
 		});
 	}
 }

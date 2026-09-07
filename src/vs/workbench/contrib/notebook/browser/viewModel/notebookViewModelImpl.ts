@@ -225,7 +225,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				deletedCells.forEach(cell => {
 					this._handleToViewCellMapping.delete(cell.handle);
 					// dispose the cell to release ref to the cell text document
-					cell.dispose();
+					this._localStore.delete(cell);
 				});
 
 				diff[2].forEach(cell => {

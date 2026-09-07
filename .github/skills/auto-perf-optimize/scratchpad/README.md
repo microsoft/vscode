@@ -49,7 +49,9 @@ These are reusable, generic runners. Use them directly or as templates:
 - **`chat-session-switch-smoke.mts`** — Creates multiple chat sessions with
   different content, then repeatedly switches between them via the sessions
   sidebar. Measures per-switch memory growth.
-
+- **`workbench-css-performance.mts`** — Measures Modern UI style and layout
+  cost while resizing, opening/switching/closing editor tabs, and toggling
+  workbench parts. Writes per-round data and medians to `summary.json`.
 - **`userDataProfile.mts`** — Utility for managing user-data profiles in
   smoke test runs.
 

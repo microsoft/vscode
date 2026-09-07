@@ -119,6 +119,9 @@ class TestAuthService extends Disposable implements IAuthenticationService {
 	private readonly _onDidAuthenticationChange = this._register(new Emitter<void>());
 	readonly onDidAuthenticationChange: Event<void> = this._onDidAuthenticationChange.event;
 
+	private readonly _onDidCopilotTokenChange = this._register(new Emitter<void>());
+	readonly onDidCopilotTokenChange: Event<void> = this._onDidCopilotTokenChange.event;
+
 	private readonly _onDidAccessTokenChange = this._register(new Emitter<void>());
 	readonly onDidAccessTokenChange = this._onDidAccessTokenChange.event;
 

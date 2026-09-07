@@ -126,6 +126,19 @@ flakySuite('Native Modules (all platforms)', () => {
 		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
+
+	test('@vscode/os-proxy-resolver', async () => {
+		const proxyResolver = await import('@vscode/os-proxy-resolver');
+		const proxies = await proxyResolver.resolveProxy('https://example.com/');
+		const config = await proxyResolver.readProxyConfig();
+		assert.deepStrictEqual({
+			resolveProxy: proxies.length > 0,
+			readProxyConfig: typeof config.autoDetect === 'boolean',
+		}, {
+			resolveProxy: true,
+			readProxyConfig: true,
+		}, testErrorMessage('@vscode/os-proxy-resolver'));
+	});
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {

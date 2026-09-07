@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/peer-missing.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read ${workdir}/peer-missing.txt. If it does not exist, reply exactly "missing". Use your file tools; do not run a shell command.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-missing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'File does not exist. Note: your current working directory is ${workdir}.'
+    response:
+      content: missing
+      stopReason: end_turn
