@@ -772,7 +772,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register({ dispose: () => sessionControlsContainer.remove() });
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
-		this._renderRepositoryControls(repoConfigContainer);
+		if (this.options.renderRepositoryControls !== false) {
+			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			}));
+		}
 
 		// On phone, the chip lane is horizontally scrollable when its
 		// content overflows the viewport. Native touch scroll is blocked
@@ -1082,15 +1086,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
-		}));
-	}
-
-	private _renderRepositoryControls(container: HTMLElement): void {
-		if (this.options.renderRepositoryControls === false) {
-			return;
-		}
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, container, Menus.NewSessionRepositoryConfig, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 	}
 

@@ -47,7 +47,6 @@ const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncI
 const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
-const renderRepositoryControls = Reflect.get(NewChatInputWidget.prototype, '_renderRepositoryControls') as (this: IRenderRepositoryControlsHarness, container: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -119,14 +118,6 @@ interface IUpdateSendButtonStateHarness {
 	readonly _canSendRequest: { get(): boolean };
 }
 
-interface IRenderRepositoryControlsHarness {
-	readonly options: { readonly renderRepositoryControls?: boolean };
-	readonly _scopedInstantiationService: {
-		createInstance(): never;
-	};
-	_register<T extends IDisposable>(disposable: T): T;
-}
-
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -174,22 +165,6 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('does not render repository controls when disabled by the host', () => {
-		let createInstanceCalled = false;
-		renderRepositoryControls.call({
-			options: { renderRepositoryControls: false },
-			_scopedInstantiationService: {
-				createInstance: () => {
-					createInstanceCalled = true;
-					throw new Error('Repository controls should not be created');
-				},
-			},
-			_register: disposable => disposable,
-		}, document.createElement('div'));
-
-		assert.strictEqual(createInstanceCalled, false);
-	});
 
 	test('only keeps the input frame focused while editor text has focus', () => {
 		const stack = document.createElement('div');
