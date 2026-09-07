@@ -92,6 +92,7 @@
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
+    "envIsConnectionMetered",
     "extensionsAny",
     "newSymbolNamesProvider",
     "interactive",

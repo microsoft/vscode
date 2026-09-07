@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
@@ -15,17 +16,28 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../co
 import { Registry } from '../../../registry/common/platform.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { IPolicyService } from '../../../policy/common/policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../policy/common/policy.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+
+class TestPolicyService extends AbstractPolicyService {
+
+	updateCount = 0;
+
+	protected _updatePolicyDefinitions(_policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+		this.updateCount++;
+		return Promise.resolve();
+	}
+}
 
 suite('PolicyConfiguration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testObject: PolicyConfiguration;
+	let defaultConfiguration: DefaultConfiguration;
 	let fileService: IFileService;
 	let policyService: IPolicyService;
 	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
@@ -132,13 +144,30 @@ suite('PolicyConfiguration', () => {
 	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([policyConfigurationNode]));
 
 	setup(async () => {
-		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
 		policyService = disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService()));
 		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+	});
+
+	test('initialize: submits included and excluded policy definitions together', async () => {
+		const testPolicyService = disposables.add(new TestPolicyService());
+		const testPolicyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, testPolicyService, new NullLogService()));
+
+		await testPolicyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			updateCount: testPolicyService.updateCount,
+			hasIncludedPolicy: !!testPolicyService.policyDefinitions.PolicySettingA,
+			hasExcludedPolicy: !!testPolicyService.policyDefinitions.PolicyInternalSetting,
+		}, {
+			updateCount: 1,
+			hasIncludedPolicy: true,
+			hasExcludedPolicy: true,
+		});
 	});
 
 	test('initialize: with policies', async () => {

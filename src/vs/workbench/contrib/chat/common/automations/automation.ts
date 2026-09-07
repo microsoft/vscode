@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -52,6 +53,39 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+/** Provider-owned values used to create each Automation run session. */
+export interface IAutomationSessionTemplate {
+	/** Optional language model identifier. */
+	readonly modelId?: string;
+	/** Model-specific preferences, independent of provider session configuration. */
+	readonly modelConfiguration?: Readonly<Record<string, JsonPrimitive>>;
+	/** Optional custom agent selection. */
+	readonly agent?: { readonly uri: string };
+	/** Provider-owned session configuration values. */
+	readonly config?: Readonly<Record<string, unknown>>;
+}
+
+export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+	return !!value && typeof value === 'object' && !Array.isArray(value)
+		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+		&& Object.values(value).every(entry => entry === null
+			|| typeof entry === 'string'
+			|| typeof entry === 'boolean'
+			|| (typeof entry === 'number' && Number.isFinite(entry)));
+}
+
+export function assertAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined): void {
+	if (template?.modelConfiguration === undefined) {
+		return;
+	}
+	if (typeof template.modelId !== 'string' || !template.modelId.trim()) {
+		throw new Error('Automation model configuration requires a model identifier.');
+	}
+	if (!isAutomationModelConfiguration(template.modelConfiguration)) {
+		throw new Error('Automation model configuration must contain only JSON primitive values.');
+	}
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -65,13 +99,16 @@ export interface IAutomationDescriptor {
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
 
-	/** Optional language model identifier to seed the new session with. */
+	/** Complete provider-owned session template. */
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly modelId?: string;
 
-	/** Optional chat mode (`agent`/`ask`/`edit`). Defaults to provider's default; custom modes unsupported. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly mode?: string;
 
-	/** Optional permission level (`default`/`autoApprove`/`autopilot`). Overrides only for scheduled runs; defaults to provider's default. */
+	/** @deprecated Legacy decode alias. New Automations store this in {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;

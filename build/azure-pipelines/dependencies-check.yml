@@ -7,6 +7,8 @@ parameters:
     type: string
 
 variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
   - name: NPM_REGISTRY
     value: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
   - name: VSCODE_QUALITY

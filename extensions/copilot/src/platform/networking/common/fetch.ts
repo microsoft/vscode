@@ -14,10 +14,38 @@ import { ChoiceLogProbs, FilterReason, openAIContextManagementCompactionType, Op
 export interface RequestId {
 	headerRequestId: string;
 	gitHubRequestId: string;
+	/**
+	 * CAPI's `X-Copilot-Service-Request-Id`. Copilot API side request identifier, used to correlate
+	 * client telemetry with CAPI service records.
+	 */
+	copilotServiceRequestId: string;
 	completionId: string;
 	created: number;
 	serverExperiments: string;
 	deploymentId: string;
+}
+
+export const COPILOT_SERVICE_REQUEST_ID_HEADER = 'x-copilot-service-request-id';
+
+/**
+ * Reads a header without relying on the casing used by the underlying fetcher.
+ * `name` must be lowercase.
+ */
+export function getHeaderIgnoreCase(headers: IHeaders, name: string): string | undefined {
+	const direct = headers.get(name);
+	if (direct) {
+		return direct;
+	}
+	for (const [key, value] of headers) {
+		if (key.toLowerCase() === name) {
+			return value || undefined;
+		}
+	}
+	return undefined;
+}
+
+export function getCopilotServiceRequestId(headers: IHeaders): string {
+	return getHeaderIgnoreCase(headers, COPILOT_SERVICE_REQUEST_ID_HEADER) || '';
 }
 
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
@@ -26,6 +54,7 @@ export function getRequestId(headers: IHeaders, json?: any): RequestId {
 	return {
 		headerRequestId: headers.get('x-request-id') || '',
 		gitHubRequestId: headers.get('x-github-request-id') || '',
+		copilotServiceRequestId: getCopilotServiceRequestId(headers),
 		completionId: json && json.id ? json.id : '',
 		created: json && json.created ? json.created : 0,
 		serverExperiments: serverExperiments && capiExpAssignmentContext

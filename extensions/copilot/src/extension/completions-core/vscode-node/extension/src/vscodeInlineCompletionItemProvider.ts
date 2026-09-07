@@ -6,6 +6,7 @@
 import { basename } from 'path';
 import {
 	CancellationToken,
+	env,
 	InlineCompletionContext,
 	InlineCompletionEndOfLifeReason,
 	InlineCompletionItemProvider,
@@ -101,6 +102,10 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 		context: InlineCompletionContext,
 		token: CancellationToken
 	): Promise<GhostTextCompletionList | undefined> {
+
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && env.isMeteredConnection) {
+			return;
+		}
 
 		// it's ok to return an undefined here because we don't want telemetry for when automatic completions are disabled
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {

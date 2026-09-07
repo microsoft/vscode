@@ -70,3 +70,38 @@ export function omitTransientSessionConfigValues<T>(values: Record<string, T>): 
 	delete result[SessionConfigKey.ShellInitScripts];
 	return result;
 }
+
+const automationDefinitionOwnedConfigKeys = [
+	SessionConfigKey.Permissions,
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
+	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeBranchTrack,
+	SessionConfigKey.WorktreeCreateNewBranch,
+	SessionConfigKey.AgentMerge,
+	SessionConfigKey.AgentMergeController,
+] as const;
+
+/** Removes values owned by a concrete session or target rather than a reusable Automation template. */
+export function omitAutomationSessionTemplateConfigValues<T>(values: Record<string, T>): Record<string, T> {
+	const result = omitTransientSessionConfigValues(values);
+	for (const key of automationDefinitionOwnedConfigKeys) {
+		delete result[key];
+	}
+	return result;
+}
+
+/** Retains definition-owned values while an editor-facing Automation template is written back. */
+export function pickAutomationDefinitionOwnedConfigValues<T>(values: Readonly<Record<string, T>> | undefined): Record<string, T> {
+	const result: Record<string, T> = {};
+	if (!values) {
+		return result;
+	}
+	for (const key of automationDefinitionOwnedConfigKeys) {
+		if (Object.hasOwn(values, key)) {
+			result[key] = values[key];
+		}
+	}
+	return result;
+}

@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableFromPromise } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -25,8 +27,12 @@ import { AutomationToolsContribution } from './automationTools.js';
 import { IAutomationStorageService } from '../common/automationStorageService.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../../../platform/agentHost/common/automationMigration.js';
 
+const initialProvidersSettled = observableFromPromise(
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
+).map(result => result.value === true);
+
 registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
-registerSingleton(IAutomationService, ProviderAutomationService, InstantiationType.Delayed);
+registerSingleton(IAutomationService, new SyncDescriptor(ProviderAutomationService, [initialProvidersSettled], true));
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 

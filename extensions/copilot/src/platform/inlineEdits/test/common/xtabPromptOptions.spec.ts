@@ -159,6 +159,15 @@ describe('isEagernessPrompt', () => {
 		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
 		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
 	});
+
+	it('recognizes the optimized PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified })).toBe(false);
+	});
+
+	it('does not recognize eagerness for an unrelated strategy', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.CopilotNesXtab, eagernessPrompt: 'aggressionHighLow' })).toBe(false);
+	});
 });
 
 describe('GlobalBudgetOptions', () => {

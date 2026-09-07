@@ -662,12 +662,17 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 				// Inject built-in extensions list
 				if (contents.includes('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/')) {
 					if (builtinExtensionsReplacement === undefined) {
-						// Web target uses .build/web/extensions (from compileWebExtensionsBuildTask)
-						// Other targets use .build/extensions
-						const extensionsRoot = target === 'web' ? '.build/web/extensions' : '.build/extensions';
-						const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot));
-						// Remove the outer brackets since the placeholder is inside an array literal
-						builtinExtensionsReplacement = builtinExtensions.substring(1, builtinExtensions.length - 1);
+						if (target === 'web' || target === 'server-web') {
+							// Web target uses .build/web/extensions (from compileWebExtensionsBuildTask)
+							// while server-web uses .build/extensions.
+							const extensionsRoot = target === 'web' ? '.build/web/extensions' : '.build/extensions';
+							const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot));
+							// Remove the outer brackets since the placeholder is inside an array literal
+							builtinExtensionsReplacement = builtinExtensions.substring(1, builtinExtensions.length - 1);
+						} else {
+							// Native targets never consume the web-only bundled extension list.
+							builtinExtensionsReplacement = '';
+						}
 					}
 					contents = contents.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensionsReplacement!);
 					modified = true;

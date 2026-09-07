@@ -113,7 +113,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
+import { reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -2093,10 +2093,14 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('creates an empty draft from the last request selection when none exists', async () => {
+			const modelConfiguration = { thinkingLevel: 'low', contextSize: 272_000 };
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' })],
 			]);
-			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				languageModels,
+				languageModelsServiceOverride: { getModelConfiguration: () => ({ thinkingLevel: 'high' }) },
+			});
 			const backendSession = AgentSession.uri('copilot', 'last-selection-session');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/last-selection-session' });
 
@@ -2116,8 +2120,8 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-1',
 					message: {
 						text: 'previous request',
-						origin: { kind: MessageKind.User },
-						model: { id: 'opus-4.7' },
+						origin: { kind: MessageKind.Automation },
+						model: { id: 'opus-4.7', config: modelConfiguration },
 						agent: { uri: 'agent://reviewer' },
 					},
 					responseParts: [],
@@ -2128,22 +2132,26 @@ suite('AgentHostChatContribution', () => {
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
+			const serializedState = chatSession.transferredState?.inputState;
+			const restoredState = serializedState ? reviveSerializableInputState(serializedState) : undefined;
 
 			assert.deepStrictEqual({
 				inputText: chatSession.transferredState?.inputState?.inputText,
 				model: chatSession.transferredState?.inputState?.selectedModel?.identifier,
 				mode: chatSession.transferredState?.inputState?.mode,
+				modelConfiguration: restoredState?.modelConfiguration,
 				draftAction: agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatDraftChanged)?.action,
 			}, {
 				inputText: '',
 				model: 'agent-host-copilot:opus-4.7',
 				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				modelConfiguration,
 				draftAction: {
 					type: ActionType.ChatDraftChanged,
 					draft: {
 						text: '',
 						origin: { kind: MessageKind.User },
-						model: { id: 'opus-4.7' },
+						model: { id: 'opus-4.7', config: modelConfiguration },
 						agent: { uri: 'agent://reviewer' },
 					},
 				},

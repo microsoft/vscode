@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -25,7 +25,7 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../..
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -372,6 +372,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -381,9 +382,11 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// bottom sheet. Publish this as a neutral context key so the core model
 		// picker can gate itself out without depending on agent-host identity.
 		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this._register(autorun(reader => {
+			providersChanged.read(reader);
 			const session = sessionsService.activeSession.read(reader);
-			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		this._register(actionViewItemService.register(

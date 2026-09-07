@@ -16,7 +16,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -85,6 +85,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
+	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
@@ -144,6 +145,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
+		// Measure in the render phase so DOM reads do not force layout during startup.
+		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
 		// Draggable region
 		prepend(this.rootContainer, $('div.titlebar-drag-region'));
@@ -268,7 +271,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 		const updateScreenReaderButtonBar = () => {
 			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
-			this.updateTitleBarToolBarOverflow();
+			this.titleBarToolBarOverflowScheduler.schedule();
 		};
 		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
 		updateScreenReaderButtonBar();
@@ -328,12 +331,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
-		this.updateTitleBarToolBarOverflow();
+		this.titleBarToolBarOverflowScheduler.schedule();
 	}
 
 	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
 		this.overflowManagedToolBarElements.push(element);
-		this._register(toolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+		this._register(toolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
 	}
 
 	private updateTitleBarToolBarOverflow(): void {

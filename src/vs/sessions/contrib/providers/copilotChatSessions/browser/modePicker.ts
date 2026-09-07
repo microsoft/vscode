@@ -8,7 +8,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -20,6 +20,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import type { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -86,6 +87,7 @@ export class ModePickerModel extends Disposable {
 				return;
 			}
 			this._sessionResource = undefined;
+			this._modeChangeListener.clear();
 			this._chatModesDisposable.value = undefined;
 			this._chatModes = undefined;
 			this._selectedModeId = undefined;
@@ -145,6 +147,69 @@ export class ModePickerModel extends Disposable {
 			return mode;
 		}
 		return undefined;
+	}
+}
+
+interface IModePickerModelEntry {
+	readonly model: ModePickerModel;
+	readonly store: DisposableStore;
+	references: number;
+	disposalGeneration: number;
+}
+
+/** Retains each surface's model across synchronous toolbar rebuilds. */
+export class ScopedModePickerModelCache extends Disposable {
+	private readonly entries = new Map<IObservable<IActiveSession | undefined>, IModePickerModelEntry>();
+
+	constructor(private readonly acceptsSession: (session: ISession) => boolean) {
+		super();
+	}
+
+	acquire(session: IObservable<IActiveSession | undefined>, instantiationService: IInstantiationService): IDisposable & { readonly model: ModePickerModel } {
+		let entry = this.entries.get(session);
+		if (!entry) {
+			const store = new DisposableStore();
+			const model = store.add(instantiationService.createInstance(ModePickerModel));
+			store.add(autorun(reader => {
+				const scopedSession = session.read(reader);
+				model.setSession(scopedSession && this.acceptsSession(scopedSession) ? scopedSession : undefined, scopedSession?.mode.read(reader)?.id);
+			}));
+			entry = { model, store, references: 0, disposalGeneration: 0 };
+			this.entries.set(session, entry);
+		}
+
+		entry.references++;
+		entry.disposalGeneration++;
+		let disposed = false;
+		return {
+			model: entry.model,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this.release(session, entry);
+			},
+		};
+	}
+
+	private release(session: IObservable<IActiveSession | undefined>, entry: IModePickerModelEntry): void {
+		entry.references--;
+		const disposalGeneration = ++entry.disposalGeneration;
+		queueMicrotask(() => {
+			if (entry.references === 0 && entry.disposalGeneration === disposalGeneration && this.entries.get(session) === entry) {
+				this.entries.delete(session);
+				entry.store.dispose();
+			}
+		});
+	}
+
+	override dispose(): void {
+		for (const entry of this.entries.values()) {
+			entry.store.dispose();
+		}
+		this.entries.clear();
+		super.dispose();
 	}
 }
 

@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from '../../../../base/browser/dom.js';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement, AnimationFrameScheduler } from '../../../../base/browser/dom.js';
 import { CustomMenubarControl } from './menubarControl.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -280,6 +280,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private centerAdjacentToolBarElement: HTMLElement | undefined;
 	private readonly updateToolBarDisposable = this._register(new DisposableStore());
 	private updateToolBarElement: HTMLElement | undefined;
+	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -474,6 +475,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
+		// Measure in the render phase so DOM reads do not force layout during startup.
+		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
 		this.leftContent = append(this.rootContainer, $('.titlebar-left'));
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
@@ -516,7 +519,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}));
 
 			// Re-evaluate fit when items change, see #303222.
-			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
 		}
 
 		// Update Toolbar (before the right-aligned toolbar actions)
@@ -533,7 +536,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				hoverDelegate: this.hoverDelegate
 			}));
 
-			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
 		}
 
 		// Create Toolbar Actions
@@ -939,8 +942,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		super.layoutContents(width, height);
 
-		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
-		this.updateTitleBarToolBarOverflow();
+		this.titleBarToolBarOverflowScheduler.schedule();
 	}
 
 	/**

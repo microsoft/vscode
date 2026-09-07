@@ -574,6 +574,7 @@ export function isEagernessPrompt(options: PromptOptions): boolean {
 	return (options.eagernessPrompt !== undefined && [
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
 		|| [PromptingStrategy.XtabAggressiveness,

@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -162,6 +163,57 @@ suite('AgentHostAutomationService', () => {
 			automationCount: 1,
 			hasEntries: false,
 		});
+	});
+
+	test('migrates stored Copilot Autopilot configurations into the current Automation shape', async () => {
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [
+					{
+						resource: 'ahp-automation:/legacy-autopilot',
+						definition: {
+							...definition(),
+							session: {
+								provider: 'copilotcli',
+								config: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+							},
+						},
+						runs: [],
+						operations: [AutomationOperation.Update, AutomationOperation.Remove],
+						createdAt: '2026-01-01T00:00:00.000Z',
+						modifiedAt: '2026-01-01T00:00:00.000Z',
+					},
+					{
+						resource: 'ahp-automation:/hotfix-window',
+						definition: {
+							...definition(),
+							session: {
+								config: {
+									[SessionConfigKey.Mode]: 'agent',
+									[SessionConfigKey.AutoApprove]: 'assisted',
+								},
+							},
+						},
+						runs: [],
+						operations: [AutomationOperation.Update, AutomationOperation.Remove],
+						createdAt: '2026-01-01T00:00:00.000Z',
+						modifiedAt: '2026-01-01T00:00:00.000Z',
+					},
+				],
+			},
+		});
+		await storageService.whenIdle();
+
+		createService();
+
+		assert.deepStrictEqual(
+			stateManager.getAutomationCatalogState()?.entries.map(automation => automation.definition.session.config),
+			[
+				{ mode: 'autopilot', autoApprove: 'assisted' },
+				{ mode: 'autopilot', autoApprove: 'assisted' },
+			],
+		);
 	});
 
 	test('failed catalogue persistence publishes nothing and a retry creates one entry', async () => {
@@ -335,6 +387,72 @@ suite('AgentHostAutomationService', () => {
 			summary: AutomationRunStatus.Completed,
 		});
 	});
+
+	for (const hasMessageModel of [false, true]) {
+		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {
+			const session = URI.parse('mock:/model-configuration-run');
+			const model = { id: 'mock-model', config: { thinkingLevel: 'low', contextSize: 272_000 } };
+			const messageModel = hasMessageModel ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
+			const completed = new DeferredPromise<void>();
+			let createdModel: AutomationDefinition['session']['model'];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
+					void completed.complete();
+				}
+			}));
+			const service = createService({
+				createSession: async template => {
+					createdModel = template.model;
+					stateManager.createSession({
+						resource: session.toString(),
+						provider: 'mock',
+						title: '',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					});
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					const chat = buildDefaultChatUri(createdSession);
+					stateManager.dispatchServerAction(chat, {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'model-configuration-turn',
+						startedAt: new Date().toISOString(),
+						message,
+					});
+					stateManager.dispatchServerAction(chat, {
+						type: ActionType.ChatTurnComplete,
+						turnId: 'model-configuration-turn',
+						duration: 0,
+					});
+				},
+			});
+			const automation = definition();
+			automation.session.model = model;
+			if (messageModel) {
+				automation.message.model = messageModel;
+			}
+			await service.completeMigration();
+			await service.handleCreate({ ...createAction(), definition: automation });
+			await service.runAutomation({
+				channel: 'ahp-automations://',
+				automation: 'ahp-automation:/review-changes',
+				requestId: 'model-configuration-request',
+			});
+			await completed.p;
+
+			assert.deepStrictEqual({
+				createdModel,
+				recordedModel: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.model,
+				savedModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
+			}, {
+				createdModel: model,
+				recordedModel: messageModel ?? model,
+				savedModel: model,
+			});
+		});
+	}
 
 	test('run persistence failure prevents session side effects', async () => {
 		let createCalls = 0;

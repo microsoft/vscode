@@ -11,7 +11,7 @@ import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadl
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
@@ -1890,7 +1890,10 @@ export interface IModifierKeyStatus {
 
 export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
-	private readonly _subscriptions = new DisposableStore();
+	// This emitter is a lazily created singleton (see `getInstance`) that is allowed
+	// to outlive the test that happens to create it first. `Emitter` itself is not
+	// tracked, so the store has to be marked to keep it out of leak detection.
+	private readonly _subscriptions = markAsSingleton(new DisposableStore());
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter | undefined;
 

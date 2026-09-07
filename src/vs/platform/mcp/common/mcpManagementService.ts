@@ -186,8 +186,8 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			case RegistryType.DOCKER: return 'docker';
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
+			default: throw new Error(`Unsupported MCP server package registry type: ${packageType}`);
 		}
-		return packageType;
 	}
 
 	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
