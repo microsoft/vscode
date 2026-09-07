@@ -192,6 +192,33 @@ suite('MainThreadDocumentsAndEditors', () => {
 		}
 	});
 
+	test('ignore model with many short lines', () => {
+		const model = disposables.add(modelService.createModel('x\n'.repeat(300000), null));
+		const [delta] = deltas;
+
+		assert.deepStrictEqual({
+			isTooLargeForSyncing: model.isTooLargeForSyncing(),
+			deltaCount: deltas.length,
+			delta: {
+				newActiveEditor: delta.newActiveEditor,
+				addedDocuments: delta.addedDocuments,
+				removedDocuments: delta.removedDocuments,
+				addedEditors: delta.addedEditors,
+				removedEditors: delta.removedEditors
+			}
+		}, {
+			isTooLargeForSyncing: true,
+			deltaCount: 1,
+			delta: {
+				newActiveEditor: null,
+				addedDocuments: undefined,
+				removedDocuments: undefined,
+				addedEditors: undefined,
+				removedEditors: undefined
+			}
+		});
+	});
+
 	test('ignore huge model from editor', function () {
 
 		const oldLimit = TextModel._MODEL_SYNC_LIMIT;

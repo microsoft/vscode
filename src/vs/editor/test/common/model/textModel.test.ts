@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.js';
-import { EndOfLinePreference } from '../../../common/model.js';
+import { EndOfLinePreference, shouldSynchronizeModel } from '../../../common/model.js';
 import { TextModel, createTextBuffer } from '../../../common/model/textModel.js';
 import { createModelServices, createTextModel } from '../testTextModel.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -184,6 +184,34 @@ suite('Editor Model - TextModel', () => {
 		const textModel = disposables.add(instantiationService.createInstance(TextModel, '', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null));
 		assert.strictEqual(textModel._hasListeners(), false);
 		disposables.dispose();
+	});
+
+	test('models with many short lines are not synchronized', () => {
+		const withinLimit = createTextModel('x\n'.repeat(299999));
+		const overLimit = createTextModel('x\n'.repeat(300000));
+
+		assert.deepStrictEqual({
+			withinLimit: {
+				lineCount: withinLimit.getLineCount(),
+				shouldSynchronize: shouldSynchronizeModel(withinLimit)
+			},
+			overLimit: {
+				lineCount: overLimit.getLineCount(),
+				shouldSynchronize: shouldSynchronizeModel(overLimit)
+			}
+		}, {
+			withinLimit: {
+				lineCount: 300000,
+				shouldSynchronize: true
+			},
+			overLimit: {
+				lineCount: 300001,
+				shouldSynchronize: false
+			}
+		});
+
+		withinLimit.dispose();
+		overLimit.dispose();
 	});
 
 	test('getValueLengthInRange', () => {
