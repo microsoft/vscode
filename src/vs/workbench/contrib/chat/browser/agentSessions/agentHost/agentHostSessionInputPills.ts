@@ -36,6 +36,7 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ISessionPullRequestPillService } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
@@ -242,6 +243,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
+		@ISessionPullRequestPillService pullRequestPillService: ISessionPullRequestPillService,
 	) {
 		super();
 
@@ -369,7 +371,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
 				open: () => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
 			},
-			pullRequests: { sections: pullRequestSections, icon: pullRequestIcon },
+			pullRequests: pullRequestPillService.createPillData(pullRequestSections, pullRequestIcon),
 			issues: { sections: issueSections },
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },

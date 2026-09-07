@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -26,6 +27,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { SessionPullRequestPillService } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
@@ -203,7 +205,6 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
 			readHiddenKinds: () => new Set(),
 			isVisible: () => true,
-			readShowAllPullRequests: () => true,
 			hide: () => { },
 			toggle: () => { },
 		});
@@ -226,6 +227,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -308,7 +310,6 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
 			readHiddenKinds: () => new Set(),
 			isVisible: () => true,
-			readShowAllPullRequests: () => true,
 			hide: () => { },
 			toggle: () => { },
 		});
@@ -331,6 +332,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const button = row?.querySelector('.chat-pill-button');
@@ -410,7 +412,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('matches the Agents Window pull request summary presentation', () => {
+	test('matches the Agents Window pull request summary presentation', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -453,6 +455,8 @@ suite('AgentHostSessionInputPills', () => {
 			getKnownBrowserViews: () => new Map(),
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		const pullRequestPillService = store.add(instantiationService.createInstance(SessionPullRequestPillService));
+		const filterActions = pullRequestPillService.createPillData(constObservable([])).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -472,6 +476,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			pullRequestPillService,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -482,9 +487,9 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: icon?.style.color,
 			hasChevron: button?.querySelector('.chat-pill-chevron') !== null,
 		};
-		visibility.setShowAllPullRequests(false);
+		await filterActions[1].run();
 		const filteredLabel = persistentContent.querySelector('.chat-pill-label')?.textContent;
-		visibility.setShowAllPullRequests(true);
+		await filterActions[0].run();
 		connection.setState(StateComponents.Session, {
 			defaultChat: buildDefaultChatUri(backendSession),
 			chats: [],
@@ -503,7 +508,7 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: singleIcon?.style.color,
 			hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
 		};
-		visibility.setShowAllPullRequests(false);
+		await filterActions[1].run();
 
 		assert.deepStrictEqual({
 			multiple,
@@ -585,7 +590,6 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
 			readHiddenKinds: () => new Set([SessionChatPillKind.Browsers]),
 			isVisible: kind => kind !== SessionChatPillKind.Browsers,
-			readShowAllPullRequests: () => true,
 			hide: () => { },
 			toggle: () => { },
 		});
@@ -608,6 +612,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 
 		assert.deepStrictEqual({
@@ -654,7 +659,6 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
 			readHiddenKinds: () => new Set(),
 			isVisible: () => true,
-			readShowAllPullRequests: () => true,
 			hide: () => { },
 			toggle: () => { },
 		});
@@ -693,6 +697,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
+			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;

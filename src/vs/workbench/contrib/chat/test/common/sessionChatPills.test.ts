@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
@@ -122,40 +120,5 @@ suite('SessionChatPills', () => {
 			afterHide: { pullRequests: false, issues: true, restored: false },
 			afterShow: true,
 		});
-	});
-
-	test('shows all pull requests by default and persists the filter globally', () => {
-		const storageService = disposables.add(new TestStorageService());
-		const visibility = disposables.add(new SessionChatPillVisibility(storageService));
-		const changes: boolean[] = [];
-		disposables.add(autorun(reader => changes.push(visibility.readShowAllPullRequests(reader))));
-
-		visibility.setShowAllPullRequests(false);
-		const filtered = {
-			restored: disposables.add(new SessionChatPillVisibility(storageService)).readShowAllPullRequests(undefined),
-			application: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.APPLICATION),
-			profile: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.PROFILE),
-			workspace: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.WORKSPACE),
-			pillVisible: visibility.isVisible(SessionChatPillKind.PullRequests, undefined),
-		};
-		visibility.setShowAllPullRequests(true);
-
-		assert.deepStrictEqual({
-			changes,
-			filtered,
-			restoredAll: disposables.add(new SessionChatPillVisibility(storageService)).readShowAllPullRequests(undefined),
-		}, {
-			changes: [true, false, true],
-			filtered: { restored: false, application: false, profile: undefined, workspace: undefined, pillVisible: true },
-			restoredAll: true,
-		});
-	});
-
-	test('preserves the show-all default for an invalid stored filter', () => {
-		const storageService = disposables.add(new TestStorageService());
-		storageService.store('sessions.chatPills.pullRequests.showAll', 'invalid', StorageScope.APPLICATION, StorageTarget.USER);
-		const visibility = disposables.add(new SessionChatPillVisibility(storageService));
-
-		assert.strictEqual(visibility.readShowAllPullRequests(undefined), true);
 	});
 });

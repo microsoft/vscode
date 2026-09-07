@@ -6,16 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { ChatPillSingleEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
-import { computePullRequestIcon, type ChatPullRequestState } from '../../../common/chatPullRequest.js';
-
-export interface IChatPullRequestPillEntry extends IChatPillEntry {
-	readonly pullRequestState?: ChatPullRequestState;
-}
-
-export interface IChatPullRequestPillSection extends IChatPillSection {
-	readonly entries: readonly IChatPullRequestPillEntry[];
-}
+import { computePullRequestIcon } from '../../../common/chatPullRequest.js';
 
 /** Shared presentation of the pull requests pill. */
 export const sessionPullRequestsPillOptions: IChatDropdownPillOptions = {

@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
-import type { IChatPullRequestPillEntry, IChatPullRequestPillSection } from '../../browser/sessionChatPillOptions.js';
+import { SessionPullRequestPillService, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('StandardChatInputPillSources', () => {
@@ -64,6 +65,10 @@ suite('StandardChatInputPillSources', () => {
 		return { id, label: id, pillLabel: id, icon: computePullRequestIcon(state ?? 'open'), pullRequestState: state, open: () => { } };
 	}
 
+	function createPullRequestService() {
+		return store.add(new SessionPullRequestPillService(store.add(new TestStorageService())));
+	}
+
 	test('uses one canonical composition for different offered kind sets', () => {
 		const { instantiationService } = createServices();
 		const sections = constObservable([]);
@@ -102,8 +107,9 @@ suite('StandardChatInputPillSources', () => {
 	});
 
 	test('offers checked pull request options directly below Hide for mouse and keyboard', async () => {
+		const data = createPullRequestService().createPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]));
 		const pills = createPills({
-			pullRequests: { sections: constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]) },
+			pullRequests: data,
 		});
 		const menu = pills.openContextMenu(pills.inputPills.getPillElements()[0]);
 		const submenu = menu[1];
@@ -121,7 +127,7 @@ suite('StandardChatInputPillSources', () => {
 			keyboardOrder: keyboardMenu.slice(0, 3).map(action => action.label),
 			before,
 			after,
-			restoredAll: pills.visibility.readShowAllPullRequests(undefined),
+			restoredAll: data.getContextMenuActions()[0].checked,
 		}, {
 			order: ['Hide Pull Requests', 'Pull Requests Options', ''],
 			keyboardOrder: ['Hide Pull Requests', 'Pull Requests Options', ''],
@@ -171,7 +177,7 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('filters closed and merged pull requests reactively across sessions but not references', () => {
+	test('renders filtered pull request data reactively across sessions without changing references', async () => {
 		const sections = observableValue<readonly IChatPullRequestPillSection[]>('pullRequestSections', [{
 			title: 'Pull Requests',
 			entries: [
@@ -182,10 +188,12 @@ suite('StandardChatInputPillSources', () => {
 				pullRequestEntry('#5'),
 			],
 		}]);
-		const first = createPills({ pullRequests: { sections }, references: { sections } });
-		const second = createPills({ pullRequests: { sections } }, first.visibility);
+		const service = createPullRequestService();
+		const firstData = service.createPillData(sections);
+		const first = createPills({ pullRequests: firstData, references: { sections } });
+		const second = createPills({ pullRequests: service.createPillData(sections) }, first.visibility);
 		const before = { first: first.labels(), second: second.labels() };
-		first.visibility.setShowAllPullRequests(false);
+		await firstData.getContextMenuActions()[1].run();
 		const filtered = { first: first.labels(), second: second.labels() };
 		const states: readonly (ChatPullRequestState | undefined)[] = ['open', 'draft', 'closed', 'merged', undefined];
 		const transitions = states.map(state => {
@@ -207,10 +215,11 @@ suite('StandardChatInputPillSources', () => {
 	});
 
 	test('keeps options reachable when every pull request is filtered out', async () => {
+		const data = createPullRequestService().createPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]));
 		const pills = createPills({
-			pullRequests: { sections: constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]) },
+			pullRequests: data,
 		});
-		pills.visibility.setShowAllPullRequests(false);
+		await data.getContextMenuActions()[1].run();
 		const filtered = {
 			labels: pills.labels(),
 			visible: pills.inputPills.visible,
@@ -235,23 +244,21 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
-	test('preserves provided summary icons for Show All and only aggregates visible entries when filtered', () => {
+	test('renders summary icon updates from the pull request data provider', async () => {
 		const icon = observableValue('pullRequestSummaryIcon', computePullRequestIcon('merged'));
+		const data = createPullRequestService().createPillData(constObservable([{
+			title: 'Pull Requests',
+			entries: [pullRequestEntry('#1', 'merged'), pullRequestEntry('#2', 'draft'), pullRequestEntry('#3', 'draft')],
+		}]), icon);
 		const pills = createPills({
-			pullRequests: {
-				icon,
-				sections: constObservable([{
-					title: 'Pull Requests',
-					entries: [pullRequestEntry('#1', 'merged'), pullRequestEntry('#2', 'draft'), pullRequestEntry('#3', 'draft')],
-				}]),
-			},
+			pullRequests: data,
 		});
 		const hasIcon = (state: ChatPullRequestState) => pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${computePullRequestIcon(state).id}`);
 		const before = hasIcon('merged');
-		pills.visibility.setShowAllPullRequests(false);
+		await data.getContextMenuActions()[1].run();
 		icon.set(computePullRequestIcon('closed'), undefined);
 		const filtered = hasIcon('draft');
-		pills.visibility.setShowAllPullRequests(true);
+		await data.getContextMenuActions()[0].run();
 
 		assert.deepStrictEqual({ before, filtered, restored: hasIcon('closed') }, { before: true, filtered: true, restored: true });
 	});
