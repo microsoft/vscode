@@ -295,7 +295,7 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => event.data), [{
 			automationId: hashAutomationTelemetryId('review-changes'),
-			runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
+			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'copilotcli',
@@ -365,7 +365,7 @@ suite('AgentHostAutomationService', () => {
 		})), [{
 			name: 'automation.runCompleted',
 			automationId: hashAutomationTelemetryId('review-changes'),
-			runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
+			runId: AgentSession.id(run.resource),
 			trigger: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
 			provider: 'default',
@@ -683,7 +683,7 @@ suite('AgentHostAutomationService', () => {
 		})), ['automation.runCreated', 'automation.runStarted', 'automation.runCompleted'].map(name => ({
 			name,
 			automationId: hashAutomationTelemetryId('review-changes'),
-			runId: hashAutomationTelemetryId(AgentSession.id(first.resource)),
+			runId: AgentSession.id(first.resource),
 			agentSessionId: name === 'automation.runCreated' ? undefined : 'automation-session',
 			sessionCreated: name !== 'automation.runCreated',
 			outcome: name === 'automation.runCompleted' ? 'success' : undefined,
@@ -877,7 +877,7 @@ suite('AgentHostAutomationService', () => {
 
 			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data), [{
 				automationId: hashAutomationTelemetryId('review-changes'),
-				runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
+				runId: AgentSession.id(run.resource),
 				trigger: 'manual',
 				runCreatedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
 				provider: 'copilotcli',

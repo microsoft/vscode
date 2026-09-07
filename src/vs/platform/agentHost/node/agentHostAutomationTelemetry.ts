@@ -47,7 +47,7 @@ type AutomationConfigurationClassification = IAgentHostCopilotSkuClassification 
 
 type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
 	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the opaque automation identifier, stable across ownership migration.' };
-	runId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the opaque execution identifier.' };
+	runId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host automation run identifier.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run was manual, scheduled, catch-up or event-triggered.' };
 	runCreatedAt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UTC timestamp of the durable run claim.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded Agent Host provider, matching the provider dimension in session and turn telemetry.' };
@@ -140,7 +140,6 @@ export function logAutomationRunCreated(telemetryService: ITelemetryService, eve
 	telemetryService.publicLog2<AutomationRunCreatedEvent, AutomationRunCreatedClassification>('automation.runCreated', {
 		...event,
 		automationId: hashAutomationTelemetryId(event.automationId),
-		runId: hashAutomationTelemetryId(event.runId),
 	});
 }
 
@@ -148,7 +147,6 @@ export function logAutomationRunStarted(telemetryService: ITelemetryService, eve
 	telemetryService.publicLog2<AutomationRunStartedEvent, AutomationRunStartedClassification>('automation.runStarted', {
 		...event,
 		automationId: hashAutomationTelemetryId(event.automationId),
-		runId: hashAutomationTelemetryId(event.runId),
 	});
 }
 
@@ -156,7 +154,6 @@ export function logAutomationRunCompleted(telemetryService: ITelemetryService, e
 	telemetryService.publicLog2<AutomationRunCompletedEvent, AutomationRunCompletedClassification>('automation.runCompleted', {
 		...event,
 		automationId: hashAutomationTelemetryId(event.automationId),
-		runId: hashAutomationTelemetryId(event.runId),
 		durationMs: Math.max(0, Math.round(event.durationMs)),
 	});
 }
