@@ -585,7 +585,7 @@ export class CodeApplication extends Disposable {
 			// For all other URLs, delegate to the OS.
 			contents.setWindowOpenHandler(details => {
 
-				// about:blank windows can open as window with our default options
+				// about:blank windows can open with our default options
 				if (details.url === 'about:blank') {
 					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 

@@ -84,7 +84,7 @@ suite('Event utils dispose', function () {
 		const store = new DisposableStore();
 		const emitter = ds.add(new Emitter<number>());
 		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
-		assertDisposablesCount(1); // snapshot only listen when `evens` is being listened on
+		assertDisposablesCount(1); // snapshot only listens when `evens` is being listened to
 
 		let all = 0;
 		const leaked = evens(n => all += n);
