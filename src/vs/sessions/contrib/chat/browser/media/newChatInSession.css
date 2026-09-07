@@ -5,10 +5,9 @@
 
 /* Overrides for the new-chat-in-session view to match VS Code chat input styling */
 
-/* Position the input at the bottom of the view */
+/* Keep the composer vertically centered like the new-session view. */
 .new-chat-in-session .new-chat-widget-container,
 .new-chat-in-session .new-chat-widget-container.revealed {
-	justify-content: flex-end;
 	padding: 0;
 }
 
