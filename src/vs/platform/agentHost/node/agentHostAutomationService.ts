@@ -348,15 +348,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const scheduleChanged = !equals(existing.definition.triggers, automation.definition.triggers);
 		const sessionConfigurationChanged = !equals(existing.definition.session, automation.definition.session);
 		const promptChanged = !equals(existing.definition.message, automation.definition.message);
+		const titleChanged = existing.definition.title !== automation.definition.title;
 		if (!isAgentHostLegacyAutomationImportPending(existing.definition)
 			&& !isAgentHostLegacyAutomationImportPending(automation.definition)
-			&& (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || existing.definition.title !== automation.definition.title)) {
+			&& (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || titleChanged)) {
 			logAutomationUpdated(this._telemetryService, {
 				...this._definitionTelemetry(automation),
 				enabledChanged,
 				scheduleChanged,
 				sessionConfigurationChanged,
 				promptChanged,
+				titleChanged,
 			});
 		}
 		this._scheduleNext();

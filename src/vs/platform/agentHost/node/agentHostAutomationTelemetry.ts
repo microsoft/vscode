@@ -74,6 +74,7 @@ type AutomationUpdatedEvent = IAutomationDefinitionTelemetry & {
 	scheduleChanged: boolean;
 	sessionConfigurationChanged: boolean;
 	promptChanged: boolean;
+	titleChanged: boolean;
 };
 type AutomationUpdatedClassification = Omit<AutomationCreatedClassification, 'comment'> & {
 	comment: 'Records persisted, user-editable changes to Agent Host automations, excluding replay and migration bookkeeping.';
@@ -81,6 +82,7 @@ type AutomationUpdatedClassification = Omit<AutomationCreatedClassification, 'co
 	scheduleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic triggers changed, without recording expressions or time zones.' };
 	sessionConfigurationChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the saved session template changed, without recording arbitrary configuration.' };
 	promptChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation message changed, without recording its content.' };
+	titleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation title changed, without recording its content.' };
 };
 type AutomationDeletedClassification = Omit<AutomationCreatedClassification, 'comment'> & {
 	comment: 'Records removal of a persisted Agent Host automation; repeated removals do not emit.';
