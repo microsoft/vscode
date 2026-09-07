@@ -23,9 +23,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
-import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -717,7 +716,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.editRequests', 'hover');
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
@@ -788,7 +786,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.editRequests', 'hover');
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
@@ -890,41 +887,24 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	suite('turn status pills setting', () => {
-		test('normalizes boolean and legacy object values', () => {
-			assert.deepStrictEqual([
-				isChatTurnStatusPillsEnabled(undefined),
-				isChatTurnStatusPillsEnabled(false),
-				isChatTurnStatusPillsEnabled(true),
-				isChatTurnStatusPillsEnabled({}),
-				isChatTurnStatusPillsEnabled({ changes: false, preview: false, browser: false }),
-				isChatTurnStatusPillsEnabled({ changes: true }),
-				isChatTurnStatusPillsEnabled({ preview: true }),
-				isChatTurnStatusPillsEnabled({ browser: true }),
-			], [false, false, true, false, false, true, true, true]);
-		});
-
+	suite('turn status pills', () => {
 		test('computes pill and legacy file summaries independently', () => {
 			assert.deepStrictEqual({
 				fileSummary: shouldShowFileChangesSummaryForSettings(true, true, true),
 				fileSummaryIncomplete: shouldShowFileChangesSummaryForSettings(false, true, true),
 				fileSummaryNonLocal: shouldShowFileChangesSummaryForSettings(true, false, true),
 				fileSummaryDisabled: shouldShowFileChangesSummaryForSettings(true, true, false),
-				pillsSummary: shouldShowPillsSummaryForSettings(true, true, true),
-				pillsSummaryLegacy: shouldShowPillsSummaryForSettings(true, true, { preview: true }),
-				pillsSummaryIncomplete: shouldShowPillsSummaryForSettings(false, true, true),
-				pillsSummaryNonAgentHost: shouldShowPillsSummaryForSettings(true, false, true),
-				pillsSummaryDisabled: shouldShowPillsSummaryForSettings(true, true, false),
+				pillsSummary: shouldShowTurnPillsSummary(true, true),
+				pillsSummaryIncomplete: shouldShowTurnPillsSummary(false, true),
+				pillsSummaryNonAgentHost: shouldShowTurnPillsSummary(true, false),
 			}, {
 				fileSummary: true,
 				fileSummaryIncomplete: false,
 				fileSummaryNonLocal: false,
 				fileSummaryDisabled: false,
 				pillsSummary: true,
-				pillsSummaryLegacy: true,
 				pillsSummaryIncomplete: false,
 				pillsSummaryNonAgentHost: false,
-				pillsSummaryDisabled: false,
 			});
 		});
 	});
@@ -1168,7 +1148,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -1268,7 +1247,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
@@ -1377,7 +1355,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
@@ -1495,7 +1472,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
@@ -1582,7 +1558,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
@@ -1681,7 +1656,6 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());

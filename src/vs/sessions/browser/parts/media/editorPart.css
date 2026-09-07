@@ -85,11 +85,6 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-tabs-compact-height .search-editor > .query-container {
-	min-height: var(--vscode-spacing-size280);
-	padding-block: var(--vscode-spacing-sizeNone);
-}
-
 .agent-sessions-workbench.dock-detail-panel .part.editor .search-editor > .query-container > .search-widget {
 	min-width: 0;
 }

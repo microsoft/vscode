@@ -98,9 +98,9 @@ import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, refre
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
-import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
+import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
@@ -456,6 +456,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _promptOptionsState: NewSessionPromptOptionsState | undefined;
 	private _promptOptionsController: INewSessionPromptOptionsController | undefined;
 	private _promptOptionsDismissed = false;
+	private _promptOptionsSelected = false;
 
 	// Send button
 	private _sendButton: Button | undefined;
@@ -550,7 +551,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -677,6 +678,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._promptOptionsWidget.value = this.instantiationService.createInstance(NewSessionPromptOptionsWidget, chatInputContainer, {
 			selectOption: async (option, expectedInput, animate) => {
+				// Mark the selection as it begins: the widget only reports it once the prompt
+				// animation completes, and a streamed update in between would clear it.
+				this._promptOptionsSelected = true;
 				this.focus();
 				const inserted = animate
 					? await this.animatePrompt(option.prompt, NEW_SESSION_PROMPT_TYPING_DURATION_MS, option.placeholder, CancellationToken.None, expectedInput)
@@ -763,9 +767,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, sessionControlsContainer, Menus.NewSessionControl, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-		}));
+		this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
 		this._register({ dispose: () => sessionControlsContainer.remove() });
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
@@ -1133,16 +1135,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
-		const configToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			actionViewItemProvider: (action) => {
-				if (action.id === 'sessions.modelPicker') {
-					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this._compactModelPicker);
-					return new ModelPickerActionViewItem(picker);
-				}
-				return undefined;
-			},
-		}));
+		const configToolbar = this._register(createNewSessionConfigToolbar(configContainer, this._scopedInstantiationService, this._compactModelPicker));
 
 		// Dictation mic button. Shares the STT service, mic
 		// device, and gating (backend support + `dictation.enabled`)
@@ -1762,6 +1755,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._cancelPromptOptionsRefresh(false);
 		this._promptOptionsController = controller;
 		this._promptOptionsDismissed = false;
+		this._promptOptionsSelected = false;
 	}
 
 	preparePromptOptionsRefresh(): boolean {
@@ -1769,6 +1763,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 		this._cancelPromptOptionsRefresh();
+		this._promptOptionsSelected = false;
 		this.showPromptOptions({ kind: 'loading' });
 		return true;
 	}
@@ -1809,9 +1804,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const cts = new CancellationTokenSource(token);
 		this._promptOptionsRefresh.value = cts;
+		// Options resolved after a first paint must not replace ones the user is already working with:
+		// re-rendering clears the selection and moves focus out of the options.
+		const canRerender = () => !this._promptOptionsSelected && !this._promptOptionsWidget.value?.hasFocusedOption();
 		let state: NewSessionPromptOptionsState;
 		try {
-			state = await controller.resolve(cts.token);
+			state = await controller.resolve(cts.token, progressState => {
+				if (this._promptOptionsRefresh.value !== cts || cts.token.isCancellationRequested || !canRerender()) {
+					return false;
+				}
+				return this.showPromptOptions(progressState);
+			});
 		} catch (error) {
 			if (this._promptOptionsRefresh.value === cts) {
 				this._promptOptionsRefresh.clear();
@@ -1831,6 +1834,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return false;
 		}
 		this._promptOptionsRefresh.clear();
+		if (!canRerender()) {
+			return true;
+		}
 		return this.showPromptOptions(state);
 	}
 
