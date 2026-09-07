@@ -24,6 +24,11 @@ export interface IMeteredConnectionService {
 	readonly isConnectionMetered: boolean;
 
 	/**
+	 * Resolves once the initial connection state is available, when initialization is asynchronous.
+	 */
+	readonly whenConnectionStateInitialized?: Promise<void>;
+
+	/**
 	 * Event that fires when the metered connection status changes.
 	 */
 	readonly onDidChangeIsConnectionMetered: Event<boolean>;

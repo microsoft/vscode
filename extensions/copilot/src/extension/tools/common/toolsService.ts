@@ -130,6 +130,109 @@ function getObjectPropertyByPath(obj: any, jsonPointerPath: string): { parent: a
 	return null;
 }
 
+/**
+ * Property names that must never be used as path segments when reconstructing
+ * objects from untrusted tool input, to avoid prototype pollution.
+ */
+const UNSAFE_PROPERTY_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Upper bound for array indices accepted when reconstructing flattened tool
+ * input. Caps the reconstructed array length to avoid huge sparse arrays from
+ * untrusted input (e.g. `items[999999999999]`) that would make subsequent Ajv
+ * validation pathologically slow.
+ */
+const MAX_FLATTENED_ARRAY_INDEX = 1000;
+
+/**
+ * Parses a flattened path key (e.g. `questions[0].options[1].label`) into an
+ * ordered list of segments (`['questions', 0, 'options', 1, 'label']`). Object
+ * properties are returned as strings and array indices as numbers. Returns
+ * `undefined` if the key is not a well-formed, contiguous path expression, if
+ * it contains an unsafe property name (e.g. `__proto__`), or if an array index
+ * exceeds {@link MAX_FLATTENED_ARRAY_INDEX}.
+ */
+function parseFlattenedPath(key: string): (string | number)[] | undefined {
+	const segments: (string | number)[] = [];
+	const re = /\.?([^.[\]]+)|\[(\d+)\]/g;
+	let lastIndex = 0;
+	let match: RegExpExecArray | null;
+	while ((match = re.exec(key)) !== null) {
+		// Bail if there is an unexpected character between tokens (e.g. `a..b`).
+		if (match.index !== lastIndex) {
+			return undefined;
+		}
+		if (match[2] !== undefined) {
+			const index = Number(match[2]);
+			// Reject out-of-range indices to avoid huge sparse arrays.
+			if (!Number.isSafeInteger(index) || index > MAX_FLATTENED_ARRAY_INDEX) {
+				return undefined;
+			}
+			segments.push(index);
+		} else {
+			// Reject prototype-pollution keys from untrusted tool input.
+			if (UNSAFE_PROPERTY_NAMES.has(match[1])) {
+				return undefined;
+			}
+			segments.push(match[1]);
+		}
+		lastIndex = re.lastIndex;
+	}
+	if (lastIndex !== key.length || segments.length === 0) {
+		return undefined;
+	}
+	return segments;
+}
+
+/**
+ * Reconstructs a nested object/array structure from an object whose keys are
+ * flattened path expressions. Some models (notably Gemini) serialize nested
+ * tool-call arguments as flat keys like `questions[0].header` instead of a
+ * proper nested object. Returns `undefined` when none of the keys use path
+ * notation (so normal inputs are left untouched), when a key is malformed, or
+ * when keys conflict (e.g. both `a` and `a.b`).
+ */
+function tryUnflattenObject(obj: Record<string, unknown>): Record<string, unknown> | undefined {
+	const keys = Object.keys(obj);
+	if (!keys.some(key => /\.|\[\d+\]/.test(key))) {
+		return undefined;
+	}
+
+	// Use null-prototype containers so untrusted keys cannot reach Object.prototype.
+	const result: Record<string, unknown> = Object.create(null);
+	for (const key of keys) {
+		const path = parseFlattenedPath(key);
+		if (!path) {
+			return undefined;
+		}
+
+		let current: any = result;
+		for (let i = 0; i < path.length - 1; i++) {
+			const segment = path[i];
+			const nextSegment = path[i + 1];
+			const child = current[segment];
+			if (child === undefined) {
+				current[segment] = typeof nextSegment === 'number' ? [] : Object.create(null);
+			} else if (typeof child !== 'object' || child === null) {
+				// Conflicting keys (e.g. both `a` and `a.b`) would require
+				// overwriting a primitive with a container; bail out instead.
+				return undefined;
+			}
+			current = current[segment];
+		}
+
+		const leaf = path[path.length - 1];
+		if (typeof current[leaf] === 'object' && current[leaf] !== null) {
+			// A container already exists at this leaf (e.g. both `a` and `a.b`
+			// where `a` is assigned last); refuse to clobber it.
+			return undefined;
+		}
+		current[leaf] = obj[key];
+	}
+
+	return result;
+}
+
 function ajvValidateForTool(toolName: string, fn: ValidateFunction, inputObj: unknown): IToolValidationResult {
 	// Empty output can be valid when the schema only has optional properties
 	if (fn(inputObj ?? {})) {
@@ -165,6 +268,16 @@ function ajvValidateForTool(toolName: string, fn: ValidateFunction, inputObj: un
 
 		if (hasNestedJsonStrings) {
 			return ajvValidateForTool(toolName, fn, inputObj);
+		}
+	}
+
+	// Recovery: some models (notably Gemini) serialize nested arguments as
+	// flattened path keys like `questions[0].header` instead of nested
+	// objects/arrays. Reconstruct the nested structure and re-validate.
+	if (typeof inputObj === 'object' && inputObj !== null && !Array.isArray(inputObj)) {
+		const unflattened = tryUnflattenObject(inputObj as Record<string, unknown>);
+		if (unflattened) {
+			return ajvValidateForTool(toolName, fn, unflattened);
 		}
 	}
 

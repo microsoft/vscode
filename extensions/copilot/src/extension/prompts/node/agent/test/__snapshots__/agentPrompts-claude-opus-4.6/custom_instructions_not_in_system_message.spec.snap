@@ -160,6 +160,7 @@ Repository memory (/memories/repo/) is empty. No workspace-scoped notes have bee
 (Date removed from snapshot)
 </context>
 <reminderInstructions>
+Write a comment only to state what the code cannot show on its own, and keep it to one short line. Don't restate what the next line does or explain your change to the reviewer, and don't write a multi-paragraph doc comment where a single line will do.
 Do NOT create markdown files to document changes unless requested.
 
 </reminderInstructions>

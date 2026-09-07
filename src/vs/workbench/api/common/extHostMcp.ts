@@ -333,6 +333,22 @@ type HttpModeT =
 
 const MAX_FOLLOW_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
+// MCP server URLs are restricted to http(s) at configuration time; the redirect
+// path must enforce the same so a Location header cannot reach unix://, pipe://,
+// file://, etc.
+const ALLOWED_REDIRECT_PROTOCOLS = new Set(['http:', 'https:']);
+// Credential-bearing headers that must not be replayed to a different origin
+// after a redirect (matches browser fetch / curl behavior). Compared case-insensitively.
+const CROSS_ORIGIN_STRIPPED_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization', 'mcp-session-id']);
+
+function setHostHeader(headers: Record<string, string>, name: string, value: string): void {
+	for (const configuredName of Object.keys(headers)) {
+		if (configuredName.toLowerCase() === name.toLowerCase()) {
+			delete headers[configuredName];
+		}
+	}
+	headers[name] = value;
+}
 
 /**
  * Implementation of both MCP HTTP Streaming as well as legacy SSE.
@@ -728,7 +744,7 @@ export class McpHTTPHandle extends Disposable {
 						forceNewRegistration: options?.forceNewRegistration
 					});
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 				}
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
@@ -752,7 +768,7 @@ export class McpHTTPHandle extends Disposable {
 					}
 				);
 				if (token) {
-					headers['Authorization'] = `Bearer ${token}`;
+					setHostHeader(headers, 'Authorization', `Bearer ${token}`);
 					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
 				}
 			} catch (e) {
@@ -830,7 +846,7 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
-		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+		setHostHeader(init.headers, 'user-agent', `${product.nameLong}/${product.version}`);
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
@@ -862,7 +878,28 @@ export class McpHTTPHandle extends Disposable {
 				break;
 			}
 
-			const nextUrl = new URL(location, currentUrl).toString();
+			const currentUrlParsed = new URL(currentUrl);
+			const nextUrlParsed = new URL(location, currentUrl);
+
+			// Only follow redirects to http(s). Blocks a malicious Location header from
+			// reaching the unix:// / pipe:// socket dispatcher or other local schemes.
+			// Fail closed so the connection errors deterministically rather than the
+			// caller treating the 3xx response as final.
+			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrlParsed.protocol)) {
+				throw new Error(`MCP server redirected to a non-http(s) target (${nextUrlParsed.protocol}), which is not allowed`);
+			}
+
+			// On a cross-origin redirect, strip credential-bearing headers so tokens and
+			// session ids configured for the original origin are not replayed to another host.
+			if (currentUrlParsed.origin !== nextUrlParsed.origin) {
+				for (const name of Object.keys(init.headers)) {
+					if (CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())) {
+						delete init.headers[name];
+					}
+				}
+			}
+
+			const nextUrl = nextUrlParsed.toString();
 			this._log(LogLevel.Trace, `Redirect (${response.status}) from ${currentUrl} to ${nextUrl}`);
 			currentUrl = nextUrl;
 			// Per fetch spec, for 303 always use GET, keep method unless original was POST and 301/302, then GET.

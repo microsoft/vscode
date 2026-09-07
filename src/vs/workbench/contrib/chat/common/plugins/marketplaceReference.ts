@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { IExtraKnownMarketplaceEntry } from '../../../../../base/common/managedSettings.js';
+import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
+
+export { extraKnownMarketplacesToConfigDict } from '../../../../../base/common/managedSettings.js';
 
 export const enum MarketplaceReferenceKind {
 	GitHubShorthand = 'githubShorthand',
@@ -24,6 +26,7 @@ export interface IMarketplaceReference {
 	readonly ref?: string;
 	readonly githubRepo?: string;
 	readonly localRepositoryUri?: URI;
+	readonly autoUpdate?: boolean;
 }
 
 /**
@@ -46,49 +49,24 @@ export interface IConfiguredMarketplaces {
 /** Shorthand-or-URI regex used to detect GitHub `owner/repo[#ref]` entries. */
 const _githubShorthandRe = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:#.+)?$/;
 
-/**
- * Converts the {@link IExtraKnownMarketplaceEntry} array delivered by the
- * `ChatExtraMarketplaces` policy into the `{ [name]: url-or-shorthand }` dict
- * stored on the `chat.plugins.extraMarketplaces` setting.
- *
- * The dict shape is what the Settings Editor's ComplexObject renderer can
- * display inline as key/value rows. {@link readConfiguredMarketplaces} reverses
- * this conversion so {@link parseMarketplaceReferences} keeps producing
- * `displayLabel = name` (required for `enabledPlugins["plugin@<name>"]` keys).
- *
- * Plain-string entries (allowed by the policy schema but unnamed) are stored
- * with the value used as both key and value so they survive the round-trip
- * intact.
- */
-export function extraKnownMarketplacesToConfigDict(entries: readonly (string | IExtraKnownMarketplaceEntry)[] | undefined): Record<string, string> | undefined {
-	if (!entries?.length) {
-		return undefined;
-	}
-	const obj: Record<string, string> = {};
-	for (const entry of entries) {
-		if (typeof entry === 'string') {
-			obj[entry] = entry;
-		} else {
-			const s = entry.source;
-			const base = s.source === 'github' ? s.repo : s.url;
-			obj[entry.name] = s.ref ? `${base}#${s.ref}` : base;
-		}
-	}
-	return obj;
-}
-
 export function readConfiguredMarketplaces(configurationService: IConfigurationService): IConfiguredMarketplaces {
 	const userValues = configurationService.getValue<(string | object)[]>(ChatConfiguration.PluginMarketplaces) ?? [];
 
 	// `ChatExtraMarketplaces` is stored as `{ [name]: url-or-shorthand }` when delivered by
 	// policy. Convert each entry to the nested IExtraMarketplaceObjectEntry shape so that
 	// parseMarketplaceReferences can set displayLabel = name (critical for enabledPlugins keys).
-	const extraObj = configurationService.getValue<Record<string, string>>(ChatConfiguration.ExtraMarketplaces) ?? {};
-	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).map(([name, src]) => {
+	const extraObj = configurationService.getValue<ExtraKnownMarketplacesConfigDict>(ChatConfiguration.ExtraMarketplaces) ?? {};
+	const extraValues: IExtraMarketplaceObjectEntry[] = Object.entries(extraObj).flatMap(([name, value]) => {
+		if (typeof value !== 'string') {
+			return [];
+		}
+		const encoded = parseExtraMarketplaceConfigValue(value);
+		const src = encoded?.source ?? value;
+		const autoUpdate = encoded?.autoUpdate;
 		const isGithubShorthand = _githubShorthandRe.test(src);
-		return isGithubShorthand
-			? { name, source: { source: 'github' as const, repo: src } }
-			: { name, source: { source: 'git' as const, url: src } };
+		return [isGithubShorthand
+			? { name, autoUpdate, source: { source: 'github' as const, repo: src } }
+			: { name, autoUpdate, source: { source: 'git' as const, url: src } }];
 	});
 
 	return {
@@ -96,6 +74,20 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 		extraValues,
 		effectiveValues: [...userValues, ...extraValues],
 	};
+}
+
+function parseExtraMarketplaceConfigValue(value: string): IExtraKnownMarketplaceConfigValue | undefined {
+	try {
+		const parsed = JSON.parse(value);
+		return parsed
+			&& typeof parsed === 'object'
+			&& typeof parsed.source === 'string'
+			&& typeof parsed.autoUpdate === 'boolean'
+			? parsed
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 export function parseMarketplaceReferences(values: readonly unknown[]): IMarketplaceReference[] {
@@ -108,8 +100,13 @@ export function parseMarketplaceReferences(values: readonly unknown[]): IMarketp
 		} else if (value && typeof value === 'object') {
 			parsed = parseMarketplaceObjectEntry(value as IExtraMarketplaceObjectEntry);
 		}
-		if (parsed && !byCanonicalId.has(parsed.canonicalId)) {
-			byCanonicalId.set(parsed.canonicalId, parsed);
+		if (parsed) {
+			const existing = byCanonicalId.get(parsed.canonicalId);
+			if (!existing) {
+				byCanonicalId.set(parsed.canonicalId, parsed);
+			} else if (parsed.autoUpdate !== undefined) {
+				byCanonicalId.set(parsed.canonicalId, { ...existing, autoUpdate: parsed.autoUpdate });
+			}
 		}
 	}
 
@@ -131,6 +128,7 @@ export interface IExtraMarketplaceObjectEntry {
 	readonly repo?: string;
 	readonly url?: string;
 	readonly ref?: string;
+	readonly autoUpdate?: boolean;
 }
 
 export function parseMarketplaceObjectEntry(entry: IExtraMarketplaceObjectEntry): IMarketplaceReference | undefined {
@@ -161,6 +159,9 @@ export function parseMarketplaceObjectEntry(entry: IExtraMarketplaceObjectEntry)
 
 	if (parsed && typeof entry.name === 'string' && entry.name.length > 0) {
 		parsed = { ...parsed, displayLabel: entry.name };
+	}
+	if (parsed && typeof entry.autoUpdate === 'boolean') {
+		parsed = { ...parsed, autoUpdate: entry.autoUpdate };
 	}
 	return parsed;
 }

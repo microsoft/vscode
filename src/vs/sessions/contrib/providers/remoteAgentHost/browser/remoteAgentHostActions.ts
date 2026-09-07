@@ -10,8 +10,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -21,25 +24,29 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { runServerUpgrade } from './remoteHostOptions.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -50,6 +57,7 @@ export const RemoteAgentHostCommandIds = {
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
+	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
 
 registerAction2(class extends Action2 {
@@ -67,6 +75,7 @@ registerAction2(class extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
@@ -110,7 +119,7 @@ registerAction2(class extends Action2 {
 
 		// Connect
 		try {
-			await remoteAgentHostService.addRemoteAgentHost({
+			await addWebSocketRemoteAgentHostEntry(configurationService, {
 				name: name.trim(),
 				connectionToken: parsed.parsed.connectionToken,
 				connection: {
@@ -118,6 +127,7 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
@@ -534,6 +544,8 @@ async function connectWithProgress(
 ): Promise<ISSHAgentHostConnection | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const notificationService = accessor.get(INotificationService);
+	const telemetryService = accessor.get(ITelemetryService);
+	const stopwatch = StopWatch.create(false);
 
 	const handle = notificationService.notify({
 		severity: Severity.Info,
@@ -555,11 +567,31 @@ async function connectWithProgress(
 
 	try {
 		const connection = await sshService.connect(config);
+		logSSHConnectAttempt(telemetryService, {
+			operation: 'connect',
+			userInitiated: config.userInitiated ?? true,
+			attempt: 1,
+			durationMs: stopwatch.elapsed(),
+			success: true,
+			willRetry: false,
+		});
 		handle.close();
 		return connection;
 	} catch (err) {
+		logSSHConnectAttempt(telemetryService, {
+			operation: 'connect',
+			userInitiated: config.userInitiated ?? true,
+			attempt: 1,
+			durationMs: stopwatch.elapsed(),
+			success: false,
+			willRetry: false,
+			errorCategory: categorizeSSHConnectError(err),
+		});
 		handle.close();
-		if (isCancellationError(err)) {
+		if (isCancellationError(err) || isSSHHostKeyDeniedError(err)) {
+			// A refused host key needs no generic error on top: either the user
+			// declined the prompt themselves, or the host key UI has already
+			// shown a specific notification with a way to recover.
 			return undefined;
 		}
 		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
@@ -578,12 +610,10 @@ async function promptForRemoteFolder(
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
-	// The provider is created synchronously during addManagedConnection's
-	// onDidChangeConnections event, so it should exist by now.
+	// The factory-backed entry fires onDidChangeConnections before its handshake completes, so the provider should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
 		return;
@@ -604,8 +634,8 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -810,6 +840,10 @@ interface ITunnelPickItem extends IQuickPickItem {
 	readonly tunnel: ITunnelInfo;
 }
 
+function sortTunnelsByName(tunnels: readonly ITunnelInfo[]): ITunnelInfo[] {
+	return [...tunnels].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function promptToConnectViaTunnel(
 	accessor: ServicesAccessor,
 	options: { showBackButton?: boolean } = {},
@@ -820,6 +854,43 @@ async function promptToConnectViaTunnel(
 	const authenticationService = accessor.get(IAuthenticationService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const productService = accessor.get(IProductService);
+	const dialogService = accessor.get(IDialogService);
+	const remoteTunnelService = accessor.get(IRemoteTunnelService);
+	const store = new DisposableStore();
+	let remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
+	let hasReceivedRemoteTunnelStatus = false;
+	let tunnels: ITunnelInfo[] = [];
+	// eslint-disable-next-line prefer-const
+	let tunnelPicker: IQuickPick<ITunnelPickItem> | undefined;
+	const deleteTunnelButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('tunnelDeleteTooltip', "Delete Dev Tunnel"),
+	};
+	const isHostedTunnel = (tunnel: ITunnelInfo): boolean => isTunnelHosted(remoteTunnelStatus.type === 'connected' ? remoteTunnelStatus.info : undefined, tunnel);
+	const toTunnelPickItems = (tunnelInfos: readonly ITunnelInfo[]): ITunnelPickItem[] => sortTunnelsByName(tunnelInfos)
+		.filter(tunnel => !isHostedTunnel(tunnel))
+		.map(tunnel => ({
+			label: tunnel.name,
+			description: tunnel.hostConnectionCount > 0
+				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
+			tunnel,
+		}));
+	const updateTunnelPickerItems = () => {
+		if (tunnelPicker) {
+			tunnelPicker.items = toTunnelPickItems(tunnels);
+		}
+	};
+	store.add(remoteTunnelService.onDidChangeTunnelStatus(status => {
+		hasReceivedRemoteTunnelStatus = true;
+		remoteTunnelStatus = status;
+		updateTunnelPickerItems();
+	}));
+	const initialRemoteTunnelStatus = await remoteTunnelService.getTunnelStatus();
+	if (!hasReceivedRemoteTunnelStatus) {
+		remoteTunnelStatus = initialRemoteTunnelStatus;
+	}
 
 	// Step 1: Determine auth provider — try cached sessions first, then prompt
 	// This used to call tunnelService.getAuthProvider, but for now we're Github-
@@ -833,13 +904,13 @@ async function promptToConnectViaTunnel(
 			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
 		}
 	} catch {
+		store.dispose();
 		notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
 		return;
 	}
 
 	// Step 2: Show tunnel picker immediately in busy state while enumerating
-	const store = new DisposableStore();
-	const tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
+	tunnelPicker = store.add(quickInputService.createQuickPick<ITunnelPickItem>());
 	tunnelPicker.title = localize('tunnelPickTitle', "Connect via Dev Tunnel");
 	tunnelPicker.placeholder = localize('tunnelPickPlaceholder', "Select a dev tunnel to connect to");
 	tunnelPicker.busy = true;
@@ -848,7 +919,6 @@ async function promptToConnectViaTunnel(
 	}
 	tunnelPicker.show();
 
-	let tunnels: ITunnelInfo[];
 	try {
 		tunnels = await tunnelService.listTunnels();
 	} catch (err) {
@@ -863,15 +933,22 @@ async function promptToConnectViaTunnel(
 		return;
 	}
 
-	tunnelPicker.items = tunnels.map(t => ({
-		label: t.name,
-		description: `${t.tunnelId} · protocol v${t.protocolVersion}`,
-		tunnel: t,
-	}));
+	if (toTunnelPickItems(tunnels).length === 0) {
+		store.dispose();
+		notificationService.info(localize('tunnelOnlyLocalFound', "This machine is already hosting the only available dev tunnel."));
+		return;
+	}
+
+	updateTunnelPickerItems();
 	tunnelPicker.busy = false;
 
 	// Step 3: Wait for user selection
 	const picked = await new Promise<'back' | ITunnelPickItem | undefined>(resolve => {
+		// While the modal delete confirmation is up the picker loses focus and
+		// may hide itself. `isDeleting` suppresses the hide handler for that
+		// window so the pick isn't cancelled, and the picker is re-shown once
+		// the confirmation resolves.
+		let isDeleting = false;
 		store.add(tunnelPicker.onDidTriggerButton(button => {
 			if (button === quickInputService.backButton) {
 				resolve('back');
@@ -879,10 +956,77 @@ async function promptToConnectViaTunnel(
 			}
 		}));
 		store.add(tunnelPicker.onDidAccept(() => {
-			resolve(tunnelPicker.selectedItems[0]);
+			if (isDeleting) {
+				return;
+			}
+			const picked = tunnelPicker.selectedItems[0];
+			if (picked && isHostedTunnel(picked.tunnel)) {
+				updateTunnelPickerItems();
+				return;
+			}
+			resolve(picked);
 			tunnelPicker.hide();
 		}));
+		store.add(tunnelPicker.onDidTriggerItemButton(async event => {
+			if (event.button !== deleteTunnelButton || isDeleting) {
+				return;
+			}
+			if (isHostedTunnel(event.item.tunnel)) {
+				updateTunnelPickerItems();
+				return;
+			}
+
+			const previousIgnoreFocusOut = tunnelPicker.ignoreFocusOut;
+			isDeleting = true;
+			tunnelPicker.ignoreFocusOut = true;
+			let keepOpen = true;
+			try {
+				const confirmation = await dialogService.confirm({
+					type: 'warning',
+					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
+					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
+					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+				});
+				if (!confirmation.confirmed) {
+					return;
+				}
+				if (isHostedTunnel(event.item.tunnel)) {
+					updateTunnelPickerItems();
+					return;
+				}
+
+				tunnelPicker.busy = true;
+				await tunnelService.deleteTunnel(event.item.tunnel);
+				tunnels = await tunnelService.listTunnels();
+				if (toTunnelPickItems(tunnels).length === 0) {
+					keepOpen = false;
+					notificationService.info(localize('tunnelNoneFoundAfterDelete', "No dev tunnels with agent host support were found. Start a tunnel with 'code tunnel' on another machine."));
+					return;
+				}
+
+				updateTunnelPickerItems();
+			} catch (err) {
+				notificationService.error(localize('tunnelDeleteFailed', "Failed to delete dev tunnel '{0}': {1}", event.item.tunnel.name, err instanceof Error ? err.message : String(err)));
+			} finally {
+				tunnelPicker.busy = false;
+				tunnelPicker.ignoreFocusOut = previousIgnoreFocusOut;
+				isDeleting = false;
+				if (keepOpen) {
+					tunnelPicker.show();
+				} else {
+					// The picker may already be hidden behind the confirmation
+					// dialog, in which case `hide()` is a no-op and would never
+					// fire `onDidHide`, so settle the pick explicitly here.
+					resolve(undefined);
+					tunnelPicker.hide();
+					store.dispose();
+				}
+			}
+		}));
 		store.add(tunnelPicker.onDidHide(() => {
+			if (isDeleting) {
+				return;
+			}
 			resolve(undefined);
 			store.dispose();
 		}));
@@ -905,7 +1049,8 @@ async function promptToConnectViaTunnel(
 	try {
 		// `connect` caches the tunnel internally before wiring the live
 		// connection — no separate `cacheTunnel` call needed here.
-		await tunnelService.connect(picked.tunnel, authProvider);
+		tunnelService.clearTunnelDismissal(picked.tunnel.tunnelId);
+		await tunnelService.connect(picked.tunnel, authProvider, { userInitiated: true });
 		handle.close();
 	} catch (err) {
 		handle.close();
@@ -926,8 +1071,7 @@ async function promptForTunnelFolder(
 	tunnel: ITunnelInfo,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -954,8 +1098,8 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -1088,6 +1232,13 @@ async function promptToConnectViaWSL(
 		progress: { infinite: true },
 	});
 
+	const expectedKey = `wsl:${picked.distro.name}`;
+	const progressListener = wslService.onDidReportConnectProgress?.(progress => {
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
+	});
+
 	try {
 		await wslService.connect({ distro: picked.distro.name, name: picked.distro.name });
 		handle.close();
@@ -1099,6 +1250,8 @@ async function promptToConnectViaWSL(
 		logService.error(`[WSL] Connect to '${picked.distro.name}' failed`, err);
 		notificationService.error(localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)));
 		return;
+	} finally {
+		progressListener?.dispose();
 	}
 
 	await instantiationService.invokeFunction(accessor => promptForWSLFolder(accessor, picked.distro.name));
@@ -1113,8 +1266,7 @@ async function promptForWSLFolder(
 	distro: string,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
@@ -1137,8 +1289,8 @@ async function promptForWSLFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -1157,7 +1309,10 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: Menus.SessionWorkspaceManage,
 				order: 15,
-				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isWindows', true),
+					SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				),
 			},
 		});
 	}
@@ -1167,5 +1322,76 @@ registerAction2(class extends Action2 {
 		if (result === 'back') {
 			onBack?.();
 		}
+	}
+});
+
+/**
+ * Force-update a remote agent host server that rejected our protocol
+ * version because it is running an old build. Connecting to such a host
+ * leaves it in the `incompatible` state; when the host was spawned by a
+ * VS Code CLI willing to receive upgrade signals it advertises an upgrade
+ * method, which this command invokes via the shared {@link runServerUpgrade}
+ * flow. Exposed in the command palette so the update is reachable without
+ * first opening the host's options quickpick.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.updateRemoteAgentHost,
+			title: localize2('updateRemoteAgentHost', "Update Remote Agent Host Server..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const remoteHosts = sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !!provider.remoteAddress);
+		let incompatibleCount = 0;
+		const upgradable = remoteHosts
+			.map(provider => {
+				const status = provider.connectionStatus?.get();
+				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					return undefined;
+				}
+				incompatibleCount++;
+				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
+			})
+			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
+
+		if (upgradable.length === 0) {
+			// Distinguish "nothing is incompatible" from "incompatible hosts exist
+			// but none was spawned by a VS Code CLI that can update it in place".
+			notificationService.info(incompatibleCount > 0
+				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+			return;
+		}
+
+		let target = upgradable[0];
+		if (upgradable.length > 1) {
+			type UpdateHostPickItem = IQuickPickItem & { entry: { provider: IAgentHostSessionsProvider; method: string } };
+			const picked = await quickInputService.pick<UpdateHostPickItem>(
+				upgradable.map(entry => ({
+					label: entry.provider.label,
+					description: entry.provider.remoteAddress,
+					entry,
+				})),
+				{ placeHolder: localize('updateRemoteAgentHost.pick', "Select a remote agent host to update") },
+			);
+			if (!picked) {
+				return;
+			}
+			target = picked.entry;
+		}
+
+		await instantiationService.invokeFunction(runServerUpgrade, target.provider, target.method);
 	}
 });

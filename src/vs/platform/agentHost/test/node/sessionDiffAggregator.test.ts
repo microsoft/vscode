@@ -8,8 +8,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
-import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
+import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 
 const TEST_SESSION_URI = 'session://test-session';
 
@@ -488,5 +488,343 @@ suite('computeSessionDiffs', () => {
 
 		assert.strictEqual(db.getAllFileEditsCalls, 0, 'no computation needed');
 		assert.deepStrictEqual(result, previousDiffs);
+	});
+
+	test('throws when a folderScope is combined with incremental mode (unsupported combination)', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('before'), afterContent: encodeString('after'),
+		});
+
+		await assert.rejects(
+			() => computeSessionDiffs(
+				TEST_SESSION_URI,
+				db,
+				createTestDiffService(),
+				{ changedTurnId: 't1', previousDiffs: [] },
+				[URI.file('/a')],
+			),
+			/folderScope` is not supported in incremental mode/,
+		);
+	});
+});
+
+suite('computeUnionedDiffs', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const PEER_CHAT_URI = 'ahp-chat://peer/encoded';
+
+	test('returns empty array when no source has edits', async () => {
+		const result = await computeUnionedDiffs(
+			[{ sessionUri: TEST_SESSION_URI, db: new TestSessionDatabase() }],
+			createTestDiffService(),
+		);
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('unions edits from the session DB and a peer chat DB', async () => {
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a1'), afterContent: encodeString('a1\na2'),
+		});
+
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({
+			turnId: 'pt1', toolCallId: 'ptc1', filePath: '/b.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: undefined, afterContent: encodeString('b1\nb2\nb3'),
+		});
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: peerDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.deepStrictEqual(
+			result.map(simplify).sort((x, y) => (x.uri ?? '').localeCompare(y.uri ?? '')),
+			[simpleDiff('/a.txt', 1, 0), simpleDiff('/b.txt', 3, 0)],
+		);
+
+		// The peer file's content URI must encode the peer chat URI so the
+		// resource resolver opens the peer DB, not the session DB.
+		const peerDiff = result.find(d => getDiffUri(d) === URI.file('/b.txt').toString())!;
+		const afterFields = parseSessionDbUri(peerDiff.after!.content.uri);
+		assert.deepStrictEqual(afterFields, {
+			sessionUri: PEER_CHAT_URI,
+			toolCallId: 'ptc1',
+			filePath: '/b.txt',
+			part: 'after',
+		});
+	});
+
+	test('a file edited by multiple sources takes before from the first and after from the last source', async () => {
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		});
+
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit({
+			turnId: 'pt1', toolCallId: 'ptc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v2'), afterContent: encodeString('v3'),
+		});
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: peerDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.strictEqual(result.length, 1);
+		const [diff] = result;
+
+		// before snapshot from the session DB (first source)
+		assert.deepStrictEqual(parseSessionDbUri(diff.before!.content.uri), {
+			sessionUri: TEST_SESSION_URI,
+			toolCallId: 'tc1',
+			filePath: '/shared.txt',
+			part: 'before',
+		});
+		// after snapshot from the peer chat DB (last source)
+		assert.deepStrictEqual(parseSessionDbUri(diff.after!.content.uri), {
+			sessionUri: PEER_CHAT_URI,
+			toolCallId: 'ptc1',
+			filePath: '/shared.txt',
+			part: 'after',
+		});
+	});
+});
+
+suite('computeTurnDiffs', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// ---- No folder scope (characterization — same behavior as today) --------
+
+	test('no folderScope returns all of the turn\'s edits', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/x.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1'), afterContent: encodeString('1\n2'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/b/y.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		// An edit in a different turn must never contribute.
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc3', filePath: '/repo/a/z.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+		});
+
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, createTestDiffService(), 't1');
+
+		assert.deepStrictEqual(
+			result.map(simplify).sort((x, y) => (x.uri ?? '').localeCompare(y.uri ?? '')),
+			[simpleDiff('/repo/a/x.txt', 1, 0), simpleDiff('/repo/b/y.txt', 1, 0)],
+		);
+	});
+
+	// ---- Folder-scope filtering --------------------------------------------
+
+	test('folderScope [A] includes only edits under A (B excluded)', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/x.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1'), afterContent: encodeString('1\n2'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/b/y.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('b'), afterContent: encodeString('b\nc'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [URI.file('/repo/a')],
+		);
+
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/repo/a/x.txt', 1, 0)]);
+	});
+
+	test('folderScope: rename and delete within scope are kept; edits/renames out of scope are excluded', async () => {
+		const db = new TestSessionDatabase();
+		// Rename within scope A: judged by after-path (kept).
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/new.txt', kind: FileEditKind.Rename,
+			originalPath: '/repo/a/old.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('hello'), afterContent: encodeString('hello\nworld'),
+		});
+		// Delete within scope A (kept).
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/a/gone.txt', kind: FileEditKind.Delete,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('bye'),
+		});
+		// Plain edit outside scope (excluded).
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc3', filePath: '/repo/b/keep.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('k'), afterContent: encodeString('k\nk2'),
+		});
+		// Rename that moves a file OUT of scope: after-path is under B (excluded).
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc4', filePath: '/repo/b/moved.txt', kind: FileEditKind.Rename,
+			originalPath: '/repo/a/moving.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('m'), afterContent: encodeString('m\nm2'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [URI.file('/repo/a')],
+		);
+
+		// Filtering semantics: only the in-scope rename (reported at its terminal
+		// path /repo/a/new.txt) and the in-scope delete (/repo/a/gone.txt) survive;
+		// the out-of-scope edit and the rename that moves a file out of scope are
+		// dropped. Assert on the reported URIs rather than exact diff counts so the
+		// test targets the scope filter, not the fake diff service's line math.
+		const uris = new Set(result.map(getDiffUri));
+		assert.strictEqual(result.length, 2, 'exactly the two in-scope files are reported');
+		assert.ok(uris.has(URI.file('/repo/a/new.txt').toString()), 'in-scope rename kept at terminal path');
+		assert.ok(uris.has(URI.file('/repo/a/gone.txt').toString()), 'in-scope delete kept');
+		assert.ok(!uris.has(URI.file('/repo/b/keep.txt').toString()), 'out-of-scope edit excluded');
+		assert.ok(!uris.has(URI.file('/repo/b/moved.txt').toString()), 'rename moving a file out of scope excluded');
+
+		// The rename result reports its terminal (in-scope) path with before/after.
+		const rename = result.find(d => getDiffUri(d) === URI.file('/repo/a/new.txt').toString())!;
+		assert.ok(rename.before, 'rename keeps a before snapshot');
+		assert.ok(rename.after, 'rename keeps an after snapshot');
+		// The delete result reports its before path and has no after.
+		const del = result.find(d => getDiffUri(d) === URI.file('/repo/a/gone.txt').toString())!;
+		assert.ok(del.before, 'delete has a before');
+		assert.strictEqual(del.after, undefined, 'delete has no after');
+	});
+
+	test('folderScope: rename chains are followed before scoping — in-scope edit then rename OUT of scope reports nothing (no stale path)', async () => {
+		const db = new TestSessionDatabase();
+		// Same logical file: edited while in scope A, then renamed out to B.
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/x.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1'), afterContent: encodeString('1\n2'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/b/x.txt', kind: FileEditKind.Rename,
+			originalPath: '/repo/a/x.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1\n2'), afterContent: encodeString('1\n2\n3'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [URI.file('/repo/a')],
+		);
+
+		// The identity's final path is /repo/b/x.txt (out of scope), so the file
+		// is dropped entirely. Pre-filtering raw records (the previous bug) would
+		// have kept the in-scope edit record and reported a stale /repo/a/x.txt.
+		assert.deepStrictEqual(result.map(simplify), []);
+	});
+
+	test('folderScope: rename chains are followed before scoping — edit OUT of scope then rename INTO scope keeps the full before/after chain', async () => {
+		const db = new TestSessionDatabase();
+		// Same logical file: edited while out of scope (B), then renamed into A.
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/b/y.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1'), afterContent: encodeString('1\n2'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/a/y.txt', kind: FileEditKind.Rename,
+			originalPath: '/repo/b/y.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('1\n2'), afterContent: encodeString('1\n2\n3'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [URI.file('/repo/a')],
+		);
+
+		// Reported at its in-scope terminal path /repo/a/y.txt with `before` taken
+		// from the pre-rename edit (content '1', one line) -> `added` is 2. Pre-
+		// filtering (the previous bug) dropped the out-of-scope edit, losing the
+		// before snapshot (empty), which would have reported `added` 3.
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/repo/a/y.txt', 2, 0)]);
+	});
+
+	test('folderScope: a file path exactly at a folder root is kept', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/x.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [URI.file('/repo/a/x.txt')],
+		);
+
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/repo/a/x.txt', 1, 0)]);
+	});
+
+	test('folderScope: an empty scope excludes every edit', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a/x.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+		});
+
+		const result = await computeTurnDiffs(
+			TEST_SESSION_URI, db, createTestDiffService(), 't1', [],
+		);
+
+		assert.deepStrictEqual(result, []);
+	});
+
+	// ---- Rename-chain correctness (G1) -------------------------------------
+
+	test('G1: Edit A → Rename A→B → Create A yields two identities (moved B and new A), not one merged entry', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a1'), afterContent: encodeString('a1\na2'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/repo/b.txt', kind: FileEditKind.Rename,
+			originalPath: '/repo/a.txt',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a1\na2'), afterContent: encodeString('a1\na2\na3'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc3', filePath: '/repo/a.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('brand new a'),
+		});
+
+		const result = await computeTurnDiffs(TEST_SESSION_URI, db, createTestDiffService(), 't1');
+
+		const uris = new Set(result.map(getDiffUri));
+		assert.strictEqual(result.length, 2, 'the moved file (B) and the recreated file (A) are distinct identities');
+		assert.ok(uris.has(URI.file('/repo/b.txt').toString()), 'the renamed file appears at its destination path B');
+		assert.ok(uris.has(URI.file('/repo/a.txt').toString()), 'the recreated file A is a fresh identity');
 	});
 });

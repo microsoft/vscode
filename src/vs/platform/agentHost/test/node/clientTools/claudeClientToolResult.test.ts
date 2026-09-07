@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { convertToolCallResult } from '../../../node/claude/clientTools/claudeClientToolResult.js';
-import { ToolResultContentType, type ToolCallResult, type ToolResultContent } from '../../../common/state/protocol/channels-session/state.js';
+import { ToolResultContentType, type ToolCallResult, type ToolResultContent } from '../../../common/state/protocol/channels-chat/state.js';
 
 function makeResult(over: Partial<ToolCallResult>): ToolCallResult {
 	return {

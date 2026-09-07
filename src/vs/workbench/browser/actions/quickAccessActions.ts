@@ -11,6 +11,7 @@ import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../platform/chat/common/chatSettings.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
@@ -179,7 +180,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-		const aiFeaturesDisabled = configurationService.getValue<boolean>('chat.disableAIFeatures') === true;
+		const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
 		const useUnifiedQuickAccess = !aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
 		if (useUnifiedQuickAccess) {
 			try {

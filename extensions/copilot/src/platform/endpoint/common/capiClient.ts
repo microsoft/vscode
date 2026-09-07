@@ -6,7 +6,7 @@
 import { CAPIClient, MakeRequestOptions, RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { IEnvService } from '../../env/common/envService';
-import { IFetcherService, NO_FETCH_TELEMETRY } from '../../networking/common/fetcherService';
+import { IFetcherService, NO_FETCH_TELEMETRY, WebSocketConnection } from '../../networking/common/fetcherService';
 import { LICENSE_AGREEMENT } from './licenseAgreement';
 
 /**
@@ -57,6 +57,16 @@ export abstract class BaseCAPIClientService extends CAPIClient implements ICAPIC
 			request.callSite = NO_FETCH_TELEMETRY;
 		}
 		return super.makeRequest<T>(request, requestMetadata);
+	}
+
+	override createResponsesWebSocket(options: { headers?: Record<string, string> }): Promise<WebSocketConnection> {
+		if (this.abExpContext) {
+			if (!options.headers) {
+				options.headers = {};
+			}
+			options.headers['X-Copilot-Client-Exp-Assignment-Context'] = this.abExpContext;
+		}
+		return super.createResponsesWebSocket(options);
 	}
 }
 export const ICAPIClientService = createServiceIdentifier<ICAPIClientService>('ICAPIClientService');

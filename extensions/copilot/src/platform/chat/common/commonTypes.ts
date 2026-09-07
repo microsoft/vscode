@@ -98,6 +98,7 @@ export enum ChatFetchResponseType {
 	Filtered = 'filtered',
 	FilteredRetry = 'filteredRetry',
 	PromptFiltered = 'promptFiltered',
+	Refusal = 'refusal',
 	Length = 'length',
 	RateLimited = 'rateLimited',
 	QuotaExceeded = 'quotaExceeded',
@@ -115,7 +116,21 @@ export enum ChatFetchResponseType {
 
 export const RESPONSE_CONTAINED_NO_CHOICES = 'Response contained no choices.';
 
-export type ChatFetchError =
+export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResponseType; reason?: string; reasonDetail?: string }): boolean {
+	if (input.type !== ChatFetchResponseType.BadRequest && input.type !== ChatFetchResponseType.Failed) {
+		return false;
+	}
+	const haystack = `${input.reason ?? ''} ${input.reasonDetail ?? ''}`.toLowerCase();
+	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
+}
+
+/**
+ * CAPI's `X-Copilot-Service-Request-Id` from the response that produced this result. Joins the
+ * client-side event with CAPI's server-side logs, traces and Sentry reports.
+ */
+type WithCopilotServiceRequestId = { copilotServiceRequestId?: string };
+
+export type ChatFetchError = WithCopilotServiceRequestId & (
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
 	 */
@@ -142,6 +157,10 @@ export type ChatFetchError =
 	 * We requested conversation, but the prompt was filtered by RAI.
 	 */
 	| { type: ChatFetchResponseType.PromptFiltered; reason: string; reasonDetail?: string; category: FilterReason; requestId: string; serverRequestId: string | undefined }
+	/**
+	 * We requested conversation, but the model declined to answer.
+	 */
+	| { type: ChatFetchResponseType.Refusal; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
 	/**
 	 * We requested conversation, but the response was too long.
 	 */
@@ -181,16 +200,17 @@ export type ChatFetchError =
 	 * The `statefulMarker` present in the request was invalid or expired. The
 	 * request may be retried without that marker to resubmit it anew.
 	 */
-	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
+	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+);
 
-export type ChatFetchRetriableError<T> =
-	/**
-	 * We requested conversation, the response was filtered by RAI, but we want to retry.
-	 */
-	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
+export type ChatFetchRetriableError<T> = WithCopilotServiceRequestId &
+/**
+ * We requested conversation, the response was filtered by RAI, but we want to retry.
+ */
+{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
-export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
+export type FetchSuccess<T> = WithCopilotServiceRequestId &
+{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 
@@ -350,8 +370,8 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 					: l10n.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait for your credits to reset.`);
 			default:
 				return resetDateString
-					? l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
+					? l10n.t(`You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
+					: l10n.t(`You've reached your credit limit. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
 		}
 	}
 
@@ -367,7 +387,7 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 		case 'enterprise':
 			return l10n.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
 		default:
-			return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
+			return l10n.t(`You've exhausted your premium model quota. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
 	}
 }
 
@@ -387,7 +407,14 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			comment: [`{Locked=']({'}`]
 		});
 	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
-		return l10n.t(`You've reached your additional usage limit for your plan. Upgrade your plan to keep going.`);
+		if (copilotPlan === 'business' || copilotPlan === 'enterprise') {
+			return l10n.t(`You've reached your additional usage limit for your plan. Please contact your admin.`);
+		}
+		return l10n.t({
+			message: `You've reached your additional usage limit for your plan. [Manage Budget]({0})`,
+			args: ['https://github.com/settings/copilot/features'],
+			comment: [`{Locked=']({'}`]
+		});
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
@@ -429,11 +456,19 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
-		case ChatFetchResponseType.Failed:
-			details = fetchResult.serverRequestId
-				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
-				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+		case ChatFetchResponseType.Failed: {
+			const isVisionExpired = isVisionAttachmentInaccessibleError(fetchResult);
+			if (isVisionExpired) {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`An image attached earlier in this conversation is no longer accessible, so the request failed. Remove the image attachment or start a new conversation.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			} else {
+				details = fetchResult.serverRequestId
+					? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+					: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+			}
 			break;
+		}
 		case ChatFetchResponseType.NetworkError:
 			details = { message: l10n.t(`Sorry, there was a network error. Please try again later. Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
 			break;
@@ -442,6 +477,12 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			details = {
 				message: getFilteredMessage(fetchResult.category),
 				responseIsFiltered: true,
+				level: ChatErrorLevel.Info,
+			};
+			break;
+		case ChatFetchResponseType.Refusal:
+			details = {
+				message: l10n.t(`Sorry, the model declined to complete this request. Please rephrase your prompt.`),
 				level: ChatErrorLevel.Info,
 			};
 			break;

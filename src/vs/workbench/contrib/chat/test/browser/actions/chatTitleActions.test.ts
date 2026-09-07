@@ -16,7 +16,7 @@ import { ServiceIdentifier } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatWidgetService, IChatWidget, IChatAccessibilityService } from '../../../browser/chat.js';
 import { IChatEditingSession, IModifiedFileEntry } from '../../../common/editing/chatEditingService.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
+import { type IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../../common/constants.js';
@@ -83,6 +83,12 @@ suite('RetryChatAction', () => {
 				},
 				getItems: () => lastResponseItem ? [lastResponseItem] : [],
 			} as unknown as IChatWidget['viewModel'],
+			getSelectedModelRequestOptions: () => ({
+				userSelectedModelId: 'test-model',
+				userSelectedModelConfiguration: {
+					reasoningEffort: 'high',
+				},
+			}),
 			getModeRequestOptions: () => ({}),
 		};
 	}
@@ -109,12 +115,14 @@ suite('RetryChatAction', () => {
 		};
 
 		let resendCalled = false;
+		let resendOptions: IChatSendRequestOptions | undefined;
 		const mockChatService = new class extends MockChatService {
 			override getSession(_sessionResource: URI) {
 				return mockChatModel as IChatModel;
 			}
-			override async resendRequest(_request: IChatRequestModel, _options?: unknown) {
+			override async resendRequest(_request: IChatRequestModel, options?: IChatSendRequestOptions) {
 				resendCalled = true;
+				resendOptions = options;
 			}
 		};
 
@@ -149,6 +157,8 @@ suite('RetryChatAction', () => {
 		await commandHandler(instantiationService, mockResponse);
 
 		assert.ok(resendCalled, 'resendRequest should have been called');
+		assert.strictEqual(resendOptions?.userSelectedModelId, 'test-model');
+		assert.deepStrictEqual(resendOptions?.userSelectedModelConfiguration, { reasoningEffort: 'high' });
 		assert.ok(acceptRequestCalled, 'acceptRequest should have been called');
 	});
 
@@ -180,12 +190,14 @@ suite('RetryChatAction', () => {
 		};
 
 		let resendCalled = false;
+		let resendOptions: IChatSendRequestOptions | undefined;
 		const mockChatService = new class extends MockChatService {
 			override getSession(_sessionResource: URI) {
 				return mockChatModel as IChatModel;
 			}
-			override async resendRequest(_request: IChatRequestModel, _options?: unknown) {
+			override async resendRequest(_request: IChatRequestModel, options?: IChatSendRequestOptions) {
 				resendCalled = true;
+				resendOptions = options;
 			}
 		};
 
@@ -263,6 +275,8 @@ suite('RetryChatAction', () => {
 		}
 
 		assert.ok(resendCalled, 'resendRequest should have been called');
+		assert.strictEqual(resendOptions?.userSelectedModelId, 'test-model');
+		assert.deepStrictEqual(resendOptions?.userSelectedModelConfiguration, { reasoningEffort: 'high' });
 		assert.ok(acceptRequestCalled, 'acceptRequest should have been called');
 	});
 });

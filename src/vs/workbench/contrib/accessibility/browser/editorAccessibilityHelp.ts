@@ -14,6 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityHelpAction } from './accessibleViewActions.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
 import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
@@ -108,6 +109,13 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		content.push(AccessibilityHelpNLS.acceptSuggestAction);
 		content.push(AccessibilityHelpNLS.toggleSuggestionFocus);
 
+		if (!options.get(EditorOption.readOnly)) {
+			const dictationInfo = getDictationInfo(this._contextKeyService);
+			if (dictationInfo) {
+				content.push(dictationInfo);
+			}
+		}
+
 		if (options.get(EditorOption.stickyScroll).enabled) {
 			content.push(AccessibilityHelpNLS.stickScroll);
 		}
@@ -150,6 +158,14 @@ export function getChatEditInfo(keybindingService: IKeybindingService, contextKe
 		return AccessibilityHelpNLS.chatEditorModification + '\n' + AccessibilityHelpNLS.chatEditActions;
 	} else if (editorContext.getValue<boolean>(ctxHasRequestInProgress.key)) {
 		return AccessibilityHelpNLS.chatEditorRequestInProgress;
+	}
+	return;
+}
+
+export function getDictationInfo(contextKeyService: IContextKeyService): string | undefined {
+	if (HasSpeechProvider.getValue(contextKeyService) ||
+		(ChatContextKeys.enabled.getValue(contextKeyService) && ChatContextKeys.speechToTextConfigured.getValue(contextKeyService))) {
+		return AccessibilityHelpNLS.editorDictation;
 	}
 	return;
 }

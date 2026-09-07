@@ -8,7 +8,8 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AgentFeedbackOverlayWidget } from '../../browser/agentFeedbackEditorOverlay.js';
+import { AgentEditorCommentsOverlayWidget } from '../../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
+import { Menus } from '../../../../browser/menus.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../browser/agentFeedbackEditorActions.js';
 
 interface INavigationBearings {
@@ -19,6 +20,7 @@ interface INavigationBearings {
 interface IFixtureOptions {
 	readonly navigationBearings: INavigationBearings;
 	readonly hasAgentFeedbackActions?: boolean;
+	readonly acceptedFeedbackCount?: number;
 }
 
 class FixtureMenuService implements IMenuService {
@@ -76,8 +78,18 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 		},
 	});
 
-	const widget = scopedDisposables.add(instantiationService.createInstance(AgentFeedbackOverlayWidget));
-	widget.show(options.navigationBearings);
+	const widget = scopedDisposables.add(instantiationService.createInstance(AgentEditorCommentsOverlayWidget, {
+		menuId: Menus.AgentFeedbackEditorContent,
+		submitActionId: submitFeedbackActionId,
+		previousActionId: navigatePreviousFeedbackActionId,
+		nextActionId: navigateNextFeedbackActionId,
+		navigationBearingActionId: navigationBearingFakeActionId,
+		telemetrySource: 'agentFeedback.overlayToolbar.fixture',
+	}));
+	widget.show(
+		options.navigationBearings,
+		options.acceptedFeedbackCount ?? (options.hasAgentFeedbackActions === false ? 0 : options.navigationBearings.totalCount),
+	);
 	context.container.appendChild(widget.getDomNode());
 }
 

@@ -12,11 +12,23 @@
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
 
+/* Session header, tabs, and chat content are all hosted in this centered
+ * inner container so alignment is controlled in one place. */
+.session-view .session-view-centered-content {
+	height: 100%;
+	margin: 0 auto;
+	box-sizing: border-box;
+}
+
 /* Transitions apply to both active and inactive states so controls fade
  * smoothly in either direction. Only declared when the user has not requested
  * reduced motion so we never need to unset them. */
 @media (prefers-reduced-motion: no-preference) {
-	.session-view .chat-composite-bar-toolbar,
+	.session-view .chat-composite-bar.session-header-bar,
+	.session-view .interactive-session .interactive-list,
+	.session-view .interactive-session .interactive-list .chat-tool-invocation-part,
+	.session-view .interactive-session .interactive-list .chat-thinking-box,
+	.session-view .interactive-session .interactive-list .chat-footer-toolbar,
 	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
 	.session-view .interactive-session .chat-secondary-toolbar,
 	.session-view .interactive-session .chat-attachments-container,
@@ -29,17 +41,36 @@
 	}
 }
 
-/* Quiet the session toolbar controls in the top-right of inactive sessions so
- * the active session's controls stand out, while keeping them legible. */
-.session-view:not(.is-active) .chat-composite-bar-toolbar {
+/* Strongly recede the whole header (title, meta, toolbar) for inactive sessions
+ * so the active session's header stands out, while keeping it legible. */
+.session-view:not(.is-active) .chat-composite-bar.session-header-bar {
 	opacity: 0.6;
 }
 
-/* Keep the mode/model/harness pickers legible (but non-interactive) in inactive
- * sessions so it stays glanceable what each parallel session is running — just
- * quiet them rather than hiding them entirely. */
-.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+/* Recede the chat transcript for inactive sessions so it reads as quiet but
+ * stays legible at a glance. The list as a whole is only lightly dimmed so the
+ * agent's text responses remain readable; non-text content (tool calls) is
+ * dimmed further below to keep the visual hierarchy. */
+.session-view:not(.is-active) .interactive-session .interactive-list {
+	opacity: 0.9;
+}
+
+/* Push tool calls / invocations, thinking sections, and the per-response footer
+ * toolbar further back than plain text responses in inactive sessions. Opacity
+ * nests multiplicatively, so this stacks on top of the list's 0.9 for an
+ * effective ~0.54 while the plain text stays at 0.9. */
+.session-view:not(.is-active) .interactive-session .interactive-list .chat-tool-invocation-part,
+.session-view:not(.is-active) .interactive-session .interactive-list .chat-thinking-box,
+.session-view:not(.is-active) .interactive-session .interactive-list .chat-footer-toolbar {
 	opacity: 0.6;
+}
+
+/* Fully fade out the in-input controls (attach, mode/model/harness pickers,
+ * etc.) for inactive sessions so only the send button remains as a quiet
+ * affordance. */
+.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	opacity: 0;
+	visibility: hidden;
 	pointer-events: none;
 }
 

@@ -121,6 +121,25 @@ describe('CopilotCliBridgeSpanProcessor', () => {
 		expect(otelService.injectedSpans[0].attributes['copilot_chat.chat_session_id']).toBe('existing-session');
 	});
 
+	it('injects gen_ai.conversation.id with the session id', () => {
+		bridge.registerTrace('trace-abc', 'session-1');
+
+		bridge.onEnd(makeReadableSpan({ name: 'execute_tool bash', traceId: 'trace-abc' }));
+
+		expect(otelService.injectedSpans[0].attributes['gen_ai.conversation.id']).toBe('session-1');
+	});
+
+	it('does not overwrite existing gen_ai.conversation.id', () => {
+		bridge.registerTrace('trace-abc', 'session-1');
+
+		bridge.onEnd(makeReadableSpan({
+			traceId: 'trace-abc',
+			attributes: { 'gen_ai.conversation.id': 'sdk-conv' },
+		}));
+
+		expect(otelService.injectedSpans[0].attributes['gen_ai.conversation.id']).toBe('sdk-conv');
+	});
+
 	it('converts HrTime to milliseconds', () => {
 		bridge.registerTrace('trace-abc', 'session-1');
 

@@ -22,6 +22,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -33,7 +34,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, resolveEnabledApiProposalsFallbackExperiment } from '../common/extensions.js';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -74,6 +75,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
 		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
+		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -300,12 +302,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (nlsBaseUrl && this._productService.commit && !platform.Language.isDefaultVariant()) {
 			nlsUrlWithDetails = URI.joinPath(URI.parse(nlsBaseUrl), this._productService.commit, this._productService.version, platform.Language.value());
 		}
+		const enabledApiProposalsFallback = await resolveEnabledApiProposalsFallbackExperiment(this._workbenchAssignmentService, this._productService.quality);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,
+			enabledApiProposalsFallback,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,

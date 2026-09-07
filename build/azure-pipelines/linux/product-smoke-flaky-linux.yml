@@ -1,0 +1,271 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_TEST_UNIT
+    type: boolean
+  - name: VSCODE_TEST_INTEGRATION
+    type: boolean
+  - name: VSCODE_TEST_SMOKE
+    type: boolean
+  - name: iterations
+    type: object
+
+jobs:
+  - template: ../common/product-smoke-flaky-build.yml@self
+    parameters:
+      jobName: LinuxSmokeFlakyBuild
+      displayName: Linux Build (shared)
+      platform: linux
+      arch: x64
+      archiveExt: tar.gz
+      artifactPrefix: smoke-flaky-linux-x64
+      testIntegration: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+      testSmoke: ${{ parameters.VSCODE_TEST_SMOKE }}
+      extraVariables:
+        - key: DISPLAY
+          value: ":10"
+        - key: NPM_ARCH
+          value: x64
+      compileSteps:
+        - template: ./steps/product-build-linux-compile.yml@self
+          parameters:
+            VSCODE_ARCH: x64
+            VSCODE_CIBUILD: true
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
+      archiveWorkspaceSteps:
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)
+            tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git -C $(Build.SourcesDirectory) .
+          displayName: Archive built workspace for reuse by test jobs
+      archiveAppSteps:
+        - script: tar -czf $(Build.ArtifactStagingDirectory)/app.tar.gz -C $(Agent.BuildDirectory) VSCode-linux-x64
+          displayName: Archive packaged app for reuse by test jobs
+      archiveServerSteps:
+        - script: tar -czf $(Build.ArtifactStagingDirectory)/server.tar.gz -C $(Agent.BuildDirectory) vscode-server-linux-x64
+          displayName: Archive packaged server for reuse by test jobs
+
+  - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: LinuxSmokeFlakyUnit
+        buildJobName: LinuxSmokeFlakyBuild
+        displayName: Linux Unit Tests
+        platform: linux
+        arch: x64
+        testName: unit
+        artifactPrefix: smoke-flaky-linux-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+        display: ":10"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+            displayName: Extract built workspace
+        setupSteps:
+          - script: |
+              set -e
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+                xvfb \
+                libgtk-3-0 \
+                libxkbfile-dev \
+                libkrb5-dev \
+                libgbm1 \
+                rpm \
+                bubblewrap \
+                socat
+              sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+              sudo chmod +x /etc/init.d/xvfb
+              sudo update-rc.d xvfb defaults
+              sudo service xvfb start
+            displayName: Setup system services
+        postSetupSteps:
+          - script: |
+              set -e
+              ELECTRON_ROOT=.build/electron
+              sudo chown root $ELECTRON_ROOT/chrome-sandbox
+              sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+            displayName: Change setuid helper binary permission
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: ./scripts/test.sh --build --tfs "Unit Tests"
+              env:
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 15
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                npm run test-node -- --build
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+              continueOnError: true
+              timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: LinuxSmokeFlakyIntegration
+        buildJobName: LinuxSmokeFlakyBuild
+        displayName: Linux Integration Tests
+        platform: linux
+        arch: x64
+        testName: integration
+        artifactPrefix: smoke-flaky-linux-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+        display: ":10"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-server/server.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace, app and server
+        setupSteps:
+          - script: |
+              set -e
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+                xvfb \
+                libgtk-3-0 \
+                libxkbfile-dev \
+                libkrb5-dev \
+                libgbm1 \
+                rpm \
+                bubblewrap \
+                socat
+              sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+              sudo chmod +x /etc/init.d/xvfb
+              sudo update-rc.d xvfb defaults
+              sudo service xvfb start
+            displayName: Setup system services
+        postSetupSteps:
+          - script: |
+              set -e
+              APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+              ELECTRON_ROOT=.build/electron
+              sudo chown root $APP_ROOT/chrome-sandbox
+              sudo chown root $ELECTRON_ROOT/chrome-sandbox
+              sudo chmod 4755 $APP_ROOT/chrome-sandbox
+              sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+            displayName: Change setuid helper binary permission
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+                APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
+                INTEGRATION_TEST_APP_NAME="$APP_NAME" \
+                INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
+                ./scripts/test-integration.sh --build --tfs "Integration Tests"
+              env:
+                VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: LinuxSmokeFlakySmoke
+        buildJobName: LinuxSmokeFlakyBuild
+        displayName: Linux Smoke Tests
+        platform: linux
+        arch: x64
+        testName: smoke
+        artifactPrefix: smoke-flaky-linux-x64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+        display: ":10"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-linux-x64-app/app.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and app
+        setupSteps:
+          - script: |
+              set -e
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+              ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+                xvfb \
+                libgtk-3-0 \
+                libxkbfile-dev \
+                libkrb5-dev \
+                libgbm1 \
+                rpm \
+                bubblewrap \
+                socat
+              sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+              sudo chmod +x /etc/init.d/xvfb
+              sudo update-rc.d xvfb defaults
+              sudo service xvfb start
+            displayName: Setup system services
+        postSetupSteps:
+          - script: |
+              set -e
+              APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+              ELECTRON_ROOT=.build/electron
+              sudo chown root $APP_ROOT/chrome-sandbox
+              sudo chown root $ELECTRON_ROOT/chrome-sandbox
+              sudo chmod 4755 $APP_ROOT/chrome-sandbox
+              sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+            displayName: Change setuid helper binary permission
+          - script: |
+              set -euo pipefail
+              SOURCE_PATH="$(Agent.TempDirectory)/fcpreinit.c"
+              SHIM_PATH="$(Agent.TempDirectory)/libfcpreinit.so"
+              cat > "$SOURCE_PATH" <<'CEOF'
+              #define _GNU_SOURCE
+              #include <dlfcn.h>
+
+              __attribute__((constructor))
+              static void preinit_fontconfig(void)
+              {
+                void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+                if (handle) {
+                  int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+                  if (fc_init) {
+                    fc_init();
+                  }
+                }
+              }
+              CEOF
+              gcc -shared -fPIC -O2 -Wall -Wextra -o "$SHIM_PATH" "$SOURCE_PATH" -ldl
+              PRELOAD_VALUE="$SHIM_PATH${LD_PRELOAD:+:$LD_PRELOAD}"
+              echo "##vso[task.setvariable variable=VSCODE_SMOKE_LD_PRELOAD]$PRELOAD_VALUE"
+              echo "Built fontconfig pre-init shim at $SHIM_PATH"
+            displayName: Pre-initialize fontconfig for Electron
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                status=0
+                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)" || status=$?
+                if [ $status -ne 0 ] && [ -d .build/logs/smoke-tests-electron ]; then
+                  mv .build/logs/smoke-tests-electron ".build/logs/failed-iteration-${{ i }}"
+                fi
+                exit $status
+              env:
+                TMPDIR: $(Agent.TempDirectory)
+                LD_PRELOAD: $(VSCODE_SMOKE_LD_PRELOAD)
+              displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20

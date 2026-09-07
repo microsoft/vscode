@@ -569,7 +569,7 @@ class InstructionIndexFile implements IInstructionIndexFile {
 
 	get agents(): Set<string> {
 		if (this.agentNames === undefined) {
-			this.agentNames = new Set(this.getValuesInIndexFile('agents', 'agent', 'file'));
+			this.agentNames = new Set(this.getValuesInIndexFile('agents', 'agent', 'name'));
 		}
 		return this.agentNames;
 	}

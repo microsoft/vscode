@@ -1,0 +1,48 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
+    response:
+      content:
+        - type: text
+          text: Running your exact command now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').renameSync('before.txt','after.txt')"
+            workdir: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').renameSync(''before.txt'',''after.txt'')"`. Do not run any other command or tool. Then reply with exactly "renamed".'
+        - role: assistant
+          content: Running your exact command now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').renameSync('before.txt','after.txt')"
+                workdir: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: b8af57
+                Wall time: 0.7877 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: renamed
+      stopReason: end_turn

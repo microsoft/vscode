@@ -107,7 +107,7 @@ export class UserQuery extends PromptElement<QueryProps, void> {
 	override render(state: void, sizing: PromptSizing): PromptPiece<any, any> | undefined {
 		const promptFiles: PromptElement[] = [];
 		for (const v of this.props.chatVariables) {
-			if (isPromptFile(v)) {
+			if (isPromptFile(v.reference)) {
 				promptFiles.push(<PromptFile variable={v} omitReferences={false} />);
 			}
 		}
@@ -204,7 +204,7 @@ export async function renderChatVariables(chatVariables: ChatVariablesCollection
 			: FilePathMode.None;
 	for (const variable of chatVariables) {
 		const { uniqueName: variableName, value: variableValue, reference } = variable;
-		if (isInstructionFile(variable) || isCustomizationsIndex(variable) || isPromptFile(variable)) { // instructions and index are handled in the `CustomInstructions` element, prompt file as part of the UserQuery
+		if (isInstructionFile(variable.reference) || isCustomizationsIndex(variable.reference) || isPromptFile(variable.reference)) { // instructions and index are handled in the `CustomInstructions` element, prompt file as part of the UserQuery
 			continue;
 		}
 
