@@ -21,6 +21,10 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_FULL_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_BACKGROUND_DELAY_MS = 1000;
 const RECONCILIATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.cursor';
+const VERIFICATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationCursor';
+const VERIFICATION_VERSION_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationVersion';
+const LAST_VERIFICATION_STORAGE_KEY = 'agentHost.catalogReconciliation.lastVerification';
+const CATALOG_VERIFICATION_VERSION = 1;
 type AgentHostCatalogSyncPendingReason = Extract<AgentHostCatalogSyncResult, { status: 'pending' }>['reason'];
 type ScheduledPassKind = 'background' | 'periodic';
 
@@ -80,8 +84,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
-	private _initialPayloadDirtyMarkPending = true;
-	private _lastFullVerification = 0;
+	private _initialPayloadDirtyMarkPending: boolean;
+	private _lastCompatibilityVerification: number;
+	private _verificationCursor: string | undefined;
 	private _running: Promise<IAgentHostCatalogReconciliationReport> | undefined;
 	private _rerunRequested = false;
 	private _periodic = false;
@@ -104,6 +109,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._backgroundDelayMs = this._nonNegativeInteger(options.backgroundDelayMs, DEFAULT_BACKGROUND_DELAY_MS, 'backgroundDelayMs');
 		this._schedule = options.schedule ?? ((callback, delay) => disposableTimeout(callback, delay));
 		this._now = options.now ?? Date.now;
+		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
+		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
+		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
+		const verificationCursor = this._storageService.get<string>(VERIFICATION_CURSOR_STORAGE_KEY);
+		this._verificationCursor = typeof verificationCursor === 'string' ? verificationCursor : undefined;
 	}
 
 	schedule(): void {
@@ -207,13 +217,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 	private async _runSinglePass(token: CancellationToken): Promise<IAgentHostCatalogReconciliationReport> {
 		await this._ensureInitialPayloadDirtyMark();
-		if (this._now() - this._lastFullVerification >= this._fullVerificationIntervalMs) {
-			await this._markAllPayloadsDirty();
-			this._lastFullVerification = this._now();
+		if (this._now() - this._lastCompatibilityVerification >= this._fullVerificationIntervalMs) {
+			await this._markVerificationSampleDirty(token);
 		}
 		const { sessions, receiptBySession } = await this._listDirtySessions();
 		if (sessions.length === 0) {
-			this._storageService.delete(this._cursorStorageKey);
+			this._tryDeleteStorage(this._cursorStorageKey);
 			return { outcomes: [], cursor: undefined };
 		}
 
@@ -221,7 +230,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const outcomes = await this._runBatch(selected, receiptBySession, token);
 		const cursor = selected.at(-1)?.session.toString();
 		if (cursor && !token.isCancellationRequested) {
-			this._storageService.set(this._cursorStorageKey, cursor);
+			this._trySetStorage(this._cursorStorageKey, cursor);
 		}
 		return { outcomes, cursor };
 	}
@@ -235,11 +244,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			outcomes.push(...await this._runBatch(selected, receiptBySession, token));
 			cursor = selected.at(-1)?.session.toString();
 			if (cursor && !token.isCancellationRequested) {
-				this._storageService.set(this._cursorStorageKey, cursor);
+				this._trySetStorage(this._cursorStorageKey, cursor);
 			}
 		}
 		if (sessions.length === 0) {
-			this._storageService.delete(this._cursorStorageKey);
+			this._tryDeleteStorage(this._cursorStorageKey);
 		}
 		return { outcomes, cursor };
 	}
@@ -556,13 +565,65 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		}
 		await this._markAllPayloadsDirty();
 		this._initialPayloadDirtyMarkPending = false;
-		this._lastFullVerification = this._now();
+		this._trySetStorage(VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION);
+		this._recordCompatibilityVerification();
 	}
 
 	private async _prepareFullVerification(): Promise<void> {
 		await this._markAllPayloadsDirty();
 		this._initialPayloadDirtyMarkPending = false;
-		this._lastFullVerification = this._now();
+		this._trySetStorage(VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION);
+		this._recordCompatibilityVerification();
+	}
+
+	private async _markVerificationSampleDirty(token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const receipts = (await this._catalogDatabase.listSessionsV2Receipts())
+			.filter(receipt => receipt.payloadDirty === 0)
+			.sort((first, second) => compareSessionKeys(first.session, second.session));
+		const selected = this._selectVerificationSample(receipts, this._verificationCursor);
+		await this._catalogDatabase.markSessionsV2PayloadsDirty(selected.map(receipt => receipt.session));
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const cursor = selected.at(-1)?.session;
+		if (cursor) {
+			this._verificationCursor = cursor;
+			this._trySetStorage(VERIFICATION_CURSOR_STORAGE_KEY, cursor);
+		}
+		this._recordCompatibilityVerification();
+	}
+
+	private _selectVerificationSample(receipts: readonly IAgentHostDatabaseSessionV2Receipt[], cursor: string | undefined): readonly IAgentHostDatabaseSessionV2Receipt[] {
+		if (receipts.length === 0) {
+			return [];
+		}
+		const start = cursor === undefined ? 0 : Math.max(0, receipts.findIndex(receipt => compareSessionKeys(receipt.session, cursor) > 0));
+		const ordered = start === 0 ? receipts : [...receipts.slice(start), ...receipts.slice(0, start)];
+		return ordered.slice(0, this._batchSize);
+	}
+
+	private _recordCompatibilityVerification(): void {
+		this._lastCompatibilityVerification = this._now();
+		this._trySetStorage(LAST_VERIFICATION_STORAGE_KEY, this._lastCompatibilityVerification);
+	}
+
+	private _trySetStorage<T>(key: string, value: T): void {
+		try {
+			this._storageService.set(key, value);
+		} catch (error) {
+			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to persist '${key}'`, error);
+		}
+	}
+
+	private _tryDeleteStorage(key: string): void {
+		try {
+			this._storageService.delete(key);
+		} catch (error) {
+			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to delete '${key}'`, error);
+		}
 	}
 
 	private _markAllPayloadsDirty(): Promise<void> {

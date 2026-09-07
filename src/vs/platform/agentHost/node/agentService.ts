@@ -133,6 +133,17 @@ interface IBackgroundCatalogStateWrite {
 	trailingOverrides: Record<string, string>;
 }
 
+interface IPassiveSessionMetadataUpdate {
+	readonly key: string;
+	readonly flag: SessionStatus;
+	readonly set: boolean;
+}
+
+interface IBackgroundPassiveSessionMetadataWrite {
+	promise: Promise<void>;
+	pending: Map<string, IPassiveSessionMetadataUpdate>;
+}
+
 interface ISessionListComputation {
 	epoch: number;
 	readonly promise: Promise<readonly IAgentSessionMetadata[]>;
@@ -482,6 +493,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _catalogSyncSuppressedSessions = new Set<string>();
 	private readonly _deferredCatalogMetadataOverrides = new Map<string, Record<string, string>>();
 	private readonly _backgroundCatalogStateWrites = new Map<string, IBackgroundCatalogStateWrite>();
+	private readonly _backgroundPassiveSessionMetadataWrites = new Map<string, IBackgroundPassiveSessionMetadataWrite>();
 	private readonly _peerChatCleanupRepairs = this._register(new DisposableMap<string>());
 	/** Serializes durable last-modified advances emitted by live session state. */
 	private _sessionModifiedTimeWrites: Promise<void> = Promise.resolve();
@@ -908,9 +920,15 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _initialProviderMigrationsNeedingRetry = new Set<AgentProvider>();
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
-		await this._catalogReconciliationService.whenIdle();
-		while (this._backgroundCatalogStateWrites.size > 0) {
-			await Promise.allSettled([...this._backgroundCatalogStateWrites.values()].map(write => write.promise));
+		while (true) {
+			await this._catalogReconciliationService.whenIdle();
+			if (this._backgroundCatalogStateWrites.size === 0 && this._backgroundPassiveSessionMetadataWrites.size === 0) {
+				return;
+			}
+			await Promise.allSettled([
+				...[...this._backgroundCatalogStateWrites.values()].map(write => write.promise),
+				...[...this._backgroundPassiveSessionMetadataWrites.values()].map(write => write.promise),
+			]);
 		}
 	}
 
@@ -2317,7 +2335,6 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				this._logService.warn(`[AgentService] Failed to persist ${modifiedTimeAdvances.length} discovered session modified time(s); continuing discovery post-processing`, error);
 			}
-			await Promise.all(modifiedTimeAdvances.map(({ session }) => this._markCatalogPayloadDirty(session.toString())));
 			this._catalogReconciliationService.schedule();
 		}
 		try {
@@ -4916,10 +4933,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _whenBackgroundCatalogStateWritesIdle(sessionKey: string): Promise<void> {
 		while (true) {
 			const write = this._backgroundCatalogStateWrites.get(sessionKey);
-			if (!write) {
+			const passiveWrite = this._backgroundPassiveSessionMetadataWrites.get(sessionKey);
+			if (!write && !passiveWrite) {
 				return;
 			}
-			await Promise.allSettled([write.promise]);
+			await Promise.allSettled([
+				...(write ? [write.promise] : []),
+				...(passiveWrite ? [passiveWrite.promise] : []),
+			]);
 		}
 	}
 
@@ -5332,19 +5353,54 @@ export class AgentService extends Disposable implements IAgentService {
 			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
 			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
 		await persistSessionMetadataValues(this._sessionDataService, session, { [key]: set ? 'true' : '' });
-		try {
-			await this._synchronizePassiveSessionMetadata(sessionUri, key, flag, set);
-		} catch (error) {
-			this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${session}`, error);
-		}
-		await this._markCatalogPayloadDirty(session);
-		this._catalogReconciliationService.schedule();
 		this._invalidateSessionList();
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
+		const payloadDirty = this._markCatalogPayloadDirty(session);
+		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
+		await payloadDirty;
 		return true;
 	}
 
-	private async _synchronizePassiveSessionMetadata(session: URI, key: string, flag: SessionStatus, set: boolean): Promise<void> {
+	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): void {
+		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
+			return;
+		}
+		const sessionKey = session.toString();
+		const existing = this._backgroundPassiveSessionMetadataWrites.get(sessionKey);
+		if (existing) {
+			existing.pending.set(update.key, update);
+			return;
+		}
+		const write: IBackgroundPassiveSessionMetadataWrite = {
+			promise: Promise.resolve(),
+			pending: new Map([[update.key, update]]),
+		};
+		this._backgroundPassiveSessionMetadataWrites.set(sessionKey, write);
+		write.promise = this._drainPassiveSessionMetadataSynchronization(session, write);
+	}
+
+	private async _drainPassiveSessionMetadataSynchronization(session: URI, write: IBackgroundPassiveSessionMetadataWrite): Promise<void> {
+		const sessionKey = session.toString();
+		try {
+			while (write.pending.size > 0) {
+				const updates = [...write.pending.values()];
+				write.pending.clear();
+				try {
+					await this._synchronizePassiveSessionMetadata(session, updates);
+				} catch (error) {
+					this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${sessionKey}`, error);
+				}
+			}
+			this._catalogReconciliationService.schedule();
+			this._invalidateSessionList();
+		} finally {
+			if (this._backgroundPassiveSessionMetadataWrites.get(sessionKey) === write) {
+				this._backgroundPassiveSessionMetadataWrites.delete(sessionKey);
+			}
+		}
+	}
+
+	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly IPassiveSessionMetadataUpdate[]): Promise<void> {
 		let requestUnavailable = false;
 		try {
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
@@ -5355,11 +5411,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const decoded = decodeAgentHostCatalogPayload(catalog.payload);
 					if (decoded.ok) {
 						request = {
-							data: {
-								...decoded.value.data,
-								...(flag === SessionStatus.IsArchived ? { isArchived: set } : { isRead: set }),
-							},
-							legacyMetadata: { [key]: set ? 'true' : '' },
+							data: decoded.value.data,
+							legacyMetadata: {},
 						};
 					}
 				}
@@ -5376,7 +5429,16 @@ export class AgentService extends Disposable implements IAgentService {
 					requestUnavailable = true;
 					throw new Error(`No catalog synchronization source is available for passive session metadata ${sessionKey}`);
 				}
-				return request;
+				let data = request.data;
+				const legacyMetadata = { ...request.legacyMetadata };
+				for (const update of updates) {
+					data = {
+						...data,
+						...(update.flag === SessionStatus.IsArchived ? { isArchived: update.set } : { isRead: update.set }),
+					};
+					legacyMetadata[update.key] = update.set ? 'true' : '';
+				}
+				return { data, legacyMetadata };
 			});
 			if (result.status === 'pending') {
 				this._logService.warn(`[AgentService] Catalog synchronization for passive session metadata ${session.toString()} remains pending: ${result.reason}`);

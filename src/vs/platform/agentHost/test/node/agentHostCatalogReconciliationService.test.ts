@@ -84,6 +84,7 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 	failUpsertCount = 0;
 	failMarkAll = 0;
 	markAllCalls = 0;
+	readonly markedSamples: string[][] = [];
 	dirtyAfterUpsertCount = 0;
 	nonCanonicalPayloadReads = 0;
 	conflictingEnvelope: IAgentHostDatabaseSessionV2Envelope | undefined;
@@ -122,6 +123,11 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 		return super.markAllSessionsV2PayloadsDirty();
 	}
 
+	override async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
+		this.markedSamples.push([...sessions]);
+		return super.markSessionsV2PayloadsDirty(sessions);
+	}
+
 	override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
 		const result = await super.getSessionV2(session);
 		if (result && this.nonCanonicalPayloadReads > 0) {
@@ -158,7 +164,7 @@ interface ITestHarness {
 	readonly locals: Map<string, TestSessionDatabase>;
 	readonly sync: AgentHostCatalogSyncService;
 	readonly getDatabaseOpenAttempts: () => number;
-	createService(resolveSource?: (session: IRegisteredSession) => Promise<AgentHostCatalogReconciliationSourceResult>, options?: IAgentHostCatalogReconciliationOptions): AgentHostCatalogReconciliationService;
+	createService(resolveSource?: (session: IRegisteredSession) => Promise<AgentHostCatalogReconciliationSourceResult>, options?: IAgentHostCatalogReconciliationOptions, storageOverride?: IAgentHostStorageService): AgentHostCatalogReconciliationService;
 }
 
 suite('AgentHostCatalogReconciliationService', () => {
@@ -206,10 +212,10 @@ suite('AgentHostCatalogReconciliationService', () => {
 			createService: (resolveSource = async session => ({
 				status: 'available',
 				request: { data: catalogData(session.session.path), legacyMetadata: { customTitle: session.session.path } },
-			}), options) => store.add(new AgentHostCatalogReconciliationService(
+			}), options, storageOverride) => store.add(new AgentHostCatalogReconciliationService(
 				central,
 				sync,
-				storage,
+				storageOverride ?? storage,
 				async () => sessions,
 				resolveSource,
 				new NullLogService(),
@@ -516,6 +522,106 @@ suite('AgentHostCatalogReconciliationService', () => {
 			databaseOpenAttempts: 2,
 			sourceResolutions: 2,
 		});
+	});
+
+	test('persists startup verification and rotates bounded clean-row samples', async () => {
+		const harness = await createHarness(['one', 'two', 'three']);
+		for (const name of ['one', 'two', 'three']) {
+			const session = registered(name);
+			await harness.sync.synchronize(session.session, { data: catalogData(name), legacyMetadata: { customTitle: name } });
+		}
+		let now = 0;
+		const options = {
+			batchSize: 2,
+			fullVerificationIntervalMs: 100,
+			now: () => now,
+		};
+		const firstService = harness.createService(undefined, options);
+		await firstService.runFullPass();
+		const opensAfterInitialVerification = harness.getDatabaseOpenAttempts();
+		const restartedService = harness.createService(undefined, options);
+		await restartedService.runPass();
+		const opensAfterRestart = harness.getDatabaseOpenAttempts();
+		now = 100;
+		await restartedService.runPass();
+		now = 200;
+		await restartedService.runPass();
+
+		assert.deepStrictEqual({
+			markAllCalls: harness.central.markAllCalls,
+			opensAfterInitialVerification,
+			opensAfterRestart,
+			markedSamples: harness.central.markedSamples,
+		}, {
+			markAllCalls: 1,
+			opensAfterInitialVerification: 3,
+			opensAfterRestart: 3,
+			markedSamples: [
+				['agenthost:one', 'agenthost:three'],
+				['agenthost:two', 'agenthost:one'],
+			],
+		});
+	});
+
+	test('reconciles when verification state cannot be persisted', async () => {
+		const harness = await createHarness(['one']);
+		const unavailableStorage: IAgentHostStorageService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			loadError: new Error('corrupt storage'),
+			get: () => undefined,
+			set: () => { throw new Error('storage unavailable'); },
+			setAndFlush: async () => { throw new Error('storage unavailable'); },
+			delete: () => { throw new Error('storage unavailable'); },
+			whenIdle: async () => { throw new Error('storage unavailable'); },
+		};
+		const service = harness.createService(undefined, undefined, unavailableStorage);
+
+		const report = await service.runPass();
+
+		assert.deepStrictEqual(report.outcomes, [{
+			session: 'agenthost:one',
+			status: 'succeeded',
+			reason: 'synchronized',
+			sourceRevision: 0,
+		}]);
+	});
+
+	test('continues rotating verification samples when cursor persistence fails', async () => {
+		const harness = await createHarness(['one', 'two', 'three']);
+		for (const name of ['one', 'two', 'three']) {
+			const session = registered(name);
+			await harness.sync.synchronize(session.session, { data: catalogData(name), legacyMetadata: { customTitle: name } });
+		}
+		for (const receipt of await harness.central.listSessionsV2Receipts()) {
+			await harness.central.markSessionV2PayloadClean(receipt.session, receipt.payloadDirty);
+		}
+		harness.central.markedSamples.length = 0;
+		let now = 100;
+		const unavailableStorage: IAgentHostStorageService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			loadError: new Error('corrupt storage'),
+			get: <T>(key: string) => key === 'agentHost.catalogReconciliation.verificationVersion' ? 1 as T : undefined,
+			set: () => { throw new Error('storage unavailable'); },
+			setAndFlush: async () => { throw new Error('storage unavailable'); },
+			delete: () => { throw new Error('storage unavailable'); },
+			whenIdle: async () => { throw new Error('storage unavailable'); },
+		};
+		const service = harness.createService(undefined, {
+			batchSize: 1,
+			fullVerificationIntervalMs: 100,
+			now: () => now,
+		}, unavailableStorage);
+
+		await service.runPass();
+		now = 200;
+		await service.runPass();
+
+		assert.deepStrictEqual(harness.central.markedSamples, [
+			['agenthost:one'],
+			['agenthost:three'],
+		]);
 	});
 
 	test('retries the startup dirty sweep after a transient central failure', async () => {

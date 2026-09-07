@@ -658,6 +658,36 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('batches modified-time advances and payload dirty markers in one transaction', async () => {
+		database = new AgentHostDatabase(':memory:');
+		for (const session of ['session://first', 'session://second']) {
+			await database.registerRuntimeSession(session, {
+				provider: 'copilot',
+				startTime: 1,
+				source: 'explicit',
+			}, { checkTombstone: false });
+			await database.upsertSessionV2(createEnvelope(session, `${session}-generation`, 1), undefined);
+		}
+
+		await database.updateSessionModifiedTimes([
+			{ session: 'session://first', modifiedTime: 10 },
+			{ session: 'session://second', modifiedTime: 20 },
+			...Array.from({ length: 401 }, (_, index) => ({ session: `session://missing-${index}`, modifiedTime: 30 + index })),
+		]);
+
+		assert.deepStrictEqual(
+			(await database.listSessionsV2Receipts()).map(receipt => ({
+				session: receipt.session,
+				modifiedTime: receipt.modifiedTime,
+				payloadDirty: receipt.payloadDirty,
+			})).toSorted((first, second) => first.session.localeCompare(second.session)),
+			[
+				{ session: 'session://first', modifiedTime: 10, payloadDirty: 1 },
+				{ session: 'session://second', modifiedTime: 20, payloadDirty: 1 },
+			],
+		);
+	});
+
 	test('upgrades published v1 through v3 schemas with incomplete v2 rows', async () => {
 		const results: object[] = [];
 		for (const version of [1, 2, 3]) {

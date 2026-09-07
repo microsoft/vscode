@@ -123,7 +123,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
-	/** Advances the durable last-observed modification time for many sessions in one transaction. */
+	/** Advances modification times and marks changed catalog payloads dirty in one transaction. */
 	updateSessionModifiedTimes(updates: readonly IAgentHostDatabaseModifiedTimeUpdate[]): Promise<void>;
 	getSession(session: string): Promise<IAgentHostDatabaseSession | undefined>;
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
@@ -207,6 +207,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionV2PayloadDirty(session: string): Promise<number | undefined>;
 	/** Marks every cached payload dirty once so mutations made by older builds are rechecked. */
 	markAllSessionsV2PayloadsDirty(): Promise<void>;
+	/** Marks selected cached payloads dirty in one transaction. */
+	markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void>;
 	/** Clears a dirty marker only when no newer mutation superseded it. */
 	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
 	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
@@ -389,6 +391,7 @@ function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number):
 
 const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
 const sessionsV2PayloadDirtyKeyPrefix = 'sessionsV2PayloadDirty:';
+const MODIFIED_TIME_UPDATE_BATCH_SIZE = 400;
 const sessionChatCatalogLegacyMirrorKeyPrefix = 'sessionChatCatalogLegacyMirror:';
 
 function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
@@ -558,10 +561,36 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				for (const { session, modifiedTime } of updates) {
-					await run(database, 'UPDATE sessions_v2 SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
-					await run(database, 'UPDATE sessions SET modified_time = ? WHERE session_uri = ? AND modified_time < ?', [modifiedTime, session, modifiedTime]);
+				await exec(database, `CREATE TEMP TABLE IF NOT EXISTS session_modified_time_updates (
+					session_uri TEXT PRIMARY KEY NOT NULL,
+					modified_time INTEGER NOT NULL
+				);
+				DELETE FROM session_modified_time_updates`);
+				for (let offset = 0; offset < updates.length; offset += MODIFIED_TIME_UPDATE_BATCH_SIZE) {
+					const batch = updates.slice(offset, offset + MODIFIED_TIME_UPDATE_BATCH_SIZE);
+					await run(database, `INSERT OR REPLACE INTO session_modified_time_updates (session_uri, modified_time) VALUES ${batch.map(() => '(?, ?)').join(', ')}`,
+						batch.flatMap(({ session, modifiedTime }) => [session, modifiedTime]));
 				}
+				await run(database, `INSERT INTO metadata (key, value)
+					SELECT '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri, '1'
+					FROM sessions_v2
+					INNER JOIN session_modified_time_updates AS updates ON updates.session_uri = sessions_v2.session_uri
+					WHERE sessions_v2.modified_time < updates.modified_time
+					ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, []);
+				await run(database, `UPDATE sessions_v2 SET modified_time = (
+					SELECT updates.modified_time FROM session_modified_time_updates AS updates
+					WHERE updates.session_uri = sessions_v2.session_uri
+				) WHERE EXISTS (
+					SELECT 1 FROM session_modified_time_updates AS updates
+					WHERE updates.session_uri = sessions_v2.session_uri AND sessions_v2.modified_time < updates.modified_time
+				)`, []);
+				await run(database, `UPDATE sessions SET modified_time = (
+					SELECT updates.modified_time FROM session_modified_time_updates AS updates
+					WHERE updates.session_uri = sessions.session_uri
+				) WHERE EXISTS (
+					SELECT 1 FROM session_modified_time_updates AS updates
+					WHERE updates.session_uri = sessions.session_uri AND sessions.modified_time < updates.modified_time
+				)`, []);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, 'Failed to update session modified times');
@@ -1108,8 +1137,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			try {
 				const exists = await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session]);
 				if (exists) {
-					await run(database, `INSERT INTO metadata (key, value) VALUES (?, '1')
-						ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, [sessionsV2PayloadDirtyKey(session)]);
+					await this._markSessionV2PayloadDirty(database, session);
 				}
 				const row = exists
 					? await get(database, 'SELECT CAST(value AS INTEGER) AS payload_dirty FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)])
@@ -1142,6 +1170,32 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					)
 				ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, []);
 		});
+	}
+
+	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
+		if (sessions.length === 0) {
+			return;
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const session of sessions) {
+					const exists = await get(database, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', [session]);
+					if (exists) {
+						await this._markSessionV2PayloadDirty(database, session);
+					}
+				}
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, 'Failed to mark selected sessions_v2 payloads dirty');
+			}
+		});
+	}
+
+	private _markSessionV2PayloadDirty(database: Database, session: string): Promise<void> {
+		return run(database, `INSERT INTO metadata (key, value) VALUES (?, '1')
+			ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`, [sessionsV2PayloadDirtyKey(session)]);
 	}
 
 	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {

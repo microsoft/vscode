@@ -257,6 +257,7 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async markSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
 	async getSessionV2PayloadDirty(): Promise<number | undefined> { return undefined; }
 	async markAllSessionsV2PayloadsDirty(): Promise<void> { }
+	async markSessionsV2PayloadsDirty(): Promise<void> { }
 	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }

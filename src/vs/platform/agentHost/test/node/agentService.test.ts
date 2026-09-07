@@ -449,7 +449,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			throw new Error('transient modified-time batch failure');
 		}
 		for (const { session, modifiedTime } of updates) {
+			const previous = this._sessionV2Registrations.get(session)?.modifiedTime;
 			await this.updateSessionModifiedTime(session, modifiedTime);
+			const catalog = this._sessionsV2.get(session);
+			if (catalog && previous !== undefined && previous < modifiedTime) {
+				this._sessionsV2.set(session, { ...catalog, modifiedTime, payloadDirty: catalog.payloadDirty + 1 });
+			}
 		}
 	}
 
@@ -693,6 +698,14 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
 		}
 	}
+	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
+		for (const session of sessions) {
+			const current = this._sessionsV2.get(session);
+			if (current) {
+				this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+			}
+		}
+	}
 	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
 		const current = this._sessionsV2.get(session);
 		if (!current || current.payloadDirty !== expectedDirty) {
@@ -832,7 +845,12 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		this.updateSessionModifiedTimesCalls++;
 		this.lastModifiedTimesBatchSize = updates.length;
 		for (const { session, modifiedTime } of updates) {
+			const previous = this._sessionV2Registrations.get(session)?.modifiedTime;
 			await this.updateSessionModifiedTime(session, modifiedTime);
+			const catalog = this._sessionsV2.get(session);
+			if (catalog && previous !== undefined && previous < modifiedTime) {
+				this._sessionsV2.set(session, { ...catalog, modifiedTime, payloadDirty: catalog.payloadDirty + 1 });
+			}
 		}
 	}
 
@@ -1040,6 +1058,14 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	async markAllSessionsV2PayloadsDirty(): Promise<void> {
 		for (const [session, current] of this._sessionsV2) {
 			this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+		}
+	}
+	async markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void> {
+		for (const session of sessions) {
+			const current = this._sessionsV2.get(session);
+			if (current) {
+				this._sessionsV2.set(session, { ...current, payloadDirty: current.payloadDirty + 1 });
+			}
 		}
 	}
 	async markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean> {
@@ -12295,6 +12321,55 @@ suite('AgentService (node dispatcher)', () => {
 					publishedStatus: expectedStatus,
 				});
 			}
+		});
+
+		test('passive metadata publishes before central catalog synchronization completes', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			await localService.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(localService);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+			stateManager.removeSession(sessionKey);
+			const internals = localService as unknown as {
+				_orchestratorDatabase: IAgentHostDatabase;
+				_catalogSyncService: {
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+			};
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+			const notifications: INotification[] = [];
+			const listener = localService.onDidNotification(notification => notifications.push(notification));
+
+			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
+				await timeout(0);
+			}
+			const publishedBeforeRelease = notifications.some(notification => notification.type === 'root/sessionSummaryChanged');
+			const persistedBeforeRelease = await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
+			releaseBlocker.complete();
+			await blocker;
+			await localService.whenCatalogReconciliationIdle();
+			listener.dispose();
+			const catalog = await internals._orchestratorDatabase.getSessionV2(sessionKey);
+
+			assert.deepStrictEqual({
+				publishedBeforeRelease,
+				persistedBeforeRelease,
+				catalogArchived: catalogDataOf(catalog)?.isArchived,
+			}, {
+				publishedBeforeRelease: true,
+				persistedBeforeRelease: 'true',
+				catalogArchived: true,
+			});
 		});
 
 		test('archiving an un-loaded session succeeds even when its working directory is gone', async () => {

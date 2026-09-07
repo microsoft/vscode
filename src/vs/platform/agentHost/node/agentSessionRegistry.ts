@@ -92,7 +92,7 @@ export class AgentSessionRegistry extends Disposable {
 		return this._database.updateSessionModifiedTime(session.toString(), modifiedTime);
 	}
 
-	/** Advances the durable last-observed provider modification time for many sessions in one transaction. */
+	/** Advances provider modification times and dirties changed catalog payloads in one transaction. */
 	updateModifiedTimes(updates: readonly { readonly session: URI; readonly modifiedTime: number }[]): Promise<void> {
 		return this._database.updateSessionModifiedTimes(updates.map(({ session, modifiedTime }) => ({ session: session.toString(), modifiedTime })));
 	}
