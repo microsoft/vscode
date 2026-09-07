@@ -74,7 +74,11 @@ interface ITestWireRequest {
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
+		readonly approvalPolicy?: unknown;
+		readonly approvalsReviewer?: unknown;
+		readonly sandbox?: unknown;
 		readonly sandboxPolicy?: SandboxPolicy;
+		readonly permissions?: string;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
@@ -2186,6 +2190,88 @@ suite('CodexAgent prewarm eviction', () => {
 				readOnly: {
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
 					sandboxPolicy: { type: 'readOnly', networkAccess: false },
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('custom permissions defer thread start and refresh sticky turn policy from Codex configuration', async () => {
+		const agent = await createAgent(disposables, {
+			sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'custom' },
+		});
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const folder = URI.file('/repo/custom-permissions');
+
+		try {
+			const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread' } } });
+			await entry.materializePromise;
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [folder], undefined, 'turn-1');
+			const configRead = await readNextRequest(peer.outbound);
+			assert.strictEqual(configRead.method, 'config/read');
+			peer.push({
+				id: configRead.id,
+				result: {
+					config: {
+						approval_policy: 'on-request',
+						approvals_reviewer: 'auto_review',
+						sandbox_mode: 'workspace-write',
+						sandbox_workspace_write: {
+							writable_roots: ['/configured'],
+							network_access: true,
+							exclude_tmpdir_env_var: false,
+							exclude_slash_tmp: true,
+						},
+					},
+					origins: {},
+					layers: null,
+				},
+			});
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				start: {
+					method: start.method,
+					approvalPolicy: start.params.approvalPolicy,
+					approvalsReviewer: start.params.approvalsReviewer,
+					sandbox: start.params.sandbox,
+				},
+				turn: {
+					method: turn.method,
+					approvalPolicy: turn.params.approvalPolicy,
+					approvalsReviewer: turn.params.approvalsReviewer,
+					sandboxPolicy: turn.params.sandboxPolicy,
+					permissions: turn.params.permissions,
+				},
+			}, {
+				start: { method: 'thread/start', approvalPolicy: undefined, approvalsReviewer: undefined, sandbox: undefined },
+				turn: {
+					method: 'turn/start',
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'auto_review',
+					sandboxPolicy: {
+						type: 'workspaceWrite',
+						writableRoots: [folder.fsPath, '/configured'],
+						networkAccess: true,
+						excludeTmpdirEnvVar: false,
+						excludeSlashTmp: true,
+					},
+					permissions: undefined,
 				},
 			});
 		} finally {

@@ -39,14 +39,15 @@ export type CodexApprovalsReviewer = 'user' | 'auto_review' | 'guardian_subagent
 /**
  * Codex collapses its three security axes (sandbox × approval policy ×
  * approvals reviewer) into a single user-facing "permissions" preset, matching
- * the selector in the Codex app and IDE extension.
+ * the selector in the Codex app and IDE extension. The `custom` option selects
+ * Codex's own layered configuration instead of an Agent Host preset.
  *
- * @see https://developers.openai.com/codex/concepts/sandboxing#how-you-control-it
+ * @see https://learn.chatgpt.com/docs/permissions
  */
-export type CodexPermissionsPreset = 'default' | 'auto-review' | 'full-access';
+export type CodexPermissionsPreset = 'default' | 'auto-review' | 'full-access' | 'custom';
 
 /** Ordered preset list advertised in the Codex session-config schema. */
-export const CODEX_PERMISSIONS_PRESETS: readonly CodexPermissionsPreset[] = ['default', 'auto-review', 'full-access'];
+export const CODEX_PERMISSIONS_PRESETS: readonly CodexPermissionsPreset[] = ['default', 'auto-review', 'full-access', 'custom'];
 
 /** Default preset applied to new Codex sessions. */
 export const CODEX_DEFAULT_PERMISSIONS_PRESET: CodexPermissionsPreset = 'default';
@@ -66,6 +67,7 @@ export function narrowCodexPermissionsPreset(raw: unknown): CodexPermissionsPres
 		case 'default':
 		case 'auto-review':
 		case 'full-access':
+		case 'custom':
 			return raw;
 		default:
 			return undefined;
@@ -81,9 +83,11 @@ export interface ICodexResolvedPermissions {
 /**
  * Expand a {@link CodexPermissionsPreset} into the three underlying Codex
  * security axes sent to the app-server (`approvalPolicy`, `sandbox`,
- * `approvalsReviewer`).
+ * `approvalsReviewer`). `custom` returns `undefined`, which lets thread-start
+ * callers defer directly to `config.toml`; sticky thread operations must
+ * refresh the equivalent values through Codex's config API.
  */
-export function resolveCodexPermissionsPreset(preset: CodexPermissionsPreset): ICodexResolvedPermissions {
+export function resolveCodexPermissionsPreset(preset: CodexPermissionsPreset): ICodexResolvedPermissions | undefined {
 	switch (preset) {
 		case 'auto-review':
 			// Same workspace-write sandbox as `default`, but on-request approvals
@@ -91,6 +95,8 @@ export function resolveCodexPermissionsPreset(preset: CodexPermissionsPreset): I
 			return { approvalPolicy: 'on-request', sandboxMode: 'workspace-write', approvalsReviewer: 'auto_review' };
 		case 'full-access':
 			return { approvalPolicy: 'never', sandboxMode: 'danger-full-access', approvalsReviewer: 'user' };
+		case 'custom':
+			return undefined;
 		case 'default':
 		default:
 			return { approvalPolicy: 'on-request', sandboxMode: 'workspace-write', approvalsReviewer: 'user' };
@@ -111,7 +117,7 @@ export function resolveCodexPermissionsPreset(preset: CodexPermissionsPreset): I
 export function presetForResolvedPermissions(resolved: ICodexResolvedPermissions): CodexPermissionsPreset | undefined {
 	for (const preset of CODEX_PERMISSIONS_PRESETS) {
 		const axes = resolveCodexPermissionsPreset(preset);
-		if (axes.approvalPolicy === resolved.approvalPolicy && axes.sandboxMode === resolved.sandboxMode && axes.approvalsReviewer === resolved.approvalsReviewer) {
+		if (axes && axes.approvalPolicy === resolved.approvalPolicy && axes.sandboxMode === resolved.sandboxMode && axes.approvalsReviewer === resolved.approvalsReviewer) {
 			return preset;
 		}
 	}
