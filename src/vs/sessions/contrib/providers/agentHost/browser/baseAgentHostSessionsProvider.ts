@@ -389,8 +389,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const gitState = readSessionGitState(meta);
 	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
 
-	// Only pull requests the session produced are promoted, so the ones it
-	// recorded lead the discovered ones and the first is the main pull request.
+	// Recorded pull requests lead discovered ones, so the first is the newest.
 	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }

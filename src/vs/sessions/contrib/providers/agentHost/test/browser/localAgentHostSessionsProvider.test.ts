@@ -7796,19 +7796,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 			issues: gitHubInfo?.issues?.map(issue => issue.number),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
-			activePullRequest: 50,
-			pullRequests: [50, 41, 42],
+			activePullRequest: 41,
+			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
 			issues: [7],
 			artifacts: [
-				['a1', true],
-				['a2', false],
-				['a3', true],
-				['a4', true],
-				['a5', true],
-				['a6', true],
-				['a7', false],
 				['a8', false],
+				['a7', false],
+				['a6', true],
+				['a5', true],
+				['a4', true],
+				['a3', true],
+				['a2', false],
+				['a1', true],
 			],
 		});
 	}));
@@ -7857,7 +7857,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
 		}, {
 			withoutRepository: ['a1'],
-			foreignRepository: ['a1', 'a2'],
+			foreignRepository: ['a2', 'a1'],
 			issues: [7],
 			pullRequests: undefined,
 		});

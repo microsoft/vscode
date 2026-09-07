@@ -318,13 +318,16 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override isSessionPinned(): boolean { return false; }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
-				override getStatusIcon(status: SessionStatus): ThemeIcon {
+				override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 					switch (status) {
 						case SessionStatus.InProgress:
 							return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 						case SessionStatus.NeedsInput:
 							return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 						default:
+							if (!isRead) {
+								return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+							}
 							return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 					}
 				}
@@ -642,6 +645,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			sessions: [],
 			showAutomations: true,
 			automationBadgeStyle: 'soft',
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Unread: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'unread',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({
