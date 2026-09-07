@@ -56,7 +56,7 @@ suite('SessionArchiveNudge', () => {
 	}
 
 	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string) {
-		const configuration = new TestConfigurationService(enabled ? { [SESSION_ARCHIVE_NUDGE_SETTING]: true } : {});
+		const configuration = new TestConfigurationService({ [SESSION_ARCHIVE_NUDGE_SETTING]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const entitlement = new TestChatEntitlementService();
 		const storage = store.add(new TestStorageService());
@@ -165,7 +165,7 @@ suite('SessionArchiveNudge', () => {
 		};
 	}
 
-	test('is off by default, observes the experiment, and honors disabled AI features', async () => {
+	test('honors explicit enablement overrides and disabled AI features', async () => {
 		const context = setup(undefined, false);
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
