@@ -27,7 +27,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -224,6 +224,13 @@ export class SessionChatInputToolbar extends Disposable {
 		return this._findOwningSession(chat.resource, reader);
 	});
 
+	/**
+	 * Whether the reflected chat is a subagent (worker) chat. Its pills describe
+	 * the session the subagent was spawned from rather than the subagent's own
+	 * work, so the row stays hidden there.
+	 */
+	private readonly _isSubagentChat: IObservable<boolean> = derived(this, reader => this._chat.read(reader)?.origin?.kind === ChatOriginKind.Tool);
+
 	/** The current turn's diff stats. */
 	private readonly _diffStats: IObservable<IDiffStats>;
 	/** Artifact sections shown in the artifact pill. */
@@ -273,6 +280,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
+		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const gitHubInfo = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -349,7 +357,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
-			enabled: pillsEnabled,
+			enabled: pillsVisible,
 			sources: constObservable(sources.sources),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
