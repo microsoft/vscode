@@ -25,6 +25,7 @@ import { ISessionChangesStatsCache } from '../../../../services/sessions/common/
 import { ChatOriginKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
+import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 
 suite('SessionChatInputToolbar', () => {
@@ -227,6 +228,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ISessionChatPillVisibilityService, upcastPartial<ISessionChatPillVisibilityService>({
 			readHiddenKinds: () => new Set(),
 			isVisible: () => true,
+			readShowAllPullRequests: () => true,
 			hide: () => { },
 			toggle: () => { },
 		}));
@@ -253,5 +255,33 @@ suite('SessionChatInputToolbar', () => {
 			subagent: { pills: [], visible: false },
 			fork: { pills: ['1 File'], visible: true },
 		});
+	});
+
+	test('exposes live and cached pull request states without treating a closed draft as open', () => {
+		const ref: IGitHubPullRequestRef = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 1,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+		};
+		const pullRequests: readonly IResolvedSessionPullRequest[] = [
+			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
+			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Closed, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
+			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: {} },
+			{ ref: { ...ref, liveState: 'closed', state: 'open' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
+			{ ref: { ...ref, state: 'merged' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
+			{ ref, pullRequest: undefined, icon: Codicon.gitPullRequestDone, status: {} },
+			{ ref, pullRequest: undefined, icon: undefined, status: {} },
+		];
+		const entries = buildSessionPullRequestSections(
+			pullRequests,
+			undefined,
+			upcastPartial<ICommandService>({}),
+			upcastPartial<IClipboardService>({}),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ISessionsService>({}),
+		).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => entry.pullRequestState), ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open']);
 	});
 });

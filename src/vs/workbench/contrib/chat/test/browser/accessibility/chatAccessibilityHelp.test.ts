@@ -136,12 +136,18 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
+			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
+			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('toolbar context menu to show all again'),
 			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
 		}, {
 			panelChat: true,
 			agentView: true,
+			pullRequestFilter: true,
+			filterPersistence: true,
+			filterRecovery: true,
 			agentQuickChat: false,
 			quickChat: false,
 			inlineChat: false,

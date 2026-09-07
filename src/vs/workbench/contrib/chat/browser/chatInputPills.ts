@@ -6,10 +6,10 @@
 import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import type { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, Separator, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
+import { Action, Separator, SubmenuAction, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, isObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
@@ -19,14 +19,18 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../browser/label
 import { ChatChangesPillActionViewItem, type IChatChangesStats } from '../../../browser/chatChangesPill.js';
 import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, type ChatPillsCompactMode, type IChatPill, type IChatPillSection } from '../../../browser/chatPills.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
+import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../common/chatPullRequest.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
-import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions, type IChatPullRequestPillSection } from './sessionChatPillOptions.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
 	readonly hasData: IObservable<boolean>;
+	/** Whether any entries remain after the pill's own filtering. */
+	readonly isVisible?: IObservable<boolean>;
 	readonly pill: IObservable<IChatPill>;
+	getContextMenuActions?(): readonly IAction[];
 }
 
 export interface IChatInputPillsOptions {
@@ -42,9 +46,10 @@ export interface IChatInputPillsOptions {
 	readonly focusFallback?: () => void;
 }
 
-export interface IStandardChatInputPillSections {
-	readonly sections: IObservable<readonly IChatPillSection[]>;
+export interface IStandardChatInputPillSections<T extends IChatPillSection = IChatPillSection> {
+	readonly sections: IObservable<readonly T[]>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
+	getContextMenuActions?(): readonly IAction[];
 }
 
 export interface IStandardChatInputPillsData {
@@ -52,8 +57,9 @@ export interface IStandardChatInputPillsData {
 		readonly stats: IObservable<IChatChangesStats>;
 		readonly label: IObservable<string>;
 		open(): void;
+		getContextMenuActions?(): readonly IAction[];
 	};
-	readonly pullRequests?: IStandardChatInputPillSections;
+	readonly pullRequests?: IStandardChatInputPillSections<IChatPullRequestPillSection>;
 	readonly issues?: IStandardChatInputPillSections;
 	readonly artifacts?: IStandardChatInputPillSections;
 	readonly references?: IStandardChatInputPillSections;
@@ -89,6 +95,7 @@ export class StandardChatInputPillSources extends Disposable {
 	constructor(
 		data: IStandardChatInputPillsData,
 		offeredKinds: readonly SessionChatPillKind[],
+		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -112,17 +119,60 @@ export class StandardChatInputPillSources extends Disposable {
 				kind: SessionChatPillKind.Changes,
 				hasData: derived(reader => changes.stats.read(reader).files > 0),
 				pill: constObservable(pill),
+				getContextMenuActions: () => changes.getContextMenuActions?.() ?? [],
 			});
 		}
 
-		const addSections = (kind: SessionChatPillKind, source: IStandardChatInputPillSections | undefined, options: IChatDropdownPillOptions) => {
+		const addSections = (kind: SessionChatPillKind, source: IStandardChatInputPillSections | undefined, options: IChatDropdownPillOptions, filteredSections?: IObservable<readonly IChatPillSection[]>) => {
 			if (!source || !offered.has(kind)) {
 				return;
 			}
 			const action = this._register(new Action(`chatInputPills.${kind}`, getSessionChatPillLabel(kind)));
-			sources.push(createChatSectionPillSource(kind, action, source.sections, source.icon ? { ...options, icon: source.icon } : options, resourceLabels, instantiationService));
+			const sections = filteredSections ?? source.sections;
+			const icon = kind === SessionChatPillKind.PullRequests ? derived(this, reader => {
+				if (visibility.readShowAllPullRequests(reader)) {
+					const icon = source.icon ?? options.icon;
+					return isObservable(icon) ? icon.read(reader) : icon;
+				}
+				return getHighestPriorityPullRequestIcon(getChatPillEntries(sections.read(reader)).map(entry => entry.icon)) ?? computePullRequestIcon('open');
+			}) : source.icon;
+			const pillSource = createChatSectionPillSource(kind, action, sections, icon ? { ...options, icon } : options, resourceLabels, instantiationService);
+			sources.push({
+				...pillSource,
+				hasData: derived(reader => getChatPillEntries(source.sections.read(reader)).length > 0),
+				isVisible: pillSource.hasData,
+				getContextMenuActions: () => {
+					const actions: IAction[] = [];
+					if (kind === SessionChatPillKind.PullRequests) {
+						const showAll = visibility.readShowAllPullRequests(undefined);
+						actions.push(
+							toAction({
+								id: 'chatInputPills.pullRequests.showAll',
+								label: localize('chatInputPills.pullRequests.showAll', "Show All"),
+								checked: showAll,
+								run: () => visibility.setShowAllPullRequests(true),
+							}),
+							toAction({
+								id: 'chatInputPills.pullRequests.showOpen',
+								label: localize('chatInputPills.pullRequests.showOpen', "Show Open/Draft"),
+								checked: !showAll,
+								run: () => visibility.setShowAllPullRequests(false),
+							}),
+						);
+					}
+					return [...actions, ...(source.getContextMenuActions?.() ?? [])];
+				},
+			});
 		};
-		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
+		const pullRequests = data.pullRequests;
+		const pullRequestSections = pullRequests ? derived(this, reader => {
+			const sections = pullRequests.sections.read(reader);
+			return visibility.readShowAllPullRequests(reader) ? sections : sections.map(section => ({
+				...section,
+				entries: section.entries.filter(entry => entry.pullRequestState !== 'closed' && entry.pullRequestState !== 'merged'),
+			})).filter(section => section.entries.length > 0);
+		}) : undefined;
+		addSections(SessionChatPillKind.PullRequests, pullRequests, sessionPullRequestsPillOptions, pullRequestSections);
 		addSections(SessionChatPillKind.Issues, data.issues, sessionIssuesPillOptions);
 		addSections(SessionChatPillKind.Artifacts, data.artifacts, chatArtifactPillOptions);
 		addSections(SessionChatPillKind.References, data.references, sessionReferencesPillOptions);
@@ -168,7 +218,7 @@ export class ChatInputPills extends Disposable {
 				return [];
 			}
 			return _options.sources.read(reader).filter(source =>
-				source.hasData.read(reader) && (!source.kind || this._visibility.isVisible(source.kind, reader)));
+				source.hasData.read(reader) && (source.isVisible?.read(reader) ?? true) && (!source.kind || this._visibility.isVisible(source.kind, reader)));
 		});
 		const model = {
 			pills: derived(this, reader => visibleSources.read(reader).map(source => source.pill.read(reader))),
@@ -269,20 +319,33 @@ export class ChatInputPills extends Disposable {
 				restoreFocus();
 			},
 		});
-		const groups: IAction[][] = [];
+		const targetActions: IAction[] = [];
 		if (menu.hide) {
 			const hide = menu.hide;
-			groups.push([toAction({
+			targetActions.push(toAction({
 				id: `chatInputPills.hide.${hide.kind}`,
 				label: hide.label,
 				run: () => {
 					this._visibility.hide(hide.kind);
 					restoreFocus();
 				},
-			})]);
+			}));
 		}
-		groups.push(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
-		return Separator.join(...groups);
+		for (const source of this._options.sources.get()) {
+			if (!source.kind || !this._options.offeredKinds.includes(source.kind)
+				|| (targetKind ? source.kind !== targetKind : !kindsWithData.has(source.kind))) {
+				continue;
+			}
+			const actions = source.getContextMenuActions?.();
+			if (actions?.length) {
+				targetActions.push(new SubmenuAction(
+					`chatInputPills.options.${source.kind}`,
+					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
+					actions,
+				));
+			}
+		}
+		return Separator.join(targetActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

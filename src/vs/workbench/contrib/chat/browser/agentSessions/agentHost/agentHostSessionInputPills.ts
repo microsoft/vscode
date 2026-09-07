@@ -399,7 +399,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>): readonly IChatPillSection[] {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
@@ -418,6 +418,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				label,
 				...(kind === 'pullRequest' && number ? { pillLabel: `#${number}` } : {}),
 				icon: kind === 'pullRequest' ? computePullRequestIcon(pullRequestState) : Codicon.issues,
+				pullRequestState: kind === 'pullRequest' ? pullRequestState : undefined,
 				toolbarActions: [toAction({
 					id: `chatInputPills.copy.${kind}.${linkKey(link)}`,
 					label: kind === 'pullRequest'
@@ -428,7 +429,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				})],
 				...getChatPillResourceLocation(resource, label),
 				open: () => this._openExternal(resource),
-			} satisfies IChatPillEntry;
+			};
 		}).filter(isDefined);
 		const title = kind === 'pullRequest'
 			? localize('agentHostSessionPills.pullRequests.section', "Pull Requests")

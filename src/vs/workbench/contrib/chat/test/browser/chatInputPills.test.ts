@@ -5,19 +5,67 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
-import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../common/sessionChatPills.js';
+import type { IChatPullRequestPillEntry, IChatPullRequestPillSection } from '../../browser/sessionChatPillOptions.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('StandardChatInputPillSources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses one canonical composition for different offered kind sets', () => {
+	function createServices(sharedVisibility?: SessionChatPillVisibility) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const visibility = sharedVisibility ?? store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		return { instantiationService, visibility };
+	}
+
+	function createPills(data: IStandardChatInputPillsData, sharedVisibility?: SessionChatPillVisibility) {
+		const { instantiationService, visibility } = createServices(sharedVisibility);
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+			},
+		});
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const sources = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, SESSION_CHAT_PILL_KINDS));
+		const inputPills = store.add(instantiationService.createInstance(ChatInputPills, container, {
+			debugName: 'ChatInputPills.options.test',
+			compact: false,
+			enabled: constObservable(true),
+			sources: constObservable(sources.sources),
+			offeredKinds: SESSION_CHAT_PILL_KINDS,
+		}));
+		return {
+			inputPills,
+			visibility,
+			labels: () => [...inputPills.element.querySelectorAll('.chat-pill-label')].map(element => element.textContent),
+			openContextMenu: (target: HTMLElement, keyboard = false) => {
+				menuActions = [];
+				target.dispatchEvent(keyboard
+					? new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true })
+					: new MouseEvent('contextmenu', { bubbles: true }));
+				return menuActions;
+			},
+		};
+	}
+
+	function pullRequestEntry(id: string, state?: ChatPullRequestState): IChatPullRequestPillEntry {
+		return { id, label: id, pillLabel: id, icon: computePullRequestIcon(state ?? 'open'), pullRequestState: state, open: () => { } };
+	}
+
+	test('uses one canonical composition for different offered kind sets', () => {
+		const { instantiationService } = createServices();
 		const sections = constObservable([]);
 		const data: IStandardChatInputPillsData = {
 			changes: {
@@ -51,6 +99,161 @@ suite('StandardChatInputPillSources', () => {
 			full: SESSION_CHAT_PILL_KINDS,
 			editor: editorKinds,
 		});
+	});
+
+	test('offers checked pull request options directly below Hide for mouse and keyboard', async () => {
+		const pills = createPills({
+			pullRequests: { sections: constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]) },
+		});
+		const menu = pills.openContextMenu(pills.inputPills.getPillElements()[0]);
+		const submenu = menu[1];
+		assert.ok(submenu instanceof SubmenuAction);
+		const before = submenu.actions.map(action => ({ label: action.label, checked: action.checked }));
+		await submenu.actions[1].run();
+		const keyboardMenu = pills.openContextMenu(pills.inputPills.getPillElements()[0], true);
+		const keyboardSubmenu = keyboardMenu[1];
+		assert.ok(keyboardSubmenu instanceof SubmenuAction);
+		const after = keyboardSubmenu.actions.map(action => ({ label: action.label, checked: action.checked }));
+		await keyboardSubmenu.actions[0].run();
+
+		assert.deepStrictEqual({
+			order: menu.slice(0, 3).map(action => action.label),
+			keyboardOrder: keyboardMenu.slice(0, 3).map(action => action.label),
+			before,
+			after,
+			restoredAll: pills.visibility.readShowAllPullRequests(undefined),
+		}, {
+			order: ['Hide Pull Requests', 'Pull Requests Options', ''],
+			keyboardOrder: ['Hide Pull Requests', 'Pull Requests Options', ''],
+			before: [{ label: 'Show All', checked: true }, { label: 'Show Open/Draft', checked: false }],
+			after: [{ label: 'Show All', checked: false }, { label: 'Show Open/Draft', checked: true }],
+			restoredAll: true,
+		});
+	});
+
+	test('lets other pills contribute options without changing the visibility menu', async () => {
+		let invoked = false;
+		const pills = createPills({
+			changes: {
+				stats: constObservable({ files: 1, insertions: 1, deletions: 0 }),
+				label: constObservable('Changes'),
+				open: () => { },
+				getContextMenuActions: () => [toAction({ id: 'changes.option', label: 'Changes Option', run: () => { } })],
+			},
+			artifacts: {
+				sections: constObservable([{ title: 'Artifacts', entries: [{ id: 'report', label: 'Report', open: () => { } }] }]),
+				getContextMenuActions: () => [toAction({ id: 'artifacts.option', label: 'Artifact Option', run: () => { invoked = true; } })],
+			},
+			references: {
+				sections: constObservable([{ title: 'References', entries: [{ id: 'docs', label: 'Docs', open: () => { } }] }]),
+			},
+		});
+		const [changes, artifacts, references] = pills.inputPills.getPillElements();
+		const changesMenu = pills.openContextMenu(changes);
+		const artifactsMenu = pills.openContextMenu(artifacts);
+		const referencesMenu = pills.openContextMenu(references);
+		const submenu = artifactsMenu[1];
+		assert.ok(submenu instanceof SubmenuAction);
+		await submenu.actions[0].run();
+
+		assert.deepStrictEqual({
+			changes: changesMenu.slice(0, 2).map(action => action.label),
+			artifacts: artifactsMenu.slice(0, 3).map(action => action.label),
+			references: referencesMenu.slice(0, 2).map(action => action.label),
+			referencesHaveOptions: referencesMenu.some(action => action instanceof SubmenuAction),
+			invoked,
+		}, {
+			changes: ['Changes Options', ''],
+			artifacts: ['Hide Artifacts', 'Artifacts Options', ''],
+			references: ['Hide References', ''],
+			referencesHaveOptions: false,
+			invoked: true,
+		});
+	});
+
+	test('filters closed and merged pull requests reactively across sessions but not references', () => {
+		const sections = observableValue<readonly IChatPullRequestPillSection[]>('pullRequestSections', [{
+			title: 'Pull Requests',
+			entries: [
+				pullRequestEntry('#1', 'open'),
+				pullRequestEntry('#2', 'draft'),
+				pullRequestEntry('#3', 'closed'),
+				pullRequestEntry('#4', 'merged'),
+				pullRequestEntry('#5'),
+			],
+		}]);
+		const first = createPills({ pullRequests: { sections }, references: { sections } });
+		const second = createPills({ pullRequests: { sections } }, first.visibility);
+		const before = { first: first.labels(), second: second.labels() };
+		first.visibility.setShowAllPullRequests(false);
+		const filtered = { first: first.labels(), second: second.labels() };
+		const states: readonly (ChatPullRequestState | undefined)[] = ['open', 'draft', 'closed', 'merged', undefined];
+		const transitions = states.map(state => {
+			sections.set([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', state)] }], undefined);
+			return { state, first: first.labels(), second: second.labels() };
+		});
+
+		assert.deepStrictEqual({ before, filtered, transitions }, {
+			before: { first: ['5 Pull Requests', '5 References'], second: ['5 Pull Requests'] },
+			filtered: { first: ['3 Pull Requests', '5 References'], second: ['3 Pull Requests'] },
+			transitions: [
+				{ state: 'open', first: ['#1', '1 Reference'], second: ['#1'] },
+				{ state: 'draft', first: ['#1', '1 Reference'], second: ['#1'] },
+				{ state: 'closed', first: ['1 Reference'], second: [] },
+				{ state: 'merged', first: ['1 Reference'], second: [] },
+				{ state: undefined, first: ['#1', '1 Reference'], second: ['#1'] },
+			],
+		});
+	});
+
+	test('keeps options reachable when every pull request is filtered out', async () => {
+		const pills = createPills({
+			pullRequests: { sections: constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]) },
+		});
+		pills.visibility.setShowAllPullRequests(false);
+		const filtered = {
+			labels: pills.labels(),
+			visible: pills.inputPills.visible,
+			empty: pills.inputPills.element.classList.contains('empty'),
+		};
+		const row = pills.inputPills.element.querySelector<HTMLElement>('.chat-pills-row-content');
+		assert.ok(row);
+		const submenu = pills.openContextMenu(row, true)[0];
+		assert.ok(submenu instanceof SubmenuAction);
+		await submenu.actions[0].run();
+
+		assert.deepStrictEqual({
+			filtered,
+			options: submenu.label,
+			restored: pills.labels(),
+			emptyAfterRestore: pills.inputPills.element.classList.contains('empty'),
+		}, {
+			filtered: { labels: [], visible: true, empty: true },
+			options: 'Pull Requests Options',
+			restored: ['#1'],
+			emptyAfterRestore: false,
+		});
+	});
+
+	test('preserves provided summary icons for Show All and only aggregates visible entries when filtered', () => {
+		const icon = observableValue('pullRequestSummaryIcon', computePullRequestIcon('merged'));
+		const pills = createPills({
+			pullRequests: {
+				icon,
+				sections: constObservable([{
+					title: 'Pull Requests',
+					entries: [pullRequestEntry('#1', 'merged'), pullRequestEntry('#2', 'draft'), pullRequestEntry('#3', 'draft')],
+				}]),
+			},
+		});
+		const hasIcon = (state: ChatPullRequestState) => pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${computePullRequestIcon(state).id}`);
+		const before = hasIcon('merged');
+		pills.visibility.setShowAllPullRequests(false);
+		icon.set(computePullRequestIcon('closed'), undefined);
+		const filtered = hasIcon('draft');
+		pills.visibility.setShowAllPullRequests(true);
+
+		assert.deepStrictEqual({ before, filtered, restored: hasIcon('closed') }, { before: true, filtered: true, restored: true });
 	});
 
 	test('keeps the row available for restoring a hidden pill', async () => {

@@ -125,6 +125,13 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
+const showAllSessionPullRequests = observableMemento<boolean>({
+	defaultValue: true,
+	key: 'sessions.chatPills.pullRequests.showAll',
+	toStorage: value => String(value),
+	fromStorage: value => value !== 'false',
+});
+
 export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
 
 export interface ISessionChatPillVisibilityService {
@@ -133,6 +140,8 @@ export interface ISessionChatPillVisibilityService {
 	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
 	hide(kind: SessionChatPillKind): void;
 	toggle(kind: SessionChatPillKind): void;
+	readShowAllPullRequests(reader: IReader | undefined): boolean;
+	setShowAllPullRequests(showAll: boolean): void;
 }
 
 /** The user's per-kind pill visibility choices, persisted across windows. */
@@ -141,12 +150,14 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
+	private readonly _showAllPullRequests: ObservableMemento<boolean>;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
 		this._hiddenKinds = this._register(hiddenSessionChatPills(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		this._showAllPullRequests = this._register(showAllSessionPullRequests(StorageScope.APPLICATION, StorageTarget.USER, storageService));
 	}
 
 	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind> {
@@ -169,5 +180,13 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 		}
 		const hidden = this._hiddenKinds.get();
 		this._hiddenKinds.set(hidden.includes(kind) ? hidden.filter(hiddenKind => hiddenKind !== kind) : [...hidden, kind], undefined);
+	}
+
+	readShowAllPullRequests(reader: IReader | undefined): boolean {
+		return this._showAllPullRequests.read(reader);
+	}
+
+	setShowAllPullRequests(showAll: boolean): void {
+		this._showAllPullRequests.set(showAll, undefined);
 	}
 }
