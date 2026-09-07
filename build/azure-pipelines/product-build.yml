@@ -126,17 +126,17 @@ parameters:
     displayName: "Run sanity tests against this build's artifacts (for unpublished builds)"
     type: boolean
     default: false
-  # SDK -> VS Code integration: override the Copilot dependencies to a version
-  # already published to the private feed. 'none'/'auto' = normal build.
+  # SDK -> VS Code integration: override Copilot dependencies with versions
+  # already published to the private feed. 'none' = use the OSS SDK version.
   # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
   - name: VSCODE_SDK_CANARY_VERSION
     displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
     type: string
     default: none
   - name: VSCODE_CLI_CANARY_VERSION
-    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    displayName: "Product @github/copilot runtime version ('auto' = infer from an SDK override)"
     type: string
-    default: auto
+    default: 1.0.84-canary.67.g6496fad.unsigned
 
 variables:
   - name: VSCODE_BUILD_TITLE_PREFIX
@@ -148,9 +148,8 @@ variables:
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
-  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
-  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
-  # and the override script infers the CLI when it is empty.
+  # Normalize sentinels back to empty so the override script can distinguish
+  # the normal SDK and inferred runtime paths.
   - name: VSCODE_SDK_CANARY_VERSION
     ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
       value: ""
