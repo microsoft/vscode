@@ -782,7 +782,16 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 // Detects binary content by scanning the beginning of the file for a NUL byte,
 // the same heuristic git itself relies on. This works regardless of the git CLI
 // locale, unlike matching against the localized "Binary files ... differ" text.
+// Also rejects symlinks and special files to prevent following symlinks outside
+// the repository and exposing sensitive data.
 async function isBinaryFile(filePath: string): Promise<boolean> {
+	const stat = await fs.lstat(filePath);
+
+	// Reject symlinks and special files (devices, sockets, etc)
+	if (!stat.isFile()) {
+		return true;
+	}
+
 	const handle = await fs.open(filePath, 'r');
 
 	try {
@@ -1492,11 +1501,6 @@ export class CommandCenter {
 			}
 
 			try {
-				if (await isBinaryFile(resource.resourceUri.fsPath)) {
-					sections.push(`-------------- > /${relativePath}:\n[${l10n.t('binary file changed')}]`);
-					continue;
-				}
-
 				let changedLines: string[];
 
 				if (resource.type === Status.UNTRACKED) {
@@ -1504,6 +1508,11 @@ export class CommandCenter {
 					// so treat every line of the working tree file as added. Check the
 					// file size before reading it into memory to avoid high memory use
 					// or a hang while reading a huge file just to discard it below.
+					if (await isBinaryFile(resource.resourceUri.fsPath)) {
+						sections.push(`-------------- > /${relativePath}:\n[${l10n.t('binary file changed')}]`);
+						continue;
+					}
+
 					const { size } = await fs.stat(resource.resourceUri.fsPath);
 
 					if (size > clipboardSizeLimit) {
@@ -1523,12 +1532,26 @@ export class CommandCenter {
 						? await repository.diffIndexWithHEAD(relativePath)
 						: await repository.diffWithHEAD(relativePath);
 
+					// Check for binary files in the diff output
+					if (rawDiff.includes('Binary files')) {
+						sections.push(`-------------- > /${relativePath}:\n[${l10n.t('binary file changed')}]`);
+						continue;
+					}
+
+					// Filter to only include changed lines, excluding diff header lines like
+					// "--- a/path" and "+++ b/path". A line is a diff header if it starts
+					// with "---" or "+++" followed by a space and a path (matching unified diff format).
 					changedLines = rawDiff
 						.split('\n')
-						.filter(line =>
-							(line.startsWith('+') && !line.startsWith('+++')) ||
-							(line.startsWith('-') && !line.startsWith('---'))
-						);
+						.filter(line => {
+							if (line.startsWith('---') && line.includes(' ')) {
+								return false;
+							}
+							if (line.startsWith('+++') && line.includes(' ')) {
+								return false;
+							}
+							return (line.startsWith('+') || line.startsWith('-'));
+						});
 				}
 
 				sections.push(`-------------- > /${relativePath}:\n${changedLines.join('\n')}`);
