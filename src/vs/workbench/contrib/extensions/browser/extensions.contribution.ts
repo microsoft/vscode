@@ -272,6 +272,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, extensions can declare whether they support running in the Agents window."),
 				default: false,
 				tags: ['experimental'],
+				experiment: { mode: 'startup' },
 				agentsWindow: { default: false }
 			},
 			'extensions.experimental.affinity': {
