@@ -22,6 +22,7 @@ import {
 	isAutomationModelConfiguration,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
+	AutomationCatalogueState,
 	type AutomationMutationGuard,
 	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
@@ -122,14 +123,15 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _catalogueState: ISettableObservable<AutomationCatalogueState>;
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
-	private _canCompleteMigration = true;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly storageKey: string,
@@ -144,14 +146,15 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		const initial = result.kind === 'unsupportedSchema' ? EMPTY_LEDGER : result.ledger;
-		this._canCompleteMigration = result.kind === 'ledger';
 		if (result.kind !== 'unsupportedSchema') {
 			this._lastSeenRevision = result.revision;
 		}
 		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
+		this._catalogueState = observableValue(this, result.kind === 'ledger' ? 'ready' : 'error');
 		this.automations = this._automations;
 		this.runs = this._runs;
+		this.catalogueState = this._catalogueState;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();
@@ -168,7 +171,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	}
 
 	canCompleteMigration(): boolean {
-		return this._canCompleteMigration;
+		return this._catalogueState.get() === 'ready';
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -475,9 +478,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		while (true) {
 			const readResult = this.readLedger(raw);
 			if (readResult.kind === 'unsupportedSchema') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: storage was written by a newer version');
 			}
 			if (readResult.kind === 'invalid') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: persisted storage contains data this version cannot safely interpret');
 			}
 
@@ -512,30 +517,33 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 	}
 
-	private acceptLedger(ledger: ILedger, revision: number): void {
+	private acceptLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		if (revision < this._lastSeenRevision) {
+			if (catalogueState === 'error') {
+				this._catalogueState.set(catalogueState, undefined);
+			}
 			return;
 		}
-		this.setLedger(ledger, revision);
+		this.setLedger(ledger, revision, catalogueState);
 	}
 
-	private setLedger(ledger: ILedger, revision: number): void {
+	private setLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
 			this._runs.set(ledger.runs, tx);
+			this._catalogueState.set(catalogueState, tx);
 		});
 	}
 
 	private refreshFromStorage(): void {
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
-			this._canCompleteMigration = false;
+			this._catalogueState.set('error', undefined);
 			return;
 		}
 
-		this._canCompleteMigration = result.kind === 'ledger';
-		this.acceptLedger(result.ledger, result.revision);
+		this.acceptLedger(result.ledger, result.revision, result.kind === 'ledger' ? 'ready' : 'error');
 	}
 
 	private readLedger(raw: string | undefined): ReadLedgerResult {
