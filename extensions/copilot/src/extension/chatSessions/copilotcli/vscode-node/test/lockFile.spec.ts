@@ -101,8 +101,8 @@ describe('createLockFile', () => {
 	let createdLockFile: string | null = null;
 
 	beforeEach(() => {
-		originalEnv = process.env.XDG_STATE_HOME;
-		process.env.XDG_STATE_HOME = testDir;
+		originalEnv = process.env.COPILOT_HOME;
+		process.env.COPILOT_HOME = path.join(testDir, '.copilot');
 	});
 
 	afterEach(async () => {
@@ -111,9 +111,9 @@ describe('createLockFile', () => {
 			createdLockFile = null;
 		}
 		if (originalEnv !== undefined) {
-			process.env.XDG_STATE_HOME = originalEnv;
+			process.env.COPILOT_HOME = originalEnv;
 		} else {
-			delete process.env.XDG_STATE_HOME;
+			delete process.env.COPILOT_HOME;
 		}
 		await fs.rm(testDir, { recursive: true, force: true }).catch(() => { });
 	});
@@ -177,16 +177,16 @@ describe('cleanupStaleLockFiles', () => {
 	let originalEnv: string | undefined;
 
 	beforeEach(async () => {
-		originalEnv = process.env.XDG_STATE_HOME;
-		process.env.XDG_STATE_HOME = testDir;
+		originalEnv = process.env.COPILOT_HOME;
+		process.env.COPILOT_HOME = path.join(testDir, '.copilot');
 		await fs.mkdir(copilotDir, { recursive: true });
 	});
 
 	afterEach(async () => {
 		if (originalEnv !== undefined) {
-			process.env.XDG_STATE_HOME = originalEnv;
+			process.env.COPILOT_HOME = originalEnv;
 		} else {
-			delete process.env.XDG_STATE_HOME;
+			delete process.env.COPILOT_HOME;
 		}
 		await fs.rm(testDir, { recursive: true, force: true }).catch(() => { });
 	});

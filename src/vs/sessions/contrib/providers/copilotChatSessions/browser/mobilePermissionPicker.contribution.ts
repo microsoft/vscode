@@ -5,9 +5,9 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { PickerActionViewItem } from './copilotChatSessionsActions.js';
 import { MobilePermissionPicker } from './mobilePermissionPicker.js';
 import { CopilotPermissionPickerDelegate } from './permissionPicker.js';
@@ -32,16 +32,16 @@ class CopilotPermissionPickerWebContribution extends Disposable implements IWork
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			'sessions.defaultCopilot.permissionPicker',
-			() => {
-				const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
-				const picker = instantiationService.createInstance(MobilePermissionPicker, delegate);
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
+				const picker = scopedInstantiationService.createInstance(MobilePermissionPicker, delegate);
 				return new PickerActionViewItem(picker, delegate);
 			},
 		));

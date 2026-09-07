@@ -6,6 +6,7 @@
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
 import { SessionsPart } from '../sessionsPart.js';
+import { clearAgentsPartCardStyles } from '../agentsPartCard.js';
 import { isPhoneLayout } from './mobileLayout.js';
 
 /**
@@ -31,10 +32,7 @@ export class MobileSessionsPart extends SessionsPart {
 
 		const container = this.getContainer();
 		if (container) {
-			container.style.backgroundColor = '';
-			container.style.removeProperty('--part-background');
-			container.style.removeProperty('--part-border-color');
-			container.style.color = '';
+			clearAgentsPartCardStyles(container);
 		}
 	}
 

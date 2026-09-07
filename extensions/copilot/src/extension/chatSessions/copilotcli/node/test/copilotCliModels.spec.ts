@@ -44,7 +44,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): LanguageModelChatIn
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: 'Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.',
+		tooltip: 'Auto routes based on your task and real-time system health and model performance. [Learn More](https://docs.github.com/en/copilot/concepts/models/auto-model-selection)',
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -540,6 +540,57 @@ describe('CopilotCLIModels', () => {
 			await new Promise(r => setTimeout(r, 0));
 
 			expect(changeCount).toBeGreaterThan(0);
+		});
+	});
+
+	describe('context size options', () => {
+		function createLmMock() {
+			let capturedProvider: any;
+			return {
+				mock: {
+					registerLanguageModelChatProvider: (_id: string, provider: any) => {
+						capturedProvider = provider;
+						return { dispose: () => { } };
+					}
+				},
+				getProvider: () => capturedProvider,
+			};
+		}
+
+		it('exposes both context sizes with the longer as default for a free long-context model', async () => {
+			// Free long context: default tier 200K, full window 1M, no surcharge — picker offers both.
+			const sdk = {
+				_serviceBrand: undefined,
+				getPackage: vi.fn(async () => ({
+					getAvailableModels: vi.fn(async () => [{
+						id: 'free-long-context',
+						name: 'Free Long Context',
+						billing: { token_prices: { default: { input_price: 1, output_price: 1, max_prompt_tokens: 200_000 } } },
+						capabilities: {
+							limits: { max_prompt_tokens: 1_000_000, max_output_tokens: 8_000, max_context_window_tokens: 1_000_000 },
+							supports: { vision: false },
+						},
+					}]),
+				})),
+				getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'test-token', host: 'https://github.com' })),
+				getRequestId: vi.fn(() => undefined),
+				setRequestId: vi.fn(),
+			} as unknown as ICopilotCLISDK;
+
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, false);
+			const { models } = createModels({ hasSession: true, sdk, configService });
+			const lm = createLmMock();
+			models.registerLanguageModelChatProvider(lm.mock as any);
+
+			await models.getModels();
+			await new Promise(r => setTimeout(r, 0));
+
+			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
+			const model = result.find((m: any) => m.id === 'free-long-context');
+			const contextSize = model?.configurationSchema?.properties?.contextSize;
+			expect(contextSize?.enum).toEqual([200_000, 1_000_000]);
+			expect(contextSize?.default).toBe(1_000_000);
 		});
 	});
 

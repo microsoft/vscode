@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b2e04fbe2334bfe56940106b652f4c5799affbb1",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b308b4b3502c8639149e63d74844da51031b5f47",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -74,12 +74,12 @@
 	"repository": {
 		"dartdoc-codeblock-triple": {
 			"begin": "^\\s*///\\s*(?!\\s*```)",
-			"end": "\n",
+			"end": "$",
 			"contentName": "variable.other.source.dart"
 		},
 		"dartdoc-codeblock-block": {
 			"begin": "^\\s*\\*\\s*(?!(\\s*```|/))",
-			"end": "\n",
+			"end": "$",
 			"contentName": "variable.other.source.dart"
 		},
 		"dartdoc": {

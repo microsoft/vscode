@@ -470,7 +470,7 @@ export class SSEProcessor {
 					};
 
 					let handled = true;
-					if (choice.delta?.tool_calls) {
+					if (choice.delta?.tool_calls?.length) {
 						const hadExistingToolCalls = this.toolCalls.hasToolCalls();
 						if (!hadExistingToolCalls) {
 							const firstToolCall = choice.delta.tool_calls.at(0);

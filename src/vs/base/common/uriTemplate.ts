@@ -298,7 +298,7 @@ function pctEncode(str: string): string {
 		) {
 			out += str[i];
 		} else {
-			out += '%' + chr.toString(16).toUpperCase();
+			out += '%' + chr.toString(16).toUpperCase().padStart(2, '0');
 		}
 	}
 	return out;

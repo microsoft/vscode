@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorPartOptions, IModalEditorSidebar } from '../../../../../platform/editor/common/editor.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
@@ -25,6 +26,8 @@ class TestModalEditorSidebarHost extends Disposable {
 	private readonly _onDidLayout = this._register(new Emitter<{ readonly height: number; readonly width: number }>());
 
 	private readonly contentDisposable = this._register(new MutableDisposable());
+
+	private readonly contextKeyService = this._register(new MockContextKeyService());
 
 	private _sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
 	get sidebarWidth(): number { return this._sidebarWidth; }
@@ -82,7 +85,7 @@ class TestModalEditorSidebarHost extends Disposable {
 
 	private renderContent(content: IModalEditorSidebar): void {
 		this._renderCount++;
-		this.contentDisposable.value = content.render({} /* stub container */, this._onDidLayout.event);
+		this.contentDisposable.value = content.render({} /* stub container */, this._onDidLayout.event, this.contextKeyService);
 	}
 
 	// --- resize (mirrors sash logic) ----------------------------------------

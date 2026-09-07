@@ -1,0 +1,127 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+    response:
+      content:
+        - type: text
+          text: I'll delegate the directory listing to a subagent.
+        - type: tool_use
+          id: toolcall_0
+          name: Agent
+          input:
+            description: List files in working directory
+            prompt: |-
+              List the files in the current working directory: ${workdir}
+
+              Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+              Report back the exact list of file and directory names you found (or state that the directory is empty).
+            subagent_type: Explore
+            run_in_background: false
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+            Report back the exact list of file and directory names you found (or state that the directory is empty).
+    response:
+      content:
+        - type: text
+          text: I'll list the directory contents with a single Glob call.
+        - type: tool_use
+          id: toolcall_1
+          name: Glob
+          input:
+            pattern: '*'
+            path: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory: ${workdir}
+
+            Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+            Report back the exact list of file and directory names you found (or state that the directory is empty).
+        - role: assistant
+          content:
+            - type: text
+              text: I'll list the directory contents with a single Glob call.
+            - type: tool_use
+              name: Glob
+              input:
+                pattern: '*'
+                path: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                file-a.txt
+                file-b.txt
+    response:
+      content: |-
+        The directory contains 2 entries, both files (no subdirectories):
+
+        - `${workdir}\file-a.txt`
+        - `${workdir}\file-b.txt`
+
+        Exact names as returned: `file-a.txt`, `file-b.txt`
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `Task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only file-listing tool (e.g. `Glob` or `view`) to enumerate the directory; do not run a shell command. Do not enumerate the directory yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll delegate the directory listing to a subagent.
+            - type: tool_use
+              name: Agent
+              input:
+                description: List files in working directory
+                prompt: |-
+                  List the files in the current working directory: ${workdir}
+
+                  Use a single read-only file-listing tool call — the Glob tool with pattern "*" and path set to that directory. Do NOT run any shell/Bash commands.
+
+                  Report back the exact list of file and directory names you found (or state that the directory is empty).
+                subagent_type: Explore
+                run_in_background: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                The directory contains 2 entries, both files (no subdirectories):
+
+                - `${workdir}\file-a.txt`
+                - `${workdir}\file-b.txt`
+
+                Exact names as returned: `file-a.txt`, `file-b.txt`
+    response:
+      content: |-
+        The subagent enumerated the directory with a single `Glob` call. Contents of `${workdir}`:
+
+        - `file-a.txt`
+        - `file-b.txt`
+
+        No subdirectories.
+      stopReason: end_turn

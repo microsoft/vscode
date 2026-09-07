@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.external-session-banner-chat-fixture {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+.external-session-banner-chat-transcript {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size320);
+}
+
+.external-session-banner-chat-request,
+.external-session-banner-chat-response {
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 70%;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow-wrap: anywhere;
+}
+
+.external-session-banner-chat-request {
+	align-self: flex-start;
+	background-color: var(--vscode-chat-requestBackground);
+}
+
+.external-session-banner-chat-response {
+	align-self: flex-start;
+}
+
+.external-session-banner-chat-input {
+	box-sizing: border-box;
+	width: calc(100% - var(--vscode-spacing-size320) - var(--vscode-spacing-size320));
+	margin: 0 auto var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-placeholderForeground);
+}

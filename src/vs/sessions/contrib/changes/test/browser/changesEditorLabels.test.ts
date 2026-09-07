@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_LABEL_FORMATTER, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
-import { getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
 
 suite('ChangesEditorLabels', () => {
 
@@ -30,17 +29,17 @@ suite('ChangesEditorLabels', () => {
 		return labelService;
 	}
 
-	function hex(value: string): string {
-		return encodeHex(VSBuffer.fromString(value)).toString();
-	}
-
 	test('labels are derived from the display file URI, not the backing git blob URI', () => {
 		const labelService = createLabelService();
 		const displayUri = toAgentHostUri(URI.file('/workspaces/demo/src/app.ts'), 'remotehost');
 		const backingUri = toAgentHostUri(URI.from({
 			scheme: 'git-blob',
-			authority: hex('session-db://session-123'),
-			path: `/abc123/${hex('src/app.ts')}/app.ts`
+			path: '/workspaces/demo/src/app.ts',
+			query: JSON.stringify({
+				sessionUri: 'session-db://session-123',
+				sha: 'abc123',
+				repoRelativePath: 'src/app.ts',
+			}),
 		}), 'remotehost');
 
 		assert.deepStrictEqual({
@@ -53,9 +52,50 @@ suite('ChangesEditorLabels', () => {
 			},
 			backing: {
 				label: 'app.ts',
-				description: '/abc123/7372632f6170702e7473',
+				description: '/workspaces/demo/src',
 			},
 		});
 	});
 
+	test('root-level wrapped git blob URIs do not expose the empty-authority placeholder', () => {
+		const labelService = createLabelService();
+		const wrappedGitBlobUri = toAgentHostUri(URI.from({
+			scheme: 'git-blob',
+			path: '/hello_count.txt',
+			query: JSON.stringify({
+				sessionUri: 'copilotcli:/62a7348d-686c-4c62-9019-dab388e8868f',
+				sha: 'e911392f5dc4ea151cc013f47c9b7c8bd7a14ea6',
+			}),
+		}), 'local');
+
+		assert.deepStrictEqual(getChangesEditorLabels(wrappedGitBlobUri, labelService), {
+			label: 'hello_count.txt',
+			description: '',
+		});
+	});
+
+	test('file stats resolve from canonical, modified, and original resources', () => {
+		const canonicalResource = URI.file('/workspace/renamed.ts');
+		const originalResource = URI.file('/workspace/original.ts');
+		const modifiedResource = URI.file('/workspace/modified.ts');
+		const changes = [{
+			uri: canonicalResource,
+			originalUri: originalResource,
+			modifiedUri: modifiedResource,
+			insertions: 12,
+			deletions: 3,
+		}];
+
+		assert.deepStrictEqual({
+			canonical: getChangesEditorFileStats(canonicalResource, changes),
+			modified: getChangesEditorFileStats(modifiedResource, changes),
+			original: getChangesEditorFileStats(originalResource, changes),
+			unrelated: getChangesEditorFileStats(URI.file('/workspace/unrelated.ts'), changes),
+		}, {
+			canonical: { insertions: 12, deletions: 3 },
+			modified: { insertions: 12, deletions: 3 },
+			original: { insertions: 12, deletions: 3 },
+			unrelated: undefined,
+		});
+	});
 });

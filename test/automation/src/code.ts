@@ -298,8 +298,8 @@ export class Code {
 		await this.poll(() => this.driver.setValue(selector, value), () => true, `set value '${selector}'`);
 	}
 
-	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
-		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`);
+	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0, retryCount?: number): Promise<IElement[]> {
+		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`, retryCount);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
@@ -332,6 +332,19 @@ export class Code {
 
 	async whenWorkbenchRestored(): Promise<void> {
 		await this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
+	}
+
+	/**
+	 * Triggers a window reload via `trigger` and waits until the new window is up
+	 * and its workbench restored. Awaiting {@link whenWorkbenchRestored} alone is
+	 * not enough because that call can still be answered by the old, already
+	 * restored document before the reload took effect.
+	 */
+	async reloadWindow(trigger: () => Promise<void>): Promise<void> {
+		const marker = await this.driver.markWindowForReload();
+		await trigger();
+		await this.driver.waitForWindowReload(marker);
+		await this.whenWorkbenchRestored();
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

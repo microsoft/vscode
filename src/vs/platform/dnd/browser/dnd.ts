@@ -36,6 +36,7 @@ export const CodeDataTransfers = {
 	MARKERS: 'application/vnd.code.diagnostics',
 	NOTEBOOK_CELL_OUTPUT: 'notebook-cell-output',
 	SCM_HISTORY_ITEM: 'scm-history-item',
+	CHAT_REFERENCE: 'application/vnd.code.chat-reference',
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -499,6 +500,67 @@ export function fillInMarkersDragData(markerData: MarkerTransferData[], e: DragE
 
 export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOutputTransferData | undefined {
 	return getDataAsJSON(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT, undefined);
+}
+
+/**
+ * Payload for a dragged chat reference (a chat tab from the Agents window). The
+ * producing (sessions) layer supplies both the opaque backend chat resource — the
+ * value the reference entry carries verbatim — and the client-side chat resource,
+ * plus the display title. The consuming (workbench chat input) drop handler needs
+ * no knowledge of sessions or agent-host types: it forwards {@link chatResource}
+ * into the reference entry and compares {@link clientResource} for identity only
+ * (self-reference / cross-agent-host detection). The payload is transient (never
+ * persisted), so carrying both resources is fine.
+ */
+export interface ChatReferenceTransferData {
+	/**
+	 * The referenced chat's **opaque backend chat URI** (the value carried on
+	 * `MessageChatAttachment.resource`). Becomes the reference entry's value
+	 * verbatim; never parsed by the consuming layer.
+	 */
+	readonly chatResource: string;
+	/**
+	 * The sessions-window client chat resource (`IChat.resource`). Used for
+	 * compare-by-equality identity only — e.g. to detect a chat dropped onto its
+	 * own input, or to reject a cross-agent-host drag (which needs the client
+	 * scheme + authority the backend URI does not carry) — never parsed for
+	 * meaning.
+	 */
+	readonly clientResource: string;
+	/** The reference's display title, used for the inline `#chat:<title>` token. */
+	readonly title: string;
+}
+
+/**
+ * Identifier used to carry a dragged chat reference (a chat tab from the Agents
+ * window) through {@link LocalSelectionTransfer}, mirroring the editor's
+ * `DraggedEditorIdentifier` pattern.
+ *
+ * Unlike the {@link ChatReferenceTransferData} `dataTransfer` mime payload, an
+ * in-process local transfer is readable during `dragover`, so the drop target
+ * can decide whether the drag is droppable (e.g. suppress the overlay for a
+ * self-reference or a cross-agent-host drag) before the drop lands — avoiding a
+ * "looks droppable but isn't" overlay. It carries the same fields as
+ * {@link ChatReferenceTransferData}.
+ */
+export class DraggedChatReferenceIdentifier {
+
+	constructor(
+		/** The referenced chat's opaque backend chat URI, forwarded into the reference entry. */
+		readonly chatResource: string,
+		/** The sessions-window client chat resource, for identity comparison only. */
+		readonly clientResource: string,
+		/** The reference's display title, used for the inline `#chat:<title>` token. */
+		readonly title: string,
+	) { }
+}
+
+export function extractChatReferenceDropData(e: DragEvent): ChatReferenceTransferData | undefined {
+	return getDataAsJSON<ChatReferenceTransferData | undefined>(e, CodeDataTransfers.CHAT_REFERENCE, undefined);
+}
+
+export function fillInChatReferenceDragData(data: ChatReferenceTransferData, e: DragEvent): void {
+	setDataAsJSON(e, CodeDataTransfers.CHAT_REFERENCE, data);
 }
 
 interface IElectronWebUtils {

@@ -17,7 +17,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType } from '../../filesystem/common/fileTypes';
 import { ILogService } from '../../log/common/logService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
-import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile } from '../common/promptsService';
+import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile, PromptConfig } from '../common/promptsService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 // File and folder name constants. Mirrors the values in
@@ -30,13 +30,7 @@ const COPILOT_CONFIG_FOLDER = '.copilot';
 const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 const GITHUB_CONFIG_FOLDER = '.github';
 
-export namespace PromptConfig {
-	// Configuration keys (non-extension settings — read via getNonExtensionConfig).
-	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
-	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
-	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
-	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
-}
+
 
 interface IWorkspaceInstructionFile {
 	readonly fileName: string;
@@ -195,7 +189,8 @@ export class AgentInstructionsLocator extends Disposable {
 		while (true) {
 			try {
 				const gitFolder = joinPath(current, '.git');
-				const isRepoRoot = await this.fileSystemService.stat(gitFolder).then(() => true, () => false);
+				const gitStat = await this.fileSystemService.stat(gitFolder).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat !== undefined && (gitStat.type & FileType.Directory) !== 0;
 				if (isRepoRoot) {
 					// Only include the repo root (and any intermediate parents) if the user has explicitly trusted it.
 					const trusted = await this.workspaceService.isResourceTrusted(current);
