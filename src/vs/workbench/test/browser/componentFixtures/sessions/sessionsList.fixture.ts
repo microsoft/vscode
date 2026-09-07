@@ -41,6 +41,8 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsWindowUsageService } from '../../../../../sessions/services/sessions/browser/sessionsWindowUsageService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICustomViewService } from '../../../../../sessions/services/customView/browser/customViewService.js';
@@ -72,6 +74,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -350,6 +353,14 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
 			}());
+			reg.defineInstance(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+				override readonly hadPriorWindowOpen = true;
+				override readonly windowOpenCount = 2;
+			}());
+			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
+				override phase = LifecyclePhase.Eventually;
+				override when(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
 				override hasPendingResponse() { return false; }
@@ -357,6 +368,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
 				override readonly runs = automationRuns;
+				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 				override readonly onDidRefetchAssignments = Event.None;
@@ -438,6 +450,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
 
+	if (options.showAutomations) {
+		await list.resetAutomationsNewBadge();
+	}
 	if (options.automationRunStatus) {
 		automationRuns.set([{
 			id: 'fixture-run',
