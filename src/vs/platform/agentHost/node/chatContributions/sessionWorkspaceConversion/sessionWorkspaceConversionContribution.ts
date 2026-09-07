@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
-import { chatStorageUri, readSessionHasWorkspaceTransitions, ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
 import { ISessionWorkspaceConversionService } from './sessionWorkspaceConversionService.js';
 
 /** Finalizes requested workspace conversions after a turn and blocks new turns while conversion is pending. */
@@ -24,9 +20,6 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -53,37 +46,9 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 		};
 	}
 
-	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		if (turns.length === 0) {
-			return turns;
-		}
-		if (context.hasWorkspaceTransitions === false) {
-			return turns;
-		}
-		if (context.hasWorkspaceTransitions !== true) {
-			const summary = this._stateManager.getSessionSummary(context.session);
-			if (summary && !readSessionHasWorkspaceTransitions(summary._meta)) {
-				return turns;
-			}
-		}
-		const storage = chatStorageUri(URI.parse(context.chat));
-		if (!storage) {
-			return turns;
-		}
-		const database = await this._sessionDataService.tryOpenDatabase(storage);
-		if (!database) {
-			return turns;
-		}
-		let transitions: Map<string, string>;
-		try {
-			transitions = await database.object.getTurnWorkspaceTransitions();
-		} catch (error) {
-			this._logService.warn(`[SessionWorkspaceConversionContribution] Failed to restore workspace transitions for ${storage.toString()}`, error);
-			return turns;
-		} finally {
-			database.dispose();
-		}
-		if (transitions.size === 0) {
+	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {
+		const transitions = context.workspaceTransitions;
+		if (turns.length === 0 || !transitions?.size) {
 			return turns;
 		}
 		return turns.map(turn => {
