@@ -181,6 +181,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
+	override readonly isLoadingTranscript = observableValue(this, false);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -470,6 +471,15 @@ export class ChatView extends AbstractChatView {
 		this._loadChat(resource, this._currentSessionObs.get());
 	}
 
+	/**
+	 * Drives the widget's loading affordance and the observable mirror of it together, so a
+	 * consumer reading {@link isLoadingTranscript} can never disagree with what the widget shows.
+	 */
+	private _setLoading(isLoading: boolean): void {
+		this._widget.setLoading(isLoading);
+		this.isLoadingTranscript.set(isLoading, undefined);
+	}
+
 	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -479,7 +489,7 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
-		this._widget.setLoading(true);
+		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -494,7 +504,7 @@ export class ChatView extends AbstractChatView {
 					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 				}
 				if (isCurrentChat && isCurrentLoad) {
-					this._widget.setLoading(false);
+					this._setLoading(false);
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
 				return;
@@ -507,7 +517,7 @@ export class ChatView extends AbstractChatView {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
-			this._widget.setLoading(false);
+			this._setLoading(false);
 			if (session) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
 			}
@@ -526,7 +536,7 @@ export class ChatView extends AbstractChatView {
 			if (isEqual(this._currentChatResource, resource) && this._loadCts.value === cts) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
-				this._widget.setLoading(false);
+				this._setLoading(false);
 			}
 			if (!token.isCancellationRequested && this._loadCts.value === cts && session) {
 				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);

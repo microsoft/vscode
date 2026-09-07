@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -45,6 +46,7 @@ suite('DiffEditorCommandsService', () => {
 
 	function createDiffEditorControl(model: ITextModel | undefined, originalFocused: boolean, modifiedFocused: boolean): IDiffEditor {
 		return new class extends mock<IDiffEditor>() {
+			override getEditorType() { return EditorType.IDiffEditor; }
 			override getOriginalEditor() { return createOriginalEditor(originalFocused); }
 			override getModifiedEditor() { return createModifiedEditor(model, modifiedFocused); }
 			override goToDiff(target: 'next' | 'previous') { goToDiffCalls.push(target); }
@@ -170,6 +172,32 @@ suite('DiffEditorCommandsService', () => {
 				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: true },
 			],
 			resetWidthBasedLayoutCalls: 1,
+		});
+	});
+
+	test('sets the view mode for a multi-diff editor pane and resets all embedded layouts', async () => {
+		const model = { uri: URI.file('/foo.txt') } as ITextModel;
+		const control = createDiffEditorControl(model, false, false);
+		let resetAllCalls = 0;
+		const pane = new class extends mock<IEditorPane>() {
+			override getControl() { return control; }
+			resetDiffEditorWidthBasedLayout(): void { resetAllCalls++; }
+		};
+		const { service, resourceWrites } = createService(pane);
+
+		await service.setViewMode([], 'automatic');
+
+		assert.deepStrictEqual({
+			resourceWrites,
+			resetAllCalls,
+			resetActiveControlCalls: resetWidthBasedLayoutCalls,
+		}, {
+			resourceWrites: [
+				{ resource: model.uri, key: 'diffEditor.renderSideBySide', value: true },
+				{ resource: model.uri, key: 'diffEditor.useInlineViewWhenSpaceIsLimited', value: true },
+			],
+			resetAllCalls: 1,
+			resetActiveControlCalls: 0,
 		});
 	});
 });

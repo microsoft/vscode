@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from './promptsService.js';
@@ -78,11 +79,21 @@ export interface McpServerCustomizationMigration {
 
 export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
 
+export const enum CustomizationMigrationHintTarget {
+	FileMigrations = 'fileMigrations',
+	McpServers = 'mcpServers',
+}
+
+export interface ICustomizationMigrationHint {
+	readonly message: string;
+	readonly target: CustomizationMigrationHintTarget;
+}
+
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 
-	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
-	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
-	computeMigrations(sessionResource: URI): Promise<CustomizationMigration[]>;
-	computeMigrationHint(sessionResource: URI): Promise<string | undefined>;
+	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
+	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
+	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }

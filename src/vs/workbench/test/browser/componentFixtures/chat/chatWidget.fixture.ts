@@ -37,7 +37,6 @@ import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../..
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
-import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 
@@ -72,7 +71,7 @@ export interface IFixtureMessage {
 	readonly requestHidden?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
-	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
+	 * used by the turn changes summary. Requires `agentHostSession` on the fixture
 	 * options to be rendered.
 	 */
 	readonly fileChanges?: ReadonlyArray<IFixtureFileChange>;
@@ -103,12 +102,11 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
 	/**
-	 * When set, renders the chat as an agent host session and enables the turn
-	 * changes summary (`chat.turnStatusPills`), so completed turns with
+	 * When set, renders the chat as an agent host session, so completed turns with
 	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
 	 * Markdown previews under the response.
 	 */
-	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly agentHostSession?: boolean;
 	readonly linkPresentationService?: ILinkPresentationService;
 	/** Registers fixture-specific services after the shared chat service graph. */
 	readonly additionalServices?: (registration: ServiceRegistration) => void;
@@ -167,7 +165,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
 	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
-	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
+	const isAgentHostSession = options.agentHostSession === true;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -194,7 +192,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override register() { return { dispose() { } }; }
 			}());
 
-			if (needsTurnPills) {
+			if (isAgentHostSession) {
 				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
 					override getChangesForRequest(_sessionResource: URI, requestId: string) {
 						return constObservable(requestDiffs.get(requestId) ?? []);
@@ -242,16 +240,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
 	}
-	if (needsTurnPills) {
-		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, options.turnStatusPills);
-	}
-
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
 	// The turn changes summary only renders for agent host sessions, whose frontend
 	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
 	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
-	const sessionResource = needsTurnPills
+	const sessionResource = isAgentHostSession
 		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
 		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
