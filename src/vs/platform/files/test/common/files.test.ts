@@ -8,13 +8,9 @@ import { isEqual, isEqualOrParent } from '../../../../base/common/extpath.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../base/test/common/utils.js';
-import { ByteSize, FileChangesEvent, FileChangeType, getLargeFileConfirmationLimit, IFileChange, isParent } from '../../common/files.js';
+import { FileChangesEvent, FileChangeType, IFileChange, isParent } from '../../common/files.js';
 
 suite('Files', () => {
-
-	test('getLargeFileConfirmationLimit - local files', () => {
-		assert.strictEqual(getLargeFileConfirmationLimit(URI.file('/large.txt')), 256 * ByteSize.MB);
-	});
 
 	test('FileChangesEvent - basics', function () {
 		const changes = [

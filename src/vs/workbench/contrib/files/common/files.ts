@@ -54,6 +54,8 @@ export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExpl
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true, { type: 'boolean', description: localize('openEditorsFocus', "True when the focus is inside the OPEN EDITORS view.") });
 export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true, { type: 'boolean', description: localize('explorerViewletFocus', "True when the focus is inside the EXPLORER viewlet.") });
 export const ExplorerFindProviderActive = new RawContextKey<boolean>('explorerFindProviderActive', false, { type: 'boolean', description: localize('explorerFindProviderActive', "True when the explorer tree is using the explorer find provider.") });
+export const LargeFileEditorModeContext = new RawContextKey<boolean>('largeFileEditorMode', false, { type: 'boolean', description: localize('largeFileEditorMode', "True when the active text editor is incrementally loading a large file.") });
+export const LargeFileEditorBaseLineNumberContext = new RawContextKey<number>('largeFileEditorBaseLineNumber', 1, { type: 'number', description: localize('largeFileEditorBaseLineNumber', "The absolute line number represented by the first line in an incrementally loaded large file.") });
 
 // compressed nodes
 export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFocus', "True when the focused item in the EXPLORER view is a compact item.") });

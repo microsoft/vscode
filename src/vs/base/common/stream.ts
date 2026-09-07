@@ -186,6 +186,11 @@ export interface ITransformer<Original, Transformed> {
 	error?: IErrorTransformer;
 }
 
+export interface TransformStreamOptions {
+	readonly backpressure?: boolean;
+	readonly onDidDestroy?: () => void;
+}
+
 export function newWriteableStream<T>(reducer: IReducer<T> | null, options?: WriteableStreamOptions): WriteableStream<T> {
 	return new WriteableStreamImpl<T>(reducer, options);
 }
@@ -198,6 +203,21 @@ export interface WriteableStreamOptions {
 	 * the memory pressure when the stream is not flowing.
 	 */
 	highWaterMark?: number;
+
+	/**
+	 * Called when the stream transitions into a paused state.
+	 */
+	onDidPause?: () => void;
+
+	/**
+	 * Called when the stream transitions into a flowing state.
+	 */
+	onDidResume?: () => void;
+
+	/**
+	 * Called when the stream is destroyed.
+	 */
+	onDidDestroy?: () => void;
 }
 
 class WriteableStreamImpl<T> implements WriteableStream<T> {
@@ -234,7 +254,10 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			return;
 		}
 
-		this.state.flowing = false;
+		if (this.state.flowing) {
+			this.state.flowing = false;
+			this.options?.onDidPause?.();
+		}
 	}
 
 	resume(): void {
@@ -249,6 +272,10 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			this.flowData();
 			this.flowErrors();
 			this.flowEnd();
+
+			if (!this.state.destroyed && this.state.flowing) {
+				this.options?.onDidResume?.();
+			}
 		}
 	}
 
@@ -460,7 +487,11 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			this.listeners.error.length = 0;
 			this.listeners.end.length = 0;
 
+			const pendingWritePromises = [...this.pendingWritePromises];
 			this.pendingWritePromises.length = 0;
+			pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
+
+			this.options?.onDidDestroy?.();
 		}
 	}
 }
@@ -709,14 +740,36 @@ export function toReadable<T>(t: T): Readable<T> {
 /**
  * Helper to transform a readable stream into another stream.
  */
-export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>): ReadableStream<Transformed> {
-	const target = newWriteableStream<Transformed>(reducer);
+export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>, options?: TransformStreamOptions): ReadableStream<Transformed> {
+	const source = options?.backpressure && isReadableStream(stream) ? stream : undefined;
+	let listening = false;
 
-	listenStream(stream, {
-		onData: data => target.write(transformer.data(data)),
-		onError: error => target.error(transformer.error ? transformer.error(error) : error),
-		onEnd: () => target.end()
+	const startListening = () => {
+		if (listening) {
+			source?.resume();
+			return;
+		}
+
+		listening = true;
+		listenStream(stream, {
+			onData: data => target.write(transformer.data(data)),
+			onError: error => target.error(transformer.error ? transformer.error(error) : error),
+			onEnd: () => target.end()
+		});
+	};
+
+	const target = newWriteableStream<Transformed>(reducer, {
+		onDidPause: () => source?.pause(),
+		onDidResume: startListening,
+		onDidDestroy: () => {
+			source?.destroy();
+			options?.onDidDestroy?.();
+		}
 	});
+
+	if (!options?.backpressure || !source) {
+		startListening();
+	}
 
 	return target;
 }

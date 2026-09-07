@@ -264,6 +264,31 @@ suite('Encoding', () => {
 		assert.strictEqual(content, 'ABCABCABC');
 	});
 
+	test('toDecodeStream - propagates backpressure', async () => {
+		const source = newWriteableBufferStream();
+		const decodedStreamPromise = encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 1, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
+		source.write(VSBuffer.fromString('A'));
+
+		const { stream } = await decodedStreamPromise;
+		const chunks: string[] = [];
+		stream.on('data', chunk => chunks.push(chunk));
+		stream.pause();
+		source.write(VSBuffer.fromString('B'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(chunks, ['A']);
+
+		const endPromise = new Promise<void>((resolve, reject) => {
+			stream.on('error', reject);
+			stream.on('end', resolve);
+		});
+		stream.resume();
+		source.end();
+		await endPromise;
+
+		assert.deepStrictEqual(chunks, ['A', 'B', '']);
+	});
+
 	test('toDecodeStream - some stream, expect too much data', async function () {
 		const source = newTestReadableStream([
 			Buffer.from([65, 66, 67]),

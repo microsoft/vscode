@@ -1627,8 +1627,6 @@ export class ByteSize {
 
 // File limits
 
-const LOCAL_LARGE_FILE_CONFIRMATION_LIMIT = 256 * ByteSize.MB;
-
 export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
 export function getLargeFileConfirmationLimit(uri?: URI): number;
 export function getLargeFileConfirmationLimit(arg?: string | URI): number {
@@ -1636,7 +1634,8 @@ export function getLargeFileConfirmationLimit(arg?: string | URI): number {
 	const isLocal = typeof arg !== 'string' && arg?.scheme === Schemas.file;
 
 	if (isLocal) {
-		return LOCAL_LARGE_FILE_CONFIRMATION_LIMIT;
+		// Local almost has no limit in file size
+		return 1024 * ByteSize.MB;
 	}
 
 	if (isRemote) {
@@ -1652,7 +1651,8 @@ export function getLargeFileConfirmationLimit(arg?: string | URI): number {
 		return 50 * ByteSize.MB;
 	}
 
-	return LOCAL_LARGE_FILE_CONFIRMATION_LIMIT;
+	// Local desktop: almost no limit in file size
+	return 1024 * ByteSize.MB;
 }
 
 //#endregion

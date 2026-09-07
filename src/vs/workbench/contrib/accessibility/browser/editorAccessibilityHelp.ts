@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -23,6 +24,7 @@ import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js
 import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LargeFileEditorModeContext } from '../../files/common/files.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -76,6 +78,10 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			} else {
 				content.push(AccessibilityHelpNLS.editableEditor);
 			}
+		}
+		const editorContext = this._contextKeyService.getContext(this._editor.getDomNode()!);
+		if (editorContext.getValue<boolean>(LargeFileEditorModeContext.key)) {
+			content.push(nls.localize('largeFileEditorAccessibilityHelp', "This large file is loaded incrementally in a read-only editor. Scroll toward the end of the loaded content to load more. Earlier lines are removed as new content loads, while displayed line numbers remain absolute. Use the Open Fully notification action to leave this mode."));
 		}
 		if (this.accessibilityService.isScreenReaderOptimized() && this._configurationService.getValue('accessibility.windowTitleOptimized')) {
 			content.push(AccessibilityHelpNLS.defaultWindowTitleIncludesEditorState);

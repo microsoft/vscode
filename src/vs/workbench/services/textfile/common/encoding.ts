@@ -120,14 +120,21 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? (options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES);
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
-		const target = newWriteableStream<string>(strings => strings.join(''));
-
 		const bufferedChunks: VSBuffer[] = [];
 		let bytesBuffered = 0;
 
 		let decoder: IDecoderStream | undefined = undefined;
 
 		const cts = new CancellationTokenSource();
+		const target = newWriteableStream<string>(strings => strings.join(''), {
+			onDidPause: () => source.pause(),
+			onDidResume: () => {
+				if (decoder) {
+					source.resume();
+				}
+			},
+			onDidDestroy: () => source.destroy()
+		});
 
 		const createDecoder = async () => {
 			try {
@@ -190,10 +197,6 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 						source.pause();
 
 						await createDecoder();
-
-						// resume stream now that decoder is ready but
-						// outside of this stack to reduce recursion
-						setTimeout(() => source.resume());
 					}
 				}
 			},

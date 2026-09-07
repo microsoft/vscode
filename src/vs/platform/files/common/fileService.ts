@@ -629,12 +629,12 @@ export class FileService extends Disposable implements IFileService {
 
 			// read streamed (always prefer over primitive buffered read)
 			else if (hasFileReadStreamCapability(provider)) {
-				fileStream = this.readFileStreamed(provider, resource, cancellableSource.token, readFileOptions);
+				fileStream = this.readFileStreamed(provider, resource, cancellableSource, readFileOptions);
 			}
 
 			// read buffered
 			else {
-				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, readFileOptions);
+				fileStream = this.readFileBuffered(provider, resource, cancellableSource, readFileOptions);
 			}
 
 			fileStream.on('end', () => cancellableSource.dispose());
@@ -675,23 +675,29 @@ export class FileService extends Disposable implements IFileService {
 		return new FileOperationError(message, toFileOperationResult(error), options);
 	}
 
-	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
-		const fileStream = provider.readFileStream(resource, options, token);
+	private readFileStreamed(provider: IFileSystemProviderWithFileReadStreamCapability, resource: URI, cancellableSource: CancellationTokenSource, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
+		const fileStream = provider.readFileStream(resource, options, cancellableSource.token);
 
 		return transform(fileStream, {
 			data: data => data instanceof VSBuffer ? data : VSBuffer.wrap(data),
 			error: error => this.restoreReadError(error, resource, options)
-		}, data => VSBuffer.concat(data));
+		}, data => VSBuffer.concat(data), {
+			backpressure: true,
+			onDidDestroy: () => cancellableSource.dispose(true)
+		});
 	}
 
-	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, token: CancellationToken, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
-		const stream = newWriteableBufferStream();
+	private readFileBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, cancellableSource: CancellationTokenSource, options: IReadFileStreamOptions = Object.create(null)): VSBufferReadableStream {
+		const stream = newWriteableBufferStream({
+			highWaterMark: 1,
+			onDidDestroy: () => cancellableSource.dispose(true)
+		});
 
 		readFileIntoStream(provider, resource, stream, data => data, {
 			...options,
 			bufferSize: this.BUFFER_SIZE,
 			errorTransformer: error => this.restoreReadError(error, resource, options)
-		}, token);
+		}, cancellableSource.token);
 
 		return stream;
 	}
@@ -1459,7 +1465,13 @@ export class FileService extends Disposable implements IFileService {
 	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
 
 		// Read buffer via stream buffered
-		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
+		const cancellableSource = new CancellationTokenSource();
+		let buffer: VSBuffer;
+		try {
+			buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, cancellableSource));
+		} finally {
+			cancellableSource.dispose(true);
+		}
 
 		// Write buffer into target at once
 		await this.doWriteUnbuffered(targetProvider, target, undefined, buffer);

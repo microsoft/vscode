@@ -284,6 +284,15 @@ suite('Stream', () => {
 		assert.strictEqual(drained2, true);
 	});
 
+	test('WriteableStream - destroy drains pending writes', async () => {
+		const stream = newWriteableStream<string>(strings => strings.join(), { highWaterMark: 0 });
+		const pendingWrite = stream.write('1');
+		assert.ok(pendingWrite instanceof Promise);
+
+		stream.destroy();
+		await pendingWrite;
+	});
+
 	test('consumeReadable', () => {
 		const readable = arrayToReadable(['1', '2', '3', '4', '5']);
 		const consumed = consumeReadable(readable, strings => strings.join());
@@ -550,6 +559,35 @@ suite('Stream', () => {
 
 		const consumed = await consumeStream(result, strings => strings.join());
 		assert.strictEqual(consumed, '11,22,33,44,55');
+	});
+
+	test('transform propagates backpressure and destruction', () => {
+		const state = {
+			pauses: 0,
+			resumes: 0,
+			destroys: 0
+		};
+		const source = newWriteableStream<string>(strings => strings.join(), {
+			onDidPause: () => state.pauses++,
+			onDidResume: () => state.resumes++,
+			onDidDestroy: () => state.destroys++
+		});
+		const result = transform(source, { data: value => value.toUpperCase() }, strings => strings.join(), { backpressure: true });
+		const chunks: string[] = [];
+
+		source.write('a');
+		assert.deepStrictEqual({ chunks, state }, { chunks: [], state: { pauses: 0, resumes: 0, destroys: 0 } });
+
+		result.on('data', chunk => chunks.push(chunk));
+		result.pause();
+		source.write('b');
+		result.resume();
+		result.destroy();
+
+		assert.deepStrictEqual({ chunks, state }, {
+			chunks: ['A', 'B'],
+			state: { pauses: 1, resumes: 2, destroys: 1 }
+		});
 	});
 
 	test('events are delivered even if a listener is removed during delivery', () => {

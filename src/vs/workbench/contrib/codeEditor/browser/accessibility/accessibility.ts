@@ -17,7 +17,8 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { CursorColumns } from '../../../../../editor/common/core/cursorColumns.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { LargeFileEditorBaseLineNumberContext } from '../../../files/common/files.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -85,7 +86,10 @@ class AnnounceCursorPosition extends Action2 {
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(position.lineNumber);
 		const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, position.column, tabSize) + 1;
-		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", position.lineNumber, visibleColumn));
+		const contextKeyService = accessor.get(IContextKeyService);
+		const editorContext = contextKeyService.getContext(editor.getDomNode()!);
+		const baseLineNumber = editorContext.getValue<number>(LargeFileEditorBaseLineNumberContext.key) ?? 1;
+		alert(nls.localize('screenReader.lineColPosition', "Line {0}, Column {1}", baseLineNumber + position.lineNumber - 1, visibleColumn));
 	}
 }
 
