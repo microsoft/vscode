@@ -1784,6 +1784,23 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('flattens connected tab strokes while preserving opaque and transparent borders', () => {
+		const strokes = [
+			{ background: '#1f1f1f', border: '#ffffff17' },
+			{ background: '#ffffff', border: '#e5e5e5' },
+			{ background: '#1f1f1f', border: '#00000000' },
+		].map(({ background, border }) => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
+				[editorBackground]: background,
+				'editorGroup.border': border,
+			});
+			const css = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return /--modern-ui-connected-tab-border: (?<stroke>[^;]+);/.exec(css)?.groups?.stroke;
+		});
+
+		assert.deepStrictEqual(strokes, ['#333333', '#e5e5e5', 'rgba(0, 0, 0, 0)']);
+	});
+
 	test('uses the registered modern tab colors', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';

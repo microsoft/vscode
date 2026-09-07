@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, Dimension, EventType, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,7 +15,7 @@ import { TreeViewsDnDService } from '../../../../../editor/common/services/treeV
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
-import { EditorsOrder } from '../../../../common/editor.js';
+import { EditorsOrder, IEditorPartOptions } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -28,9 +28,12 @@ suite('MultiEditorTabsControl', () => {
 
 	let container: HTMLElement;
 	let hostService: TestHostService;
+	let control: MultiEditorTabsControl;
+	let partOptions: IEditorPartOptions;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
 		// The tabs control resolves the shared modifier key emitter on creation,
 		// so dispose it again to keep each test independent of the Alt state that
@@ -71,7 +74,7 @@ suite('MultiEditorTabsControl', () => {
 		};
 
 		const groupsView = new class extends mock<IEditorGroupsView>() {
-			override get partOptions() { return DEFAULT_EDITOR_PART_OPTIONS; }
+			override get partOptions() { return partOptions; }
 			override get activeGroup(): IEditorGroupView { return groupView; }
 			override get groups(): IEditorGroupView[] { return [groupView]; }
 			override readonly onDidChangeEditorPartOptions = Event.None;
@@ -86,7 +89,7 @@ suite('MultiEditorTabsControl', () => {
 		container = $('.title.tabs');
 		mainWindow.document.body.appendChild(container);
 
-		const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
+		control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	});
 
@@ -121,6 +124,32 @@ suite('MultiEditorTabsControl', () => {
 	function alt(pressed: boolean): void {
 		mainWindow.dispatchEvent(new KeyboardEvent(pressed ? EventType.KEY_DOWN : EventType.KEY_UP, { key: 'Alt', altKey: pressed }));
 	}
+
+	test('connected tabs reserve separator height without changing classic or shared modern tabs', async () => {
+		const readHeight = async () => {
+			control.layout({ container: Dimension.None, available: Dimension.None });
+			await new Promise<void>(resolve => {
+				disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve()));
+			});
+			return control.getHeight();
+		};
+		const heights = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabHeight };
+			control.updateOptions(oldOptions, partOptions);
+			container.classList.remove('modern-ui', 'modern-ui-tabs');
+			const classic = await readHeight();
+			container.classList.add('modern-ui-tabs');
+			const sharedModern = await readHeight();
+			container.classList.add('modern-ui');
+			heights.push({ tabHeight, classic, sharedModern, connected: await readHeight() });
+		}
+		assert.deepStrictEqual(heights, [
+			{ tabHeight: 'default', classic: 35, sharedModern: 32, connected: 33 },
+			{ tabHeight: 'compact', classic: 22, sharedModern: 28, connected: 29 },
+		]);
+	});
 
 	test('Alt swaps the close action of the hovered tab only', () => {
 		const actions = [tabActions()];
