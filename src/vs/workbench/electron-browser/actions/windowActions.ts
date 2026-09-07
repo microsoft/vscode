@@ -17,7 +17,8 @@ import { getIconClasses } from '../../../editor/common/services/getIconClasses.j
 import { ICommandHandler } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { INativeHostService } from '../../../platform/native/common/native.js';
+import { INativeHostService, FocusMode } from '../../../platform/native/common/native.js';
+import { IHostService } from '../../services/host/browser/host.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
@@ -403,6 +404,30 @@ export class SwitchToMainWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 		return nativeHostService.focusWindow({ targetWindowId: mainWindow.vscodeWindowId });
+	}
+}
+
+export class FocusWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.focusWindow';
+
+	constructor() {
+		super({
+			id: FocusWindowAction.ID,
+			title: localize2('focusWindow', "Focus Window"),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const hostService = accessor.get(IHostService);
+
+		// Bring the current window to the foreground and focus it. `FocusMode.Force` is used because
+		// the application may not be active (for example when this runs from a system-wide keybinding
+		// while another app owns OS focus). This makes it usable as the first step of a `runCommands`
+		// chain that reveals the window before running a command which surfaces UI in it (e.g. Quick
+		// Open).
+		await hostService.focus(getActiveWindow(), { mode: FocusMode.Force });
 	}
 }
 

@@ -95,6 +95,34 @@ export function shouldKickOffBackgroundSummarization(
 	return postRenderRatio >= jittered;
 }
 
+/** Minimal shape of a tool-call round needed to anchor a summary. */
+export interface ISummaryAnchorRound {
+	readonly id: string;
+}
+
+/** Minimal shape of a history turn needed to anchor a summary. */
+export interface ISummaryAnchorTurn {
+	readonly rounds: readonly ISummaryAnchorRound[];
+}
+
+export function resolveSummaryAnchorRoundId(
+	rounds: readonly ISummaryAnchorRound[],
+	history: readonly ISummaryAnchorTurn[],
+): string | undefined {
+	if (rounds.length >= 2) {
+		return rounds[rounds.length - 2].id;
+	} else if (rounds.length === 1) {
+		return rounds[0].id;
+	}
+	for (let i = history.length - 1; i >= 0; i--) {
+		const lastRound = history[i].rounds.at(-1);
+		if (lastRound) {
+			return lastRound.id;
+		}
+	}
+	return undefined;
+}
+
 /**
  * Tracks a single background summarization pass for one chat session.
  *

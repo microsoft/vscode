@@ -13,7 +13,7 @@ import { StorageScope } from '../../../../../platform/storage/common/storage.js'
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
+import { McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, McpServerTrust, WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
@@ -52,11 +52,12 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 
 	private _watchFolder(folder: IWorkspaceFolder) {
 		const configFile = joinPath(folder.uri, '.mcp.json');
-		const collectionId = `workspace-dot-mcp.${folder.index}`;
+		const collectionId = `${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${folder.index}`;
 		const serverDefinitions = observableValue<readonly McpServerDefinition[]>(this, []);
 
 		const collection = {
 			id: collectionId,
+			provenance: McpCollectionProvenance.WorkspaceDotMcp,
 			label: `${folder.name}/.mcp.json`,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
 			scope: StorageScope.WORKSPACE,
@@ -76,7 +77,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			let definitions: McpServerDefinition[] = [];
 			try {
 				const contents = await this._fileService.readFile(configFile);
-				const defs = await claudeConfigToServerDefinition(collectionId, contents.value, folder.uri);
+				const defs = await claudeConfigToServerDefinition(collectionId, contents.value, { defaultCwd: folder.uri });
 				if (defs) {
 					for (const d of defs) {
 						d.roots = [folder.uri];

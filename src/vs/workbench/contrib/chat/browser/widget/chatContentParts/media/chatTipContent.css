@@ -42,7 +42,7 @@
 
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label {
 	color: var(--vscode-descriptionForeground);
-	padding: 4px;
+	padding: var(--vscode-spacing-size40);
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label:hover {
@@ -51,34 +51,18 @@
 }
 
 .chat-getting-started-tip-container {
-	margin-bottom: -4px; /* Counter the flex gap */
 	width: 100%;
 }
 
-.chat-getting-started-tip-container .chat-tip-widget {
-	display: flex;
+/*
+ * The frame, row layout, type and link colours come from `.chat-input-notice`;
+ * only what is particular to this tip is styled here. This one line is a single
+ * row of text, so it centres rather than taking the variant's top alignment.
+ * Prefixed with the base class deliberately: without it this ties the base rule
+ * on specificity and which one wins would depend on stylesheet order.
+ */
+.chat-getting-started-tip-container .chat-input-notice.chat-tip-widget {
 	align-items: center;
-	gap: 4px;
-	width: 100%;
-	max-width: 100%;
-	box-sizing: border-box;
-	padding: 6px;
-	background-color: var(--vscode-editorWidget-background);
-	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
-	font-size: var(--vscode-chat-font-size-body-s);
-	font-family: var(--vscode-chat-font-family, inherit);
-	color: var(--vscode-descriptionForeground);
-	position: relative;
-}
-
-.chat-getting-started-tip-container .chat-tip-widget a {
-	color: var(--vscode-textLink-foreground);
-}
-
-.chat-getting-started-tip-container .chat-tip-widget a:hover,
-.chat-getting-started-tip-container .chat-tip-widget a:active {
-	color: var(--vscode-textLink-activeForeground);
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {

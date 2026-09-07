@@ -99,10 +99,12 @@ class TestOTelService {
 
 class TestExtensionContext {
 	declare readonly _serviceBrand: undefined;
-	readonly storageUri: URI;
+	readonly storageUri: URI | undefined;
+	readonly globalStorageUri: URI | undefined;
 
-	constructor(tmpDir: string) {
-		this.storageUri = URI.file(tmpDir);
+	constructor(storagePath: string | undefined, globalStoragePath?: string) {
+		this.storageUri = storagePath ? URI.file(storagePath) : undefined;
+		this.globalStorageUri = globalStoragePath ? URI.file(globalStoragePath) : undefined;
 	}
 }
 
@@ -266,6 +268,126 @@ describe('ChatDebugFileLoggerService', () => {
 	it('isDebugLogUri returns false for unrelated URIs', () => {
 		const otherUri = URI.file('/some/other/path/file.txt');
 		expect(service.isDebugLogUri(otherUri)).toBe(false);
+	});
+
+	it('isDebugLogUri allows the global root while a workspace is open', async () => {
+		const globalTmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'chatdebug-global-'));
+		try {
+			// Window has a workspace (storageUri = tmpDir) plus a global root.
+			const workspaceService = new ChatDebugFileLoggerService(
+				otelService as unknown as IOTelService,
+				new TestFileSystemService() as unknown as IFileSystemService,
+				new TestExtensionContext(tmpDir, globalTmpDir) as unknown as IVSCodeExtensionContext,
+				new TestLogService() as unknown as ILogService,
+				new TestConfigurationService() as unknown as IConfigurationService,
+				new NullExperimentationService() as unknown as IExperimentationService,
+				new TestTelemetryService() as unknown as ITelemetryService,
+				new TestEnvService() as unknown as IEnvService,
+			);
+			disposables.add(workspaceService);
+
+			// A log under the global root (where a no-workspace session was written)
+			// must still be allowlisted for tool reads.
+			const globalLogUri = URI.joinPath(URI.file(globalTmpDir), 'debug-logs', 'hist-session', 'main.jsonl');
+			expect(workspaceService.isDebugLogUri(globalLogUri)).toBe(true);
+
+			// The workspace root is still allowlisted too.
+			const workspaceLogUri = URI.joinPath(URI.file(tmpDir), 'debug-logs', 'ws-session', 'main.jsonl');
+			expect(workspaceService.isDebugLogUri(workspaceLogUri)).toBe(true);
+		} finally {
+			await fs.promises.rm(globalTmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it('falls back to global storage when no workspace is open', async () => {
+		const globalTmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'chatdebug-global-'));
+		try {
+			// No workspace open: storageUri is undefined, only globalStorageUri is
+			// available (e.g. an empty VS Code window). Workspace-scoped storage is
+			// preferred whenever a folder is open; this fallback only applies when
+			// no workspace is open.
+			const noWorkspaceService = new ChatDebugFileLoggerService(
+				otelService as unknown as IOTelService,
+				new TestFileSystemService() as unknown as IFileSystemService,
+				new TestExtensionContext(undefined, globalTmpDir) as unknown as IVSCodeExtensionContext,
+				new TestLogService() as unknown as ILogService,
+				new TestConfigurationService() as unknown as IConfigurationService,
+				new NullExperimentationService() as unknown as IExperimentationService,
+				new TestTelemetryService() as unknown as ITelemetryService,
+				new TestEnvService() as unknown as IEnvService,
+			);
+			disposables.add(noWorkspaceService);
+
+			expect(noWorkspaceService.debugLogsDir?.fsPath).toBe(URI.joinPath(URI.file(globalTmpDir), 'debug-logs').fsPath);
+
+			await noWorkspaceService.startSession('session-1');
+			otelService.fireSpan(makeToolCallSpan('session-1', 'read_file'));
+			await noWorkspaceService.endSession('session-1');
+
+			const logPath = URI.joinPath(URI.file(globalTmpDir), 'debug-logs', 'session-1', 'main.jsonl');
+			const content = await fs.promises.readFile(logPath.fsPath, 'utf-8');
+			expect(content.trim()).not.toBe('');
+		} finally {
+			await fs.promises.rm(globalTmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it('returns undefined debug logs dir when neither workspace nor global storage is available', () => {
+		const noStorageService = new ChatDebugFileLoggerService(
+			otelService as unknown as IOTelService,
+			new TestFileSystemService() as unknown as IFileSystemService,
+			new TestExtensionContext(undefined, undefined) as unknown as IVSCodeExtensionContext,
+			new TestLogService() as unknown as ILogService,
+			new TestConfigurationService() as unknown as IConfigurationService,
+			new NullExperimentationService() as unknown as IExperimentationService,
+			new TestTelemetryService() as unknown as ITelemetryService,
+			new TestEnvService() as unknown as IEnvService,
+		);
+		disposables.add(noStorageService);
+
+		expect(noStorageService.debugLogsDir).toBeUndefined();
+	});
+
+	it('resolves a historical session from global storage when reopened in a workspace window', async () => {
+		const globalTmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'chatdebug-global-'));
+		try {
+			// Phase 1: session logged with no workspace open → written to global storage.
+			const noWorkspaceService = new ChatDebugFileLoggerService(
+				otelService as unknown as IOTelService,
+				new TestFileSystemService() as unknown as IFileSystemService,
+				new TestExtensionContext(undefined, globalTmpDir) as unknown as IVSCodeExtensionContext,
+				new TestLogService() as unknown as ILogService,
+				new TestConfigurationService() as unknown as IConfigurationService,
+				new NullExperimentationService() as unknown as IExperimentationService,
+				new TestTelemetryService() as unknown as ITelemetryService,
+				new TestEnvService() as unknown as IEnvService,
+			);
+			disposables.add(noWorkspaceService);
+			await noWorkspaceService.startSession('hist-session');
+			otelService.fireSpan(makeToolCallSpan('hist-session', 'read_file'));
+			await noWorkspaceService.endSession('hist-session');
+
+			// Phase 2: reopen in a window that has a workspace (storageUri defined).
+			// The session is now "historical" (unknown to the fresh service), but it
+			// must still resolve to the global-storage location where it was written.
+			const workspaceService = new ChatDebugFileLoggerService(
+				otelService as unknown as IOTelService,
+				new TestFileSystemService() as unknown as IFileSystemService,
+				new TestExtensionContext(tmpDir, globalTmpDir) as unknown as IVSCodeExtensionContext,
+				new TestLogService() as unknown as ILogService,
+				new TestConfigurationService() as unknown as IConfigurationService,
+				new NullExperimentationService() as unknown as IExperimentationService,
+				new TestTelemetryService() as unknown as ITelemetryService,
+				new TestEnvService() as unknown as IEnvService,
+			);
+			disposables.add(workspaceService);
+
+			const expectedDir = URI.joinPath(URI.file(globalTmpDir), 'debug-logs', 'hist-session');
+			expect(workspaceService.getSessionDir('hist-session')?.fsPath).toBe(expectedDir.fsPath);
+			expect(workspaceService.getLogPath('hist-session')?.fsPath).toBe(URI.joinPath(expectedDir, 'main.jsonl').fsPath);
+		} finally {
+			await fs.promises.rm(globalTmpDir, { recursive: true, force: true });
+		}
 	});
 
 	it('endSession flushes and removes session', async () => {
@@ -814,6 +936,96 @@ describe('ChatDebugFileLoggerService', () => {
 			const ids = await service.listSessionIds();
 			expect(ids).toContain('good-session');
 			expect(ids).toContain('empty-dir');
+		});
+
+		it('aggregates sessions across workspace and global roots', async () => {
+			const globalTmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'chatdebug-global-'));
+			try {
+				// A session written to the global root by a previous no-workspace window.
+				await fs.promises.mkdir(path.join(globalTmpDir, 'debug-logs', 'global-session'), { recursive: true });
+				await fs.promises.writeFile(path.join(globalTmpDir, 'debug-logs', 'global-session', 'main.jsonl'), '{}');
+
+				// Current window has a workspace (storageUri = tmpDir) plus the same global root.
+				const workspaceService = new ChatDebugFileLoggerService(
+					otelService as unknown as IOTelService,
+					new TestFileSystemService() as unknown as IFileSystemService,
+					new TestExtensionContext(tmpDir, globalTmpDir) as unknown as IVSCodeExtensionContext,
+					new TestLogService() as unknown as ILogService,
+					new TestConfigurationService() as unknown as IConfigurationService,
+					new NullExperimentationService() as unknown as IExperimentationService,
+					new TestTelemetryService() as unknown as ITelemetryService,
+					new TestEnvService() as unknown as IEnvService,
+				);
+				disposables.add(workspaceService);
+
+				await workspaceService.startSession('workspace-session');
+				otelService.fireSpan(makeToolCallSpan('workspace-session', 'read_file'));
+				await workspaceService.flush('workspace-session');
+
+				const ids = await workspaceService.listSessionIds();
+				expect(ids).toContain('workspace-session');
+				expect(ids).toContain('global-session');
+			} finally {
+				await fs.promises.rm(globalTmpDir, { recursive: true, force: true });
+			}
+		});
+	});
+
+	describe('_cleanupOldLogs', () => {
+		it('trims both workspace and global roots independently to the cap', async () => {
+			const globalTmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'chatdebug-global-'));
+			try {
+				// Config with a small retention cap of 2 sessions per root.
+				class LowCapConfigService extends TestConfigurationService {
+					override getExperimentBasedConfig(key: { defaultValue: unknown }) {
+						if (key === ConfigKey.Advanced.ChatDebugFileLogging) {
+							return true;
+						}
+						if (key === ConfigKey.Advanced.ChatDebugFileLoggingMaxRetainedSessionLogs) {
+							return 2;
+						}
+						return key.defaultValue;
+					}
+				}
+
+				const workspaceRoot = path.join(tmpDir, 'debug-logs');
+				const globalRoot = path.join(globalTmpDir, 'debug-logs');
+
+				// Seed 4 session dirs in each root with increasing mtimes.
+				const seed = async (root: string, prefix: string) => {
+					for (let i = 0; i < 4; i++) {
+						const sessionDir = path.join(root, `${prefix}-${i}`);
+						await fs.promises.mkdir(sessionDir, { recursive: true });
+						await fs.promises.writeFile(path.join(sessionDir, 'main.jsonl'), '{}');
+						await new Promise(resolve => setTimeout(resolve, 10));
+					}
+				};
+				await seed(workspaceRoot, 'ws');
+				await seed(globalRoot, 'gl');
+
+				const svc = new ChatDebugFileLoggerService(
+					otelService as unknown as IOTelService,
+					new TestFileSystemService() as unknown as IFileSystemService,
+					new TestExtensionContext(tmpDir, globalTmpDir) as unknown as IVSCodeExtensionContext,
+					new TestLogService() as unknown as ILogService,
+					new LowCapConfigService() as unknown as IConfigurationService,
+					new NullExperimentationService() as unknown as IExperimentationService,
+					new TestTelemetryService() as unknown as ITelemetryService,
+					new TestEnvService() as unknown as IEnvService,
+				);
+				disposables.add(svc);
+
+				await (svc as unknown as { _cleanupOldLogs(): Promise<void> })._cleanupOldLogs();
+
+				const wsRemaining = (await fs.promises.readdir(workspaceRoot)).sort();
+				const glRemaining = (await fs.promises.readdir(globalRoot)).sort();
+
+				// Each root is independently trimmed to the 2 most recent.
+				expect(wsRemaining).toEqual(['ws-2', 'ws-3']);
+				expect(glRemaining).toEqual(['gl-2', 'gl-3']);
+			} finally {
+				await fs.promises.rm(globalTmpDir, { recursive: true, force: true });
+			}
 		});
 	});
 });

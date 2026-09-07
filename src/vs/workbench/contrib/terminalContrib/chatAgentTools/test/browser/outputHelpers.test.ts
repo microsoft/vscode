@@ -6,8 +6,7 @@
 import { ok, strictEqual } from 'assert';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { getOutput } from '../../browser/outputHelpers.js';
-import { TRUNCATION_MESSAGE } from '../../browser/runInTerminalHelpers.js';
+import { getOutput, MAX_OUTPUT_LENGTH, truncateLargeOutput } from '../../browser/outputHelpers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 suite('outputHelpers', () => {
@@ -62,15 +61,54 @@ suite('outputHelpers', () => {
 		strictEqual(output, `${line80}X\nafter`);
 	});
 
-	test('caps output at 60KB and prefixes the truncation marker', () => {
+	test('returns raw JSON without formatting (formatting only in file writer)', () => {
+		const instance = createMockInstance([
+			{ text: '{"items":[1,2],"nested":{"value":true}}' }
+		]);
+
+		const output = getOutput(instance);
+		strictEqual(output, '{"items":[1,2],"nested":{"value":true}}');
+	});
+
+	test('does not truncate output (callers handle truncation)', () => {
 		const line = 'a'.repeat(1000);
 		const instance = createMockInstance(
 			Array.from({ length: 100 }, () => ({ text: line }))
 		);
 
 		const output = getOutput(instance);
-		strictEqual(output.length, 60000);
-		ok(output.startsWith(TRUNCATION_MESSAGE));
-		ok(output.endsWith(line));
+		// getOutput no longer truncates - it returns full output
+		strictEqual(output.length, 100 * 1000 + 99); // 100 lines of 1000 chars + 99 newlines
+	});
+
+	suite('truncateLargeOutput', () => {
+		test('truncates with preview header and tail', () => {
+			const largeOutput = 'a'.repeat(30000);
+			const result = truncateLargeOutput(largeOutput);
+			strictEqual(result.length, MAX_OUTPUT_LENGTH);
+			ok(result.includes('[Output too large'));
+			ok(result.includes('[... middle of output truncated ...]'));
+		});
+
+		test('includes both head preview and tail', () => {
+			const head = 'HEAD_CONTENT_' + 'x'.repeat(487);
+			const middle = 'm'.repeat(29000);
+			const tail = 'TAIL_CONTENT_' + 'z'.repeat(487);
+			const largeOutput = head + middle + tail;
+
+			const result = truncateLargeOutput(largeOutput);
+			ok(result.includes('HEAD_CONTENT_'), 'should include head preview');
+			ok(result.includes('TAIL_CONTENT_'), 'should include tail');
+			ok(result.length <= MAX_OUTPUT_LENGTH);
+		});
+
+		test('includes file path when provided', () => {
+			const largeOutput = 'x'.repeat(30000);
+			const result = truncateLargeOutput(largeOutput, '/tmp/copilot-terminal-output-abc.txt');
+			ok(result.includes('/tmp/copilot-terminal-output-abc.txt'));
+			ok(result.includes('readFile'));
+			ok(result.includes('grep'));
+			ok(result.length <= MAX_OUTPUT_LENGTH);
+		});
 	});
 });

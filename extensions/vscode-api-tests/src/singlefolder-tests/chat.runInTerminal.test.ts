@@ -176,7 +176,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		};
 
 		try {
-			await vscode.commands.executeCommand('workbench.action.chat.newChat');
+			await vscode.commands.executeCommand('workbench.action.chat.newLocalChat');
 			if (opts.autoAcceptConfirmation) {
 				acceptConfirmationInterval = setInterval(() => void acceptPendingConfirmation(), 200);
 			}

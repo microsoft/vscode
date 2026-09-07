@@ -567,6 +567,11 @@ export interface IEditorOptions {
 	 */
 	formatOnPaste?: boolean;
 	/**
+	 * Controls the width used to render full-width characters.
+	 * Defaults to 'font'.
+	 */
+	fullwidthCharacterWidth?: 'font' | 'twoCells';
+	/**
 	 * Controls whether double-clicking next to a bracket or quote selects the content inside.
 	 * Defaults to true.
 	 */
@@ -863,6 +868,8 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
+export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
@@ -900,6 +907,13 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to `false`.
 	*/
 	compactMode?: boolean;
+
+	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
 
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
@@ -2081,6 +2095,24 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 }
 
 //#engregion
+
+//#region effectiveFullwidthCharacterWidth
+
+class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'> {
+
+	constructor() {
+		super(EditorOption.effectiveFullwidthCharacterWidth, 'font');
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): 'font' | 'twoCells' {
+		if (options.get(EditorOption.fullwidthCharacterWidth) === 'twoCells' && env.fontInfo.isMonospace) {
+			return 'twoCells';
+		}
+		return 'font';
+	}
+}
+
+//#endregion
 
 //#region fontSize
 
@@ -4493,6 +4525,12 @@ export interface IInlineSuggestOptions {
 		showLongDistanceHint?: boolean;
 
 		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
+		/**
 		* @internal
 		*/
 		enabled?: boolean;
@@ -4551,6 +4589,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4656,6 +4695,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
 					tags: ['nextEditSuggestions', 'experimental']
 				},
+				'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+					type: 'number',
+					default: defaults.edits.longDistanceHintContextLineCount,
+					minimum: 0,
+					maximum: 10,
+					description: nls.localize('inlineSuggest.edits.longDistanceHintContextLineCount', "Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line."),
+					tags: ['nextEditSuggestions', 'experimental'],
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4708,6 +4758,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(input.longDistanceHintContextLineCount, this.defaultValue.edits.longDistanceHintContextLineCount, 0, 10),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}
@@ -4968,6 +5019,12 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
+	 * Grow the suggest widget's preferred width to fit the inline detail text so it
+	 * is not truncated. Defaults to false.
+	 * @internal
+	 */
+	fitWidthToDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -5105,6 +5162,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
+			fitWidthToDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -5199,10 +5257,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.showInlineDetails,
 					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
-				},
-				'editor.suggest.maxVisibleSuggestions': {
-					type: 'number',
-					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -5379,6 +5433,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: boolean(input.preview, this.defaultValue.preview),
 			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			fitWidthToDetails: boolean(input.fitWidthToDetails, this.defaultValue.fitWidthToDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -5945,7 +6000,10 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	fullwidthCharacterWidth,
+	// Must come after `fullwidthCharacterWidth`, which it is computed from.
+	effectiveFullwidthCharacterWidth
 }
 
 export const EditorOptions = {
@@ -6350,6 +6408,18 @@ export const EditorOptions = {
 		EditorOption.formatOnType, 'formatOnType', false,
 		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing.") }
 	)),
+	fullwidthCharacterWidth: register(new EditorStringEnumOption(
+		EditorOption.fullwidthCharacterWidth, 'fullwidthCharacterWidth',
+		'font' as 'font' | 'twoCells',
+		['font', 'twoCells'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+			],
+			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
+		}
+	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
 		{ description: nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.") }
@@ -6620,7 +6690,7 @@ export const EditorOptions = {
 	selectionHighlightMaxLength: register(new EditorIntOption(
 		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
 		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
+		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similar matches are not highlighted. Set to zero for unlimited.") }
 	)),
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
@@ -6857,7 +6927,8 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
 };
 
 type EditorOptionsType = typeof EditorOptions;

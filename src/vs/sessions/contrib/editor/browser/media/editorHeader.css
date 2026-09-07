@@ -1,0 +1,96 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) {
+	flex-wrap: wrap;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs)::after {
+	display: none;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .editor-group-header {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-border, var(--vscode-editorGroup-border));
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .title > .editor-group-header {
+	position: relative;
+	display: flex;
+	flex: 0 0 100%;
+	align-items: center;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: var(--vscode-spacing-size320);
+	overflow: hidden;
+	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container.editor-tabs-compact-height .title > .editor-group-header {
+	min-height: var(--vscode-spacing-size280);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	min-width: 0;
+	flex: 1 1 auto;
+	gap: var(--vscode-spacing-size20, 2px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions {
+	display: flex;
+	grid-column: 1;
+	align-items: center;
+	overflow: hidden;
+	min-width: 0;
+	flex: 9999 1 auto;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions {
+	display: flex;
+	grid-column: 2;
+	flex-flow: row nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	overflow: hidden;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40, 4px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-layout-actions {
+	display: flex;
+	grid-column: 3;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	justify-content: flex-end;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	display: flex;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-primary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-secondary-actions > .monaco-toolbar > .monaco-action-bar > .actions-container,
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-layout-actions > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	gap: var(--vscode-spacing-size40, 4px);
+}

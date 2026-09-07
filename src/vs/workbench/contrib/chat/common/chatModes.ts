@@ -33,6 +33,7 @@ import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual as isURLEquals } from '../../../../base/common/resources.js';
 import { equals as objectEquals } from '../../../../base/common/objects.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -281,6 +282,9 @@ class ChatModes extends Disposable implements IChatModes {
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
 		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
 			this.logService.error(error, 'Failed to load custom agents');
 			this._customModeInstances.clear();
 			this.hasCustomModes.set(false);
@@ -309,7 +313,10 @@ class ChatModes extends Disposable implements IChatModes {
 
 	private getCustomModes(): IChatMode[] {
 		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
+		if (!this.chatAgentService.hasToolsAgent && !this.isAgentModeDisabledByPolicy()) {
+			return [];
+		}
+		return Array.from(this._customModeInstances.values()).sort((a, b) => a.label.get().localeCompare(b.label.get()));
 	}
 
 	private isAgentModeDisabledByPolicy(): boolean {
@@ -618,7 +625,7 @@ export class CustomChatMode implements IChatMode {
 
 type IChatModeSourceData =
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -632,7 +639,7 @@ function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (data.storage === PromptsStorage.plugin) {
 		return isUriComponents(data.pluginUri);
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.builtIn;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {

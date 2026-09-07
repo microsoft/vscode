@@ -19,7 +19,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
-import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
+import { isEngineValid } from '../../extensions/common/extensionValidator.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -609,7 +609,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	private readonly unpkgResourceApi: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
-	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		storageService: IStorageService | undefined,
@@ -625,7 +624,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	) {
 		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
 		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
-		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -763,7 +761,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
 				continue;
 			}
-			if (extensionInfo.version) {
+			if (extensionInfo.version || !extensionInfo.uuid) {
 				toQuery.push(extensionInfo);
 			} else {
 				toFetchLatest.push(extensionInfo);
@@ -854,6 +852,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		if (!rawGalleryExtension) {
 			return 'NOT_FOUND';
+		}
+
+		if (!Array.isArray(rawGalleryExtension.versions) || rawGalleryExtension.versions.some(version => !Array.isArray(version.files))) {
+			return 'INVALID_RESPONSE';
 		}
 
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
@@ -1033,26 +1035,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				return false;
 			}
 
-			if (!this.areApiProposalsCompatible(extension.id, extension.enabledApiProposals)) {
-				return false;
-			}
-
 			if (!(await this.isEngineValid(extension.id, extension.version, extension.engine, extension.manifestAsset, productVersion))) {
 				return false;
 			}
 		}
 
 		return true;
-	}
-
-	private areApiProposalsCompatible(extensionId: string, enabledApiProposals: string[] | undefined): boolean {
-		if (!enabledApiProposals) {
-			return true;
-		}
-		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionId.toLowerCase())) {
-			return true;
-		}
-		return areApiProposalsCompatible(enabledApiProposals);
 	}
 
 	private async isEngineValid(extensionId: string, version: string, engine: string | undefined, manifestAsset: IGalleryExtensionAsset | null, productVersion: IProductVersion): Promise<boolean> {
@@ -1538,22 +1526,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (!resourceApi.fallback) {
 				throw error;
 			}
-		} finally {
-			this.telemetryService.publicLog2<
-				{
-					extension: string;
-					errorCode?: string;
-				},
-				{
-					owner: 'sandy081';
-					comment: 'Report fetching latest version of an extension';
-					extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension' };
-					errorCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error code in case of error' };
-				}
-			>('galleryService:getmarketplacelatest', {
-				extension: extensionInfo.id,
-				errorCode,
-			});
 		}
 
 		this.logService.error(`Error while getting the latest version for the extension ${extensionInfo.id} from ${resourceApi.uri}. Trying the fallback ${resourceApi.fallback}`, errorCode);

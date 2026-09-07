@@ -21,7 +21,6 @@ runs through the real code paths.
 | Chat agents (`copilotcli`, etc.) | Canned keyword-matched responses with `textEdit` progress items | No real LLM backend |
 | `mock-fs://` FileSystemProvider | `InMemoryFileSystemProvider` registered directly in the workbench (not extension host) | Must be available before any service tries to resolve workspace files |
 | GitHub authentication | Always-signed-in mock provider (extension) | No real OAuth flow |
-| Code Review command | Returns canned review comments per file (extension) | No real Copilot AI review |
 | PR commands (Create/Open/Merge) | No-op handlers that log and show info messages (extension) | No real GitHub API |
 
 ### What's Real (Everything Else)
@@ -41,10 +40,6 @@ exercise the actual code paths:
   observations
 - **Menu actions** — "Create PR", "Accept", "Reject" buttons appear based on
   real context key state
-- **`CodeReviewService`** — Orchestrates review requests, processes results from
-  the mock `github.copilot.chat.codeReview.run` command, and stores comments
-- **`CodeReviewToolbarContribution`** — Shows the Code Review button in the
-  Changes view toolbar based on real context key state
 
 ### Data Flow
 
@@ -63,17 +58,9 @@ User types message → Chat Widget → ChatService
 The mock agent is the **only** point where canned data enters the system.
 Everything downstream uses real service implementations.
 
-### Code Review & PR Button Flow
+### PR Button Flow
 
 ```
-Code Review button clicked → sessions.codeReview.run (core action)
-  → CodeReviewService.requestReview()
-    → commandService.executeCommand('chat.internal.codeReview.run')
-      → Bridge forwards to 'github.copilot.chat.codeReview.run'
-        → Mock extension returns canned comments
-          → CodeReviewService stores results, updates observable state
-            → CodeReviewToolbarContribution updates button icon/badge
-
 Create PR button clicked → github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR
   → Mock extension logs and shows info message
 ```

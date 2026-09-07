@@ -12,8 +12,8 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { asJson, asText, IRequestService } from '../../request/common/request.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
+import { asJson, asText, isSuccess, IRequestService } from '../../request/common/request.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, SseTransport, StreamableHttpTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
@@ -60,6 +60,68 @@ interface IRawGalleryMcpServersResult {
 interface IGalleryMcpServersResult {
 	readonly metadata: IRawGalleryMcpServersMetadata;
 	readonly servers: IGalleryMcpServer[];
+}
+
+function toSupportedPackageRegistryType(input: unknown): RegistryType | undefined {
+	switch (input) {
+		case 'npm':
+			return RegistryType.NODE;
+		case 'docker':
+		case 'docker-hub':
+		case 'oci':
+			return RegistryType.DOCKER;
+		case 'pypi':
+			return RegistryType.PYTHON;
+		case 'nuget':
+			return RegistryType.NUGET;
+		default:
+			return undefined;
+	}
+}
+
+function filterMcpPackages<T>(
+	packages: readonly T[] | undefined,
+	getRegistryType: (serverPackage: T) => unknown,
+	convert: (serverPackage: T, registryType: RegistryType) => IMcpServerPackage,
+): IMcpServerPackage[] | undefined {
+	if (!packages) {
+		return undefined;
+	}
+
+	const result: IMcpServerPackage[] = [];
+	for (const serverPackage of packages) {
+		const registryType = toSupportedPackageRegistryType(getRegistryType(serverPackage));
+		if (registryType) {
+			result.push(convert(serverPackage, registryType));
+		}
+	}
+	return result;
+}
+
+function getMcpServerUrlInGallery(mcpServerUrl: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+	const mcpGalleryUrl = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServersQueryService) ?? mcpGalleryManifest.url;
+	try {
+		const serverUrl = new URL(mcpServerUrl);
+		const galleryUrl = new URL(mcpGalleryUrl);
+		if (
+			(serverUrl.protocol !== `${Schemas.http}:` && serverUrl.protocol !== `${Schemas.https}:`)
+			|| serverUrl.username
+			|| serverUrl.password
+			|| galleryUrl.username
+			|| galleryUrl.password
+			|| serverUrl.origin !== galleryUrl.origin
+		) {
+			return undefined;
+		}
+
+		const galleryPath = galleryUrl.pathname.replace(/\/+$/, '');
+		if (serverUrl.pathname !== galleryPath && !serverUrl.pathname.startsWith(`${galleryPath}/`)) {
+			return undefined;
+		}
+		return serverUrl.href;
+	} catch {
+		return undefined;
+	}
 }
 
 interface IRawGalleryMcpServer {
@@ -257,7 +319,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 			for (const server of from.servers) {
 				const rawServer = this.toRawGalleryMcpServer(server);
 				if (!rawServer) {
-					return undefined;
+					continue;
 				}
 				servers.push(rawServer);
 			}
@@ -362,23 +424,24 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 				}
 			}
 
-			function convertRegistryType(input: string): RegistryType {
-				switch (input) {
-					case 'npm':
-						return RegistryType.NODE;
-					case 'docker':
-					case 'docker-hub':
-					case 'oci':
-						return RegistryType.DOCKER;
-					case 'pypi':
-						return RegistryType.PYTHON;
-					case 'nuget':
-						return RegistryType.NUGET;
-					case 'mcpb':
-						return RegistryType.MCPB;
-					default:
-						return RegistryType.NODE;
-				}
+			const packages = filterMcpPackages(
+				from.packages,
+				serverPackage => serverPackage.registry_type ?? serverPackage.registry_name,
+				(serverPackage, registryType) => ({
+					identifier: serverPackage.identifier ?? serverPackage.name,
+					registryType,
+					version: serverPackage.version,
+					fileSha256: serverPackage.file_sha256,
+					registryBaseUrl: serverPackage.registry_base_url,
+					transport: serverPackage.transport ? convertTransport(serverPackage.transport) : { type: TransportType.STDIO },
+					packageArguments: serverPackage.package_arguments?.map(convertServerArgument),
+					runtimeHint: serverPackage.runtime_hint,
+					runtimeArguments: serverPackage.runtime_arguments?.map(convertServerArgument),
+					environmentVariables: serverPackage.environment_variables?.map(convertKeyValueInput),
+				}),
+			);
+			if (!packages?.length && !from.remotes?.length) {
+				return undefined;
 			}
 
 			const gitHubInfo: RawGitHubInfo | undefined = from._meta['io.modelcontextprotocol.registry/publisher-provided']?.github as RawGitHubInfo | undefined;
@@ -396,18 +459,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 				version: from.version,
 				createdAt: from.created_at,
 				updatedAt: from.updated_at,
-				packages: from.packages?.map<IMcpServerPackage>(p => ({
-					identifier: p.identifier ?? p.name,
-					registryType: convertRegistryType(p.registry_type ?? p.registry_name),
-					version: p.version,
-					fileSha256: p.file_sha256,
-					registryBaseUrl: p.registry_base_url,
-					transport: p.transport ? convertTransport(p.transport) : { type: TransportType.STDIO },
-					packageArguments: p.package_arguments?.map(convertServerArgument),
-					runtimeHint: p.runtime_hint,
-					runtimeArguments: p.runtime_arguments?.map(convertServerArgument),
-					environmentVariables: p.environment_variables?.map(convertKeyValueInput),
-				})),
+				packages,
 				remotes: from.remotes?.map(remote => {
 					const type = (<RawGalleryTransport>remote).type ?? (<McpServerDeprecatedRemote>remote).transport_type ?? (<McpServerDeprecatedRemote>remote).transport;
 					return {
@@ -502,7 +554,7 @@ namespace McpServerSchemaVersion_v0_1 {
 
 	interface RawGalleryMcpServerPackage {
 		readonly identifier: string;
-		readonly registryType: RegistryType;
+		readonly registryType: string;
 		readonly transport: RawGalleryTransport;
 		readonly fileSha256?: string;
 		readonly environmentVariables?: ReadonlyArray<RawGalleryMcpServerKeyValueInput>;
@@ -567,11 +619,7 @@ namespace McpServerSchemaVersion_v0_1 {
 			for (const server of from.servers) {
 				const rawServer = this.toRawGalleryMcpServer(server);
 				if (!rawServer) {
-					if (servers.length === 0) {
-						return undefined;
-					} else {
-						continue;
-					}
+					continue;
 				}
 				servers.push(rawServer);
 			}
@@ -600,6 +648,14 @@ namespace McpServerSchemaVersion_v0_1 {
 
 			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta;
 			const githubInfo = from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined;
+			const packages = filterMcpPackages(
+				from.server.packages,
+				serverPackage => serverPackage.registryType,
+				(serverPackage, registryType) => ({ ...serverPackage, registryType }),
+			);
+			if (!packages?.length && !from.server.remotes?.length) {
+				return undefined;
+			}
 
 			return {
 				name: from.server.name,
@@ -614,7 +670,7 @@ namespace McpServerSchemaVersion_v0_1 {
 				readme: githubInfo?.readme,
 				icons: from.server.icons,
 				websiteUrl: from.server.websiteUrl,
-				packages: from.server.packages,
+				packages,
 				remotes: from.server.remotes,
 				status: registryInfo?.status,
 				registryInfo,
@@ -633,31 +689,40 @@ namespace McpServerSchemaVersion_v0 {
 
 	class Serializer implements IGalleryMcpServerDataSerializer {
 
-		private readonly galleryMcpServerDataSerializers: IGalleryMcpServerDataSerializer[] = [];
-
-		constructor() {
-			this.galleryMcpServerDataSerializers.push(McpServerSchemaVersion_v0_1.SERIALIZER);
-			this.galleryMcpServerDataSerializers.push(McpServerSchemaVersion_v2025_07_09.SERIALIZER);
-		}
-
 		public toRawGalleryMcpServerResult(input: unknown): IRawGalleryMcpServersResult | undefined {
-			for (const serializer of this.galleryMcpServerDataSerializers) {
-				const result = serializer.toRawGalleryMcpServerResult(input);
-				if (result) {
-					return result;
+			if (!isObject(input)) {
+				return undefined;
+			}
+			const candidate = input as { readonly servers?: unknown; readonly metadata?: unknown };
+			if (!Array.isArray(candidate.servers) || !isObject(candidate.metadata)) {
+				return undefined;
+			}
+			const metadata = candidate.metadata as { readonly count?: unknown; readonly nextCursor?: unknown; readonly next_cursor?: unknown };
+			if (metadata.count !== undefined && typeof metadata.count !== 'number') {
+				return undefined;
+			}
+
+			const servers: IRawGalleryMcpServer[] = [];
+			for (const server of candidate.servers) {
+				const rawServer = this.toRawGalleryMcpServer(server);
+				if (rawServer) {
+					servers.push(rawServer);
 				}
 			}
-			return undefined;
+			return {
+				metadata: {
+					count: metadata.count ?? 0,
+					nextCursor: isString(metadata.nextCursor) ? metadata.nextCursor : isString(metadata.next_cursor) ? metadata.next_cursor : undefined,
+				},
+				servers,
+			};
 		}
 
 		public toRawGalleryMcpServer(input: unknown): IRawGalleryMcpServer | undefined {
-			for (const serializer of this.galleryMcpServerDataSerializers) {
-				const result = serializer.toRawGalleryMcpServer(input);
-				if (result) {
-					return result;
-				}
+			if (isObject(input) && isObject((input as { readonly server?: unknown }).server)) {
+				return McpServerSchemaVersion_v0_1.SERIALIZER.toRawGalleryMcpServer(input);
 			}
-			return undefined;
+			return McpServerSchemaVersion_v2025_07_09.SERIALIZER.toRawGalleryMcpServer(input);
 		}
 	}
 
@@ -749,45 +814,81 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	async getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]> {
-		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		if (!mcpGalleryManifest) {
-			return [];
-		}
-
+		const resolved = await this.resolveMcpServersFromGallery(infos);
 		const mcpServers: IGalleryMcpServer[] = [];
-		await Promise.allSettled(infos.map(async info => {
-			const mcpServer = await this.getMcpServerByName(info, mcpGalleryManifest);
-			if (mcpServer) {
-				mcpServers.push(mcpServer);
+		for (const result of resolved.values()) {
+			if (result.status === McpGalleryResolveStatus.Found) {
+				mcpServers.push(result.server);
 			}
-		}));
-
+		}
 		return mcpServers;
 	}
 
+	async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
+		const result = new Map<string, IMcpGalleryServerResolveResult>();
+		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!mcpGalleryManifest) {
+			// Without a registry manifest we cannot determine membership; report as failed
+			// (undetermined) so callers do not treat this as a definitive "not found".
+			for (const info of infos) {
+				result.set(info.name, { status: McpGalleryResolveStatus.Failed });
+			}
+			return result;
+		}
+
+		await Promise.all(infos.map(async info => {
+			try {
+				const mcpServer = await this.getMcpServerByName(info, mcpGalleryManifest);
+				result.set(info.name, mcpServer
+					? { status: McpGalleryResolveStatus.Found, server: mcpServer }
+					: { status: McpGalleryResolveStatus.NotFound });
+			} catch (error) {
+				this.logService.warn(`Failed to resolve MCP server '${info.name}' from gallery: ${error}`);
+				result.set(info.name, { status: McpGalleryResolveStatus.Failed });
+			}
+		}));
+
+		return result;
+	}
+
 	private async getMcpServerByName({ name, id }: { name: string; id?: string }, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
-		const mcpServerUrl = this.getLatestServerVersionUrl(name, mcpGalleryManifest);
-		if (mcpServerUrl) {
-			const mcpServer = await this.getMcpServer(mcpServerUrl);
-			if (mcpServer) {
-				return mcpServer;
+		const urls = [
+			this.getLatestServerVersionUrl(name, mcpGalleryManifest),
+			this.getNamedServerUrl(name, mcpGalleryManifest),
+			id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined,
+		];
+
+		let attempted = false;
+		let lastError: unknown;
+		for (const url of urls) {
+			if (!url) {
+				continue;
+			}
+			attempted = true;
+			try {
+				const mcpServer = await this.getMcpServer(url, mcpGalleryManifest);
+				if (mcpServer) {
+					if (mcpServer.name === name) {
+						return mcpServer;
+					}
+					lastError = new Error(`MCP server lookup for '${name}' returned '${mcpServer.name}'`);
+				}
+			} catch (error) {
+				// Transient/undetermined failure on this endpoint: remember it and still
+				// try the remaining endpoints before giving up.
+				lastError = error;
 			}
 		}
 
-		const byNameUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
-		if (byNameUrl) {
-			const mcpServer = await this.getMcpServer(byNameUrl);
-			if (mcpServer) {
-				return mcpServer;
-			}
+		// Only report a definitive "not found" (undefined) when at least one endpoint
+		// was queried and every attempt returned an authoritative negative. If no
+		// endpoint could be queried, or any attempt failed transiently, surface an
+		// error so membership is treated as undetermined rather than absent.
+		if (!attempted) {
+			throw new Error(`Cannot resolve MCP server '${name}': registry manifest has no server lookup endpoint`);
 		}
-
-		const byIdUrl = id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined;
-		if (byIdUrl) {
-			const mcpServer = await this.getMcpServer(byIdUrl);
-			if (mcpServer) {
-				return mcpServer;
-			}
+		if (lastError !== undefined) {
+			throw lastError;
 		}
 
 		return undefined;
@@ -964,6 +1065,11 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return { servers: [], metadata: { count: 0 } };
 		}
 
+		if (!isSuccess(context)) {
+			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}`);
+			return { servers: [], metadata: { count: 0 } };
+		}
+
 		const data = await asJson(context);
 
 		if (!data) {
@@ -980,32 +1086,44 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	async getMcpServer(mcpServerUrl: string, mcpGalleryManifest?: IMcpGalleryManifest | null): Promise<IGalleryMcpServer | undefined> {
+		const manifest = mcpGalleryManifest ?? await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!manifest) {
+			throw new Error('Cannot fetch MCP server because no MCP gallery is configured');
+		}
+		const validatedMcpServerUrl = getMcpServerUrlInGallery(mcpServerUrl, manifest);
+		if (!validatedMcpServerUrl) {
+			throw new Error('Cannot fetch MCP server from outside the configured MCP gallery');
+		}
+
 		const context = await this.requestService.request({
 			type: 'GET',
-			url: mcpServerUrl,
+			url: validatedMcpServerUrl,
+			followRedirects: 0,
 			callSite: 'mcpGalleryService.getMcpServer'
 		}, CancellationToken.None);
 
-		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+		// A definitive 404 means the registry authoritatively does not contain this
+		// server. Any other error status (e.g. 401/403/429/5xx) is transient or
+		// undetermined and must throw so callers do not treat it as a "not found".
+		if (context.res.statusCode === 404) {
 			return undefined;
+		}
+
+		if (!isSuccess(context)) {
+			throw new Error(`Failed to fetch MCP server from ${mcpServerUrl}: server responded with ${context.res.statusCode}`);
 		}
 
 		const data = await asJson(context);
 		if (!data) {
-			return undefined;
+			throw new Error(`Failed to fetch MCP server from ${mcpServerUrl}: empty response`);
 		}
 
-		if (!mcpGalleryManifest) {
-			mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-		}
-		mcpGalleryManifest = mcpGalleryManifest && mcpServerUrl.startsWith(mcpGalleryManifest.url) ? mcpGalleryManifest : null;
-
-		const server = this.serializeMcpServer(data, mcpGalleryManifest);
+		const server = this.serializeMcpServer(data, manifest);
 		if (!server) {
 			throw new Error(`Failed to serialize MCP server from ${mcpServerUrl}`, data);
 		}
 
-		return this.toGalleryMcpServer(server, mcpGalleryManifest);
+		return this.toGalleryMcpServer(server, manifest);
 	}
 
 	private serializeMcpServer(data: unknown, mcpGalleryManifest: IMcpGalleryManifest | null): IRawGalleryMcpServer | undefined {

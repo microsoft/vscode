@@ -10,7 +10,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -32,7 +32,7 @@ import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -90,6 +90,7 @@ export class AccessibleView extends Disposable {
 	private _container: HTMLElement;
 	private _title: HTMLElement;
 	private readonly _toolbar: WorkbenchToolBar;
+	private readonly _toolbarMenu = this._register(new MutableDisposable<IMenu>());
 
 	private _currentProvider: AccesibleViewContentProvider | undefined;
 	private _currentContent: string | undefined;
@@ -286,6 +287,14 @@ export class AccessibleView extends Disposable {
 		this.show(this._lastProvider);
 	}
 
+	public getAccessibilityStatus(): { providerId: string | undefined; isInCodeBlock: boolean; onLastLine: boolean } {
+		return {
+			providerId: this._currentProvider?.id,
+			isInCodeBlock: this._accessibleViewInCodeBlock.get() ?? false,
+			onLastLine: this._onLastLine.get() ?? false
+		};
+	}
+
 	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
@@ -300,6 +309,7 @@ export class AccessibleView extends Disposable {
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
+				this._toolbarMenu.clear();
 				if (!showAccessibleViewHelp) {
 					this._updateLastProvider();
 					// Save cursor position before disposing so it can be restored on reopen
@@ -592,6 +602,7 @@ export class AccessibleView extends Disposable {
 	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		const isSameProvider = this._currentProvider?.id === provider.id;
 		const previousPosition = isSameProvider ? this._editorWidget.getPosition() : undefined;
+		const previousScrollTop = isSameProvider ? this._editorWidget.getScrollTop() : undefined;
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -641,8 +652,23 @@ export class AccessibleView extends Disposable {
 			if (this._currentProvider?.options.position) {
 				const position = this._editorWidget.getPosition();
 				const isDefaultPosition = position?.lineNumber === 1 && position.column === 1;
-				if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
-					const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const lineCount = this.editorWidget.getModel()?.getLineCount();
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				const preservedPosition = this._currentProvider.options.position === 'initial-bottom-preserve'
+					? previousPosition ?? savedPosition
+					: this._currentProvider.options.position === 'initial-bottom' && !isSameProvider ? savedPosition : undefined;
+				if (preservedPosition && preservedPosition.lineNumber <= (lineCount ?? 0)) {
+					this._editorWidget.setPosition(preservedPosition);
+					// When always preserving the cursor position, keep the current scroll
+					// position on content updates instead of revealing the cursor, which
+					// would cause the view to jump while the user is scrolling.
+					if (this._currentProvider.options.position === 'initial-bottom-preserve' && previousScrollTop !== undefined) {
+						this._editorWidget.setScrollTop(previousScrollTop);
+					} else {
+						this._editorWidget.revealLine(preservedPosition.lineNumber);
+					}
+				} else if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom-preserve' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
+					const lastLine = lineCount;
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 					if (position) {
 						this._editorWidget.setPosition(position);
@@ -728,7 +754,8 @@ export class AccessibleView extends Disposable {
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
 		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
-		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
+		const toolbarMenu = this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService);
+		this._toolbarMenu.value = toolbarMenu;
 		const menuActions = getFlatActionBarActions(toolbarMenu.getActions({}));
 		if (providedActions) {
 			for (const providedAction of providedActions) {

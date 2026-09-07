@@ -62,6 +62,11 @@ suite('agentHostRenameCommand', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/rename ']);
 		});
 
+		test('offers /rename when fuzzily matched', async () => {
+			const items = await run('/rae');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/rename ']);
+		});
+
 		test('omits /rename when the session has no history', async () => {
 			const items = await run('/', false);
 			assert.deepStrictEqual(items, []);

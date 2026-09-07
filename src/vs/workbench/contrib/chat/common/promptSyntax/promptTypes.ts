@@ -42,14 +42,22 @@ export const SKILL_LANGUAGE_ID = 'skill';
 export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
 
 /**
- * Configuration key for enabling the agent debug log feature.
- */
-export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.enabled';
-
-/**
  * Configuration key for enabling file logging for the agent debug log.
  */
 export const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
+
+/**
+ * Configuration key for enabling agent debug logging for agent host (Copilot CLI) sessions.
+ * Registered in core (see `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogEnabledSettingId = 'chat.agentHost.agentDebugLog.enabled';
+
+/**
+ * Configuration key for the maximum number of debug events kept in memory for
+ * agent host (Copilot CLI) sessions. Registered in core (see
+ * `chat.shared.contribution.ts`) since only core consumes it.
+ */
+export const AgentHostAgentDebugLogMaxEventsSettingId = 'chat.agentHost.agentDebugLog.maxEventsInMemory';
 
 /**
  * The name of the troubleshoot slash command / skill.

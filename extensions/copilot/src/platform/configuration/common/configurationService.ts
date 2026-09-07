@@ -14,7 +14,6 @@ import * as types from '../../../util/vs/base/common/types';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { packageJson } from '../../env/common/packagejson';
-import { ImportChanges } from '../../inlineEdits/common/dataTypes/importFilteringOptions';
 import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChangeStrategy } from '../../inlineEdits/common/dataTypes/jointCompletionsProviderOptions';
 import * as triggerOptions from '../../inlineEdits/common/dataTypes/triggerOptions';
 import * as xtabHistoryOptions from '../../inlineEdits/common/dataTypes/xtabHistoryOptions';
@@ -24,7 +23,7 @@ import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { IValidator, vBoolean, vNumber, vString } from './validator';
+import { IValidator, vBoolean, vEnum, vNumber, vString } from './validator';
 
 export const CopilotConfigPrefix = 'github.copilot';
 
@@ -140,6 +139,25 @@ export interface IConfigurationService {
 	 * @remark For object values, the user config will replace the default config.
 	 */
 	getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T>;
+
+	/**
+	 * Like {@link getExperimentBasedConfig}, but returns `undefined` when neither the user's settings
+	 * nor an experiment provide a value, instead of falling back to the setting's default.
+	 *
+	 * Use this when some other source supplies a default that must stay overridable by the user and by
+	 * experimentation, so that source can be consulted only when the setting is not explicitly driven.
+	 *
+	 * @remark Only meaningful for settings that are not contributed in `package.json`
+	 * ({@link BaseConfig.isPublic} is `false`). For contributed settings tagged `onExp`, VS Code folds
+	 * the treatment into `inspect().defaultValue`, so an experiment value is indistinguishable from the
+	 * default and this method reports it as unset.
+	 */
+	getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined;
+
+	/**
+	 * Gets the observable form of {@link getExperimentBasedConfigIfSet}.
+	 */
+	getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined>;
 
 	/**
 	 * For object values, the user config will be mixed in with the default config.
@@ -264,8 +282,70 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
 	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
-	abstract getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T;
 	abstract dumpConfig(): { [key: string]: string };
+
+	public getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
+		const value = this.getExperimentBasedConfigIfSet(key, experimentationService, scope);
+		// Deliberately not `??`: a treatment may legitimately resolve to `null`.
+		return value === undefined ? this.getDefaultValue(key) : value;
+	}
+
+	public getExperimentBasedConfigIfSet<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T | undefined {
+		const configuredValue = this._getUserConfiguredExperimentBasedValue(key, scope);
+		if (configuredValue !== undefined) {
+			return configuredValue;
+		}
+		return this._getExperimentTreatment(key, experimentationService);
+	}
+
+	/**
+	 * The value the user explicitly configured for `key` in any settings scope, or `undefined` when the
+	 * setting is not configured. Implementations backed only by defaults have nothing to report.
+	 */
+	protected _getUserConfiguredExperimentBasedValue<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, scope?: ConfigurationScope): T | undefined {
+		return undefined;
+	}
+
+	/**
+	 * The value assigned to `key` by experimentation, looked up under every treatment name the key has
+	 * ever been published as, or `undefined` when no experiment assigns it.
+	 */
+	protected _getExperimentTreatment<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): T | undefined {
+		if (key.experimentName) {
+			const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(key.experimentName);
+			if (expValue !== undefined) {
+				return expValue;
+			}
+		}
+
+		// This is the pattern we've been using for a while now. We need to maintain it for older experiments.
+		const expValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.id}`);
+		if (expValue !== undefined) {
+			return expValue;
+		}
+
+		// This is the pattern vscode uses for settings using the `onExp` tag. But vscode only supports it for
+		// settings defined in package.json, so this is why we're also reading the value from exp here.
+		const expValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedId}`);
+		if (expValue2 !== undefined) {
+			return expValue2;
+		}
+
+		if (key.fullyQualifiedOldId) {
+			const oldExpValue = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`copilotchat.config.${key.oldId}`);
+			if (oldExpValue !== undefined) {
+				return oldExpValue;
+			}
+
+			const oldExpValue2 = experimentationService.getTreatmentVariable<Exclude<T, undefined>>(`config.${key.fullyQualifiedOldId}`);
+			if (oldExpValue2 !== undefined) {
+				return oldExpValue2;
+			}
+		}
+
+		return undefined;
+	}
+
 	public updateExperimentBasedConfiguration(treatments: string[]): void {
 		if (treatments.length === 0) {
 			return;
@@ -273,18 +353,57 @@ export abstract class AbstractConfigurationService extends Disposable implements
 		this._onDidChangeConfiguration.fire({ affectsConfiguration: () => true });
 	}
 
+	/**
+	 * Whether any of `treatments` can supply a value for `section`.
+	 *
+	 * Mirrors the alias list in {@link _getExperimentTreatment}: a treatment arriving under one of the
+	 * older names assigns the setting just as much as one under the `config.` name, so it has to
+	 * invalidate the setting's observers too.
+	 */
+	protected _treatmentsAffectConfiguration(treatments: string[], section: string): boolean {
+		const config = globalConfigRegistry.configs.get(section);
+		const names = [`config.${section}`];
+		if (config) {
+			names.push(`copilotchat.config.${config.id}`);
+			if (config.configType === ConfigType.ExperimentBased && config.experimentName) {
+				names.push(config.experimentName);
+			}
+			if (config.fullyQualifiedOldId) {
+				names.push(`config.${config.fullyQualifiedOldId}`);
+			}
+			if (config.oldId) {
+				names.push(`copilotchat.config.${config.oldId}`);
+			}
+		}
+		return treatments.some(treatment => names.some(name => treatment.startsWith(name)));
+	}
+
 	public getConfigObservable<T>(key: Config<T>): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getConfig(key));
+		return this._getObservable_$show2FramesUp('config', key, () => this.getConfig(key));
 	}
 
 	public getExperimentBasedConfigObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T> {
-		return this._getObservable_$show2FramesUp(key, () => this.getExperimentBasedConfig(key, experimentationService));
+		return this._getObservable_$show2FramesUp('exp', key, () => this.getExperimentBasedConfig(key, experimentationService));
 	}
 
+	public getExperimentBasedConfigIfSetObservable<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService): IObservable<T | undefined> {
+		return this._getObservable_$show2FramesUp('expIfSet', key, () => this.getExperimentBasedConfigIfSet(key, experimentationService));
+	}
+
+	/**
+	 * Cached observables, keyed by accessor *and* setting id.
+	 *
+	 * {@link getExperimentBasedConfigObservable} and {@link getExperimentBasedConfigIfSetObservable}
+	 * report different values for the same setting: the latter reports `undefined` where the former
+	 * reports the setting's default. Keying on the setting alone would hand whichever accessor asked
+	 * second the observable built for the first, so an unset setting would read as explicitly set to
+	 * its default -- silently reintroducing the precedence bug the `IfSet` accessor exists to fix.
+	 */
 	private observables = new Map<string, IObservable<any>>();
 
-	private _getObservable_$show2FramesUp<T>(key: BaseConfig<T>, getValue: () => T): IObservable<T> {
-		let observable = this.observables.get(key.id);
+	private _getObservable_$show2FramesUp<T>(kind: 'config' | 'exp' | 'expIfSet', key: BaseConfig<T>, getValue: () => T): IObservable<T> {
+		const cacheKey = `${kind}:${key.id}`;
+		let observable = this.observables.get(cacheKey);
 		if (!observable) {
 			observable = observableFromEventOpts(
 				{ debugName: () => `Configuration Key "${key.id}"` },
@@ -295,7 +414,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 				})),
 				getValue
 			);
-			this.observables.set(key.id, observable);
+			this.observables.set(cacheKey, observable);
 		}
 		return observable;
 	}
@@ -376,6 +495,12 @@ export const enum ConfigType {
 export interface ConfigOptions {
 	readonly oldKey?: string;
 	readonly valueIgnoredForExternals?: boolean;
+	/**
+	 * When true, only reads from user (global) scope, ignoring workspace and folder values.
+	 * Use for security-sensitive settings (e.g., API endpoint overrides) that must not be
+	 * controllable via a workspace's .vscode/settings.json.
+	 */
+	readonly userScopeOnly?: boolean;
 }
 
 export const enum ConfigTarget {
@@ -580,10 +705,10 @@ export namespace ConfigKey {
 	*/
 	export namespace Shared {
 		/** Allows for overriding the base domain we use for making requests to the CAPI. This helps CAPI devs develop against a local instance. */
-		export const DebugOverrideProxyUrl = defineSetting<string | undefined>('advanced.debug.overrideProxyUrl', ConfigType.Simple, undefined);
+		export const DebugOverrideProxyUrl = defineSetting<string | undefined>('advanced.debug.overrideProxyUrl', ConfigType.Simple, undefined, undefined, { userScopeOnly: true });
 		/** Auth type to use when overrideProxyUrl or overrideCapiUrl is set. 'hmac' (default) for internal dev builds, 'token' for smoke tests / mock servers that don't support HMAC. */
 		export const DebugOverrideAuthType = defineSetting<'hmac' | 'token'>('advanced.debug.overrideAuthType', ConfigType.Simple, 'hmac');
-		export const DebugOverrideCAPIUrl = defineSetting<string | undefined>('advanced.debug.overrideCapiUrl', ConfigType.Simple, undefined);
+		export const DebugOverrideCAPIUrl = defineSetting<string | undefined>('advanced.debug.overrideCapiUrl', ConfigType.Simple, undefined, undefined, { userScopeOnly: true });
 		export const DebugUseNodeFetchFetcher = defineSetting('advanced.debug.useNodeFetchFetcher', ConfigType.Simple, true);
 		export const DebugUseNodeFetcher = defineSetting('advanced.debug.useNodeFetcher', ConfigType.Simple, false);
 		export const DebugUseElectronFetcher = defineSetting('advanced.debug.useElectronFetcher', ConfigType.Simple, true);
@@ -619,9 +744,13 @@ export namespace ConfigKey {
 		export const AgentHistorySummarizationMode = defineAndMigrateSetting<string | undefined>('chat.advanced.agentHistorySummarizationMode', 'chat.agentHistorySummarizationMode', undefined);
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
-		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, true);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
+		/**
+		 * Offer routing tiers on the Auto model. Off by default: while disabled
+		 * no tier is sent and the server picks its own routing profile.
+		 */
+		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.autoModeTiersEnabled' });
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
@@ -671,6 +800,8 @@ export namespace ConfigKey {
 		export const SearchSubagentToolCallLimit = defineSetting<number>('chat.searchSubagent.toolCallLimit', ConfigType.ExperimentBased, 4);
 		/** Enable the thoroughness parameter on the search subagent tool, which adjusts turn limits based on requested thoroughness */
 		export const SearchSubagentThoroughnessEnabled = defineSetting<boolean>('chat.searchSubagent.thoroughnessEnabled', ConfigType.ExperimentBased, false);
+		/** Enable semantic search for the search subagent */
+		export const SubagentSemanticSearchEnabled = defineSetting<boolean>('chat.searchSubagent.subagentSemanticSearchEnabled', ConfigType.ExperimentBased, true);
 
 		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
 		export const SkillToolEnabled = defineSetting<boolean>('chat.skillTool.enabled', ConfigType.ExperimentBased, false);
@@ -688,7 +819,6 @@ export namespace ConfigKey {
 		export const BackgroundTodoAgentEnabled = defineSetting<boolean>('chat.agent.backgroundTodoAgent.enabled', ConfigType.ExperimentBased, false);
 
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', 10);
-		export const InlineEditsNextCursorPredictionDisplayLine = defineAndMigrateExpSetting<boolean>('chat.advanced.inlineEdits.nextCursorPrediction.displayLine', 'chat.inlineEdits.nextCursorPrediction.displayLine', true);
 		export const InlineEditsNextCursorPredictionCurrentFileMaxTokens = defineAndMigrateExpSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 'chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens', 3000);
 		export const InlineEditsRenameSymbolSuggestions = defineSetting<boolean>('chat.inlineEdits.renameSymbolSuggestions', ConfigType.ExperimentBased, true);
 		export const InlineEditsPreferredModel = defineSetting<string | 'none'>('nextEditSuggestions.preferredModel', ConfigType.ExperimentBased, 'none');
@@ -718,9 +848,7 @@ export namespace ConfigKey {
 		/** Simulate GitHub authentication failures for testing. Can't be TeamInternal because we lose these flags as part of testing. */
 		export const DebugGitHubAuthFailWith = defineSetting<'NotAuthorized' | 'RequestFailed' | 'ParseFailed' | 'HTTP401' | 'RateLimited' | 'GitHubLoginFailed' | null>('chat.debug.githubAuthFailWith', ConfigType.Simple, null);
 
-		// Agent debug logging settings — fileLogging.enabled is the canonical toggle
-		/** @deprecated Use ChatDebugFileLogging instead. Kept during experiment transition. */
-		export const AgentDebugLogEnabled = defineAndMigrateExpSetting<boolean>('agentDebugLog.enabled', 'chat.agentDebugLog.enabled', false);
+		// Agent debug logging settings
 		export const ChatDebugFileLogging = defineAndMigrateExpSetting<boolean>('chat.chatDebug.fileLogging.enabled', 'chat.agentDebugLog.fileLogging.enabled', false);
 		export const ChatDebugFileLoggingFlushInterval = defineAndMigrateSetting<number>('chat.chatDebug.fileLogging.flushIntervalMs', 'chat.agentDebugLog.fileLogging.flushIntervalMs', 4000);
 		export const ChatDebugFileLoggingMaxRetainedSessionLogs = defineSetting<number>('chat.agentDebugLog.fileLogging.maxRetainedSessionLogs', ConfigType.ExperimentBased, 50);
@@ -729,14 +857,26 @@ export namespace ConfigKey {
 		// OTel settings
 		export const OTelEnabled = defineSetting<boolean>('chat.otel.enabled', ConfigType.Simple, false);
 		export const OTelExporterType = defineSetting<string>('chat.otel.exporterType', ConfigType.Simple, 'otlp-http');
+		export const OTelProtocol = defineSetting<string>('chat.otel.protocol', ConfigType.Simple, '');
 		export const OTelOtlpEndpoint = defineSetting<string>('chat.otel.otlpEndpoint', ConfigType.Simple, 'http://localhost:4318');
 		export const OTelCaptureContent = defineSetting<boolean>('chat.otel.captureContent', ConfigType.Simple, false);
+		export const OTelServiceName = defineSetting<string>('chat.otel.serviceName', ConfigType.Simple, '');
+		export const OTelResourceAttributes = defineSetting<Record<string, string>>('chat.otel.resourceAttributes', ConfigType.Simple, {});
+		export const OTelHeaders = defineSetting<Record<string, string>>('chat.otel.headers', ConfigType.Simple, {});
 		export const OTelMaxAttributeSizeChars = defineSetting<number>('chat.otel.maxAttributeSizeChars', ConfigType.Simple, 0);
 		export const OTelOutfile = defineSetting<string>('chat.otel.outfile', ConfigType.Simple, '');
 		export const OTelDbSpanExporter = defineSetting<boolean>('chat.otel.dbSpanExporter.enabled', ConfigType.Simple, false);
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
+		export const ChatCompletionsTokenParameter = defineSetting('chat.chatCompletionsTokenParameter', ConfigType.ExperimentBased, 'max_tokens', vEnum('max_completion_tokens', 'max_tokens'));
+
+		/**
+		 * Internal: override the routing tier sent to `POST /auto`, ignoring both the
+		 * model picker and the tier inline chat defaults to. Unlike the picker this
+		 * accepts `fast`, so evals can exercise every profile.
+		 */
+		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 
 		/**
 		 * When enabled, periodic keep-alive probes are sent during long-running tool calls
@@ -797,9 +937,11 @@ export namespace ConfigKey {
 		 * evicted — it is simply gated until the cursor returns to an
 		 * inline-renderable position.
 		 */
-		export const InlineEditsNesMimicGhostTextBehavior = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.nesMimicGhostTextBehavior', ConfigType.ExperimentBased, false, vBoolean());
+		export const InlineEditsNesMimicGhostTextBehavior = defineSetting<boolean>('chat.advanced.inlineEdits.nesMimicGhostTextBehavior', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsXtabProviderUsePrediction = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.usePrediction', ConfigType.ExperimentBased, true, vBoolean());
-		export const InlineEditsXtabProviderPatchModelPredictionKind = defineTeamInternalSetting<xtabPromptOptions.PatchModelPrediction>('chat.advanced.inlineEdits.xtabProvider.patchModelPredictionKind', ConfigType.ExperimentBased, xtabPromptOptions.PatchModelPrediction.FilePath, xtabPromptOptions.PatchModelPrediction.VALIDATOR);
+		export const InlineEditsXtabProviderPatchModelPredictionKind = defineSetting<xtabPromptOptions.PatchModelPrediction>('chat.advanced.inlineEdits.xtabProvider.patchModelPredictionKind', ConfigType.ExperimentBased, xtabPromptOptions.PatchModelPrediction.FilePath, xtabPromptOptions.PatchModelPrediction.VALIDATOR);
+		export const InlineEditsXtabProviderPatchFastYieldLineWithCursor = defineSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.patchFastYieldLineWithCursor', ConfigType.ExperimentBased, true, vBoolean());
+		export const InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.patchFastYieldLineWithCursorMultiLine', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsXtabLanguageContextEnabledLanguages = defineTeamInternalSetting<LanguageContextLanguages>('chat.advanced.inlineEdits.xtabProvider.languageContext.enabledLanguages', ConfigType.Simple, LANGUAGE_CONTEXT_ENABLED_LANGUAGES);
 		export const InlineEditsXtabLanguageContextTraitsPosition = defineTeamInternalSetting<'before' | 'after'>('chat.advanced.inlineEdits.xtabProvider.languageContext.traitsPosition', ConfigType.ExperimentBased, 'before');
 		export const InlineEditsDiagnosticsExplorationEnabled = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.inlineEditsDiagnosticsExplorationEnabled', ConfigType.Simple, false);
@@ -817,23 +959,31 @@ export namespace ConfigKey {
 		export const DebugExpUseNodeFetcher = defineTeamInternalSetting<boolean | undefined>('chat.advanced.debug.useNodeFetcher', ConfigType.ExperimentBased, undefined);
 		export const DebugExpUseElectronFetcher = defineTeamInternalSetting<boolean | undefined>('chat.advanced.debug.useElectronFetcher', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsAsyncCompletions = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.asyncCompletions', ConfigType.ExperimentBased, true);
-		export const InlineEditsEagerBackupRequest = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.eagerBackupRequest', ConfigType.ExperimentBased, false);
 		export const InlineEditsDebounceUseCoreRequestTime = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.debounceUseCoreRequestTime', ConfigType.ExperimentBased, false);
 		export const InlineEditsYieldToCopilot = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.yieldToCopilot', ConfigType.ExperimentBased, false);
-		export const InlineEditsExcludedProviders = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.excludedProviders', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsExcludedProviders = defineSetting<string | undefined>('chat.advanced.inlineEdits.excludedProviders', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsEnableGhCompletionsProvider = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.githubCompletionsProvider.enabled', ConfigType.ExperimentBased, false);
 		export const InlineEditsCompletionsUrl = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.completionsProvider.url', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsDebounce = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.debounce', ConfigType.ExperimentBased, 100);
+		export const InlineEditsDebounce = defineSetting<number>('chat.advanced.inlineEdits.debounce', ConfigType.ExperimentBased, 100);
 		export const InlineEditsCacheCursorDistanceCheck = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.cacheCursorDistanceCheck', ConfigType.ExperimentBased, false);
-		export const InlineEditsCacheDelay = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.cacheDelay', ConfigType.ExperimentBased, 200);
+		export const InlineEditsCacheDelay = defineSetting<number>('chat.advanced.inlineEdits.cacheDelay', ConfigType.ExperimentBased, 200);
 		export const InlineEditsSubsequentCacheDelay = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.subsequentCacheDelay', ConfigType.ExperimentBased, 0);
 		export const InlineEditsSpeculativeRequestDelay = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.speculativeRequestDelay', ConfigType.ExperimentBased, 0);
-		export const InlineEditsRebasedCacheDelay = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.rebasedCacheDelay', ConfigType.ExperimentBased, 0);
+		export const InlineEditsRebasedCacheDelay = defineSetting<number | undefined>('chat.advanced.inlineEdits.rebasedCacheDelay', ConfigType.ExperimentBased, 0);
 		export const InlineEditsAbsorbSubsequenceTyping = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.absorbSubsequenceTyping', ConfigType.ExperimentBased, false);
 		export const InlineEditsReverseAgreement = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.reverseAgreement', ConfigType.ExperimentBased, true);
-		export const InlineEditsMaxImperfectAgreementLength = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.maxImperfectAgreementLength', ConfigType.ExperimentBased, 5, vNumber());
+		export const InlineEditsMaxImperfectAgreementLength = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.maxImperfectAgreementLength', ConfigType.ExperimentBased, 1, vNumber());
+		/**
+		 * When enabled, a cached NES suggestion whose strict rebase fails *only*
+		 * because the user re-typed a line's leading indentation differently than
+		 * the model predicted (e.g. pressing Tab to insert a tab character, or a
+		 * different number of spaces, on an otherwise-empty body line) is salvaged
+		 * instead of dropped: the model's still-valid content is re-anchored as a
+		 * clean at-cursor insertion that respects the indentation the user typed.
+		 */
+		export const InlineEditsReanchorContentOnIndentationMismatch = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.reanchorContentOnIndentationMismatch', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsBackoffDebounceEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.backoffDebounceEnabled', ConfigType.ExperimentBased, true);
-		export const InlineEditsExtraDebounceEndOfLine = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.extraDebounceEndOfLine', ConfigType.ExperimentBased, 2000);
+		export const InlineEditsExtraDebounceEndOfLine = defineSetting<number>('chat.advanced.inlineEdits.extraDebounceEndOfLine', ConfigType.ExperimentBased, 2000);
 		export const InlineEditsSpeculativeRequests = defineTeamInternalSetting<SpeculativeRequestsEnablement>('chat.advanced.inlineEdits.speculativeRequests', ConfigType.ExperimentBased, SpeculativeRequestsEnablement.Off, SpeculativeRequestsEnablement.VALIDATOR);
 		export const InlineEditsSpeculativeRequestsCursorPlacement = defineTeamInternalSetting<SpeculativeRequestsCursorPlacement>('chat.advanced.inlineEdits.speculativeRequestsCursorPlacement', ConfigType.ExperimentBased, SpeculativeRequestsCursorPlacement.AfterEditApplied, SpeculativeRequestsCursorPlacement.VALIDATOR);
 		export const InlineEditsSpeculativeRequestsAutoExpandEditWindowLines = defineTeamInternalSetting<SpeculativeRequestsAutoExpandEditWindowLines>('chat.advanced.inlineEdits.speculativeRequestsAutoExpandEditWindowLines', ConfigType.ExperimentBased, SpeculativeRequestsAutoExpandEditWindowLines.Off, SpeculativeRequestsAutoExpandEditWindowLines.VALIDATOR);
@@ -841,7 +991,7 @@ export namespace ConfigKey {
 		export const InlineEditsDebounceOnSelectionChange = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.debounceOnSelectionChange', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsTriggerOnEditorChangeStrategy = defineTeamInternalSetting<triggerOptions.DocumentSwitchTriggerStrategy>('chat.advanced.inlineEdits.triggerOnEditorChangeStrategy', ConfigType.ExperimentBased, triggerOptions.DocumentSwitchTriggerStrategy.AfterAcceptance, triggerOptions.DocumentSwitchTriggerStrategy.VALIDATOR);
 		export const InlineEditsProviderId = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.providerId', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsUnification = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.unification', ConfigType.ExperimentBased, false);
+		export const InlineEditsUnification = defineSetting<boolean>('chat.advanced.inlineEdits.unification', ConfigType.ExperimentBased, false);
 		export const InlineEditsNextCursorPredictionModelName = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.nextCursorPrediction.modelName', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsNextCursorPredictionUseEndpointProvider = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.nextCursorPrediction.useEndpointProvider', ConfigType.Simple, false, vBoolean());
 		export const InlineEditsNextCursorPredictionMaxResponseTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.nextCursorPrediction.maxResponseTokens', ConfigType.ExperimentBased, 40);
@@ -849,8 +999,8 @@ export namespace ConfigKey {
 		export const InlineEditsXtabProviderModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.modelConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderDefaultModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderUseVaryingLinesAbove = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.xtabProvider.useVaryingLinesAbove', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsXtabProviderNLinesAbove = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesAbove', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsXtabProviderNLinesBelow = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesBelow', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabProviderNLinesAbove = defineSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesAbove', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabProviderNLinesBelow = defineSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesBelow', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsAutoExpandEditWindowLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.autoExpandEditWindowLines', ConfigType.ExperimentBased, 10);
 		export const InlineEditsXtabNRecentlyViewedDocuments = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.nRecentlyViewedDocuments', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.recentlyViewedDocuments.nDocuments);
 		export const InlineEditsXtabRecentlyViewedDocumentsMaxTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.recentlyViewedDocuments.maxTokens', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.recentlyViewedDocuments.maxTokens);
@@ -882,34 +1032,25 @@ export namespace ConfigKey {
 		export const InlineEditsXtabLanguageContextMaxTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.languageContext.maxTokens', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.languageContext.maxTokens);
 		export const InlineEditsXtabIncludeNeighborFiles = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.neighborFiles.enabled', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.neighborFiles.enabled);
 		export const InlineEditsXtabNeighborFilesMaxTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.neighborFiles.maxTokens', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.neighborFiles.maxTokens);
-		export const InlineEditsXtabGlobalBudgetEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.globalBudget.enabled', ConfigType.ExperimentBased, false);
-		export const InlineEditsXtabGlobalBudgetTotalTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.globalBudget.totalTokens', ConfigType.ExperimentBased, xtabPromptOptions.GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS);
+		export const InlineEditsXtabNeighborFilesIncludeRelatedFiles = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.neighborFiles.includeRelatedFiles', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.neighborFiles.includeRelatedFiles);
+		export const InlineEditsXtabGlobalBudget = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.globalBudget', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabMaxMergeConflictLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.maxMergeConflictLines', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabOnlyMergeConflictLines = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.onlyMergeConflictLines', ConfigType.ExperimentBased, false);
 		export const InlineEditsXtabDuplicateAdditionsMode = defineTeamInternalSetting<DuplicateAdditionsMode>('chat.advanced.inlineEdits.xtabProvider.diffPatch.duplicateAdditionsMode', ConfigType.ExperimentBased, DuplicateAdditionsMode.Off, DuplicateAdditionsMode.VALIDATOR);
-		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabSplitPatchOnDiff = defineSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.diffPatch.splitOnDiff', ConfigType.ExperimentBased, false, vBoolean());
+		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, xtabPromptOptions.AggressivenessLevel.Medium);
 		export const InlineEditsAggressivenessLowMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.lowMinResponseTimeMs', ConfigType.ExperimentBased, 1500);
 		export const InlineEditsAggressivenessMediumMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.mediumMinResponseTimeMs', ConfigType.ExperimentBased, 700);
 		export const InlineEditsAggressivenessHighDebounceMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.highDebounceMs', ConfigType.ExperimentBased, 0);
 		export const InlineEditsUserHappinessScoreConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.adaptiveAggressivenessConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsUndoInsertionFiltering = defineTeamInternalSetting<'v1' | 'v2' | undefined>('chat.advanced.inlineEdits.undoInsertionFiltering', ConfigType.ExperimentBased, 'v1');
 		export const InlineEditsFilterOutEditsWithSubstrings = defineTeamInternalSetting<string>('chat.advanced.inlineEdits.filterOutEditsWithSubstrings', ConfigType.ExperimentBased, '<|current_file_content|>,<|/current_file_content|>,<|diff_marker|>');
-		export const InlineEditsAllowImportChanges = defineTeamInternalSetting<ImportChanges>('chat.advanced.inlineEdits.allowImportChanges', ConfigType.ExperimentBased, ImportChanges.None, ImportChanges.VALIDATOR);
 		export const InlineEditsIgnoreWhenSuggestVisible = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.ignoreWhenSuggestVisible', ConfigType.ExperimentBased, true);
 		export const InlineEditsJointCompletionsProviderEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.jointCompletionsProvider.enabled', ConfigType.ExperimentBased, false);
 		export const InlineEditsJointCompletionsProviderStrategy = defineTeamInternalSetting<JointCompletionsProviderStrategy>('chat.advanced.inlineEdits.jointCompletionsProvider.strategy', ConfigType.ExperimentBased, JointCompletionsProviderStrategy.Regular);
 		export const InlineEditsJointCompletionsProviderTriggerChangeStrategy = defineTeamInternalSetting<JointCompletionsProviderTriggerChangeStrategy>('chat.advanced.inlineEdits.jointCompletionsProvider.triggerChangeStrategy', ConfigType.ExperimentBased, JointCompletionsProviderTriggerChangeStrategy.NoTriggerOnCompletionsRequestInFlight);
 		export const InstantApplyModelName = defineTeamInternalSetting<string>('chat.advanced.instantApply.modelName', ConfigType.ExperimentBased, CHAT_MODEL.GPT4OPROXY);
 		export const VerifyTextDocumentChanges = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.verifyTextDocumentChanges', ConfigType.ExperimentBased, false);
-		export const UseAutoModeRouting = defineTeamInternalSetting<boolean>('chat.advanced.useAutoModeRouter', ConfigType.ExperimentBased, false);
-		/** Controls which `routing_method` value is sent to the auto-intent-service per request
-		 * when `UseAutoModeRouting` is enabled.
-		 * '' (empty/default) = omit `routing_method` and use the server default.
-		 * 'binary' = binary classifier v1.
-		 * 'hydra' = HYDRA multi-head capability matching.
-		 * For experiments, this setting selects the routing method only when router usage is enabled;
-		 * it does not by itself determine whether the router is called. */
-		export const AutoModeRoutingMethod = defineTeamInternalSetting<string>('chat.advanced.autoModeRoutingMethod', ConfigType.ExperimentBased, '', undefined, undefined, { experimentName: 'copilotchat.autoModeRoutingMethod' });
 
 		/** Inline Completions */
 		export const InlineCompletionsDefaultDiagnosticsOptions = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineCompletions.defaultDiagnosticsOptionsString', ConfigType.ExperimentBased, undefined);
@@ -962,29 +1103,31 @@ export namespace ConfigKey {
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);
 	/** Context editing mode for Anthropic Messages API. 'off' disables context editing. */
 	export const AnthropicContextEditingMode = defineSetting<'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both'>('chat.anthropic.contextEditing.mode', ConfigType.ExperimentBased, 'off');
-	/** Configure reasoning summary style sent to Responses API */
-	export const ResponsesApiReasoningSummary = defineSetting<'off' | 'detailed'>('chat.responsesApiReasoningSummary', ConfigType.ExperimentBased, 'detailed');
 	/** Enable context_management sent to Responses API */
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
+	/** Enable explicit prompt_cache_breakpoint markers sent to Responses API */
+	export const ResponsesApiPromptCacheBreakpointEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheBreakpoint.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
-	/** Enable updated prompt for Claude Opus 4.7 model */
-	export const Claude47OpusPromptEnabled = defineSetting<boolean>('chat.claude47OpusPrompt.enabled', ConfigType.ExperimentBased, false);
+	/** Enable updated prompt for Claude Opus 5 model */
+	export const ClaudeOpus5PromptEnabled = defineSetting<boolean>('chat.claudeOpus5Prompt.enabled', ConfigType.ExperimentBased, false);
+	/** Enable updated prompt for Claude Sonnet 5 model */
+	export const ClaudeSonnet5PromptEnabled = defineSetting<boolean>('chat.claudeSonnet5Prompt.enabled', ConfigType.ExperimentBased, false);
 	/** Enable get_changed_files tool for GPT-5.5 models */
 	export const EnableGpt55GetChangedFilesTool = defineSetting<boolean>('chat.gpt55GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
+	/** Enable low verbosity for GPT-5.6 models. */
+	export const EnableGpt56Verbosity = defineSetting<boolean>('chat.gpt56Verbosity.enabled', ConfigType.ExperimentBased, true);
 	/** Enable get_changed_files tool for Gemini 3 models */
-	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
+	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
 	/** When enabled, sends `reasoning_effort: 'low'` to Gemini 3 models. */
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
+	/** Default thinking effort for Claude Opus models in the model picker. Empty keeps the built-in default ('high'). */
+	export const ClaudeOpusDefaultReasoningEffort = defineSetting<string>('chat.claudeOpusDefaultReasoningEffort', ConfigType.ExperimentBased, '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
-	/** Enable economical search and edit instructions for GPT-5.5 models */
-	export const EnableGpt55EconomicalSearchAndEdit = defineSetting<boolean>('chat.gpt55EconomicalSearchAndEdit.enabled', ConfigType.ExperimentBased, false);
-	/** Enable GPT-5.4 large prompt sections for GPT-5.5 models */
-	export const EnableGpt55LargePromptSections = defineSetting<boolean>('chat.gpt55LargePromptSections.enabled', ConfigType.ExperimentBased, false);
-	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.ExperimentBased, true);
+	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
 	/** Maximum number of web searches allowed per request */
@@ -1015,6 +1158,7 @@ export namespace ConfigKey {
 	export const TypeScriptLanguageContextCacheTimeout = defineSetting<number>('chat.languageContext.typescript.cacheTimeout', ConfigType.ExperimentBased, 500);
 	export const TypeScriptLanguageContextFix = defineSetting<boolean>('chat.languageContext.fix.typescript.enabled', ConfigType.ExperimentBased, false);
 	export const TypeScriptLanguageContextInline = defineSetting<boolean>('chat.languageContext.inline.typescript.enabled', ConfigType.ExperimentBased, false);
+	export const TypeScript7LanguageContext = defineSetting<boolean>('chat.languageContext.typescript7.enabled', ConfigType.Simple, false);
 
 	export const UseInstructionFiles = defineSetting('chat.codeGeneration.useInstructionFiles', ConfigType.Simple, true);
 	export const ReviewAgent = defineSetting('chat.reviewAgent.enabled', ConfigType.Simple, true);
@@ -1029,11 +1173,6 @@ export namespace ConfigKey {
 	export const AutomaticRenameSuggestions = defineSetting('renameSuggestions.triggerAutomatically', ConfigType.Simple, true);
 	export const TerminalToDebuggerEnabled = defineSetting('chat.copilotDebugCommand.enabled', ConfigType.Simple, true);
 	export const CodeSearchAgentEnabled = defineSetting<boolean>('chat.codesearch.enabled', ConfigType.Simple, false);
-	export const ClaudeAgentEnabled = defineSetting<boolean>('chat.claudeAgent.enabled', ConfigType.Simple, true);
-	export const ClaudeAgentAllowDangerouslySkipPermissions = defineSetting<boolean>('chat.claudeAgent.allowDangerouslySkipPermissions', ConfigType.Simple, false);
-	export const ClaudeAgentAllowAutoPermissions = defineSetting<boolean>('chat.claudeAgent.allowAutoPermissions', ConfigType.ExperimentBased, false);
-	export const ClaudeAgentUseSdkExtension = defineSetting<boolean>('chat.claudeAgent.useSdkExtension', ConfigType.ExperimentBased, false);
-	export const ClaudeAgentSdkExtensionInstallTimeout = defineSetting<number>('chat.claudeAgent.sdkExtensionInstallTimeout', ConfigType.Simple, 120_000);
 	export const InlineEditsEnabled = defineSetting<boolean>('nextEditSuggestions.enabled', ConfigType.ExperimentBased, true);
 	export const CompletionsInChatEnabled = defineSetting<boolean>('completions.chat.enabled', ConfigType.Simple, false);
 	export const InlineEditsEnableDiagnosticsProvider = defineSetting<boolean>('nextEditSuggestions.fixes', ConfigType.ExperimentBased, true);
@@ -1053,6 +1192,8 @@ export namespace ConfigKey {
 
 	export const EnableAlternateGptPrompt = defineSetting<boolean>('chat.alternateGptPrompt.enabled', ConfigType.ExperimentBased, false);
 	export const EnableAlternateGeminiModelFPrompt = defineSetting<boolean>('chat.alternateGeminiModelFPrompt.enabled', ConfigType.ExperimentBased, false);
+	export const EnableGemini3ReducedToolUsePrompt = defineSetting<boolean>('chat.gemini35FlashReducedToolUsePrompt.enabled', ConfigType.ExperimentBased, true);
+	export const EnableGeminiFlashPromptAdditions = defineSetting<boolean>('chat.geminiFlashPromptAdditions.enabled', ConfigType.ExperimentBased, false);
 
 	export const EnableOrganizationCustomAgents = defineSetting<boolean>('chat.organizationCustomAgents.enabled', ConfigType.Simple, true);
 	export const EnableOrganizationInstructions = defineSetting<boolean>('chat.organizationInstructions.enabled', ConfigType.Simple, true);
@@ -1069,7 +1210,6 @@ export namespace ConfigKey {
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
-	export const CloudAgentBackendVersion = defineSetting<'v1' | 'v2'>('chat.cloudAgentBackend.version', ConfigType.Simple, 'v1');
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
 
@@ -1092,7 +1232,12 @@ export namespace ConfigKey {
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
-	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, false);
+	export const LocalIndexEnabled = defineSetting<boolean>('chat.localIndex.enabled', ConfigType.ExperimentBased, true);
+
+	/** grep_search configs */
+	export const GrepSearchOutputFormat = defineSetting<'grep' | 'tag'>('chat.tools.grepSearch.outputFormat', ConfigType.ExperimentBased, 'grep');
+	export const GrepSearchDefaultMaxResults = defineSetting<number>('chat.tools.grepSearch.defaultMaxResults', ConfigType.ExperimentBased, 100);
+	export const GrepSearchMaxResultsCap = defineSetting<number>('chat.tools.grepSearch.maxResultsCap', ConfigType.ExperimentBased, 200);
 }
 
 export function getAllConfigKeys(): string[] {
