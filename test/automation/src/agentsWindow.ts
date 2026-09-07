@@ -15,6 +15,7 @@ const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const DEV_CONTAINER_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-dev-container-checkbox .monaco-checkbox`;
+const NEW_WORKTREE_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-isolation-checkbox .monaco-checkbox`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
@@ -117,19 +118,30 @@ export class AgentsWindow {
 	}
 
 	async selectDevContainer(): Promise<void> {
-		await this.code.waitForElement(DEV_CONTAINER_CHECKBOX);
-		const checkbox = this.code.driver.currentPage.locator(DEV_CONTAINER_CHECKBOX).first();
-		const deadline = Date.now() + 20_000;
-		while (await checkbox.getAttribute('aria-disabled') === 'true') {
-			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for Dev Container checkbox to become enabled');
+		const page = this.code.driver.currentPage;
+		const devContainer = page.locator(DEV_CONTAINER_CHECKBOX).first();
+		const newWorktree = page.locator(NEW_WORKTREE_CHECKBOX).first();
+		const deadline = Date.now() + 120_000;
+		while (Date.now() < deadline) {
+			if (await newWorktree.count() > 0 && await newWorktree.getAttribute('aria-checked') === 'true') {
+				await newWorktree.click();
+				continue;
+			}
+			if (await devContainer.count() > 0 && await devContainer.getAttribute('aria-disabled') !== 'true') {
+				break;
 			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
-		if (await checkbox.getAttribute('aria-checked') !== 'true') {
-			await checkbox.click();
+		if (await devContainer.count() === 0) {
+			throw new Error('Timed out waiting for Dev Container checkbox to appear');
 		}
-		while (await checkbox.getAttribute('aria-checked') !== 'true') {
+		if (await devContainer.getAttribute('aria-disabled') === 'true') {
+			throw new Error('Timed out waiting for Dev Container checkbox to become enabled');
+		}
+		if (await devContainer.getAttribute('aria-checked') !== 'true') {
+			await devContainer.click();
+		}
+		while (await devContainer.getAttribute('aria-checked') !== 'true') {
 			if (Date.now() >= deadline) {
 				throw new Error('Timed out waiting for Dev Container checkbox to become checked');
 			}
