@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, isAbsolute, join, posix } from 'path';
+import { dirname, join, posix } from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { getActiveTypeScriptVersion } from '../../tsServer/versionManager';
-import { ITypeScriptVersionProvider, TypeScriptVersion } from '../../tsServer/versionProvider';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
 import { exists, looksLikeAbsoluteWindowsPath, looksLikeUriNotPath } from '../../utils/fs';
 import { Lazy } from '../../utils/lazy';
 import { TsConfigLinkKind } from './links';
@@ -20,6 +20,24 @@ export type TsConfigLinkResolver = (documentUri: vscode.Uri, value: string) => P
  * itself as unresolvable.
  */
 export type TsConfigLinkResolvers = Readonly<Record<TsConfigLinkKind, TsConfigLinkResolver>>;
+
+/**
+ * Whether TypeScript would treat a value as a relative path rather than a
+ * module or package name. Mirrors the compiler's `pathIsRelative`: `.`, `..`,
+ * and anything under them, with either separator.
+ */
+export function looksLikeRelativePath(value: string): boolean {
+	return /^\.\.?(?:$|[\\/])/.test(value);
+}
+
+/**
+ * Whether a value is rooted on any platform, so the result does not depend on
+ * the platform the extension host runs on. Mirrors the compiler's
+ * `isRootedDiskPath`, minus URIs, which the selectors have already excluded.
+ */
+export function looksLikeAbsolutePath(value: string): boolean {
+	return value.startsWith('/') || value.startsWith('\\') || looksLikeAbsoluteWindowsPath(value);
+}
 
 async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
 	let currentUri = baseDirUri;
@@ -72,12 +90,11 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, missin
 		return absolutePath.with({ path: `${absolutePath.path}${missingSuffix}` });
 	}
 
-	const isRelativePath = ['./', '../'].some(str => pathValue.startsWith(str));
-	if (isRelativePath) {
+	if (looksLikeRelativePath(pathValue)) {
 		return resolve(vscode.Uri.joinPath(baseDirUri, pathValue));
 	}
 
-	if (pathValue.startsWith('/') || looksLikeAbsoluteWindowsPath(pathValue)) {
+	if (looksLikeAbsolutePath(pathValue)) {
 		return resolve(vscode.Uri.file(pathValue));
 	}
 
@@ -92,7 +109,7 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, missin
 }
 
 async function resolveRelativePath(documentUri: vscode.Uri, value: string): Promise<vscode.Uri> {
-	return isAbsolute(value)
+	return looksLikeAbsolutePath(value)
 		? vscode.Uri.file(value)
 		: vscode.Uri.joinPath(Utils.dirname(documentUri), value);
 }
@@ -128,20 +145,33 @@ async function resolveLibPath(
 
 	// The version the service is actually using first, then any other local
 	// install, then the TypeScript bundled with VS Code.
+	//
+	// Every provider getter rescans disk, and `bundledVersion` shows an error
+	// toast before throwing, so each is read once and the reads are deduplicated
+	// by path rather than repeated.
 	const versions: TypeScriptVersion[] = [];
 
+	// Without a global tsdk the active version is the bundled one, and the only
+	// way resolving it can throw is that bundled install being missing. Either
+	// way the bundled getter has already been read, toast included.
+	let bundledVersionRead: boolean;
+
 	try {
-		versions.push(getActiveTypeScriptVersion(versionProvider, workspaceState));
+		const activeVersion = getActiveTypeScriptVersion(versionProvider, workspaceState);
+		versions.push(activeVersion);
+		bundledVersionRead = activeVersion.source === TypeScriptVersionSource.Bundled;
 	} catch {
-		// No default version available
+		bundledVersionRead = true;
 	}
 
 	versions.push(...versionProvider.localVersions);
 
-	try {
-		versions.push(versionProvider.bundledVersion);
-	} catch {
-		// No bundled version available
+	if (!bundledVersionRead) {
+		try {
+			versions.push(versionProvider.bundledVersion);
+		} catch {
+			// No bundled version available
+		}
 	}
 
 	const seen = new Set<string>();
@@ -179,7 +209,7 @@ export function typesPackageName(value: string): string {
  */
 async function resolveTypePackage(documentUri: vscode.Uri, value: string): Promise<vscode.Uri | undefined> {
 	// TypeScript also accepts a path here, such as `"./typings/foo"`.
-	if (['./', '../', '/'].some(prefix => value.startsWith(prefix))) {
+	if (looksLikeRelativePath(value) || looksLikeAbsolutePath(value)) {
 		return resolveRelativePath(documentUri, value);
 	}
 

@@ -79,6 +79,12 @@ export function selectNonGlobPrefix(value: string): TsConfigLinkSelection | unde
 		return undefined;
 	}
 
+	// `./*.ts` walks the directory the config already lives in, so the only thing
+	// a link on `.` could do is reveal that directory.
+	if (value.slice(0, separatorIndex) === '.') {
+		return undefined;
+	}
+
 	return { offset: 0, length: separatorIndex };
 }
 

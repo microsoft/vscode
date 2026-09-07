@@ -101,16 +101,33 @@ async function statTsConfigLinkTarget(target: vscode.Uri): Promise<vscode.FileSt
  */
 export type TsConfigLinkOutcome =
 	| { readonly kind: 'reveal'; readonly target: vscode.Uri }
+	| { readonly kind: 'revealOutsideWorkspace'; readonly target: vscode.Uri }
 	| { readonly kind: 'open'; readonly target: vscode.Uri }
 	| { readonly kind: 'message'; readonly text: string };
 
 /** Carries out an outcome. Injectable so tests can record it instead of touching the real UI. */
 export type TsConfigLinkOutcomeHandler = (outcome: TsConfigLinkOutcome) => Promise<void>;
 
+/** Whether the explorer can reveal a target. Injectable so tests need no workspace folder. */
+export type TsConfigLinkWorkspaceTest = (target: vscode.Uri) => boolean;
+
+function isInsideWorkspace(target: vscode.Uri): boolean {
+	return vscode.workspace.getWorkspaceFolder(target) !== undefined;
+}
+
 async function presentTsConfigLinkOutcome(outcome: TsConfigLinkOutcome): Promise<void> {
 	switch (outcome.kind) {
 		case 'reveal':
 			await vscode.commands.executeCommand('revealInExplorer', outcome.target);
+			return;
+		case 'revealOutsideWorkspace':
+			// The explorer can only select what it shows. The OS file manager can show
+			// any local folder, but only on desktop and only for local files.
+			if (vscode.env.uiKind === vscode.UIKind.Desktop && outcome.target.scheme === 'file') {
+				await vscode.commands.executeCommand('revealFileInOS', outcome.target);
+			} else {
+				vscode.window.showInformationMessage(vscode.l10n.t("{0} is a folder outside the workspace.", outcome.target.fsPath));
+			}
 			return;
 		case 'open':
 			// Will suggest creating the file if it doesn't exist yet (but only for relative paths)
@@ -127,6 +144,7 @@ export async function openTsConfigLink(
 	resolvers: TsConfigLinkResolvers,
 	statTarget: TsConfigLinkStat = statTsConfigLinkTarget,
 	presentOutcome: TsConfigLinkOutcomeHandler = presentTsConfigLinkOutcome,
+	insideWorkspace: TsConfigLinkWorkspaceTest = isInsideWorkspace,
 ): Promise<void> {
 	const target = await resolvers[linkKind](vscode.Uri.from(resourceUri), pathValue);
 
@@ -138,7 +156,7 @@ export async function openTsConfigLink(
 	const stat = await statTarget(target);
 
 	if (stat && (stat.type & vscode.FileType.Directory)) {
-		await presentOutcome({ kind: 'reveal', target });
+		await presentOutcome({ kind: insideWorkspace(target) ? 'reveal' : 'revealOutsideWorkspace', target });
 		return;
 	}
 

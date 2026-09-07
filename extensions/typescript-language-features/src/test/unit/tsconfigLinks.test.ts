@@ -9,7 +9,9 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { openTsConfigLink, TsConfigLinkOutcome, TsConfigLinkOutcomeHandler, TsconfigLinkProvider } from '../../languageFeatures/tsconfig';
 import { arrayWildcard, collectLinkCandidates, selectNonGlobPrefix, selectNonUriValue, selectStringNodes, selectWholeValue, TsConfigLinkKind } from '../../languageFeatures/tsconfig/links';
-import { libFileUri, TsConfigLinkResolver, TsConfigLinkResolvers, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
+import { createResolvers, libFileUri, looksLikeAbsolutePath, looksLikeRelativePath, TsConfigLinkResolver, TsConfigLinkResolvers, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
+import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
+import { Lazy } from '../../utils/lazy';
 
 function parse(text: string): jsonc.Node {
 	const root = jsonc.parseTree(text);
@@ -87,12 +89,16 @@ suite('tsconfig links: selection', () => {
 			deep: selectNonGlobPrefix('packages/core/**/*.ts'),
 			leadingGlob: selectNonGlobPrefix('**/*.ts'),
 			rootedGlob: selectNonGlobPrefix('/*.ts'),
+			ownDirectory: selectNonGlobPrefix('./*.ts'),
+			ownDirectoryChild: selectNonGlobPrefix('./src/*.ts'),
 		}, {
 			noGlob: { offset: 0, length: 3 },
 			trailing: { offset: 0, length: 3 },
 			deep: { offset: 0, length: 13 },
 			leadingGlob: undefined,
 			rootedGlob: undefined,
+			ownDirectory: undefined,
+			ownDirectoryChild: { offset: 0, length: 5 },
 		});
 	});
 
@@ -224,6 +230,51 @@ suite('tsconfig links: resolver helpers', () => {
 			scopedSubPath: '@types/foo__bar/baz',
 		});
 	});
+
+	test('tells paths apart from package names the way the compiler does, on every platform', () => {
+		const values = ['./typings', '../typings', '.', '..', '.\\typings', '/typings', '\\\\server\\typings', 'C:\\typings', 'c:/typings', '.hidden', 'node', '@foo/bar'];
+
+		assert.deepStrictEqual(
+			Object.fromEntries(values.map(value => [value, looksLikeRelativePath(value) ? 'relative' : looksLikeAbsolutePath(value) ? 'absolute' : 'package'])),
+			{
+				'./typings': 'relative',
+				'../typings': 'relative',
+				'.': 'relative',
+				'..': 'relative',
+				'.\\typings': 'relative',
+				'/typings': 'absolute',
+				'\\\\server\\typings': 'absolute',
+				'C:\\typings': 'absolute',
+				'c:/typings': 'absolute',
+				'.hidden': 'package',
+				'node': 'package',
+				'@foo/bar': 'package',
+			});
+	});
+
+	test('reads the bundled version once per lib lookup, since reading it shows a toast when it is missing', async () => {
+		const reads = { defaultVersion: 0, bundledVersion: 0 };
+		const provider: ITypeScriptVersionProvider = {
+			updateConfiguration() { },
+			get defaultVersion(): TypeScriptVersion {
+				reads.defaultVersion++;
+				return this.bundledVersion;
+			},
+			globalVersion: undefined,
+			localVersion: undefined,
+			localVersions: [new TypeScriptVersion(TypeScriptVersionSource.NodeModules, '/missing/node_modules/typescript/lib/tsserver.js', undefined)],
+			get bundledVersion(): TypeScriptVersion {
+				reads.bundledVersion++;
+				throw new Error('Could not find bundled tsserver.js');
+			},
+		};
+		const workspaceState: vscode.Memento = { keys: () => [], get: <T>(_key: string, defaultValue?: T) => defaultValue, update: async () => { } };
+		const resolve = createResolvers(new Lazy(() => provider), workspaceState)[TsConfigLinkKind.Lib];
+
+		const target = await resolve(vscode.Uri.file('/workspace/tsconfig.json'), 'dom');
+
+		assert.deepStrictEqual({ target, reads }, { target: undefined, reads: { defaultVersion: 1, bundledVersion: 1 } });
+	});
 });
 
 suite('TsconfigLinkProvider', () => {
@@ -326,10 +377,29 @@ suite('openTsConfigLink', () => {
 			{ resourceUri, pathValue: 'src', linkKind: TsConfigLinkKind.ProjectFile },
 			resolvers,
 			async () => directoryStat,
-			handler);
+			handler,
+			() => true);
 
 		assert.deepStrictEqual(outcomes.map(describeOutcome), [
 			{ kind: 'reveal', target: target.toString() },
+		]);
+	});
+
+	test('reveals a directory outside the workspace differently, since the explorer cannot show it', async () => {
+		const target = vscode.Uri.file('/elsewhere/dist');
+		const resolvers = resolversFor({ [TsConfigLinkKind.BuildOutput]: async () => target });
+		const directoryStat: vscode.FileStat = { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+		const { handler, outcomes } = recordOutcomes();
+
+		await openTsConfigLink(
+			{ resourceUri, pathValue: '../../elsewhere/dist', linkKind: TsConfigLinkKind.BuildOutput },
+			resolvers,
+			async () => directoryStat,
+			handler,
+			() => false);
+
+		assert.deepStrictEqual(outcomes.map(describeOutcome), [
+			{ kind: 'revealOutsideWorkspace', target: target.toString() },
 		]);
 	});
 
