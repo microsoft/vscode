@@ -9,6 +9,7 @@ import { Utils } from 'vscode-uri';
 import { getActiveTypeScriptVersion } from '../../tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
 import { exists, looksLikeAbsoluteWindowsPath, looksLikeUriNotPath } from '../../utils/fs';
+import { TsLibMapReader } from './libMap';
 import { TsConfigLinkKind } from './links';
 
 export type TsConfigLinkResolver = (documentUri: vscode.Uri, value: string) => Promise<vscode.Uri | undefined>;
@@ -149,6 +150,27 @@ export function libFileUri(versionPath: string, fileName: string): vscode.Uri {
 }
 
 /**
+ * The web build serves its lib files over http(s), where the workbench's fetch
+ * provider answers every `stat` with a file and only `readFile` performs a request.
+ */
+async function libFileExists(uri: vscode.Uri): Promise<boolean> {
+	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+		return exists(uri);
+	}
+
+	try {
+		await vscode.workspace.fs.readFile(uri);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * A `lib` entry names a file only through the install's lib map: `es7` is
+ * `lib.es2016.d.ts`, and a name the map does not know is not a lib at all,
+ * however plausible `lib.<name>.d.ts` would look.
+ *
  * Known limitation: since TypeScript 5.0 a project can override a lib file by
  * installing `node_modules/@typescript/lib-dom` and the compiler prefers that
  * copy. This always opens the copy shipped with the TypeScript install.
@@ -156,9 +178,10 @@ export function libFileUri(versionPath: string, fileName: string): vscode.Uri {
 async function resolveLibPath(
 	versionProvider: ITypeScriptVersionProvider,
 	workspaceState: vscode.Memento,
+	readLibMap: TsLibMapReader,
 	value: string,
 ): Promise<vscode.Uri | undefined> {
-	const fileName = `lib.${value.toLowerCase()}.d.ts`;
+	const libName = value.toLowerCase();
 
 	// The version the service is actually using first, then any other local
 	// install, then the TypeScript bundled with VS Code.
@@ -200,9 +223,15 @@ async function resolveLibPath(
 
 		seen.add(version.path);
 
+		const fileName = (await readLibMap(version))?.get(libName);
+
+		if (!fileName) {
+			continue;
+		}
+
 		const candidate = libFileUri(version.path, fileName);
 
-		if (await exists(candidate)) {
+		if (await libFileExists(candidate)) {
 			return candidate;
 		}
 	}
@@ -240,6 +269,7 @@ async function resolveTypePackage(documentUri: vscode.Uri, value: string): Promi
 export function createLinkDescriptors(
 	versionProvider: ITypeScriptVersionProvider,
 	workspaceState: vscode.Memento,
+	readLibMap: TsLibMapReader,
 ): TsConfigLinkDescriptors {
 	const unresolvedModule = (value: string) => vscode.l10n.t("Failed to resolve {0} as module", value);
 	// `resolveRelativePath` always yields a URI, so this wording is never shown; the
@@ -273,7 +303,7 @@ export function createLinkDescriptors(
 			missingTarget: TsConfigMissingTargetPolicy.ReportUnbuilt,
 		},
 		[TsConfigLinkKind.Lib]: {
-			resolve: (_documentUri, value) => resolveLibPath(versionProvider, workspaceState, value),
+			resolve: (_documentUri, value) => resolveLibPath(versionProvider, workspaceState, readLibMap, value),
 			unresolvedMessage: value => vscode.l10n.t("Failed to resolve TypeScript lib {0}", value),
 			missingTarget: TsConfigMissingTargetPolicy.ReportMissing,
 		},

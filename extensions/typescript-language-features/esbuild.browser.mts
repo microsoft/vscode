@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as fs from 'node:fs';
+import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import { run } from '../esbuild-extension-common.mts';
 
@@ -26,7 +27,8 @@ const languages = [
 ];
 
 /**
- * Copy TypeScript lib files (.d.ts, typesMap.json, and language packs) to the output directory.
+ * Copy TypeScript lib files (.d.ts, typesMap.json, and language packs) to the output directory,
+ * and write the lib map that turns a `compilerOptions.lib` entry into one of those files.
  */
 async function copyTypescriptLibFiles(outDir: string): Promise<void> {
 	try {
@@ -45,6 +47,10 @@ async function copyTypescriptLibFiles(outDir: string): Promise<void> {
 
 		// Copy typesMap.json
 		await fs.promises.copyFile(path.join(typescriptLibDir, 'typesMap.json'), path.join(destDir, 'typesMap.json'));
+
+		// Write libMap.json, read by `languageFeatures/tsconfig/libMap.browser.ts`
+		const { libMap }: { libMap: ReadonlyMap<string, string> } = createRequire(import.meta.url)('typescript');
+		await fs.promises.writeFile(path.join(destDir, 'libMap.json'), JSON.stringify([...libMap]));
 
 		// Copy language packs
 		for (const lang of languages) {

@@ -6,6 +6,7 @@
 import * as jsonc from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { ITypeScriptVersionProvider } from '../../tsServer/versionProvider';
+import { TsLibMapReader } from './libMap';
 import { collectLinkCandidates, TsConfigLinkKind } from './links';
 import { createLinkDescriptors, TsConfigLinkDescriptors, TsConfigMissingTargetPolicy } from './resolvers';
 
@@ -105,6 +106,14 @@ async function presentTsConfigLinkOutcome(outcome: TsConfigLinkOutcome): Promise
 			}
 			return;
 		case 'open':
+			if (outcome.target.scheme === 'http' || outcome.target.scheme === 'https') {
+				// `vscode.open` hands http(s) to the browser. The web build's lib files are
+				// served that way and readable through the workbench's fetch provider, so they
+				// open as text documents instead.
+				await vscode.window.showTextDocument(outcome.target);
+				return;
+			}
+
 			// Will suggest creating the file if it doesn't exist yet (but only for relative paths)
 			await vscode.commands.executeCommand('vscode.open', outcome.target);
 			return;
@@ -164,8 +173,8 @@ function getDocumentSelector(): vscode.DocumentSelector {
 		.flat();
 }
 
-export function register(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento) {
-	const descriptors = createLinkDescriptors(versionProvider, workspaceState);
+export function register(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento, readLibMap: TsLibMapReader) {
+	const descriptors = createLinkDescriptors(versionProvider, workspaceState, readLibMap);
 
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(openTsConfigLinkCommandId, (args: OpenTsConfigLinkCommandArgs) => openTsConfigLink(args, descriptors)),

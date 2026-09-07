@@ -6,11 +6,20 @@
 import * as assert from 'assert';
 import * as jsonc from 'jsonc-parser';
 import 'mocha';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { openTsConfigLink, TsConfigLinkOutcome, TsConfigLinkOutcomeHandler, TsconfigLinkProvider } from '../../languageFeatures/tsconfig';
 import { arrayWildcard, collectLinkCandidates, selectNonGlobPrefix, selectNonUriValue, selectStringNodes, selectWholeValue, TsConfigLinkKind } from '../../languageFeatures/tsconfig/links';
+import { readLibMapFromInstall } from '../../languageFeatures/tsconfig/libMap.electron';
 import { createLinkDescriptors, libFileUri, looksLikeAbsolutePath, looksLikeRelativePath, TsConfigLinkDescriptors, TsConfigLinkResolver, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
+
+/** The TypeScript this extension ships with, which is the only install a test can rely on. */
+function bundledTsServerPath(): string {
+	const extension = vscode.extensions.getExtension('vscode.typescript-language-features');
+	assert.ok(extension, 'Expected the extension to be present');
+	return path.join(extension.extensionPath, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+}
 
 const emptyMemento: vscode.Memento = { keys: () => [], get: <T>(_key: string, defaultValue?: T) => defaultValue, update: async () => { } };
 
@@ -269,11 +278,51 @@ suite('tsconfig links: resolver helpers', () => {
 				throw new Error('Could not find bundled tsserver.js');
 			},
 		};
-		const { resolve } = createLinkDescriptors(provider, emptyMemento)[TsConfigLinkKind.Lib];
+		const { resolve } = createLinkDescriptors(provider, emptyMemento, async () => new Map([['dom', 'lib.dom.d.ts']]))[TsConfigLinkKind.Lib];
 
 		const target = await resolve(vscode.Uri.file('/workspace/tsconfig.json'), 'dom');
 
 		assert.deepStrictEqual({ target, reads }, { target: undefined, reads: { defaultVersion: 1, bundledVersion: 1 } });
+	});
+
+	test('resolves a lib entry only through the lib map of the install', async () => {
+		const version = new TypeScriptVersion(TypeScriptVersionSource.Bundled, bundledTsServerPath(), undefined);
+		const provider: ITypeScriptVersionProvider = {
+			updateConfiguration() { },
+			defaultVersion: version,
+			globalVersion: undefined,
+			localVersion: undefined,
+			localVersions: [],
+			bundledVersion: version,
+		};
+		const readLibMap = async () => new Map([['es7', 'lib.es2016.d.ts']]);
+		const { resolve } = createLinkDescriptors(provider, emptyMemento, readLibMap)[TsConfigLinkKind.Lib];
+		const tsconfig = vscode.Uri.file('/workspace/tsconfig.json');
+
+		assert.deepStrictEqual({
+			alias: (await resolve(tsconfig, 'ES7'))?.toString(),
+			// `lib.dom.d.ts` exists beside the server, but a map that does not list it says it is not a lib.
+			unmapped: await resolve(tsconfig, 'DOM'),
+		}, {
+			alias: libFileUri(version.path, 'lib.es2016.d.ts').toString(),
+			unmapped: undefined,
+		});
+	});
+
+	test('reads the lib map from the typescript.js beside the install', async () => {
+		const libMap = await readLibMapFromInstall(new TypeScriptVersion(TypeScriptVersionSource.Bundled, bundledTsServerPath(), undefined));
+
+		assert.deepStrictEqual({
+			dom: libMap?.get('dom'),
+			es7: libMap?.get('es7'),
+			bigint: libMap?.get('esnext.bigint'),
+			unknown: libMap?.get('nope'),
+		}, {
+			dom: 'lib.dom.d.ts',
+			es7: 'lib.es2016.d.ts',
+			bigint: 'lib.es2020.bigint.d.ts',
+			unknown: undefined,
+		});
 	});
 });
 
@@ -330,7 +379,7 @@ suite('openTsConfigLink', () => {
 	function resolversFor(overrides: Partial<Record<TsConfigLinkKind, TsConfigLinkResolver>>): TsConfigLinkDescriptors {
 		const unexpected: TsConfigLinkResolver = async () => { throw new Error('Unexpected resolver call'); };
 		const unusedProvider = new Proxy({} as ITypeScriptVersionProvider, { get: () => { throw new Error('Unexpected version provider access'); } });
-		const descriptors = createLinkDescriptors(unusedProvider, emptyMemento);
+		const descriptors = createLinkDescriptors(unusedProvider, emptyMemento, async () => undefined);
 
 		return Object.fromEntries(Object.values(TsConfigLinkKind).map(kind =>
 			[kind, { ...descriptors[kind], resolve: overrides[kind] ?? unexpected }])) as TsConfigLinkDescriptors;

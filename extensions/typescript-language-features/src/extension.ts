@@ -19,6 +19,7 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
+import { readLibMapFromInstall } from './languageFeatures/tsconfig/libMap.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { suggestNativePreview } from './ui/suggestNativePreview';
@@ -69,7 +70,7 @@ export function activate(
 
 	// Register features that work in both TSGO and non-TSGO modes
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register(versionProvider, context.workspaceState));
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState, readLibMapFromInstall));
 	});
 
 	// Conditionally register features based on whether TSGO is enabled
