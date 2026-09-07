@@ -275,7 +275,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('updates the Automations row accessible label when the new badge is dismissed', () => {
+		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
@@ -283,6 +283,7 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
 				});
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
@@ -295,6 +296,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
+			await list.resetAutomationsNewBadge();
 			const row = container.querySelector<HTMLElement>('.monaco-list-row');
 			const before = row?.getAttribute('aria-label');
 

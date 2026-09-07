@@ -208,8 +208,8 @@
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-item-type,
 .agent-feedback-widget-item-agentFeedback .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-charts-purple) 22%, var(--vscode-editorWidget-background));
-	color: var(--vscode-charts-purple);
+	background: color-mix(in srgb, var(--vscode-button-background) 22%, var(--vscode-editorWidget-background));
+	color: var(--vscode-button-background);
 }
 
 /* Line info */

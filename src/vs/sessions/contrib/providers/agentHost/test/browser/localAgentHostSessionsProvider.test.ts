@@ -18,7 +18,9 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withSessionCreationReference, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -38,6 +40,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, Resour
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -88,7 +91,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override get rootState(): IAgentSubscription<RootState> { return this._rootStateSubscription; }
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
-	override readonly initializeResult = constObservable({
+	private readonly _onAgentHostExit = new Emitter<number>();
+	override readonly onAgentHostExit = this._onAgentHostExit.event;
+	override readonly initializeResult = observableValue<InitializeResult>(this, {
 		protocolVersion: '1',
 		serverSeq: 0,
 		snapshots: [],
@@ -97,6 +102,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
+	public automationCatalog: AutomationState = { entries: [] };
 	public disposedSessions: URI[] = [];
 	public onDisposeSession: ((session: URI) => void) | undefined;
 	public failDisposeSessionFor: string | undefined;
@@ -275,7 +281,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
 		if (isAhpAutomationCatalogChannel(key) && !this._sessionStateValues.has(key)) {
-			this._sessionStateValues.set(key, { entries: [] });
+			this._sessionStateValues.set(key, this.automationCatalog);
 		}
 		return this._getSubscription<T>(key);
 	}
@@ -381,6 +387,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onAgentHostStart.fire();
 	}
 
+	fireAgentHostExit(): void {
+		this._onAgentHostExit.fire(0);
+	}
+
 	setRootStateError(): void {
 		const error = new Error('root state failed');
 		this._rootStateValue = error;
@@ -401,6 +411,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateChange.dispose();
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
+		this._onAgentHostExit.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -671,6 +682,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Provider identity -------
+
+	test('Automation catalogue state follows local Agent Host connection lifetime', () => {
+		agentHost.automationCatalog = { entries: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } };
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
+		});
+		const initial = provider.automations.catalogueState.get();
+
+		agentHost.fireAgentHostExit();
+		const disconnected = provider.automations.catalogueState.get();
+		agentHost.fireAgentHostStart();
+
+		assert.deepStrictEqual({
+			initial,
+			disconnected,
+			reconnected: provider.automations.catalogueState.get(),
+		}, {
+			initial: 'ready',
+			disconnected: 'unavailable',
+			reconnected: 'ready',
+		});
+	});
 
 	test('has correct id, label, and sessionType from rootState agents', () => {
 		const provider = createProvider(disposables, agentHost);
