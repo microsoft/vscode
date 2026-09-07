@@ -9,10 +9,41 @@ import { Action, Separator } from '../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { createToggleActionViewItemProvider, ToggleActionViewItem, unthemedToggleStyles } from '../../browser/ui/toggle/toggle.js';
 import { ActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
+import { Emitter } from '../../common/event.js';
 
 suite('Actionbar', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const allowContextMenu of [false, true]) {
+		test(`forwards content changes only from attached items (allowContextMenu=${allowContextMenu})`, () => {
+			const changed = store.add(new Emitter<void>());
+			const action = store.add(new Action('dynamic', 'Dynamic'));
+			const bar = store.add(new ActionBar(document.createElement('div'), {
+				allowContextMenu,
+				actionViewItemProvider: action => new class extends ActionViewItem {
+					readonly onDidChangeContent = changed.event;
+					override render(container: HTMLElement): void {
+						super.render(container);
+						changed.fire();
+					}
+				}(undefined, action, {})
+			}));
+			let updates = 0;
+			store.add(bar.onDidChangeItemContent(() => updates++));
+			const counts: number[] = [];
+			for (const remove of [() => bar.pull(0), () => bar.clear()]) {
+				bar.push(action);
+				counts.push(updates);
+				changed.fire();
+				counts.push(updates);
+				remove();
+				changed.fire();
+				counts.push(updates);
+			}
+			assert.deepStrictEqual({ counts, listening: changed.hasListeners() }, { counts: [0, 1, 1, 1, 2, 2], listening: false });
+		});
+	}
 
 	test('prepareActions()', function () {
 		const a1 = new Separator();

@@ -44,7 +44,7 @@ import { getInstanceHoverInfo } from './terminalTooltip.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHoverDelegate, IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -403,6 +403,8 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, terminalG
 }
 
 class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 	private _color: string | undefined;
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
@@ -501,6 +503,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			const instance = this._terminalGroupService.activeInstance;
 			if (!instance) {
 				dom.reset(label, '');
+				this._onDidChangeContent.fire();
 				return;
 			}
 			label.classList.add('single-terminal-tab');
@@ -546,6 +549,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				label.classList.add(this._altCommand);
 			}
 			this.updateTooltip();
+			this._onDidChangeContent.fire();
 		}
 	}
 

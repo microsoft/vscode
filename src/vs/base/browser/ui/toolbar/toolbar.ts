@@ -95,6 +95,7 @@ export class ToolBar extends Disposable {
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	get onDidChangeDropdownVisibility() { return this._onDidChangeDropdownVisibility.event; }
+	get onDidChangeItemContent() { return this.actionBar.onDidChangeItemContent; }
 	private originalPrimaryActions: ReadonlyArray<IAction> = [];
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
 	private hiddenActions: IAction[] = [];

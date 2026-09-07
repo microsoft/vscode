@@ -365,6 +365,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				telemetrySource: this.nameForTelemetry
 			}
 		));
+		this._register(Event.any(this.toolBar?.onDidChangeItemContent ?? Event.None, this.globalToolBar.onDidChangeItemContent)(() => this.scheduleCompositeBarLayout()));
 
 		return titleArea;
 	}
@@ -492,7 +493,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
+		this.scheduleCompositeBarLayout();
+	}
 
+	private scheduleCompositeBarLayout(): void {
 		if (!this.pendingCompositeBarLayout.value) {
 			this.pendingCompositeBarLayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => {
 				this.pendingCompositeBarLayout.clear();
