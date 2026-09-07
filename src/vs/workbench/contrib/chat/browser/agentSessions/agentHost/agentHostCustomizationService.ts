@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -41,6 +43,18 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	/**
+	 * Resolves once {@link getCustomizations} reflects a real snapshot for
+	 * `sessionResource` rather than the empty placeholder returned while the
+	 * session state is still loading. Resolves immediately when the session is
+	 * not backed by an agent host, or when a snapshot already arrived.
+	 *
+	 * Reactive callers should keep reading synchronously and re-render on
+	 * {@link onDidChangeCustomizations}; this exists for one-shot callers that
+	 * would otherwise mistake "not loaded yet" for "no customizations".
+	 */
+	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
 
 	/**
 	 * The harness-owned decision about the multi-root Folder picker for a
@@ -107,6 +121,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
+	}
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
 	}
 	getFolderPickerDecision(_sessionResource: URI): ISessionFolderPickerDecision | undefined {
 		return undefined;
@@ -183,6 +200,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getCustomizations(sessionResource: URI): readonly Customization[] {
 		return this._resolveTarget(sessionResource)?.customizations ?? [];
+	}
+
+	/**
+	 * Targets resolved by this base are backed by already-materialized provider
+	 * state, so a snapshot is available as soon as the target resolves.
+	 */
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
 	}
 
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined {
@@ -434,6 +459,12 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
 }
 
+/**
+ * Upper bound on how long {@link WorkbenchAgentHostCustomizationService.whenCustomizationsReady}
+ * waits for a session's first state snapshot.
+ */
+const SESSION_STATE_SNAPSHOT_TIMEOUT_MS = 2000;
+
 export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
@@ -526,6 +557,39 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				});
 			}
 		};
+	}
+
+	/**
+	 * Session state arrives asynchronously over the protocol, so a freshly
+	 * created subscription reports `undefined` until its first snapshot lands.
+	 * Waiting is bounded because the chat request path blocks on this before
+	 * sending the user's message: on timeout the caller falls back to the
+	 * current (possibly empty) snapshot rather than stalling the send.
+	 */
+	override async whenCustomizationsReady(sessionResource: URI, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const target = this._resolveSessionTarget(sessionResource);
+		if (!target) {
+			return;
+		}
+		const subscription = this._ensureSessionStateSubscription(sessionResource, target)?.sub;
+		// An `Error` value counts as resolved: the subscription settled, just not with a snapshot.
+		if (!subscription || subscription.value !== undefined) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		try {
+			const firstSnapshot = new Promise<void>(resolve => {
+				store.add(subscription.onDidChange(() => resolve()));
+				const onDidError = subscription.onDidError;
+				if (onDidError) {
+					store.add(onDidError(() => resolve()));
+				}
+			});
+			await raceTimeout(raceCancellation(firstSnapshot, token), SESSION_STATE_SNAPSHOT_TIMEOUT_MS);
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
