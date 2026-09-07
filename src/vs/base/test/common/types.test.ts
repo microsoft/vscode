@@ -361,7 +361,7 @@ suite('Types', () => {
 				}
 			}
 
-			const errorMessage = 'Oops something hapenned.';
+			const errorMessage = 'Oops something happened.';
 			const error = new TestError(errorMessage);
 
 			let thrownError;
