@@ -133,7 +133,9 @@ export class SessionBrowsersControl extends Disposable {
 				inputs.push(input);
 			}
 		}
-		return inputs;
+		// Known browsers are kept in the order they opened, so reverse them to
+		// list the most recently opened one at the top of the pill.
+		return inputs.reverse();
 	}
 
 	private _entry(label: string, input: BrowserEditorInput | undefined, chat: IChat | undefined): IChatPillEntry {

@@ -92,12 +92,46 @@ suite('AgentHostSessionInputPills', () => {
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
-				'https://github.com/microsoft/vscode/pull/1',
 				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/1',
 			],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
 			artifactIds: ['website'],
-			referenceIds: ['issue-reference', 'resource'],
+			// Newest first: `resource` was recorded after `issue-reference`.
+			referenceIds: ['resource', 'issue-reference'],
+		});
+	});
+
+	test('lists each pill newest first, within the section it belongs to', () => {
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'old-website', type: SessionArtifactType.Website, label: 'Old Preview', link: 'https://example.com/old', isArtifact: true },
+			{ id: 'old-reference', type: SessionArtifactType.Resource, label: 'Old Docs', uri: 'https://example.com/old-docs', isArtifact: false },
+			{ id: 'old-pr', type: SessionArtifactType.PullRequest, label: 'Old PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, isArtifact: true },
+			{ id: 'old-issue', type: SessionArtifactType.Issue, label: 'Old Issue', link: 'https://github.com/microsoft/vscode/issues/1', isGitHub: true, isArtifact: true },
+			{ id: 'new-website', type: SessionArtifactType.Website, label: 'New Preview', link: 'https://example.com/new', isArtifact: true },
+			{ id: 'new-reference', type: SessionArtifactType.Resource, label: 'New Docs', uri: 'https://example.com/new-docs', isArtifact: false },
+			{ id: 'new-pr', type: SessionArtifactType.PullRequest, label: 'New PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
+			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue', link: 'https://github.com/microsoft/vscode/issues/2', isGitHub: true, isArtifact: true },
+		];
+
+		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries));
+
+		assert.deepStrictEqual({
+			pullRequestUrls: metadata.pullRequestUrls,
+			issueUrls: metadata.issueUrls,
+			artifactIds: metadata.artifacts.map(artifact => artifact.id),
+			referenceIds: metadata.references.map(reference => reference.id),
+		}, {
+			pullRequestUrls: [
+				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/1',
+			],
+			issueUrls: [
+				'https://github.com/microsoft/vscode/issues/2',
+				'https://github.com/microsoft/vscode/issues/1',
+			],
+			artifactIds: ['new-website', 'old-website'],
+			referenceIds: ['new-reference', 'old-reference'],
 		});
 	});
 

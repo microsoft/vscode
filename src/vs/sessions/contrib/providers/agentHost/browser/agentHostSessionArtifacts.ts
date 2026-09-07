@@ -63,15 +63,16 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact): ISessionArtifact
  * for what the session pointed at rather than produced.
  */
 export interface ISessionArtifactPartition {
-	/** Every entry in stream order, paired with the GitHub link that identifies it. */
+	/** Every entry, most recent first, paired with the GitHub link that identifies it. */
 	readonly entries: readonly ISessionArtifactEntry[];
-	/** Pull requests this session produced; polled and shown in the pull request pill. */
+	/** Pull requests this session produced, most recent first; polled and shown in the pull request pill. */
 	readonly pullRequestUrls: readonly string[];
 	/**
 	 * Titles the agent recorded for its pull request artifacts, keyed by
 	 * {@link linkKey}. Pull requests discovered from git state have no entry.
 	 */
 	readonly pullRequestTitles: ReadonlyMap<string, string>;
+	/** Issues this session produced, most recent first. */
 	readonly issueUrls: readonly string[];
 }
 
@@ -153,6 +154,13 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 		}
 		pullRequestUrls.push(link);
 	}
+
+	// The walk above runs in recorded order — oldest to newest — so the first
+	// title recorded for a pull request link wins. Hand the results back newest
+	// first, the order every pill lists them in.
+	entries.reverse();
+	pullRequestUrls.reverse();
+	issueUrls.reverse();
 
 	return { entries, pullRequestUrls, pullRequestTitles, issueUrls };
 }

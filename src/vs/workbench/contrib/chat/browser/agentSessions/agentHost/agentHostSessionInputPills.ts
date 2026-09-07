@@ -16,7 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -102,13 +102,20 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 		&& isGitHubArtifactLink(artifact.link);
 }
 
-/** Partitions Agent Host metadata into dedicated GitHub, artifact, and reference pills. */
+/**
+ * Partitions Agent Host metadata into dedicated GitHub, artifact, and reference
+ * pills. Every list is most recent first, so each pill's dropdown opens on what
+ * the session did last.
+ */
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
-	const entries = readSessionArtifacts(meta);
+	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
 	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
-	const pullRequestUrls = dedupeLinks(getSessionRelatedPullRequestUrls(github), artifactPullRequests);
+	// The pull requests the session recorded lead the ones discovered from its
+	// GitHub state, matching how the Agents Window promotes them, and both
+	// groups already run most recent first.
+	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
 	const issueUrls = dedupeLinks(artifactIssues);
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
@@ -331,8 +338,11 @@ export class AgentHostSessionInputPills extends Disposable {
 				return [];
 			}
 			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
+			// Known browsers are kept in the order they opened, so reverse them
+			// to list the most recently opened one at the top of the pill.
 			return [...this._browserViewService.getKnownBrowserViews().values()]
-				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId));
+				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId))
+				.reverse();
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
 			return visibility.isVisible(SessionChatPillKind.Browsers, reader)
