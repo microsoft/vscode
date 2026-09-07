@@ -14,9 +14,15 @@ import { Position } from '../../../common/core/position.js';
 import { TextDirection } from '../../../common/model.js';
 
 /**
- * U+21A9 - LEFTWARDS ARROW WITH HOOK
+ * U+21A9 - LEFTWARDS ARROW WITH HOOK, used on left-to-right lines.
  */
-const WORD_WRAP_INDICATOR_CHAR_CODE = 0x21A9;
+const WORD_WRAP_INDICATOR_LTR_CHAR_CODE = 0x21A9;
+
+/**
+ * U+21AA - RIGHTWARDS ARROW WITH HOOK, the mirror image of
+ * {@link WORD_WRAP_INDICATOR_LTR_CHAR_CODE}, used on right-to-left lines.
+ */
+const WORD_WRAP_INDICATOR_RTL_CHAR_CODE = 0x21AA;
 
 /**
  * The word wrap indicator overlay renders a small glyph at the end of every view line
@@ -84,7 +90,7 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (this._options.wordWrapIndicator === 'none' || !this._options.isWrapping) {
+		if (!this._options.wordWrapIndicator || !this._options.isWrapping) {
 			this._renderResult = null;
 			return;
 		}
@@ -102,16 +108,18 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 			// The line ends with a real line break, or is the last line of the model.
 			return '';
 		}
-		if (lineData.textDirection === TextDirection.RTL) {
-			// The glyph points the wrong way for right-to-left lines.
-			return '';
-		}
 		const visibleRange = ctx.visibleRangeForPosition(new Position(lineNumber, lineData.maxColumn));
 		if (!visibleRange) {
 			return '';
 		}
+		const isRTL = (lineData.textDirection === TextDirection.RTL);
+		// `maxColumn` sits past the last character, so `left` is where the text ends visually: on a
+		// right-to-left line that is its left edge. `wwi-rtl` mirrors the glyph back over that edge
+		// so that it grows away from the text in both directions.
+		const charCode = isRTL ? WORD_WRAP_INDICATOR_RTL_CHAR_CODE : WORD_WRAP_INDICATOR_LTR_CHAR_CODE;
+		const className = isRTL ? 'wwi wwi-rtl' : 'wwi';
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
-		return `<div class="wwi" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(WORD_WRAP_INDICATOR_CHAR_CODE)}</div>`;
+		return `<div class="${className}" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(charCode)}</div>`;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -128,7 +136,7 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 
 class WordWrapIndicatorOptions {
 
-	public readonly wordWrapIndicator: 'none' | 'end';
+	public readonly wordWrapIndicator: boolean;
 	public readonly isWrapping: boolean;
 
 	constructor(config: IEditorConfiguration) {

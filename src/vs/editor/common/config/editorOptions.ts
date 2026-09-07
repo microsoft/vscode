@@ -343,9 +343,9 @@ export interface IEditorOptions {
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
 	 * Control whether an indicator is rendered at the end of soft wrapped lines.
-	 * Defaults to 'none'.
+	 * Defaults to false.
 	 */
-	wordWrapIndicator?: 'none' | 'end';
+	wordWrapIndicator?: boolean;
 	/**
 	 * Override the `wordWrap` setting.
 	 */
@@ -6831,21 +6831,13 @@ export const EditorOptions = {
 			}, "Controls how lines should wrap.")
 		}
 	)),
-	wordWrapIndicator: register(new EditorStringEnumOption(
-		EditorOption.wordWrapIndicator, 'wordWrapIndicator',
-		'none' as 'none' | 'end',
-		['none', 'end'] as const,
+	wordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.wordWrapIndicator, 'wordWrapIndicator', false,
 		{
-			enumDescriptions: [
-				nls.localize('wordWrapIndicator.none', "No indicator is rendered."),
-				nls.localize('wordWrapIndicator.end', "An indicator is rendered at the end of every wrapped line."),
-			],
 			markdownDescription: nls.localize({
 				key: 'wordWrapIndicator',
-				comment: [
-					'- `editor.wordWrap` refers to a different setting and should not be localized.'
-				]
-			}, "Controls whether an indicator is rendered on lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
+				comment: []
+			}, "Controls whether an indicator is rendered at the end of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(

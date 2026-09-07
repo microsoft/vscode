@@ -3498,9 +3498,9 @@ declare namespace monaco.editor {
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
 		 * Control whether an indicator is rendered at the end of soft wrapped lines.
-		 * Defaults to 'none'.
+		 * Defaults to false.
 		 */
-		wordWrapIndicator?: 'none' | 'end';
+		wordWrapIndicator?: boolean;
 		/**
 		 * Override the `wordWrap` setting.
 		 */
@@ -5424,7 +5424,7 @@ declare namespace monaco.editor {
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, string[]>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
-		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, 'none' | 'end'>;
+		wordWrapIndicator: IEditorOption<EditorOption.wordWrapIndicator, boolean>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
