@@ -126,7 +126,7 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 			return '';
 		}
 		const lineEnd = ctx.visibleRangeForPosition(new Position(lineNumber, lineData.maxColumn));
-		if (!lineEnd) {
+		if (!lineEnd || lineEnd.outsideRenderedLine) {
 			return '';
 		}
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);

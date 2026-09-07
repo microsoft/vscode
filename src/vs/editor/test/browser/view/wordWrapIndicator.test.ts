@@ -374,7 +374,9 @@ suite('WordWrapIndicatorOverlay', () => {
 		const options: IEditorOptions = { ...WRAPPING_OPTIONS, wordWrapIndicator: true, lineNumbers: 'on' };
 		assert.deepStrictEqual(
 			{
+				indicatorTurnedOn: configurationChangeInvalidates({ ...WRAPPING_OPTIONS, wordWrapIndicator: false }, { wordWrapIndicator: true }),
 				indicatorTurnedOff: configurationChangeInvalidates(options, { wordWrapIndicator: false }),
+				wrappingTurnedOn: configurationChangeInvalidates({ wordWrap: 'off', wordWrapIndicator: true }, WRAPPING_OPTIONS),
 				wrappingTurnedOff: configurationChangeInvalidates(options, { wordWrap: 'off' }),
 				// The cached options are unchanged, but a layout change can move the wrap column
 				// and with it the end of every view line.
@@ -382,7 +384,9 @@ suite('WordWrapIndicatorOverlay', () => {
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
 			},
 			{
+				indicatorTurnedOn: true,
 				indicatorTurnedOff: true,
+				wrappingTurnedOn: true,
 				wrappingTurnedOff: true,
 				layoutChanged: true,
 				unrelatedChange: false
