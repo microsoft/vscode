@@ -9,9 +9,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { openTsConfigLink, TsConfigLinkOutcome, TsConfigLinkOutcomeHandler, TsconfigLinkProvider } from '../../languageFeatures/tsconfig';
 import { arrayWildcard, collectLinkCandidates, selectNonGlobPrefix, selectNonUriValue, selectStringNodes, selectWholeValue, TsConfigLinkKind } from '../../languageFeatures/tsconfig/links';
-import { createResolvers, libFileUri, looksLikeAbsolutePath, looksLikeRelativePath, TsConfigLinkResolver, TsConfigLinkResolvers, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
+import { createLinkDescriptors, libFileUri, looksLikeAbsolutePath, looksLikeRelativePath, TsConfigLinkDescriptors, TsConfigLinkResolver, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
-import { Lazy } from '../../utils/lazy';
+
+const emptyMemento: vscode.Memento = { keys: () => [], get: <T>(_key: string, defaultValue?: T) => defaultValue, update: async () => { } };
 
 function parse(text: string): jsonc.Node {
 	const root = jsonc.parseTree(text);
@@ -268,8 +269,7 @@ suite('tsconfig links: resolver helpers', () => {
 				throw new Error('Could not find bundled tsserver.js');
 			},
 		};
-		const workspaceState: vscode.Memento = { keys: () => [], get: <T>(_key: string, defaultValue?: T) => defaultValue, update: async () => { } };
-		const resolve = createResolvers(new Lazy(() => provider), workspaceState)[TsConfigLinkKind.Lib];
+		const { resolve } = createLinkDescriptors(provider, emptyMemento)[TsConfigLinkKind.Lib];
 
 		const target = await resolve(vscode.Uri.file('/workspace/tsconfig.json'), 'dom');
 
@@ -326,19 +326,14 @@ suite('TsconfigLinkProvider', () => {
 suite('openTsConfigLink', () => {
 	const resourceUri = vscode.Uri.file('/workspace/tsconfig.json');
 
-	/** A resolver for every kind, so that only the kind under test can be reached. */
-	function resolversFor(overrides: Partial<Record<TsConfigLinkKind, TsConfigLinkResolver>>): TsConfigLinkResolvers {
+	/** The real descriptors, with every resolver replaced so that only the kind under test can be reached. */
+	function resolversFor(overrides: Partial<Record<TsConfigLinkKind, TsConfigLinkResolver>>): TsConfigLinkDescriptors {
 		const unexpected: TsConfigLinkResolver = async () => { throw new Error('Unexpected resolver call'); };
-		return {
-			[TsConfigLinkKind.Extends]: unexpected,
-			[TsConfigLinkKind.Reference]: unexpected,
-			[TsConfigLinkKind.ProjectFile]: unexpected,
-			[TsConfigLinkKind.Lib]: unexpected,
-			[TsConfigLinkKind.TypePackage]: unexpected,
-			[TsConfigLinkKind.Path]: unexpected,
-			[TsConfigLinkKind.BuildOutput]: unexpected,
-			...overrides,
-		};
+		const unusedProvider = new Proxy({} as ITypeScriptVersionProvider, { get: () => { throw new Error('Unexpected version provider access'); } });
+		const descriptors = createLinkDescriptors(unusedProvider, emptyMemento);
+
+		return Object.fromEntries(Object.values(TsConfigLinkKind).map(kind =>
+			[kind, { ...descriptors[kind], resolve: overrides[kind] ?? unexpected }])) as TsConfigLinkDescriptors;
 	}
 
 	function recordOutcomes(): { handler: TsConfigLinkOutcomeHandler; outcomes: TsConfigLinkOutcome[] } {

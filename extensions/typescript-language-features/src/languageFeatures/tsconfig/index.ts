@@ -6,9 +6,8 @@
 import * as jsonc from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { ITypeScriptVersionProvider } from '../../tsServer/versionProvider';
-import { Lazy } from '../../utils/lazy';
 import { collectLinkCandidates, TsConfigLinkKind } from './links';
-import { createResolvers, TsConfigLinkResolvers } from './resolvers';
+import { createLinkDescriptors, TsConfigLinkDescriptors, TsConfigMissingTargetPolicy } from './resolvers';
 
 const openTsConfigLinkCommandId = '_typescript.openTsConfigLink';
 
@@ -56,30 +55,6 @@ export class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 
 			return link;
 		});
-	}
-}
-
-/**
- * Only the kinds that go through module resolution or a TypeScript install can
- * fail to produce a target at all; the remaining kinds always yield a URI,
- * whether or not anything lives there.
- *
- * The switch is deliberately exhaustive: a new kind stops compiling here until
- * it states its own wording, rather than inheriting the module phrasing.
- */
-function getResolveErrorMessage(linkKind: TsConfigLinkKind, pathValue: string): string {
-	switch (linkKind) {
-		case TsConfigLinkKind.Extends:
-		case TsConfigLinkKind.Reference:
-			return vscode.l10n.t("Failed to resolve {0} as module", pathValue);
-		case TsConfigLinkKind.Lib:
-			return vscode.l10n.t("Failed to resolve TypeScript lib {0}", pathValue);
-		case TsConfigLinkKind.TypePackage:
-			return vscode.l10n.t("Failed to resolve types package {0}", pathValue);
-		case TsConfigLinkKind.ProjectFile:
-		case TsConfigLinkKind.Path:
-		case TsConfigLinkKind.BuildOutput:
-			return vscode.l10n.t("Failed to resolve {0}", pathValue);
 	}
 }
 
@@ -141,15 +116,16 @@ async function presentTsConfigLinkOutcome(outcome: TsConfigLinkOutcome): Promise
 
 export async function openTsConfigLink(
 	{ resourceUri, pathValue, linkKind }: OpenTsConfigLinkCommandArgs,
-	resolvers: TsConfigLinkResolvers,
+	descriptors: TsConfigLinkDescriptors,
 	statTarget: TsConfigLinkStat = statTsConfigLinkTarget,
 	presentOutcome: TsConfigLinkOutcomeHandler = presentTsConfigLinkOutcome,
 	insideWorkspace: TsConfigLinkWorkspaceTest = isInsideWorkspace,
 ): Promise<void> {
-	const target = await resolvers[linkKind](vscode.Uri.from(resourceUri), pathValue);
+	const descriptor = descriptors[linkKind];
+	const target = await descriptor.resolve(vscode.Uri.from(resourceUri), pathValue);
 
 	if (!target) {
-		await presentOutcome({ kind: 'message', text: getResolveErrorMessage(linkKind, pathValue) });
+		await presentOutcome({ kind: 'message', text: descriptor.unresolvedMessage(pathValue) });
 		return;
 	}
 
@@ -161,18 +137,13 @@ export async function openTsConfigLink(
 	}
 
 	if (!stat) {
-		// Opening a missing file is how VS Code offers to create it, which is the right
-		// affordance for the kinds that name a file and wrong for the kinds that name a
-		// directory: a missing `"rootDir": "./src"` should not offer to create a file named `src`.
-		switch (linkKind) {
-			case TsConfigLinkKind.Extends:
-			case TsConfigLinkKind.Reference:
-			case TsConfigLinkKind.ProjectFile:
+		switch (descriptor.missingTarget) {
+			case TsConfigMissingTargetPolicy.OfferToCreate:
 				break;
-			case TsConfigLinkKind.BuildOutput:
+			case TsConfigMissingTargetPolicy.ReportUnbuilt:
 				await presentOutcome({ kind: 'message', text: vscode.l10n.t("{0} does not exist yet. Build the project to create it.", pathValue) });
 				return;
-			default:
+			case TsConfigMissingTargetPolicy.ReportMissing:
 				await presentOutcome({ kind: 'message', text: vscode.l10n.t("{0} does not exist.", pathValue) });
 				return;
 		}
@@ -193,15 +164,11 @@ function getDocumentSelector(): vscode.DocumentSelector {
 		.flat();
 }
 
-/**
- * @param versionProvider Resolved the first time a `lib` link is followed, so that whatever
- * configuring it costs is never paid during activation, nor at all by a user who never follows one.
- */
-export function register(versionProvider: Lazy<ITypeScriptVersionProvider>, workspaceState: vscode.Memento) {
-	const resolvers = createResolvers(versionProvider, workspaceState);
+export function register(versionProvider: ITypeScriptVersionProvider, workspaceState: vscode.Memento) {
+	const descriptors = createLinkDescriptors(versionProvider, workspaceState);
 
 	return vscode.Disposable.from(
-		vscode.commands.registerCommand(openTsConfigLinkCommandId, (args: OpenTsConfigLinkCommandArgs) => openTsConfigLink(args, resolvers)),
+		vscode.commands.registerCommand(openTsConfigLinkCommandId, (args: OpenTsConfigLinkCommandArgs) => openTsConfigLink(args, descriptors)),
 		vscode.languages.registerDocumentLinkProvider(getDocumentSelector(), new TsconfigLinkProvider()),
 	);
 }

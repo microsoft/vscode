@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { TsdkConfiguration } from '../configuration/configuration';
 import { API } from './api';
 
 
@@ -58,7 +58,7 @@ export class TypeScriptVersion {
 }
 
 export interface ITypeScriptVersionProvider {
-	updateConfiguration(configuration: TypeScriptServiceConfiguration): void;
+	updateConfiguration(configuration: TsdkConfiguration): void;
 
 	readonly defaultVersion: TypeScriptVersion;
 	readonly globalVersion: TypeScriptVersion | undefined;

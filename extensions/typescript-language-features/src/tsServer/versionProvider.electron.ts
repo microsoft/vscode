@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { TsdkConfiguration } from '../configuration/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
 import { API } from './api';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
@@ -15,10 +15,10 @@ import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource 
 export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
 
 	public constructor(
-		private configuration?: TypeScriptServiceConfiguration
+		private configuration?: TsdkConfiguration
 	) { }
 
-	public updateConfiguration(configuration: TypeScriptServiceConfiguration): void {
+	public updateConfiguration(configuration: TsdkConfiguration): void {
 		this.configuration = configuration;
 	}
 

@@ -23,7 +23,6 @@ import { WorkerServerProcessFactory } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { Disposable } from './utils/dispose';
-import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
 
@@ -95,8 +94,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 
 	import('./languageFeatures/tsconfig').then(module => {
-		// `StaticVersionProvider` ignores configuration, so there is nothing to defer.
-		context.subscriptions.push(module.register(new Lazy(() => versionProvider), context.workspaceState));
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState));
 	});
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {

@@ -19,7 +19,6 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
-import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { suggestNativePreview } from './ui/suggestNativePreview';
@@ -46,13 +45,15 @@ export function activate(
 	// The service client configures the version provider when it is constructed, but it is
 	// constructed lazily and, with the native preview enabled, may never be constructed at all.
 	// Features that register eagerly below resolve TypeScript versions through this provider, so
-	// they have to configure it themselves or a `typescript.tsdk` outside `node_modules` is
-	// silently ignored. Not from here, though: `loadFromWorkspace` shells out synchronously to
-	// locate a `tsserver.nodePath` of "node", and that must not block activation.
-	const configuredVersionProvider = new Lazy<ITypeScriptVersionProvider>(() => {
-		versionProvider.updateConfiguration(serviceConfigurationProvider.loadFromWorkspace());
-		return versionProvider;
-	});
+	// it is configured here as well, and kept configured, or a `typescript.tsdk` outside
+	// `node_modules` is silently ignored. Only the tsdk settings are read: the full
+	// `loadFromWorkspace` shells out synchronously to locate a `tsserver.nodePath` of "node".
+	versionProvider.updateConfiguration(serviceConfigurationProvider.loadTsdkFromWorkspace());
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('typescript.tsdk') || e.affectsConfiguration('js/ts.tsdk.path')) {
+			versionProvider.updateConfiguration(serviceConfigurationProvider.loadTsdkFromWorkspace());
+		}
+	}));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -68,7 +69,7 @@ export function activate(
 
 	// Register features that work in both TSGO and non-TSGO modes
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register(configuredVersionProvider, context.workspaceState));
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState));
 	});
 
 	// Conditionally register features based on whether TSGO is enabled

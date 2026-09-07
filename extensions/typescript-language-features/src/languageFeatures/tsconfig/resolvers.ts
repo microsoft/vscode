@@ -9,17 +9,38 @@ import { Utils } from 'vscode-uri';
 import { getActiveTypeScriptVersion } from '../../tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
 import { exists, looksLikeAbsoluteWindowsPath, looksLikeUriNotPath } from '../../utils/fs';
-import { Lazy } from '../../utils/lazy';
 import { TsConfigLinkKind } from './links';
 
 export type TsConfigLinkResolver = (documentUri: vscode.Uri, value: string) => Promise<vscode.Uri | undefined>;
 
 /**
- * One resolver per kind. A total record rather than a map, so that adding a kind
- * without a resolver is a compile error rather than a link that silently reports
- * itself as unresolvable.
+ * What following a link does when its target resolves but nothing lives there.
+ *
+ * Opening a missing file is how VS Code offers to create it, which is the right
+ * affordance for the kinds that name a file and wrong for the kinds that name a
+ * directory: a missing `"rootDir": "./src"` should not offer to create a file
+ * named `src`.
  */
-export type TsConfigLinkResolvers = Readonly<Record<TsConfigLinkKind, TsConfigLinkResolver>>;
+export const enum TsConfigMissingTargetPolicy {
+	OfferToCreate = 'offerToCreate',
+	ReportMissing = 'reportMissing',
+	ReportUnbuilt = 'reportUnbuilt',
+}
+
+/** Everything that differs between link kinds once a link is followed. */
+export interface TsConfigLinkKindDescriptor {
+	readonly resolve: TsConfigLinkResolver;
+	/** Shown when {@link resolve} yields nothing, which only module and install lookups can do. */
+	readonly unresolvedMessage: (value: string) => string;
+	readonly missingTarget: TsConfigMissingTargetPolicy;
+}
+
+/**
+ * One descriptor per kind. A total record rather than a map, so that adding a
+ * kind without stating how it resolves and what it says on failure is a compile
+ * error rather than a link that silently inherits another kind's behavior.
+ */
+export type TsConfigLinkDescriptors = Readonly<Record<TsConfigLinkKind, TsConfigLinkKindDescriptor>>;
 
 /**
  * Whether TypeScript would treat a value as a relative path rather than a
@@ -133,15 +154,11 @@ export function libFileUri(versionPath: string, fileName: string): vscode.Uri {
  * copy. This always opens the copy shipped with the TypeScript install.
  */
 async function resolveLibPath(
-	lazyVersionProvider: Lazy<ITypeScriptVersionProvider>,
+	versionProvider: ITypeScriptVersionProvider,
 	workspaceState: vscode.Memento,
 	value: string,
 ): Promise<vscode.Uri | undefined> {
 	const fileName = `lib.${value.toLowerCase()}.d.ts`;
-
-	// Resolving the provider is what configures it, which reads settings and can be slow, so it
-	// happens here, on a click, rather than when the feature registers.
-	const versionProvider = lazyVersionProvider.value;
 
 	// The version the service is actually using first, then any other local
 	// install, then the TypeScript bundled with VS Code.
@@ -220,17 +237,50 @@ async function resolveTypePackage(documentUri: vscode.Uri, value: string): Promi
 		?? await resolveNodeModulesPath(baseDirUri, [`${value}/index.d.ts`, `${value}/package.json`]);
 }
 
-export function createResolvers(
-	versionProvider: Lazy<ITypeScriptVersionProvider>,
+export function createLinkDescriptors(
+	versionProvider: ITypeScriptVersionProvider,
 	workspaceState: vscode.Memento,
-): TsConfigLinkResolvers {
+): TsConfigLinkDescriptors {
+	const unresolvedModule = (value: string) => vscode.l10n.t("Failed to resolve {0} as module", value);
+	// `resolveRelativePath` always yields a URI, so this wording is never shown; the
+	// record is total so that the kind states it rather than inheriting another's.
+	const unresolvedPath = (value: string) => vscode.l10n.t("Failed to resolve {0}", value);
+
 	return {
-		[TsConfigLinkKind.Extends]: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '.json'),
-		[TsConfigLinkKind.Reference]: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '/tsconfig.json'),
-		[TsConfigLinkKind.ProjectFile]: resolveRelativePath,
-		[TsConfigLinkKind.Path]: resolveRelativePath,
-		[TsConfigLinkKind.BuildOutput]: resolveRelativePath,
-		[TsConfigLinkKind.Lib]: (_documentUri, value) => resolveLibPath(versionProvider, workspaceState, value),
-		[TsConfigLinkKind.TypePackage]: resolveTypePackage,
+		[TsConfigLinkKind.Extends]: {
+			resolve: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '.json'),
+			unresolvedMessage: unresolvedModule,
+			missingTarget: TsConfigMissingTargetPolicy.OfferToCreate,
+		},
+		[TsConfigLinkKind.Reference]: {
+			resolve: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '/tsconfig.json'),
+			unresolvedMessage: unresolvedModule,
+			missingTarget: TsConfigMissingTargetPolicy.OfferToCreate,
+		},
+		[TsConfigLinkKind.ProjectFile]: {
+			resolve: resolveRelativePath,
+			unresolvedMessage: unresolvedPath,
+			missingTarget: TsConfigMissingTargetPolicy.OfferToCreate,
+		},
+		[TsConfigLinkKind.Path]: {
+			resolve: resolveRelativePath,
+			unresolvedMessage: unresolvedPath,
+			missingTarget: TsConfigMissingTargetPolicy.ReportMissing,
+		},
+		[TsConfigLinkKind.BuildOutput]: {
+			resolve: resolveRelativePath,
+			unresolvedMessage: unresolvedPath,
+			missingTarget: TsConfigMissingTargetPolicy.ReportUnbuilt,
+		},
+		[TsConfigLinkKind.Lib]: {
+			resolve: (_documentUri, value) => resolveLibPath(versionProvider, workspaceState, value),
+			unresolvedMessage: value => vscode.l10n.t("Failed to resolve TypeScript lib {0}", value),
+			missingTarget: TsConfigMissingTargetPolicy.ReportMissing,
+		},
+		[TsConfigLinkKind.TypePackage]: {
+			resolve: resolveTypePackage,
+			unresolvedMessage: value => vscode.l10n.t("Failed to resolve types package {0}", value),
+			missingTarget: TsConfigMissingTargetPolicy.ReportMissing,
+		},
 	};
 }
