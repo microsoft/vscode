@@ -7,14 +7,15 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationState, type RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -22,7 +23,7 @@ import { AUTOMATION_CATALOG_URI, ROOT_STATE_URI, StateComponents } from '../../.
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentHostAutomationStore } from '../../browser/agentHostAutomationStore.js';
@@ -32,14 +33,18 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { TestAutomationStorageService } from '../../../../automations/test/browser/automationTestUtils.js';
 import { AutomationStore } from '../../../../automations/browser/automationService.js';
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
+import type { AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 class TestAutomationConnection {
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidCatalogChange = new Emitter<AutomationState>();
+	private readonly _onDidCatalogError = new Emitter<Error>();
 	private readonly _onDidRootChange = new Emitter<RootState>();
 	private _catalog: AutomationState = { entries: [] };
+	private _catalogError: Error | undefined;
+	private _catalogAvailable: boolean;
 	private _root: RootState;
 	private _serverSeq = 0;
 	private _migrationComplete: boolean;
@@ -53,8 +58,9 @@ class TestAutomationConnection {
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 
-	constructor(migrationComplete: boolean) {
+	constructor(migrationComplete: boolean, catalogAvailable = true) {
 		this._migrationComplete = migrationComplete;
+		this._catalogAvailable = catalogAvailable;
 		this._root = {
 			agents: [],
 			activeSessions: 0,
@@ -82,6 +88,23 @@ class TestAutomationConnection {
 		});
 	}
 
+	setFirstAutomationSessionConfig(config: Record<string, unknown>): void {
+		const [automation, ...rest] = this._catalog.entries;
+		if (!automation) {
+			throw new Error('No Automation is available.');
+		}
+		this._catalog = {
+			entries: [{
+				...automation,
+				definition: {
+					...automation.definition,
+					session: { ...automation.definition.session, config },
+				},
+			}, ...rest],
+		};
+		this._onDidCatalogChange.fire(this._catalog);
+	}
+
 	getSubscription(
 		kind: StateComponents.AutomationCatalog,
 		resource: URI,
@@ -92,14 +115,26 @@ class TestAutomationConnection {
 		const connection = this;
 		return {
 			object: {
-				get value() { return connection._catalog; },
-				get verifiedValue() { return connection._catalog; },
+				get value() { return connection._catalogError ?? (connection._catalogAvailable ? connection._catalog : undefined); },
+				get verifiedValue() { return connection._catalogAvailable ? connection._catalog : undefined; },
 				onDidChange: this._onDidCatalogChange.event,
+				onDidError: this._onDidCatalogError.event,
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
 			dispose: () => { },
 		};
+	}
+
+	setCatalogError(error: Error): void {
+		this._catalogError = error;
+		this._onDidCatalogError.fire(error);
+	}
+
+	setCatalogAvailable(available = true): void {
+		this._catalogAvailable = available;
+		this._catalogError = undefined;
+		this._onDidCatalogChange.fire(this._catalog);
 	}
 
 	dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
@@ -269,6 +304,7 @@ class TestAutomationConnection {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidCatalogChange.dispose();
+		this._onDidCatalogError.dispose();
 		this._onDidRootChange.dispose();
 	}
 }
@@ -374,7 +410,7 @@ suite('AgentHostAutomationStore', () => {
 				name: id,
 				prompt: 'Review history.',
 				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 1 },
-				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 				enabled: true,
 				createdAt: '2026-01-01T00:00:00.000Z',
 				updatedAt: '2026-01-01T00:00:00.000Z',
@@ -392,6 +428,116 @@ suite('AgentHostAutomationStore', () => {
 		};
 	}
 
+	test('reports loading until the authoritative catalogue is ready', () => {
+		const connection = new TestAutomationConnection(false, false);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const loading = store.catalogueState.get();
+		connection.setCatalogAvailable();
+
+		assert.deepStrictEqual({
+			loading,
+			afterSnapshot: store.catalogueState.get(),
+		}, {
+			loading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('reports catalogue errors after the ready state was observed', async () => {
+		const connection = new TestAutomationConnection(true);
+		disposables.add(connection);
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+
+		const ready = store.catalogueState.get();
+		connection.setCatalogError(new Error('catalogue unavailable'));
+
+		assert.deepStrictEqual({
+			ready,
+			afterError: store.catalogueState.get(),
+		}, {
+			ready: 'ready',
+			afterError: 'error',
+		});
+	});
+
+	for (const hasHostAutomation of [false, true]) {
+		test(`does not mask an unreadable legacy source with a ${hasHostAutomation ? 'populated' : 'empty'} host snapshot`, async () => {
+			const connection = disposables.add(new TestAutomationConnection(true));
+			const storage = disposables.add(new InMemoryStorageService());
+			const automationStorage = new TestAutomationStorageService(storage);
+			if (hasHostAutomation) {
+				const hostStore = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+				await hostStore.createAutomation({
+					name: 'Known host automation',
+					prompt: 'Review changes.',
+					schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+					target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+				});
+			}
+			const storageKey = providerAutomationStorageKey('local-agent-host');
+			storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+			await assert.rejects(store.completeMigration(), /cannot be migrated safely/);
+
+			assert.deepStrictEqual({
+				legacyState: legacy.catalogueState.get(),
+				hostState: store.catalogueState.get(),
+				canCompleteMigration: legacy.canCompleteMigration(),
+				names: store.automations.get().map(automation => automation.name),
+				completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+			}, {
+				legacyState: 'error',
+				hostState: 'error',
+				canCompleteMigration: false,
+				names: hasHostAutomation ? ['Known host automation'] : [],
+				completions: 0,
+			});
+		});
+	}
+
+	test('rechecks legacy readability after waiting for the host catalogue', async () => {
+		const connection = disposables.add(new TestAutomationConnection(false, false));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const storageKey = providerAutomationStorageKey('local-agent-host');
+		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, legacy, undefined, new NullLogService(), storage, NullTelemetryService, automationStorage));
+		const migration = assert.rejects(store.completeMigration(), /cannot be migrated safely/);
+		storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		connection.setCatalogAvailable();
+		await migration;
+		const afterFailure = {
+			state: store.catalogueState.get(),
+			completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+		};
+
+		storage.store(storageKey, JSON.stringify({ schemaVersion: 4, revision: 1, automations: [], runs: [] }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			afterFailure,
+			afterRepair: {
+				state: store.catalogueState.get(),
+				completions: connection.dispatched.filter(entry => entry.channel === ROOT_STATE_URI).length,
+			},
+		}, {
+			afterFailure: { state: 'error', completions: 0 },
+			afterRepair: { state: 'ready', completions: 1 },
+		});
+	});
+
 	test('uses the exact catalogue channel and projects authoritative creates', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);
@@ -404,13 +550,15 @@ suite('AgentHostAutomationStore', () => {
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
-			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			mode: 'agent',
 			permissionLevel: 'autopilot',
 		});
 		const create = connection.dispatched[0].action;
 		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
 
 		assert.deepStrictEqual({
+			catalogueState: store.catalogueState.get(),
 			subscribedChannel: connection.subscribedChannel,
 			dispatchChannel: connection.dispatched[0].channel,
 			definitionMeta: create.type === ActionType.AutomationCreateRequested ? create.definition._meta : undefined,
@@ -424,19 +572,441 @@ suite('AgentHostAutomationStore', () => {
 				enabled: automation.enabled,
 			},
 		}, {
+			catalogueState: 'ready',
 			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
-			sessionConfig: { autoApprove: 'assisted' },
+			sessionConfig: { mode: 'autopilot', autoApprove: 'assisted' },
 			triggerExpression: '30 9 * * *',
 			automation: {
 				name: 'Review changes',
 				prompt: 'Review the current changes.',
 				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
-				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 				enabled: true,
 			},
 		});
+	});
+
+	test('does not forward generic chat modes to Agent Host session config', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			mode: 'agent',
+			permissionLevel: 'default',
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+			{ autoApprove: 'default' },
+		);
+	});
+
+	test('applies legacy Autopilot configuration to the default provider', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: {
+				kind: 'workspace',
+				folderUri: URI.file('/workspace'),
+				providerId: undefined,
+				sessionTypeId: undefined,
+				isolation: { kind: 'default' },
+			},
+			mode: 'agent',
+			permissionLevel: 'autopilot',
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+			{ mode: 'autopilot', autoApprove: 'assisted' },
+		);
+	});
+
+	test('preserves Agent Host config on an unrelated canonical update', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			mode: 'autopilot',
+			permissionLevel: 'assisted',
+		});
+
+		const current = store.getAutomation(automation.id);
+		await store.updateAutomation(automation.id, {
+			name: 'Review renamed changes',
+			sessionTemplate: current?.sessionTemplate,
+		});
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual(
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			{ mode: 'autopilot', autoApprove: 'assisted' },
+		);
+	});
+
+	test('does not apply legacy Copilot configuration to another session type', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+			mode: 'agent',
+			permissionLevel: 'autopilot',
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session : undefined,
+			{
+				provider: 'claude',
+				model: undefined,
+				agent: undefined,
+				workingDirectories: undefined,
+				config: undefined,
+			},
+		);
+	});
+
+	test('filters session-owned values from canonical templates', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+
+		await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			sessionTemplate: {
+				config: {
+					mode: 'plan',
+					providerOption: true,
+					[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+				},
+			},
+		});
+
+		const create = connection.dispatched[0].action;
+		assert.deepStrictEqual(
+			create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+			{ mode: 'plan', providerOption: true },
+		);
+	});
+
+	test('clears provider configuration and agent with an explicit template reset', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+			sessionTemplate: {
+				modelId: 'model',
+				modelConfiguration: { thinkingLevel: 'low' },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				config: { mode: 'plan', providerOption: true },
+			},
+		});
+		const permissions = {
+			allow: ['Shell(echo *)'],
+			deny: [],
+		};
+		connection.setFirstAutomationSessionConfig({
+			[SessionConfigKey.Permissions]: permissions,
+			[SessionConfigKey.Mode]: 'plan',
+			providerOption: true,
+		});
+
+		await store.updateAutomation(automation.id, { sessionTemplate: null });
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual(
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+			{
+				provider: 'claude',
+				model: undefined,
+				agent: undefined,
+				workingDirectories: undefined,
+				config: { [SessionConfigKey.Permissions]: permissions },
+			},
+		);
+	});
+
+	test('drops provider configuration when retargeting to another session type', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			mode: 'autopilot',
+			permissionLevel: 'assisted',
+		});
+
+		await store.updateAutomation(automation.id, {
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'claude' },
+		});
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual(
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+			{
+				provider: 'claude',
+				model: undefined,
+				agent: undefined,
+				workingDirectories: undefined,
+				config: undefined,
+			},
+		);
+	});
+
+	test('round-trips the complete Agent Host session template', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, {
+			toHost: resource => resource,
+			fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+		}, new NullLogService(), storage, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const sessionTemplate = {
+			modelId: 'agent-host-copilotcli:auto',
+			modelConfiguration: { thinkingLevel: 'low', futureOption: 'preserved' },
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
+			config: {
+				mode: 'plan',
+				autoApprove: 'assisted',
+				providerOption: { enabled: true },
+			},
+		};
+
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: {
+				kind: 'workspace',
+				folderUri: URI.file('/workspace'),
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				isolation: { kind: 'folder' },
+			},
+			sessionTemplate,
+		});
+		await assert.rejects(
+			store.updateAutomation(automation.id, { permissionLevel: 'autoApprove' }),
+			/cannot be updated through legacy configuration aliases/,
+		);
+		const updatedTemplate = {
+			...sessionTemplate,
+			modelId: 'agent-host-copilotcli:gpt-5',
+			config: {
+				...sessionTemplate.config,
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+			},
+		};
+		await store.updateAutomation(automation.id, {
+			name: 'Review renamed changes',
+			sessionTemplate: updatedTemplate,
+		});
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual({
+			projected: store.getAutomation(automation.id)?.sessionTemplate,
+			updatedSession: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session : undefined,
+		}, {
+			projected: updatedTemplate,
+			updatedSession: {
+				provider: 'copilotcli',
+				model: { id: 'gpt-5', config: sessionTemplate.modelConfiguration },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+				workingDirectories: ['file:///workspace'],
+				config: {
+					mode: 'interactive',
+					autoApprove: 'autoApprove',
+					providerOption: { enabled: true },
+					isolation: 'folder',
+				},
+			},
+		});
+	});
+
+	test('rejects model configuration without a model identifier instead of dropping it', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const options = {
+			name: 'Model configuration',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		} as const;
+		await assert.rejects(store.createAutomation({
+			...options,
+			sessionTemplate: { modelConfiguration: { thinkingLevel: 'low' } },
+		}), /model configuration requires a model identifier/);
+		const sessionTemplate = { modelId: 'model', modelConfiguration: { thinkingLevel: 'low' } };
+		const automation = await store.createAutomation({ ...options, sessionTemplate });
+		const dispatched = connection.dispatched.length;
+		await assert.rejects(store.updateAutomation(automation.id, {
+			sessionTemplate: { modelConfiguration: {} },
+		}), /model configuration requires a model identifier/);
+
+		assert.deepStrictEqual({
+			template: store.getAutomation(automation.id)?.sessionTemplate,
+			additionalActions: connection.dispatched.length - dispatched,
+		}, {
+			template: sessionTemplate,
+			additionalActions: 0,
+		});
+	});
+
+	test('explicit empty and omitted model configuration replace stale model options', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, undefined, new NullLogService(), storage, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const automation = await store.createAutomation({
+			name: 'Reset model configuration',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			sessionTemplate: { modelId: 'model', modelConfiguration: { thinkingLevel: 'low', futureOption: true } },
+		});
+		const empty = await store.updateAutomation(automation.id, { sessionTemplate: { modelId: 'model', modelConfiguration: {} } });
+		const emptyAction = connection.dispatched.at(-1)?.action;
+		const reset = await store.updateAutomation(automation.id, { sessionTemplate: { modelId: 'model' } });
+		const resetAction = connection.dispatched.at(-1)?.action;
+
+		assert.deepStrictEqual({
+			empty: empty.sessionTemplate,
+			emptyModel: emptyAction?.type === ActionType.AutomationUpdateRequested ? emptyAction.changes.session?.model : undefined,
+			reset: reset.sessionTemplate,
+			resetModel: resetAction?.type === ActionType.AutomationUpdateRequested ? resetAction.changes.session?.model : undefined,
+		}, {
+			empty: { modelId: 'model', modelConfiguration: {} },
+			emptyModel: { id: 'model', config: {} },
+			reset: { modelId: 'model' },
+			resetModel: { id: 'model' },
+		});
+	});
+
+	test('applies the first flat permission update when the projected session template is empty', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore(
+			'local-agent-host',
+			connection,
+			undefined,
+			undefined,
+			new NullLogService(),
+			storage,
+			NullTelemetryService,
+			new TestAutomationStorageService(storage),
+		));
+		const automation = await store.createAutomation({
+			name: 'Review changes',
+			prompt: 'Review the current changes.',
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+
+		await store.updateAutomation(automation.id, { permissionLevel: 'autoApprove' });
+
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual(
+			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			{ autoApprove: 'autoApprove' },
+		);
 	});
 
 	test('switches authority only after host migration completion is verified', async () => {
@@ -546,7 +1116,7 @@ suite('AgentHostAutomationStore', () => {
 			hostDirectory: create.type === ActionType.AutomationCreateRequested ? create.definition.session.workingDirectories : undefined,
 			hostModel: create.type === ActionType.AutomationCreateRequested ? create.definition.session.model?.id : undefined,
 			clientDirectory: automation.target.kind === 'workspace' ? automation.target.folderUri.toString() : undefined,
-			clientModel: automation.modelId,
+			clientModel: automation.sessionTemplate?.modelId,
 			clientSession: claim.run.sessionResource?.toString(),
 		}, {
 			hostDirectory: ['file:///workspace'],
@@ -580,7 +1150,7 @@ suite('AgentHostAutomationStore', () => {
 
 		assert.deepStrictEqual({
 			hostModel: create.type === ActionType.AutomationCreateRequested ? create.definition.session.model?.id : undefined,
-			clientModel: automation.modelId,
+			clientModel: automation.sessionTemplate?.modelId,
 		}, {
 			hostModel: 'auto',
 			clientModel: 'agent-host-copilotcli:auto',
@@ -613,7 +1183,7 @@ suite('AgentHostAutomationStore', () => {
 
 		assert.deepStrictEqual({
 			hostModel: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.model : undefined,
-			clientModel: updated.modelId,
+			clientModel: updated.sessionTemplate?.modelId,
 		}, {
 			hostModel: undefined,
 			clientModel: undefined,
@@ -654,7 +1224,7 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual({
 			hostProviders: createActions.map(action => action.definition.session.provider),
 			hostModels: createActions.map(action => action.definition.session.model?.id),
-			clientModels: [defaultProvider.modelId, nativeColon.modelId],
+			clientModels: [defaultProvider.sessionTemplate?.modelId, nativeColon.sessionTemplate?.modelId],
 		}, {
 			hostProviders: ['copilotcli', 'copilotcli'],
 			hostModels: ['auto', 'openai/gpt-5:high'],
@@ -662,7 +1232,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
-	test('qualifies host-authored models without retargeting historical run sessions', () => {
+	test('qualifies host-authored models and preserves definition-owned configuration on update', async () => {
 		const connection = new TestAutomationConnection(true);
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
@@ -679,7 +1249,18 @@ suite('AgentHostAutomationStore', () => {
 			definition: {
 				title: 'Host-authored',
 				message: { text: 'Say hi.', origin: { kind: MessageKind.Automation } },
-				session: { provider: 'codex', model: { id: 'auto' } },
+				session: {
+					provider: 'codex',
+					model: { id: 'auto' },
+					config: {
+						mode: 'plan',
+						[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+						[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+						[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+						[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+						[SessionConfigKey.AgentMerge]: true,
+					},
+				},
 				enabled: true,
 				triggers: [],
 			},
@@ -700,13 +1281,27 @@ suite('AgentHostAutomationStore', () => {
 			createdAt: timestamp,
 			modifiedAt: timestamp,
 		});
+		const projected = store.getAutomation('host-authored');
+		await store.updateAutomation('host-authored', { enabled: false });
+		const update = connection.dispatched.at(-1)?.action;
 
 		assert.deepStrictEqual({
-			modelId: store.getAutomation('host-authored')?.modelId,
+			sessionTemplate: projected?.sessionTemplate,
 			sessionResource: store.runs.get()[0].sessionResource?.toString(),
+			updatedConfig: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
 		}, {
-			modelId: 'agent-host-codex:auto',
+			sessionTemplate: {
+				modelId: 'agent-host-codex:auto',
+				config: { mode: 'plan' },
+			},
 			sessionResource: 'agent-host-copilotcli:/host-authored-session',
+			updatedConfig: {
+				mode: 'plan',
+				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+				[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+				[SessionConfigKey.WorktreeIncludeFiles]: ['host.json'],
+				[SessionConfigKey.AgentMerge]: true,
+			},
 		});
 	});
 
@@ -1631,6 +2226,169 @@ suite('AgentHostAutomationStore', () => {
 		}, {
 			subscriptions: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			completionRequests: 1,
+		});
+	});
+
+	test('reports disconnected authority as non-authoritative without a false-ready emission', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+		const initiallyDisconnected = store.catalogueState.get();
+		const emissionsBeforeConnect = emissions.length;
+		store.setConnection(connection);
+		const connectEmissions = emissions.slice(emissionsBeforeConnect);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const connected = store.catalogueState.get();
+		const emissionsBeforeDisconnect = emissions.length;
+		store.clearConnection();
+		const disconnectEmissions = emissions.slice(emissionsBeforeDisconnect);
+		const afterDisconnect = store.catalogueState.get();
+		connection.setCatalogAvailable(false);
+		store.setConnection(connection);
+		const duringReconnect = { state: store.catalogueState.get(), count: store.automations.get().length };
+		connection.setCatalogAvailable();
+		await store.completeMigration();
+
+		assert.deepStrictEqual({
+			initiallyDisconnected,
+			connectEmissions,
+			connected,
+			afterDisconnect,
+			disconnectEmissions,
+			duringReconnect,
+			afterReconnect: { state: store.catalogueState.get(), count: store.automations.get().length },
+		}, {
+			initiallyDisconnected: 'unavailable',
+			connectEmissions: [
+				{ automationCount: 0, catalogueState: 'loading' },
+				{ automationCount: 0, catalogueState: 'ready' },
+			],
+			connected: 'ready',
+			afterDisconnect: 'unavailable',
+			disconnectEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
+			duringReconnect: { state: 'loading', count: 0 },
+			afterReconnect: { state: 'ready', count: 1 },
+		});
+	});
+
+	test('keeps readable legacy rows visible while their provider is unavailable', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const storageKey = providerAutomationStorageKey('remote-agent-host');
+		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		await legacy.createAutomation({
+			name: 'Legacy automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'remote-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore('remote-agent-host', legacy, undefined, instantiationService, new NullLogService(), new TestConfigurationService()));
+		const availableRows = { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) };
+		storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual({
+			availableRows,
+			afterError: { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) },
+		}, {
+			availableRows: { state: 'unavailable', names: ['Legacy automation'] },
+			afterError: { state: 'error', names: ['Legacy automation'] },
+		});
+	});
+
+	test('transitions to unsupported and disabled authority atomically', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		store.setConnection(connection);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+
+		const beforeUnsupported = emissions.length;
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+		}, undefined);
+		const unsupportedEmissions = emissions.slice(beforeUnsupported);
+
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+			automations: { create: {}, runCancellation: {} },
+		}, undefined);
+		const beforeDisabled = emissions.length;
+		await configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CHAT_AUTOMATIONS_ENABLED_SETTING]),
+			change: { keys: [CHAT_AUTOMATIONS_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: candidate => candidate === CHAT_AUTOMATIONS_ENABLED_SETTING,
+		});
+		const disabledEmissions = emissions.slice(beforeDisabled);
+
+		assert.deepStrictEqual({
+			unsupportedEmissions,
+			disabledEmissions,
+		}, {
+			unsupportedEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
+			disabledEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
 		});
 	});
 

@@ -67,6 +67,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView'): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
+		content.push(localize('chat.modelPicker.tiers', "In the tabbed model picker, the selected model's details open beside the list. Moving between model rows updates the details immediately without selecting a model. The card stays visible when the pointer leaves a row. Press Right Arrow from a model row to focus its details, and Left Arrow to return. When Auto routing tiers are available, the tiers remain visible while Auto is off. Use arrow keys to move between tiers, then Enter or Space to choose a tier and turn Auto on. Turning Auto off preserves the selected tier."));
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files. Focus an additions and deletions label and press Enter or Space to open the changes in a diff editor.'));
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
