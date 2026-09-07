@@ -1,0 +1,47 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".
+    response:
+      content:
+        - type: text
+          text: I’ll record that artifact now, then return the requested response.
+        - type: tool_use
+          id: toolcall_0
+          name: add_artifact_or_reference
+          input:
+            type: resource
+            label: Spawned session
+            isArtifact: true
+            uri: agent-host-session://copilot/spawned
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".
+        - role: assistant
+          content: I’ll record that artifact now, then return the requested response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                type: resource
+                label: Spawned session
+                isArtifact: true
+                uri: agent-host-session://copilot/spawned
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Server tool add_artifact_or_reference failed: Invalid add_artifact_or_reference input: sessions and chats created with session-management tools must not be recorded as artifacts or references.'
+    response:
+      content: rejected
+      stopReason: end_turn

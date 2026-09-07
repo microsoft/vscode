@@ -31,6 +31,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
 import Severity from '../../../../base/common/severity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IListElementRenderDetails } from '../../../../base/browser/ui/list/list.js';
 
 const $ = DOM.$;
 
@@ -45,7 +46,8 @@ interface IMarkerCodeColumnTemplateData {
 	readonly sourceLabel: HighlightedLabel;
 	readonly codeLabel: HighlightedLabel;
 	readonly codeLink: Link;
-	readonly templateDisposable: DisposableStore;
+	readonly templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface IMarkerFileColumnTemplateData {
@@ -113,6 +115,11 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		}
 	}
 
+	disposeElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData, details?: IListElementRenderDetails): void {
+		templateData.elementDisposables.clear();
+		templateData.actionBar.clear();
+	}
+
 	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void {
 		templateData.elementDisposables.dispose();
 		templateData.actionBar.dispose();
@@ -130,18 +137,20 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	) { }
 
 	renderTemplate(container: HTMLElement): IMarkerCodeColumnTemplateData {
-		const templateDisposable = new DisposableStore();
+		const templateDisposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		templateDisposables.add(elementDisposables);
 		const codeColumn = DOM.append(container, $('.code'));
 
-		const sourceLabel = templateDisposable.add(new HighlightedLabel(codeColumn));
+		const sourceLabel = templateDisposables.add(new HighlightedLabel(codeColumn));
 		sourceLabel.element.classList.add('source-label');
 
-		const codeLabel = templateDisposable.add(new HighlightedLabel(codeColumn));
+		const codeLabel = templateDisposables.add(new HighlightedLabel(codeColumn));
 		codeLabel.element.classList.add('code-label');
 
-		const codeLink = templateDisposable.add(new Link(codeColumn, { href: '', label: '' }, {}, this.hoverService, this.openerService));
+		const codeLink = templateDisposables.add(new Link(codeColumn, { href: '', label: '' }, {}, this.hoverService, this.openerService));
 
-		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
+		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposables, elementDisposables };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData): void {
@@ -159,7 +168,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 				templateData.codeColumn.title = `${element.marker.source} (${element.marker.code.value})`;
 				templateData.sourceLabel.set(element.marker.source, element.sourceMatches);
 
-				const codeLinkLabel = templateData.templateDisposable.add(new HighlightedLabel($('.code-link-label')));
+				const codeLinkLabel = templateData.elementDisposables.add(new HighlightedLabel($('.code-link-label')));
 				codeLinkLabel.set(element.marker.code.value, element.codeMatches);
 
 				templateData.codeLink.link = {
@@ -174,8 +183,12 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		}
 	}
 
+	disposeElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, details?: IListElementRenderDetails): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: IMarkerCodeColumnTemplateData): void {
-		templateData.templateDisposable.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 

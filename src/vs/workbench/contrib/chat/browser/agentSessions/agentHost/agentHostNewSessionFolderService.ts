@@ -6,12 +6,13 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootState, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
@@ -31,13 +32,140 @@ export function computeWorkingDirectories(primary: URI | undefined, workspaceFol
 	if (!primary) {
 		return undefined;
 	}
-	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
-	const supportsMultiple = !!agent?.capabilities?.multipleWorkingDirectories;
+	const supportsMultiple = supportsMultipleWorkingDirectories(rootState, provider);
 	if (!supportsMultiple || !workspaceFolders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, primary))) {
 		return [primary];
 	}
-	const rest = workspaceFolders.filter(folder => !extUriBiasedIgnorePathCase.isEqual(folder, primary));
-	return [primary, ...rest];
+	return computeDesiredWorkingDirectories(primary, [primary], workspaceFolders);
+}
+
+export function supportsMultipleWorkingDirectories(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return !!agent?.capabilities?.multipleWorkingDirectories;
+}
+
+/**
+ * Whether `provider` pins its first working directory as a fixed process root
+ * (`multipleWorkingDirectories.immutablePrimary`). Agents without it treat every
+ * working directory as an equal peer.
+ */
+export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
+	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
+	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * The change a chat widget should apply to the multi-root Folder picker for the
+ * harness-owned {@link ISessionFolderPickerDecision}. `noop` means retain the
+ * current state (used when a decision transiently disappears during provisional
+ * recreation of the *same* session, so the chip does not flash); `apply` carries
+ * the new visibility value (the picker is hidden by default and only revealed
+ * when the decision says so), the session resource now being tracked, and — only
+ * when the harness pins a primary the user hasn't overridden — the folder to
+ * auto-select.
+ */
+export type FolderPickerDecisionUpdate =
+	| { readonly kind: 'noop' }
+	| { readonly kind: 'apply'; readonly visible: boolean; readonly trackedSessionResource: URI | undefined; readonly selectPrimary: URI | undefined };
+
+/**
+ * Pure resolution of {@link FolderPickerDecisionUpdate} from a widget's current
+ * inputs. Extracted from the widget so the hidden-by-default reveal, tri-state
+ * retain, auto-select gating, after-start suppression, and Agents-window gate are
+ * unit-testable without a live chat widget.
+ *
+ * The picker is hidden until a decision affirmatively reveals it (a decision with
+ * `hidden: false`), so it never flashes visible-then-hidden while the decision is
+ * still resolving.
+ *
+ * @param sessionResource the widget's current session, or `undefined`.
+ * @param agentHostProviderId the locked Agent Host provider, or `undefined` for a non-Agent-Host widget.
+ * @param decision the harness decision for `sessionResource`, or `undefined` when not (yet) known.
+ * @param previousTrackedSessionResource the session the current visibility value reflects.
+ * @param isSessionsWindow whether the widget lives in the Agents window (which owns folder choice).
+ * @param sessionIsEmpty whether the session has no requests yet (its working directory isn't fixed).
+ * @param currentSelectedFolder the folder already chosen for `sessionResource`, if any.
+ * @param folderExtUri provider-aware comparator (from `IUriIdentityService.extUri`) used to
+ * decide whether the pinned primary is already selected, so casing is honored per the folder's
+ * actual filesystem instead of assumed.
+ */
+export function resolveFolderPickerDecisionUpdate(
+	sessionResource: URI | undefined,
+	agentHostProviderId: string | undefined,
+	decision: ISessionFolderPickerDecision | undefined,
+	previousTrackedSessionResource: URI | undefined,
+	isSessionsWindow: boolean,
+	sessionIsEmpty: boolean,
+	currentSelectedFolder: URI | undefined,
+	folderExtUri: IExtUri,
+): FolderPickerDecisionUpdate {
+	if (!sessionResource || !agentHostProviderId) {
+		return { kind: 'apply', visible: false, trackedSessionResource: undefined, selectPrimary: undefined };
+	}
+	// Session resources are exact identifiers (their scheme encodes the
+	// provider), so compare them case-sensitively.
+	const sameSession = isEqual(previousTrackedSessionResource, sessionResource);
+	if (!decision) {
+		// Retain across a provisional recreation of the same session; stay hidden
+		// (the default) for a freshly bound session until a decision reveals it.
+		return sameSession
+			? { kind: 'noop' }
+			: { kind: 'apply', visible: false, trackedSessionResource: sessionResource, selectPrimary: undefined };
+	}
+	let selectPrimary: URI | undefined;
+	// Auto-select the pinned primary only before the session starts (its working
+	// directory is fixed once the first request is sent) and never in the Agents
+	// window, which owns folder choice through its own workspace picker.
+	if (decision.primary && !isSessionsWindow && sessionIsEmpty) {
+		const primary = URI.parse(decision.primary);
+		// Use the provider-aware comparator so a folder differing only by case is
+		// treated as already-selected only when its filesystem is case-insensitive
+		// (avoids both a redundant re-select and wrongly suppressing a real change
+		// on a case-sensitive remote).
+		if (!folderExtUri.isEqual(currentSelectedFolder, primary)) {
+			selectPrimary = primary;
+		}
+	}
+	return { kind: 'apply', visible: !decision.hidden, trackedSessionResource: sessionResource, selectPrimary };
+}
+
+/**
+ * Computes the working-directory set a session should have for the current
+ * workspace, as `[primary, ...secondaries]`.
+ *
+ * A secondary is kept only while it remains a workspace folder, so folders the
+ * user removed drop out. Folders the user added are appended. The primary is
+ * never dropped, even when it is no longer a workspace folder — an agent's
+ * process root is fixed once the session starts.
+ *
+ * Ordering is stable rather than meaningful: retained secondaries keep their
+ * existing order and newly added folders follow workspace order, so an
+ * unchanged workspace always recomputes an identical set.
+ */
+export function computeDesiredWorkingDirectories(
+	primary: URI,
+	currentWorkingDirectories: readonly URI[],
+	workspaceFolders: readonly URI[],
+	extUri: IExtUri = extUriBiasedIgnorePathCase,
+): readonly URI[] {
+	const desired: URI[] = [primary];
+	const addIfWorkspaceSecondary = (candidate: URI) => {
+		const alreadyIncluded = desired.some(existing => extUri.isEqual(existing, candidate));
+		if (alreadyIncluded || !workspaceFolders.some(folder => extUri.isEqual(folder, candidate))) {
+			return;
+		}
+		desired.push(candidate);
+	};
+
+	// Retained secondaries first so their existing order survives, then any
+	// folder the workspace gained since the set was last computed.
+	for (const currentSecondary of currentWorkingDirectories.slice(1)) {
+		addIfWorkspaceSecondary(currentSecondary);
+	}
+	for (const folder of workspaceFolders) {
+		addIfWorkspaceSecondary(folder);
+	}
+	return desired;
 }
 
 /**
@@ -84,6 +212,19 @@ export interface IAgentHostNewSessionFolderService {
 	 * folder the user last picked instead of resetting to the first folder.
 	 */
 	getDefaultFolder(): URI | undefined;
+
+	/**
+	 * The folder a *new* (not-yet-started) session should use, resolved with the
+	 * same precedence a freshly created chat would apply: a still-valid explicit
+	 * per-session choice, else the still-valid sticky {@link getDefaultFolder},
+	 * else the first current workspace folder, else `undefined` (no folders).
+	 *
+	 * Used to reselect a draft's primary when the folder it pointed at is removed
+	 * from the workspace. Every candidate is validated against the *current*
+	 * workspace folders, so the removed folder is never returned regardless of the
+	 * order in which workspace-change listeners run.
+	 */
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined;
 }
 
 export class AgentHostNewSessionFolderService extends Disposable implements IAgentHostNewSessionFolderService {
@@ -104,6 +245,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	constructor(
 		@IChatService chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -114,6 +256,26 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		// default ({@link _defaultFolder}) is intentionally left untouched.
 		this._register(chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
+				this.clear(sessionResource);
+			}
+		}));
+
+		// Clear selections for folders actually removed from the workspace while retaining the sticky default.
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
+			if (e.removed.length === 0) {
+				return;
+			}
+			const extUri = this._uriIdentityService.extUri;
+			const currentFolders = this._workspaceContextService.getWorkspace().folders;
+			const staleSessions: URI[] = [];
+			for (const [sessionResource, folder] of this._folders) {
+				const wasRemoved = e.removed.some(removed => extUri.isEqual(removed.uri, folder));
+				const stillPresent = currentFolders.some(current => extUri.isEqual(current.uri, folder));
+				if (wasRemoved && !stillPresent) {
+					staleSessions.push(sessionResource);
+				}
+			}
+			for (const sessionResource of staleSessions) {
 				this.clear(sessionResource);
 			}
 		}));
@@ -141,10 +303,24 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	getDefaultFolder(): URI | undefined {
 		const stored = this._defaultFolder;
-		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder.uri, stored))) {
+		if (stored && this._workspaceContextService.getWorkspace().folders.some(folder => this._uriIdentityService.extUri.isEqual(folder.uri, stored))) {
 			return stored;
 		}
 		return undefined;
+	}
+
+	resolveNewSessionPrimary(sessionResource: URI): URI | undefined {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		// An explicit choice is honored only while it is still a workspace folder;
+		// the chip records only workspace folders, so a removed one is skipped here
+		// even before the workspace-change listener clears it (order-independent).
+		// Uses the same provider-aware comparator as removal detection so both
+		// checks agree on case-sensitive remotes.
+		const explicit = this._folders.get(sessionResource);
+		if (explicit && folders.some(folder => this._uriIdentityService.extUri.isEqual(folder.uri, explicit))) {
+			return explicit;
+		}
+		return this.getDefaultFolder() ?? folders[0]?.uri;
 	}
 }
 

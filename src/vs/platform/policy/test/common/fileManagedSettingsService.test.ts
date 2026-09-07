@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, managedModelValue, normalizeManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, normalizeManagedSettings, RawManagedSettingsData } from '../../common/copilotManagedSettings.js';
 import { FileManagedSettingsService } from '../../common/fileManagedSettingsService.js';
 import { FileManagedSettingsChannelClient } from '../../common/fileManagedSettingsIpc.js';
 
@@ -44,16 +44,48 @@ suite('normalizeManagedSettings', () => {
 		});
 	});
 
+	test('normalizes customization lockdown controls', () => {
+		assert.deepStrictEqual(normalizeManagedSettings({
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true,
+			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY]: true,
+			[COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY]: false,
+		}), {
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: true,
+			[COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY]: true,
+			[COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY]: false,
+		});
+	});
+
+	test('drops a non-boolean strictPluginOnlyCustomization value', () => {
+		assert.deepStrictEqual(normalizeManagedSettings({
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY]: ['skills', 'unknown'],
+		}), {});
+	});
+
 	test('normalizes extraKnownMarketplaces from schema format to config dict', () => {
 		const result = normalizeManagedSettings({
 			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
-				'a': { source: { source: 'github', repo: 'github/agent-skills' } },
-				'b': { source: { source: 'git', url: 'https://example.com/repo.git', ref: 'v1' } },
+				'a': { source: { source: 'github', repo: 'github/agent-skills' }, autoUpdate: true },
+				'b': { source: { source: 'git', url: 'https://example.com/repo.git', ref: 'v1' }, autoUpdate: false },
+				'c': { source: { source: 'github', repo: 'github/copilot-plugins' } },
 			}
 		});
 		assert.deepStrictEqual(result, {
-			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills","b":"https://example.com/repo.git#v1"}',
+			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"{\\"source\\":\\"github/agent-skills\\",\\"autoUpdate\\":true}","b":"{\\"source\\":\\"https://example.com/repo.git#v1\\",\\"autoUpdate\\":false}","c":"github/copilot-plugins"}',
 		});
+	});
+
+	test('ignores non-boolean marketplace autoUpdate with warning', () => {
+		const warnings: string[] = [];
+		const result = normalizeManagedSettings({
+			[COPILOT_EXTRA_MARKETPLACES_KEY]: {
+				'a': { source: { source: 'github', repo: 'github/agent-skills' }, autoUpdate: 'yes' },
+			}
+		}, msg => warnings.push(msg));
+		assert.deepStrictEqual(result, {
+			[COPILOT_EXTRA_MARKETPLACES_KEY]: '{"a":"github/agent-skills"}',
+		});
+		assert.deepStrictEqual(warnings, ['Ignoring invalid autoUpdate for extraKnownMarketplaces entry "a": expected boolean']);
 	});
 
 	test('drops malformed marketplace entries with warning', () => {
@@ -97,6 +129,29 @@ suite('normalizeManagedSettings', () => {
 		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
 	});
 
+	test('carries the top-level model setting as the `model` bag key', () => {
+		const result = normalizeManagedSettings({
+			model: 'auto'
+		});
+		assert.deepStrictEqual(result, {
+			'model': 'auto'
+		});
+		assert.strictEqual(COPILOT_TOP_LEVEL_MODEL_KEY, 'model');
+		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
+	});
+
+	test('keeps top-level and legacy model keys distinct, with the top-level value winning', () => {
+		const result = normalizeManagedSettings({
+			model: 'opus',
+			permissions: { model: 'gemini' }
+		});
+		assert.deepStrictEqual(result, {
+			'model': 'opus',
+			'permissions.model': 'gemini'
+		});
+		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'opus');
+	});
+
 	test('handles empty object', () => {
 		assert.deepStrictEqual(normalizeManagedSettings({}), {});
 	});
@@ -126,18 +181,7 @@ suite('FileManagedSettingsService', () => {
 		})));
 
 		const service = disposables.add(new FileManagedSettingsService(managedSettingsFile, fileService, logService));
-
-		// Wait for the async refresh to complete
-		await new Promise<void>(resolve => {
-			if (Object.keys(service.managedSettings).length > 0) {
-				resolve();
-			} else {
-				const listener = disposables.add(service.onDidChangeManagedSettings(() => {
-					listener.dispose();
-					resolve();
-				}));
-			}
-		});
+		await service.initialize();
 
 		assert.deepStrictEqual(service.managedSettings, {
 			'permissions.disableBypassPermissionsMode': 'disable',
@@ -307,7 +351,7 @@ suite('FileManagedSettingsChannelClient', () => {
 		channel.fire({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 		channel.resolveInitialRawSnapshot({ permissions: { deny: ['Shell(echo *)'] } });
 		channel.resolveInitialSnapshot({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
-		await Promise.all([channel.initialRawSnapshot, channel.initialSnapshot]);
+		await client.initialize();
 
 		assert.deepStrictEqual({ raw: client.rawManagedSettings, normalized: client.managedSettings }, {
 			raw: { permissions: { allow: ['Shell(echo *)'] } },

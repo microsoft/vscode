@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "What word?" with no choices. After the answer, reply with only the answer.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ask_user
+          input:
+            question: What word?
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call ask_user exactly once to ask "What word?" with no choices. After the answer, reply with only the answer.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: ask_user
+              input:
+                question: What word?
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User responded: interactive'
+    response:
+      content: interactive
+      stopReason: end_turn

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -222,9 +223,11 @@ export class McpService extends Disposable implements IMcpService {
 			nextServers.push({ object });
 		}
 
-		transaction(tx => {
-			this._servers.set(nextServers, tx);
-		});
+		if (!arraysEqual(currentServers, nextServers)) {
+			transaction(tx => {
+				this._servers.set(nextServers, tx);
+			});
+		}
 	}
 
 	public override dispose(): void {

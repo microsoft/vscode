@@ -33,13 +33,22 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
 
-// Transparent full-screen layers that context menus and action widgets render to capture clicks.
-// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
-// so hit-testing must skip them to find the overlay actually painted underneath.
-const CONTEXT_VIEW_BLOCKER_CLASSES = ['context-view-block', 'context-view-pointerBlock'];
+const HIT_TEST_EXCLUDED_CLASSES = [
+	// Transparent full-screen layers that context menus and action widgets render to capture clicks.
+	// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
+	// so hit-testing must skip them to find the overlay actually painted underneath.
+	'context-view-block',
+	'context-view-pointerBlock',
 
-function isContextViewBlocker(element: Element): boolean {
-	return CONTEXT_VIEW_BLOCKER_CLASSES.some(className => element.classList.contains(className));
+	// Webview overlay elements exist in their own DOM structure and are positioned dynamically,
+	// so they interfere with hit-testing because they are not descendants of the tracked overlay.
+	// Ignore them and depend on the element the webview is anchored to for overlay detection.
+	'webview',
+	'webview-overlay-content'
+];
+
+function isExcludedFromOverlayHitTest(element: Element): boolean {
+	return HIT_TEST_EXCLUDED_CLASSES.some(className => element.classList.contains(className));
 }
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
@@ -293,14 +302,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			// overlay state change, which can fire frequently, so favor it whenever the
 			// topmost hit is a real element we care about.
 			const elementAtPoint = root.elementFromPoint(clientX, clientY);
-			if (elementAtPoint && !isContextViewBlocker(elementAtPoint)) {
+			if (elementAtPoint && !isExcludedFromOverlayHitTest(elementAtPoint)) {
 				return elementAtPoint;
 			}
-			// Slow path: the topmost hit is a transparent context-view blocker (or there
-			// was no hit). Walk the full front-to-back hit list and return the first
-			// element that is not a blocker, i.e. the overlay actually painted beneath it.
+			// Slow path: the topmost hit is an excluded overlay (or there was no hit).
+			// Walk the full front-to-back hit list and return the first element
+			// that is not excluded, i.e. the overlay actually painted beneath it.
 			return root.elementsFromPoint(clientX, clientY)
-				.find(el => !isContextViewBlocker(el)) ?? null;
+				.find(el => !isExcludedFromOverlayHitTest(el)) ?? null;
 		};
 
 		const elementAtPoint = topmostAt(this.targetWindow.document);

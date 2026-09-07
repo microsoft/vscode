@@ -126,11 +126,14 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('brace expansion - block', () => t('echo hello > {a,b}.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
+			test('cmd delayed-expansion variable - block', () => t('echo hello > !APPDATA!\\file.txt', 'outsideWorkspace', false, 1));
+			test('literal unmatched exclamation mark - allow', () => t('echo hello > important!.txt', 'outsideWorkspace', true, 1));
 		});
 
 		suite('tilde and environment-variable expansion', () => {
 			test('tilde home expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
 			test('windows-style env-var expansion - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
+			test('cmd delayed environment-variable expansion - block', () => t('echo hello > !APPDATA!\\file.txt', 'outsideWorkspace', false, 1));
 		});
 
 		suite('blockDetectedFileWrites: all', () => {

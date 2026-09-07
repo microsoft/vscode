@@ -170,6 +170,7 @@ describe('NextEditCache rebase — Fibonacci scenario', () => {
 
 		assert(cachedEdit !== undefined, 'setKthNextEdit should return the cached edit');
 		assert(cachedEdit.userEditSince !== undefined, 'userEditSince should be set');
+		cachedEdit.wasRenderedAsInlineSuggestion = true;
 
 		const rebaseResult = cache.tryRebaseCacheEntry(
 			cachedEdit,
@@ -180,6 +181,64 @@ describe('NextEditCache rebase — Fibonacci scenario', () => {
 		assert(rebaseResult.edit !== undefined, 'should rebase successfully');
 		assert(rebaseResult.edit.rebasedEdit !== undefined, 'should have a rebased edit for the class body');
 		assert.strictEqual(rebaseResult.edit.modelTelemetry, testModelTelemetry, 'should preserve model attribution on the rebased edit');
+		const baseCacheEntry = rebaseResult.edit.baseCacheEntry;
+		assert(baseCacheEntry, 'should reference the stable cache entry');
+		assert.strictEqual(baseCacheEntry, cachedEdit);
+		assert.strictEqual(baseCacheEntry.wasRenderedAsInlineSuggestion, true, 'should preserve inline-rendered state on the stable cache entry');
+	});
+});
+
+describe('NextEditCache ghost-text presentation state', () => {
+
+	const document = new StringText('const value = 1;\n');
+	const docId = DocumentId.create(URI.file('/test/cache-presentation-state.ts').toString());
+
+	function makeSource(): NextEditFetchRequest {
+		const logContext = new InlineEditRequestLogContext('test', 0, undefined);
+		return new NextEditFetchRequest(generateUuid(), logContext, undefined, false);
+	}
+
+	it('does not carry inline-rendered state to a replacement cache entry', () => {
+		const workspace = new MutableObservableWorkspace();
+		workspace.addDocument({ id: docId, initialValue: document.value });
+		const cache = new NextEditCache(workspace, new LogServiceImpl([]), new DefaultsOnlyConfigurationService(), new NullExperimentationService());
+
+		const first = cache.setKthNextEdit(
+			docId,
+			document,
+			undefined,
+			StringReplacement.insert(document.value.length, 'first'),
+			0,
+			undefined,
+			undefined,
+			makeSource(),
+			{ isFromCursorJump: false, modelTelemetry: testModelTelemetry },
+		);
+		assert(first);
+		first.wasRenderedAsInlineSuggestion = true;
+
+		const replacement = cache.setKthNextEdit(
+			docId,
+			document,
+			undefined,
+			StringReplacement.insert(document.value.length, 'replacement'),
+			0,
+			undefined,
+			undefined,
+			makeSource(),
+			{ isFromCursorJump: false, modelTelemetry: testModelTelemetry },
+		);
+		const result = cache.lookupNextEdit(docId, document, [OffsetRange.emptyAt(document.value.length)]);
+
+		assert.deepStrictEqual({
+			isReplacementEntry: result === replacement,
+			newText: result?.edit?.newText,
+			wasRenderedAsInlineSuggestion: result?.wasRenderedAsInlineSuggestion,
+		}, {
+			isReplacementEntry: true,
+			newText: 'replacement',
+			wasRenderedAsInlineSuggestion: undefined,
+		});
 	});
 });
 

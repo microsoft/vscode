@@ -659,6 +659,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	isFloatingPanelsEnabled(): boolean { return false; }
+	isModernUICompact(): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -2149,6 +2150,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 	lastFocusedWidget: IChatWidget | undefined;
 
 	onDidAddWidget = Event.None;
+	onDidRemoveWidget = Event.None;
 	onDidChangeWidgetVisibility = Event.None;
 	onDidBackgroundSession = Event.None;
 	onDidChangeFocusedWidget = Event.None;

@@ -80,8 +80,9 @@
 		height: 16px;
 		align-items: center;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		pointer-events: none;
+		margin-right: 3px;
 
 		&.visible {
 			display: flex;
@@ -94,7 +95,7 @@
 		align-items: center;
 		margin-left: 4px;
 		color: var(--vscode-charts-blue);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		pointer-events: none;
 
 		&.visible {
@@ -371,8 +372,8 @@
 	.agent-session-section {
 		display: flex;
 		align-items: center;
-		font-size: 11px;
-		font-weight: 500;
+		font-size: var(--vscode-fontSize-label1);
+		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-descriptionForeground);
 		text-transform: uppercase;
 		/* align with session item padding */

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
 import type { ToolRequestUserInputAnswer } from './protocol/generated/v2/ToolRequestUserInputAnswer.js';
 import type { ToolRequestUserInputQuestion } from './protocol/generated/v2/ToolRequestUserInputQuestion.js';
@@ -16,7 +17,7 @@ import type { ToolRequestUserInputResponse } from './protocol/generated/v2/ToolR
  * the option label doubles as the id.
  */
 export function buildUserInputRequest(requestId: string, questions: readonly ToolRequestUserInputQuestion[]): ChatInputRequest {
-	return {
+	return withChatInputRequestPurpose({
 		id: requestId,
 		questions: questions.map((q): ChatInputQuestion => {
 			if (q.options && q.options.length > 0) {
@@ -38,7 +39,7 @@ export function buildUserInputRequest(requestId: string, questions: readonly Too
 				required: true,
 			};
 		}),
-	};
+	}, ChatInputRequestPurpose.AskUser);
 }
 
 /**

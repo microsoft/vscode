@@ -165,12 +165,33 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
+export const enum McpGalleryResolveStatus {
+	/** The server was found in the active registry. */
+	Found,
+	/** The active registry authoritatively does not contain the server. */
+	NotFound,
+	/** Membership could not be determined (e.g. registry unreachable). */
+	Failed,
+}
+
+export type IMcpGalleryServerResolveResult =
+	| { readonly status: McpGalleryResolveStatus.Found; readonly server: IGalleryMcpServer }
+	| { readonly status: McpGalleryResolveStatus.NotFound }
+	| { readonly status: McpGalleryResolveStatus.Failed };
+
 export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalleryService');
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
 	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
+	/**
+	 * Resolves the given servers against the active registry, distinguishing a
+	 * definitive "not found" from a transient failure so callers can make policy
+	 * decisions without treating an unreachable registry as absence. The returned
+	 * map is keyed by the requested server name.
+	 */
+	resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

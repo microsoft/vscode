@@ -29,7 +29,7 @@ export default new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		let fileRelativePath = relative(dirname(import.meta.dirname), context.getFilename());
+		let fileRelativePath = relative(dirname(import.meta.dirname), context.filename);
 		if (!fileRelativePath.endsWith('/')) {
 			fileRelativePath += '/';
 		}

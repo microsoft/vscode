@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { EditKeySourceData, EditSourceData, IDocumentWithAnnotatedEdits } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker } from '../../browser/telemetry/editTracker.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IExternalEditCorrelation } from '../../browser/telemetry/agentHostEditMarkerService.js';
+import { IExternalEditCorrelation, IExternalEditCorrelationResolution } from '../../browser/telemetry/agentHostEditMarkerService.js';
 
 suite('DocumentEditSourceTracker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -176,6 +176,49 @@ suite('DocumentEditSourceTracker', () => {
 			},
 		]);
 	});
+
+	test('reattributes an initial external edit and preserves retention composition', () => {
+		const document = disposables.add(new TestAnnotatedDocument('initial'));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation, 'reattribute'));
+		const agentHost = agentHostEditSource('gpt-5', 'turn-1', 'copilotcli');
+
+		document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'external'), EditSources.reloadFromDisk());
+		tracker.applyPendingExternalEdits();
+		correlation.resolve(correlation.lastObservationId!, agentHost);
+		document.apply(StringEdit.replace(new OffsetRange(0, 3), 'X'), EditSources.cursor({ kind: 'type' }));
+
+		const externalKey = tracker.getAllKeys().find(key => key.startsWith('external-observation:'))!;
+		assert.deepStrictEqual({
+			sourceKey: tracker.getRepresentative(externalKey)?.toKey(1),
+			delta: tracker.getTotalInsertedCharactersCount(externalKey),
+			retained: tracker.getTrackedRanges().filter(range => range.sourceKey === externalKey).reduce((sum, range) => sum + range.range.length, 0),
+			category: tracker.getTrackedRanges().find(range => range.sourceKey === externalKey)?.source.category,
+		}, {
+			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
+			delta: 8,
+			retained: 5,
+			category: 'agentHost',
+		});
+	});
+
+	test('restores external attribution when reattribution is invalidated', () => {
+		const document = disposables.add(new TestAnnotatedDocument('initial'));
+		const correlation = new TestExternalEditCorrelation();
+		const tracker = disposables.add(new DocumentEditSourceTracker(document, undefined, correlation, 'reattribute'));
+
+		document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'external'), EditSources.reloadFromDisk());
+		tracker.applyPendingExternalEdits();
+		correlation.resolve(correlation.lastObservationId!, agentHostEditSource('gpt-5', 'turn-1', 'copilotcli'));
+		correlation.invalidate(correlation.lastObservationId!);
+
+		assert.deepStrictEqual(snapshot(tracker), [{
+			key: 'external-observation:observation-1',
+			delta: 8,
+			retained: 8,
+			requestId: undefined,
+		}]);
+	});
 });
 
 class TestAnnotatedDocument extends Disposable implements IDocumentWithAnnotatedEdits<EditKeySourceData> {
@@ -209,6 +252,15 @@ function chatEditSource(modelId: string, requestId: string): TextModelEditSource
 	});
 }
 
+function agentHostEditSource(modelId: string, requestId: string, harness: string): TextModelEditSource {
+	return EditSources.agentHostChatApplyEdits({
+		modelId,
+		sessionId: 'session-1',
+		requestId,
+		harness,
+	});
+}
+
 function snapshot(tracker: DocumentEditSourceTracker, includeSuppressed = false): Array<{ key: string; delta: number; retained: number; requestId: string | undefined }> {
 	const retained = new Map<string, number>();
 	for (const range of tracker.getTrackedRanges(undefined, includeSuppressed)) {
@@ -225,9 +277,11 @@ function snapshot(tracker: DocumentEditSourceTracker, includeSuppressed = false)
 class TestExternalEditCorrelation implements IExternalEditCorrelation {
 	private readonly _onDidSuppress = new Emitter<string>();
 	readonly onDidSuppress: Event<string> = this._onDidSuppress.event;
+	private readonly _onDidResolve = new Emitter<IExternalEditCorrelationResolution>();
+	readonly onDidResolve: Event<IExternalEditCorrelationResolution> = this._onDidResolve.event;
 	private readonly _onDidInvalidate = new Emitter<string>();
 	readonly onDidInvalidate: Event<string> = this._onDidInvalidate.event;
-	private readonly _suppressed = new Set<string>();
+	private readonly _resolutions = new Map<string, IExternalEditCorrelationResolution>();
 	private _sequence = 0;
 	lastObservationId: string | undefined;
 
@@ -236,20 +290,37 @@ class TestExternalEditCorrelation implements IExternalEditCorrelation {
 	}
 
 	isSuppressed(id: string): boolean {
-		return this._suppressed.has(id);
+		return this._resolutions.has(id);
+	}
+
+	getResolution(id: string): IExternalEditCorrelationResolution | undefined {
+		return this._resolutions.get(id);
+	}
+
+	waitForResolution(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	release(id: string): void {
-		this._suppressed.delete(id);
+		this._resolutions.delete(id);
 	}
 
 	suppress(id: string): void {
-		this._suppressed.add(id);
+		const resolution = { id };
+		this._resolutions.set(id, resolution);
 		this._onDidSuppress.fire(id);
+		this._onDidResolve.fire(resolution);
+	}
+
+	resolve(id: string, source: TextModelEditSource): void {
+		const resolution = { id, source };
+		this._resolutions.set(id, resolution);
+		this._onDidSuppress.fire(id);
+		this._onDidResolve.fire(resolution);
 	}
 
 	invalidate(id: string): void {
-		this._suppressed.delete(id);
+		this._resolutions.delete(id);
 		this._onDidInvalidate.fire(id);
 	}
 }

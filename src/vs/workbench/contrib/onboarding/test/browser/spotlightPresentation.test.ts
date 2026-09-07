@@ -68,6 +68,7 @@ suite('SpotlightPresentation', () => {
 		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
 
 		const lateTargetId = 'test.spotlight.lateTarget';
+		let shown = 0;
 		const lateScenario = createScenario('test.spotlight.wait', {
 			id: 'late',
 			targetId: lateTargetId,
@@ -82,7 +83,7 @@ suite('SpotlightPresentation', () => {
 				}, 100));
 			},
 		});
-		const lateResult = await presentation.run(lateScenario, { targetWindow: mainWindow, onAbort: Event.None });
+		const lateResult = await presentation.run(lateScenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => shown++ });
 
 		const missingScenario = createScenario('test.spotlight.skip', {
 			id: 'missing',
@@ -91,9 +92,9 @@ suite('SpotlightPresentation', () => {
 			description: 'Missing target description',
 			missingTarget: { kind: 'skip' },
 		});
-		const missingResult = await presentation.run(missingScenario, { targetWindow: mainWindow, onAbort: Event.None });
+		const missingResult = await presentation.run(missingScenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => shown++ });
 
-		assert.deepStrictEqual({ lateResult, missingResult }, {
+		assert.deepStrictEqual({ lateResult, missingResult, shown }, {
 			lateResult: {
 				outcome: OnboardingOutcome.Completed,
 				shown: true,
@@ -108,6 +109,7 @@ suite('SpotlightPresentation', () => {
 				lastStepIndex: 0,
 				stepCount: 1,
 			},
+			shown: 1,
 		});
 	});
 

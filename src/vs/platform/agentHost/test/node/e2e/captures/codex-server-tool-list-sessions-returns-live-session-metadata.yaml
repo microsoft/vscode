@@ -1,0 +1,41 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}", then reply exactly "listed".
+    response:
+      content:
+        - type: text
+          text: Running `list_sessions` once for the specified workspace, then I’ll return the exact required reply.
+        - type: tool_use
+          id: toolcall_0
+          name: list_sessions
+          input:
+            workspace: ${workdir}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call list_sessions exactly once with workspace "${workdir}", then reply exactly "listed".
+        - role: assistant
+          content: Running `list_sessions` once for the specified workspace, then I’ll return the exact required reply.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: list_sessions
+              input:
+                workspace: ${workdir}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"sessions":[{"session":"codex:/${uuid_0}","title":"Call list_sessions exactly once with workspace \"${workdir}\", then reply exactly \"listed\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-02T02:20:44.000Z","modifiedAt":"2026-08-02T02:20:44.277Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"codex:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"codex:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+    response:
+      content: listed
+      stopReason: end_turn

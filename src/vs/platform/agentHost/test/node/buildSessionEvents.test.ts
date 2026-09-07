@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { AgentSession } from '../../common/agent.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
-import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { mapSessionEvents as mapSessionEventsWithRouting } from '../../node/copilot/mapSessionEvents.js';
 import type { SessionEvent } from '@github/copilot-sdk';
 
 suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
@@ -18,6 +19,10 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 
 	const session = AgentSession.uri('copilot', 'test-session');
 	const sessionId = 'test-session';
+
+	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+	}
 
 	function markdown(content: string): ResponsePart {
 		return { kind: ResponsePartKind.Markdown, id: 'ignored', content };

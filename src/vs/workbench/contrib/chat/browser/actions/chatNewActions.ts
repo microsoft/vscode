@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -20,6 +21,7 @@ import { IChatEditingSession } from '../../common/editing/chatEditingService.js'
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
@@ -63,6 +65,53 @@ function isNewEditSessionActionContext(arg: unknown): arg is INewEditSessionActi
 	return false;
 }
 
+export class NewChatAction extends Action2 {
+	constructor() {
+		super({
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.newEdits.label', "New Chat"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.plus,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+			f1: true,
+			menu: [
+				{
+					id: MenuId.ChatContext,
+					group: 'z_clear'
+				},
+				{
+					id: MenuId.ChatNewMenu,
+					group: '1_open',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'),
+						ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'),
+						ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')
+					)
+				}
+			],
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+				},
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor.negate())
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
+
+		// Context from toolbar or lastFocusedWidget
+		const context = getEditingSessionContext(accessor, args);
+		await runNewChatAction(accessor, context, executeCommandContext);
+	}
+}
+
 export function registerNewChatActions() {
 
 	// Add "New Chat" submenu to Chat view menu
@@ -91,53 +140,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class NewChatAction extends Action2 {
-		constructor() {
-			super({
-				id: ACTION_ID_NEW_CHAT,
-				title: localize2('chat.newEdits.label', "New Chat"),
-				category: CHAT_CATEGORY,
-				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
-				f1: true,
-				menu: [
-					{
-						id: MenuId.ChatContext,
-						group: 'z_clear'
-					},
-					{
-						id: MenuId.ChatNewMenu,
-						group: '1_open',
-						order: 1,
-						when: ContextKeyExpr.and(
-							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'),
-							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'),
-							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')
-						)
-					}
-				],
-				keybinding: {
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
-					},
-					when: ChatContextKeys.inChatSession
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
-
-			// Context from toolbar or lastFocusedWidget
-			const context = getEditingSessionContext(accessor, args);
-			await runNewChatAction(accessor, context, executeCommandContext);
-		}
-	}
-	);
+	registerAction2(NewChatAction);
 
 	const iconVariants = [
 		{ idSuffix: '.copilotIcon', iconValue: 'copilot', icon: Codicon.copilot },
@@ -334,6 +337,9 @@ async function runNewChatAction(
 		return;
 	}
 
+	const voiceSessionController = accessor.get(IVoiceSessionController);
+	const voiceTarget = voiceSessionController.targetSession.get();
+	const currentSession = widget.viewModel?.sessionResource;
 	const dialogService = accessor.get(IDialogService);
 
 	const model = widget.viewModel?.model;
@@ -345,6 +351,13 @@ async function runNewChatAction(
 
 	// Create a new session, preserving the session type (or using the specified one)
 	await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, sessionType);
+
+	const newSession = widget.viewModel?.sessionResource;
+	if ((voiceSessionController.isConnected.get() || voiceSessionController.isConnecting.get())
+		&& (!voiceTarget || (!!currentSession && isEqual(voiceTarget, currentSession)))
+		&& newSession) {
+		voiceSessionController.setTargetSession(newSession);
+	}
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();
