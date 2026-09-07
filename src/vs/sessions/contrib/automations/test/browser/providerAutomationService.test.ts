@@ -1257,13 +1257,16 @@ suite('ProviderAutomationService', () => {
 			runs: [],
 		});
 		const { service, providerStore, storage } = createService(futureLedger);
+		const catalogueState = service.catalogueState.get();
 
 		await assert.rejects(service.waitForMigrationForTesting(), /cannot be migrated safely/);
 
 		assert.deepStrictEqual({
+			catalogueState,
 			providerAutomations: providerStore.automations.get(),
 			persisted: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
 		}, {
+			catalogueState: 'error',
 			providerAutomations: [],
 			persisted: futureLedger,
 		});
