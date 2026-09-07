@@ -383,11 +383,11 @@ export interface ISessionsManagementService {
 	readonly automationSession: IObservable<ISession | undefined>;
 
 	/**
-	 * Observable for the Quick Chat overlay's in-progress session draft. This is
+	 * Observable for the chat composer overlay's in-progress session draft. This is
 	 * independent from {@link newSession} so the overlay cannot replace the
 	 * regular New Chat composer draft.
 	 */
-	readonly quickChatOverlaySession: IObservable<ISession | undefined>;
+	readonly chatComposerOverlaySession: IObservable<ISession | undefined>;
 
 	/**
 	 * Create and track an Automation dialog session draft for the given folder.
@@ -404,11 +404,11 @@ export interface ISessionsManagementService {
 	 */
 	discardAutomationSession(session?: ISession): void;
 
-	/** Create and track a workspace-less Quick Chat overlay session draft. */
-	createQuickChatOverlaySession(options?: ICreateNewSessionOptions): ISession;
+	/** Create and track a chat composer overlay draft, optionally in a workspace. */
+	createChatComposerOverlaySession(folderUri?: URI, options?: ICreateNewSessionOptions): ISession;
 
-	/** Discard the matching Quick Chat overlay session draft. */
-	discardQuickChatOverlaySession(session?: ISession): void;
+	/** Discard the matching chat composer overlay session draft. */
+	discardChatComposerOverlaySession(session?: ISession): void;
 
 	/**
 	 * Capture the provider-owned values currently selected on an Automation draft.
@@ -528,10 +528,10 @@ export interface ISessionsManagementService {
 	createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
-	 * Send the current Quick Chat overlay draft. The caller uses the returned
+	 * Send the current chat composer overlay draft. The caller uses the returned
 	 * committed session to navigate after a foreground send.
 	 */
-	sendQuickChatOverlayRequest(session: ISession, options: ISendRequestOptions, token?: CancellationToken): Promise<ISession | undefined>;
+	sendChatComposerOverlayRequest(session: ISession, options: ISendRequestOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.

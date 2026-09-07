@@ -71,7 +71,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('sessions.chatComposerOverlay.enabled', "Enables the keyboard shortcut for opening a workspace-less Quick Chat as an overlay in the Agents window."),
+			description: localize('sessions.chatComposerOverlay.enabled', "Enables the keyboard shortcuts for opening Quick Chat and New Session composer overlays in the Agents window."),
 		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
 			type: 'boolean',

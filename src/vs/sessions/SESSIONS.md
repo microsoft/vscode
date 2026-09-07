@@ -152,9 +152,10 @@ Automation editing uses an independent draft so it cannot replace the ordinary N
 
 Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions and `ISessionContext`; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
 
-The Quick Chat overlay has an independent draft, so opening it cannot replace a
-draft in the regular composer. Providers own the backend resources behind those
-drafts.
+The chat composer overlay has an independent draft that can switch between a
+workspace-less quick chat and a workspace-backed session, so opening it cannot
+replace a draft in the regular composer. Providers own the backend resources
+behind those drafts.
 
 ### Operations
 

@@ -15,12 +15,13 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ASK_QUICK_QUESTION_ACTION_ID, registerQuickChatActions } from '../../../../../workbench/contrib/chat/browser/actions/chatQuickInputActions.js';
 import { IsNewChatSessionContext } from '../../../../common/contextkeys.js';
-import { AGENT_SESSIONS_CHAT_COMPOSER_OVERLAY_ENABLED_SETTING, ChatComposerOverlayVisibleContext, OPEN_QUICK_CHAT_OVERLAY_COMMAND_ID } from '../../../chat/common/chatComposerOverlay.js';
+import { AGENT_SESSIONS_CHAT_COMPOSER_OVERLAY_ENABLED_SETTING, ChatComposerOverlayVisibleContext, OPEN_NEW_SESSION_OVERLAY_COMMAND_ID, OPEN_QUICK_CHAT_OVERLAY_COMMAND_ID } from '../../../chat/common/chatComposerOverlay.js';
 import '../../browser/views/sessionsViewActions.js';
 
 const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
 const NEW_QUICK_CHAT_CHORD = decodeKeybinding(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyN), OS)!.getHashCode();
 const QUICK_CHAT_OVERLAY_KEYBINDING = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL, OS)!.getHashCode();
+const NEW_SESSION_OVERLAY_KEYBINDING = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyN, OS)!.getHashCode();
 
 registerQuickChatActions();
 
@@ -36,8 +37,10 @@ suite('Sessions - Quick Chat overlay keybinding', () => {
 		const bindings = KeybindingsRegistry.getDefaultKeybindings();
 		const composerRule = bindings.find(item => item.command === NEW_QUICK_CHAT_COMMAND_ID && item.keybinding?.getHashCode() === NEW_QUICK_CHAT_CHORD);
 		const overlayRule = bindings.find(item => item.command === OPEN_QUICK_CHAT_OVERLAY_COMMAND_ID && item.keybinding?.getHashCode() === QUICK_CHAT_OVERLAY_KEYBINDING);
+		const newSessionOverlayRule = bindings.find(item => item.command === OPEN_NEW_SESSION_OVERLAY_COMMAND_ID && item.keybinding?.getHashCode() === NEW_SESSION_OVERLAY_KEYBINDING);
 		const workbenchQuickChatRule = bindings.find(item => item.command === ASK_QUICK_QUESTION_ACTION_ID && item.keybinding?.getHashCode() === QUICK_CHAT_OVERLAY_KEYBINDING);
 		const evaluateOverlay = (values: Record<string, boolean>) => overlayRule?.when?.evaluate(context(values)) ?? false;
+		const evaluateNewSessionOverlay = (values: Record<string, boolean>) => newSessionOverlayRule?.when?.evaluate(context(values)) ?? false;
 		const evaluateWorkbenchQuickChat = (values: Record<string, boolean>) => workbenchQuickChatRule?.when?.evaluate(context(values)) ?? false;
 		const enabled = {
 			[ChatContextKeys.enabled.key]: true,
@@ -59,6 +62,10 @@ suite('Sessions - Quick Chat overlay keybinding', () => {
 			overlayWithAIDisabled: evaluateOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: false }),
 			overlayWithAgentHostDisabled: evaluateOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: false }),
 			overlayWhileAnotherOverlayIsVisible: evaluateOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [ChatComposerOverlayVisibleContext.key]: true }),
+			newSessionOverlayInSessionsWindow: evaluateNewSessionOverlay({ ...enabled, [IsSessionsWindowContext.key]: true }),
+			newSessionOverlayWithAgentHostDisabled: evaluateNewSessionOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: false }),
+			newSessionOverlayWithFeatureDisabled: evaluateNewSessionOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [`config.${AGENT_SESSIONS_CHAT_COMPOSER_OVERLAY_ENABLED_SETTING}`]: false }),
+			newSessionOverlayWhileAnotherOverlayIsVisible: evaluateNewSessionOverlay({ ...enabled, [IsSessionsWindowContext.key]: true, [ChatComposerOverlayVisibleContext.key]: true }),
 			workbenchQuickChatInNormalWindow: evaluateWorkbenchQuickChat(enabled),
 			workbenchQuickChatInSessionsWindow: evaluateWorkbenchQuickChat({ ...enabled, [IsSessionsWindowContext.key]: true }),
 		}, {
@@ -73,6 +80,10 @@ suite('Sessions - Quick Chat overlay keybinding', () => {
 			overlayWithAIDisabled: false,
 			overlayWithAgentHostDisabled: false,
 			overlayWhileAnotherOverlayIsVisible: false,
+			newSessionOverlayInSessionsWindow: true,
+			newSessionOverlayWithAgentHostDisabled: true,
+			newSessionOverlayWithFeatureDisabled: false,
+			newSessionOverlayWhileAnotherOverlayIsVisible: false,
 			workbenchQuickChatInNormalWindow: true,
 			workbenchQuickChatInSessionsWindow: false,
 		});

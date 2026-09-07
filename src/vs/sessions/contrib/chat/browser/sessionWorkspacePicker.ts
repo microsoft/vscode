@@ -143,6 +143,18 @@ export interface IResolvedBrowseSelection {
 	readonly providerId: string;
 }
 
+export function renderNewSessionWorkspacePicker(container: HTMLElement, workspacePicker: WorkspacePicker): HTMLElement {
+	const workspaceTrigger: IWorkspacePickerTrigger = {
+		label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
+		ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
+		tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
+		icon: Codicon.project,
+		reflectsWorkspace: true,
+		attachesContext: false,
+	};
+	return workspacePicker.renderCategoryTriggers(container, [workspaceTrigger]);
+}
+
 interface IBrowsedWorkspaceSelection extends IResolvedBrowseSelection {
 	readonly action: ISessionWorkspaceBrowseAction;
 }

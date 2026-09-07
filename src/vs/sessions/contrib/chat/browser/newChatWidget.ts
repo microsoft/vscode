@@ -31,7 +31,7 @@ import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerNoWorkspaceOption, renderNewSessionWorkspacePicker, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
@@ -862,17 +862,7 @@ export class NewChatWidget extends Disposable {
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
 		this._workspacePickerVisibleKey.set(true);
-		const workspaceTrigger: IWorkspacePickerTrigger = {
-			label: localize('newSessionWorkspacePicker.workspace', "Workspace"),
-			ariaLabel: localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
-			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Choose where the new session runs"),
-			icon: Codicon.project,
-			reflectsWorkspace: true,
-			attachesContext: false,
-		};
-		const row = this._workspacePicker.renderCategoryTriggers(container, [
-			workspaceTrigger,
-		]);
+		const row = renderNewSessionWorkspacePicker(container, this._workspacePicker);
 		this._renderSessionTypePicker(row, false);
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
