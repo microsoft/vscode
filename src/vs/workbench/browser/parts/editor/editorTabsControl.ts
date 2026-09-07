@@ -627,7 +627,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
 		// and no-tab modes are not affected by those CSS overrides.
 		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			// Connected tabs reserve one extra pixel for the separator below the gutter.
+			return height + (this.parent.closest('.modern-ui.modern-ui-tabs') ? 1 : 0);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

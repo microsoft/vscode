@@ -29,6 +29,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
@@ -56,8 +57,9 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 import './editorTabBar.fixture.css';
 
 // ============================================================================
@@ -361,6 +363,7 @@ export interface IEditorTabBarFixtureOptions {
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
 	readonly forcedHoverTab?: number;
 	readonly focusedTabAction?: number;
+	readonly editorContents?: string;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -516,13 +519,30 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 
 	const editorContainer = $('.editor-container');
 	editorContainer.style.height = '96px';
-	editorContainer.style.opacity = '0.6';
+	editorContainer.style.backgroundColor = 'var(--vscode-editor-background)';
 
 	editorPart.appendChild(content);
 	content.appendChild(groupContainer);
 	groupContainer.appendChild(titleContainer);
 	groupContainer.appendChild(editorContainer);
 	container.appendChild(editorPart);
+
+	if (options.editorContents !== undefined && model.activeEditor instanceof FixtureEditorInput) {
+		editorContainer.style.height = '240px';
+		const editorServices = createEditorServices(disposableStore, { colorTheme: theme });
+		const textModel = disposableStore.add(createTextModel(editorServices, options.editorContents, model.activeEditor.resource, 'typescript'));
+		const editor = disposableStore.add(editorServices.createInstance(CodeEditorWidget, editorContainer, {
+			readOnly: true,
+			minimap: { enabled: false },
+			scrollBeyondLastLine: false,
+			lineNumbers: 'on',
+			folding: false,
+			renderLineHighlight: 'none',
+			padding: { top: 16 },
+		}, { contributions: [] }));
+		editor.setModel(textModel);
+		editor.layout(new Dimension(width, 240));
+	}
 
 	container.style.width = `${width}px`;
 	groupContainer.style.width = `${width}px`;
@@ -563,13 +583,22 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 }
 
 function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => renderEditorTabBarFixture(ctx, { ...options, modernUI });
+	return (ctx: ComponentFixtureContext) => {
+		ctx.container.classList.toggle('modern-ui', modernUI);
+		renderEditorTabBarFixture(ctx, { ...options, modernUI });
+	};
 }
 
 function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentFixtureAdditionalTheme[] = []) {
 	return {
 		// Baseline: multiple tabs with mixed sticky / pinned / preview / dirty state.
-		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
+		Default: defineComponentFixture({
+			render: render(modernUI, {}),
+			additionalThemes,
+			expectedVisualDescriptions: modernUI ? [
+				'Inactive editor tabs and the tab strip use the panel background. The active tab flows into the editor with curved shoulders and an open lower edge. A subtle stroke separates the surfaces. High contrast retains explicit selection borders.',
+			] : [],
+		}),
 
 		// showTabs
 		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
@@ -701,11 +730,14 @@ function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['t
 }
 
 function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI' | 'colorCustomizations'>): (ctx: ComponentFixtureContext) => void {
-	return ctx => renderEditorTabBarFixture(ctx, {
-		...options,
-		modernUI: true,
-		colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
-	});
+	return ctx => {
+		ctx.container.classList.add('modern-ui');
+		renderEditorTabBarFixture(ctx, {
+			...options,
+			modernUI: true,
+			colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
+		});
+	};
 }
 
 function createThemeColorFixtures() {
@@ -715,6 +747,28 @@ function createThemeColorFixtures() {
 		ActiveHover: defineComponentFixture({ render: renderThemeColors({ forcedHoverTab: 3, focusedTabAction: 3 }) }),
 		SelectedAction: defineComponentFixture({ render: renderThemeColors({ editors: multiSelectEditorSpecs(), focusedTabAction: 0 }) }),
 	};
+}
+
+function renderConnectedSurface(stroke: boolean): (ctx: ComponentFixtureContext) => void {
+	return render(true, {
+		editors: [
+			{ resource: file('/project/README.md'), pinned: true },
+			{ resource: file('/project/src/main.ts'), pinned: true, active: true },
+			{ resource: file('/project/src/styles.css'), pinned: true },
+			{ resource: file('/project/package.json'), pinned: true, dirty: true },
+		],
+		editorContents: [
+			'import { createApp } from \'./app\';',
+			'',
+			'const app = createApp({',
+			'\ttheme: \'system\',',
+			'\trestoreSession: true,',
+			'});',
+			'',
+			'await app.start();',
+		].join('\n'),
+		colorCustomizations: stroke ? undefined : { 'editorGroup.border': 'transparent' },
+	});
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
@@ -727,5 +781,22 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	ModernUIOn: defineThemedFixtureGroup({
 		...createFixtures(true, ['darkHighContrast']),
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
+	}),
+	ConnectedSurface: defineThemedFixtureGroup({
+		Stroke: defineComponentFixture({
+			render: renderConnectedSurface(true),
+			additionalThemes: ['darkHighContrast'],
+			expectedVisualDescriptions: [
+				'The active main.ts tab joins the code editor with curved shoulders and no bottom divider. Inactive tabs sit on the panel-colored strip. A single subtle stroke follows the active tab into the strip separator. High contrast retains explicit focus and selection borders.',
+				'The stroke remains uniform through the cap, shoulders and separator, including dark themes with translucent borders. There are no brighter overlaps at the tangent joins.',
+				'In standard themes, the larger concave shoulders are concentric with the rounded corners of neighbouring tabs, maintaining even clearance. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
+			],
+		}),
+		WithoutStroke: defineComponentFixture({
+			render: renderConnectedSurface(false),
+			expectedVisualDescriptions: [
+				'The active main.ts tab joins the code editor with curved shoulders. Only the contrast between the panel background and editor background distinguishes the surfaces; there is no decorative stroke.',
+			],
+		}),
 	}),
 });
