@@ -1,0 +1,206 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { dirname, isAbsolute, join, posix } from 'path';
+import * as vscode from 'vscode';
+import { Utils } from 'vscode-uri';
+import { getActiveTypeScriptVersion } from '../../tsServer/versionManager';
+import { ITypeScriptVersionProvider, TypeScriptVersion } from '../../tsServer/versionProvider';
+import { exists, looksLikeAbsoluteWindowsPath, looksLikeUriNotPath } from '../../utils/fs';
+import { Lazy } from '../../utils/lazy';
+import { TsConfigLinkKind } from './links';
+
+export type TsConfigLinkResolver = (documentUri: vscode.Uri, value: string) => Promise<vscode.Uri | undefined>;
+
+/**
+ * One resolver per kind. A total record rather than a map, so that adding a kind
+ * without a resolver is a compile error rather than a link that silently reports
+ * itself as unresolvable.
+ */
+export type TsConfigLinkResolvers = Readonly<Record<TsConfigLinkKind, TsConfigLinkResolver>>;
+
+async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
+	let currentUri = baseDirUri;
+	const baseCandidate = pathCandidates[0];
+	const sepIndex = baseCandidate.startsWith('@') ? 2 : 1;
+	const moduleBasePath = baseCandidate.split(posix.sep).slice(0, sepIndex).join(posix.sep);
+	while (true) {
+		const moduleAbsoluteUrl = vscode.Uri.joinPath(currentUri, 'node_modules', moduleBasePath);
+		let moduleStat: vscode.FileStat | undefined;
+		try {
+			moduleStat = await vscode.workspace.fs.stat(moduleAbsoluteUrl);
+		} catch (err) {
+			// noop
+		}
+
+		if (moduleStat && (moduleStat.type & vscode.FileType.Directory)) {
+			for (const uriCandidate of pathCandidates
+				.map((relativePath) => relativePath.split(posix.sep).slice(sepIndex).join(posix.sep))
+				// skip empty paths within module
+				.filter(Boolean)
+				.map((relativeModulePath) => vscode.Uri.joinPath(moduleAbsoluteUrl, relativeModulePath))
+			) {
+				if (await exists(uriCandidate)) {
+					return uriCandidate;
+				}
+			}
+			// Continue to looking for potentially another version
+		}
+
+		const oldUri = currentUri;
+		currentUri = vscode.Uri.joinPath(currentUri, '..');
+
+		// Can't go next. Reached the system root
+		if (oldUri.path === currentUri.path) {
+			return;
+		}
+	}
+}
+
+// Reference Extends:https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
+// Reference Project References: https://github.com/microsoft/TypeScript/blob/7377f5cb9db19d79a6167065b323a45611c812b5/src/compiler/tsbuild.ts#L188C1-L194C2
+/**
+* @returns Returns undefined in case of lack of result while trying to resolve from node_modules
+*/
+async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, missingSuffix: string): Promise<vscode.Uri | undefined> {
+	async function resolve(absolutePath: vscode.Uri): Promise<vscode.Uri> {
+		if (absolutePath.path.endsWith('.json') || await exists(absolutePath)) {
+			return absolutePath;
+		}
+		return absolutePath.with({ path: `${absolutePath.path}${missingSuffix}` });
+	}
+
+	const isRelativePath = ['./', '../'].some(str => pathValue.startsWith(str));
+	if (isRelativePath) {
+		return resolve(vscode.Uri.joinPath(baseDirUri, pathValue));
+	}
+
+	if (pathValue.startsWith('/') || looksLikeAbsoluteWindowsPath(pathValue)) {
+		return resolve(vscode.Uri.file(pathValue));
+	}
+
+	// Otherwise resolve like a module
+	return resolveNodeModulesPath(baseDirUri, [
+		pathValue,
+		...pathValue.endsWith('.json') ? [] : [
+			`${pathValue}.json`,
+			`${pathValue}/tsconfig.json`,
+		]
+	]);
+}
+
+async function resolveRelativePath(documentUri: vscode.Uri, value: string): Promise<vscode.Uri> {
+	return isAbsolute(value)
+		? vscode.Uri.file(value)
+		: vscode.Uri.joinPath(Utils.dirname(documentUri), value);
+}
+
+/**
+ * The lib files sit beside the server entry point. On desktop that is a file
+ * system path, in the browser it is a URI string, so the two cases are built
+ * differently.
+ */
+export function libFileUri(versionPath: string, fileName: string): vscode.Uri {
+	if (looksLikeUriNotPath(versionPath)) {
+		return vscode.Uri.joinPath(vscode.Uri.parse(versionPath), '..', fileName);
+	}
+
+	return vscode.Uri.file(join(dirname(versionPath), fileName));
+}
+
+/**
+ * Known limitation: since TypeScript 5.0 a project can override a lib file by
+ * installing `node_modules/@typescript/lib-dom` and the compiler prefers that
+ * copy. This always opens the copy shipped with the TypeScript install.
+ */
+async function resolveLibPath(
+	lazyVersionProvider: Lazy<ITypeScriptVersionProvider>,
+	workspaceState: vscode.Memento,
+	value: string,
+): Promise<vscode.Uri | undefined> {
+	const fileName = `lib.${value.toLowerCase()}.d.ts`;
+
+	// Resolving the provider is what configures it, which reads settings and can be slow, so it
+	// happens here, on a click, rather than when the feature registers.
+	const versionProvider = lazyVersionProvider.value;
+
+	// The version the service is actually using first, then any other local
+	// install, then the TypeScript bundled with VS Code.
+	const versions: TypeScriptVersion[] = [];
+
+	try {
+		versions.push(getActiveTypeScriptVersion(versionProvider, workspaceState));
+	} catch {
+		// No default version available
+	}
+
+	versions.push(...versionProvider.localVersions);
+
+	try {
+		versions.push(versionProvider.bundledVersion);
+	} catch {
+		// No bundled version available
+	}
+
+	const seen = new Set<string>();
+
+	for (const version of versions) {
+		if (seen.has(version.path)) {
+			continue;
+		}
+
+		seen.add(version.path);
+
+		const candidate = libFileUri(version.path, fileName);
+
+		if (await exists(candidate)) {
+			return candidate;
+		}
+	}
+
+	return undefined;
+}
+
+/** `@scope/name` is published as `@types/scope__name`. */
+export function typesPackageName(value: string): string {
+	return value.startsWith('@')
+		? `@types/${value.slice(1).replace('/', '__')}`
+		: `@types/${value}`;
+}
+
+/**
+ * Known limitation: TypeScript resolves a `types` entry against
+ * `compilerOptions.typeRoots` when that option is set, and this resolver cannot,
+ * because a resolver is handed only the document URI and the value, never the
+ * parsed document. Package names are therefore always looked up in
+ * `node_modules`, which is the default `typeRoots` and the common case.
+ */
+async function resolveTypePackage(documentUri: vscode.Uri, value: string): Promise<vscode.Uri | undefined> {
+	// TypeScript also accepts a path here, such as `"./typings/foo"`.
+	if (['./', '../', '/'].some(prefix => value.startsWith(prefix))) {
+		return resolveRelativePath(documentUri, value);
+	}
+
+	const typesName = typesPackageName(value);
+	const baseDirUri = Utils.dirname(documentUri);
+
+	return await resolveNodeModulesPath(baseDirUri, [`${typesName}/index.d.ts`, `${typesName}/package.json`])
+		?? await resolveNodeModulesPath(baseDirUri, [`${value}/index.d.ts`, `${value}/package.json`]);
+}
+
+export function createResolvers(
+	versionProvider: Lazy<ITypeScriptVersionProvider>,
+	workspaceState: vscode.Memento,
+): TsConfigLinkResolvers {
+	return {
+		[TsConfigLinkKind.Extends]: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '.json'),
+		[TsConfigLinkKind.Reference]: (documentUri, value) => getTsconfigPath(Utils.dirname(documentUri), value, '/tsconfig.json'),
+		[TsConfigLinkKind.ProjectFile]: resolveRelativePath,
+		[TsConfigLinkKind.Path]: resolveRelativePath,
+		[TsConfigLinkKind.BuildOutput]: resolveRelativePath,
+		[TsConfigLinkKind.Lib]: (_documentUri, value) => resolveLibPath(versionProvider, workspaceState, value),
+		[TsConfigLinkKind.TypePackage]: resolveTypePackage,
+	};
+}

@@ -19,6 +19,28 @@ interface QuickPickItem extends vscode.QuickPickItem {
 	run(): void;
 }
 
+/**
+ * The TypeScript install the language service uses: the workspace version when
+ * one is selected and the workspace is trusted, otherwise the default.
+ *
+ * Propagates the error from `defaultVersion` rather than swallowing it, since
+ * callers differ on whether a missing TypeScript is fatal.
+ */
+export function getActiveTypeScriptVersion(
+	versionProvider: ITypeScriptVersionProvider,
+	workspaceState: vscode.Memento,
+): TypeScriptVersion {
+	if (workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false) && vscode.workspace.isTrusted) {
+		const localVersion = versionProvider.localVersion;
+
+		if (localVersion) {
+			return localVersion;
+		}
+	}
+
+	return versionProvider.defaultVersion;
+}
+
 export class TypeScriptVersionManager extends Disposable {
 
 	private _currentVersion: TypeScriptVersion;
@@ -30,21 +52,14 @@ export class TypeScriptVersionManager extends Disposable {
 	) {
 		super();
 
-		this._currentVersion = this.versionProvider.defaultVersion;
+		this._currentVersion = getActiveTypeScriptVersion(this.versionProvider, this.workspaceState);
 
-		if (this.useWorkspaceTsdkSetting) {
-			if (vscode.workspace.isTrusted) {
-				const localVersion = this.versionProvider.localVersion;
-				if (localVersion) {
-					this._currentVersion = localVersion;
+		if (this.useWorkspaceTsdkSetting && !vscode.workspace.isTrusted) {
+			this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
+				if (this.versionProvider.localVersion) {
+					this.updateActiveVersion(this.versionProvider.localVersion);
 				}
-			} else {
-				this._disposables.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-					if (this.versionProvider.localVersion) {
-						this.updateActiveVersion(this.versionProvider.localVersion);
-					}
-				}));
-			}
+			}));
 		}
 
 		if (this.isInPromptWorkspaceTsdkState(configuration)) {

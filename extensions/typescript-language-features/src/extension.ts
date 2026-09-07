@@ -19,6 +19,7 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { PluginManager } from './tsServer/plugins';
 import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
+import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
 import { suggestNativePreview } from './ui/suggestNativePreview';
@@ -40,6 +41,18 @@ export function activate(
 
 	const logDirectoryProvider = new NodeLogDirectoryProvider(context);
 	const versionProvider = new DiskTypeScriptVersionProvider();
+	const serviceConfigurationProvider = new ElectronServiceConfigurationProvider();
+
+	// The service client configures the version provider when it is constructed, but it is
+	// constructed lazily and, with the native preview enabled, may never be constructed at all.
+	// Features that register eagerly below resolve TypeScript versions through this provider, so
+	// they have to configure it themselves or a `typescript.tsdk` outside `node_modules` is
+	// silently ignored. Not from here, though: `loadFromWorkspace` shells out synchronously to
+	// locate a `tsserver.nodePath` of "node", and that must not block activation.
+	const configuredVersionProvider = new Lazy<ITypeScriptVersionProvider>(() => {
+		versionProvider.updateConfiguration(serviceConfigurationProvider.loadFromWorkspace());
+		return versionProvider;
+	});
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -55,7 +68,7 @@ export function activate(
 
 	// Register features that work in both TSGO and non-TSGO modes
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register());
+		context.subscriptions.push(module.register(configuredVersionProvider, context.workspaceState));
 	});
 
 	// Conditionally register features based on whether TSGO is enabled
@@ -85,7 +98,7 @@ export function activate(
 			versionProvider,
 			processFactory: new ElectronServiceProcessFactory(),
 			activeJsTsEditorTracker,
-			serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
+			serviceConfigurationProvider,
 			experimentTelemetryReporter,
 			logger: new Logger(),
 		}, item => {
