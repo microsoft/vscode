@@ -25,6 +25,7 @@ import { NullOpenerService } from '../../../opener/test/common/nullOpenerService
 import { URI } from '../../../../base/common/uri.js';
 import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
+import { isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 
 interface ITestActionItem {
 	readonly id: string;
@@ -416,6 +417,256 @@ suite('ActionListWidget', () => {
 		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
 		assert.strictEqual(hideCount, 1);
+	});
+
+	test('opens rich submenu rows on activation and returns focus with Left Arrow', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						detail: 'Asks before running tools',
+						item: toAction({ id: 'manual', label: 'Manual', checked: true, run: () => { } }),
+					}],
+					options: { minWidth: 255 },
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.acceptSelected();
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		assert.deepStrictEqual({
+			detail: submenu.querySelector('.detail')?.textContent,
+			expanded: widget.domNode.querySelector('.monaco-list-row[aria-expanded="true"]')?.getAttribute('aria-expanded'),
+			role: widget.domNode.querySelector('.monaco-list-row[aria-expanded="true"]')?.getAttribute('aria-haspopup'),
+			submenuLabel: submenu.querySelector('[role="listbox"]')?.getAttribute('aria-label'),
+			hasFocus: submenu.contains(document.activeElement),
+		}, {
+			detail: 'Asks before running tools',
+			expanded: 'true',
+			role: 'listbox',
+			submenuLabel: 'Permissions',
+			hasFocus: true,
+		});
+
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+		assert.deepStrictEqual({
+			display: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display,
+			hasFocus: widget.domNode.contains(document.activeElement),
+		}, { display: 'none', hasFocus: true });
+	});
+
+	test('rich submenu toggles stay open and actions run once', () => {
+		let checked = false;
+		let runs = 0;
+		let hides = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Sandboxing',
+						standaloneToggle: {
+							label: 'Sandboxing',
+							checked: false,
+							onChange: value => { checked = value; },
+						},
+					}, {
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { runs++; } }),
+					}],
+				},
+			}],
+			onHide: () => { hides++; },
+			listOptions: { showFilter: false },
+		});
+
+		widget.focus();
+		widget.acceptSelected();
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual({ checked, runs, hides }, { checked: true, runs: 0, hides: 0 });
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual({ checked, runs, hides }, { checked: true, runs: 1, hides: 1 });
+	});
+
+	test('hovering back to the parent keeps focus in the menu when a submenu was focused', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const states = [];
+		for (const hover of [undefined, { content: 'Mode details' }]) {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('mode'), hover }, {
+					kind: ActionListItemKind.Action,
+					label: 'Permissions',
+					submenu: {
+						id: 'permissions',
+						items: [{
+							kind: ActionListItemKind.Action,
+							label: 'Manual',
+							item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+						}],
+					},
+				}],
+				listOptions: { showFilter: false },
+			});
+			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+			const modeRow = parentList.querySelector<HTMLElement>('.monaco-list-row')!;
+			widget.openSubmenu('permissions', { x: 400, y: 400 });
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const initiallyFocusedSubmenu = panel.contains(document.activeElement);
+
+			modeRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			await timeout(600);
+
+			states.push({
+				initiallyFocusedSubmenu,
+				parentFocused: document.activeElement === parentList,
+				highlightedRow: widget.getFocusedElement()?.item?.id,
+				panel: panel.textContent,
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ initiallyFocusedSubmenu: true, parentFocused: true, highlightedRow: 'mode', panel: '' },
+			{ initiallyFocusedSubmenu: true, parentFocused: true, highlightedRow: 'mode', panel: 'Mode details' },
+		]);
+	}));
+
+	test('replacing a focused submenu moves focus before disposing its contents', () => {
+		const widget = createActionListWidget(disposables, {
+			items: ['permissions', 'configuration'].map(id => ({
+				kind: ActionListItemKind.Action,
+				label: id,
+				submenu: {
+					id,
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: id,
+						item: toAction({ id, label: id, run: () => { } }),
+					}],
+				},
+			})),
+			listOptions: { showFilter: false },
+		});
+		const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		widget.openSubmenu('permissions', { x: 400, y: 400 });
+		const secondRow = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		secondRow.querySelector<HTMLElement>('.action-list-submenu-indicator')!.click();
+
+		assert.deepStrictEqual({
+			parentFocused: document.activeElement === parentList,
+			content: widget.domNode.querySelector('.action-list-submenu-panel .title')?.textContent,
+		}, { parentFocused: true, content: 'configuration' });
+	});
+
+	test('aligns the bottom edges of a rich submenu and its parent menu when requested', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+					}],
+					alignWithParentBottom: true,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		wrapper.style.padding = '8px';
+		document.body.appendChild(wrapper);
+		disposables.add({ dispose: () => wrapper.remove() });
+		wrapper.appendChild(widget.domNode);
+
+		widget.focus();
+		widget.acceptSelected();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		assert.ok(Math.abs(panel.getBoundingClientRect().bottom - wrapper.getBoundingClientRect().bottom) < 1);
+	});
+
+	test('anchors the initial submenu on either side with the default gap or no gap', () => {
+		const results = [];
+		const cases = [{ x: 24 }, { x: 380 }, { x: 24, gap: 0 }, { x: 380, gap: 0 }];
+		for (const { x, gap } of cases) {
+			const anchor = { x, y: 450, width: 120, height: 24 };
+			const list = createActionList(disposables, [action('mode'), {
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					id: 'permissions',
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+					}],
+					options: { minWidth: 255 },
+					alignWithParentBottom: true,
+					horizontalGap: gap,
+				},
+			}], { anchor, listOptions: { minWidth: 260, showFilter: false, anchorPosition: AnchorPosition.ABOVE, initialSubmenuId: 'permissions' } });
+			const menu = list.domNode.parentElement!;
+			menu.style.position = 'fixed';
+			menu.style.width = `${list.layout(0)}px`;
+			menu.style.left = `${x}px`;
+			menu.style.top = `${anchor.y - menu.getBoundingClientRect().height}px`;
+			list.focus();
+			const adjustedAnchor = list.getAnchor();
+			assert.ok(isAnchor(adjustedAnchor));
+			menu.style.left = `${adjustedAnchor.x}px`;
+			const panel = list.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const rect = panel.getBoundingClientRect();
+			const menuRect = menu.getBoundingClientRect();
+			results.push({
+				x,
+				gap: x === 24 ? menuRect.left - rect.right : rect.left - menuRect.right,
+				overControl: Math.abs(rect.left - anchor.x) < 1,
+				aboveControl: Math.abs(rect.bottom - anchor.y) < 1,
+				submenuFocused: panel.contains(document.activeElement),
+				modeBesidePermissions: x === 24 ? menuRect.left >= rect.right : menuRect.right <= rect.left,
+			});
+		}
+		assert.deepStrictEqual(results, cases.map(({ x, gap }) => ({
+			x, gap: gap ?? 4, overControl: true, aboveControl: true, submenuFocused: true, modeBesidePermissions: true,
+		})));
+	});
+
+	test('rich submenu skips disabled choices and preserves their details', () => {
+		let runs = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Allow all',
+						detail: 'Disabled by policy',
+						disabled: true,
+						item: toAction({ id: 'allowAll', label: 'Allow all', enabled: false, run: () => { runs++; } }),
+					}],
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.acceptSelected();
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		assert.deepStrictEqual({ runs, detail: submenu.querySelector('.detail')?.textContent }, { runs: 0, detail: 'Disabled by policy' });
 	});
 
 	test('runs dynamic filter updates immediately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1249,6 +1500,72 @@ suite('ActionListWidget', () => {
 		await timeout(300);
 
 		assert.strictEqual(panel.textContent, 'Details for first');
+	}));
+
+	test('opens a rich submenu on hover after the delay without moving DOM focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+					}],
+				},
+			}, action('mode')],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.focusNext();
+		const focusedElement = document.activeElement;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(300);
+		const displayBeforeDelay = panel.style.display;
+		await timeout(300);
+
+		assert.deepStrictEqual({
+			displayBeforeDelay,
+			display: panel.style.display,
+			label: panel.querySelector('.title')?.textContent,
+			expanded: row.getAttribute('aria-expanded'),
+			focusUnchanged: document.activeElement === focusedElement,
+			highlightedRows: Array.from(widget.domNode.querySelectorAll('.monaco-list-row.focused .title'), title => title.textContent),
+		}, {
+			displayBeforeDelay: 'none',
+			display: '',
+			label: 'Manual',
+			expanded: 'true',
+			focusUnchanged: true,
+			highlightedRows: ['Permissions'],
+		});
+	}));
+
+	test('cancels a rich submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+					}],
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: 'none', text: '' });
 	}));
 
 	test('does not open a row hover panel once the pointer has left the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

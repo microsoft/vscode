@@ -7,6 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -25,6 +26,7 @@ import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandb
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IModePickerPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -266,11 +268,33 @@ export class PermissionPicker extends Disposable {
 		this._showPicker();
 	}
 
-	protected _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
-			return;
-		}
+	get presentation(): IModePickerPermissions {
+		const level = this._delegate.currentPermissionLevel?.get() ?? this._currentLevel;
+		return {
+			label: this._getPermissionLevelMeta(level).label,
+			level,
+			sandboxed: this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled(),
+		};
+	}
 
+	getSubmenuItems(isCurrentContext: () => boolean): readonly IActionListItem<IAction>[] {
+		this._currentLevel = this._delegate.currentPermissionLevel?.get() ?? this._currentLevel;
+		return this._getActionItems().map(item => {
+			const permission = item.item;
+			return {
+				...item,
+				item: permission ? toAction({
+					id: `permissionPicker.${permission.level ?? permission.kind}`,
+					label: permission.label,
+					checked: permission.checked,
+					enabled: !item.disabled,
+					run: () => this._selectItem(permission, isCurrentContext),
+				}) : undefined,
+			};
+		});
+	}
+
+	private _getActionItems(): IActionListItem<IPermissionItem>[] {
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -308,11 +332,11 @@ export class PermissionPicker extends Disposable {
 			});
 			items.push({
 				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
+				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.shield },
 				item: {
 					kind: 'sandbox',
 					label: sandboxToggle.label,
-					icon: Codicon.blank,
+					icon: Codicon.shield,
 					checked: false,
 				},
 				label: sandboxToggle.label,
@@ -340,17 +364,30 @@ export class PermissionPicker extends Disposable {
 			hideIcon: false,
 			disabled: false,
 		});
+		return items;
+	}
 
+	private async _selectItem(item: IPermissionItem, isCurrentContext?: () => boolean): Promise<void> {
+		this.actionWidgetService.hide();
+		if (item.level) {
+			const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			if (!this._isResolving() && !(policyRestricted && item.level !== ChatPermissionLevel.Default)) {
+				await this._selectLevel(item.level, isCurrentContext);
+			}
+		} else if (item.kind === 'learnMore') {
+			await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
+		}
+	}
+
+	protected _showPicker(): void {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
+			return;
+		}
+
+		const items = this._getActionItems();
 		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<IPermissionItem> = {
-			onSelect: async (item) => {
-				this.actionWidgetService.hide();
-				if (item.level) {
-					await this._selectLevel(item.level);
-				} else if (item.kind === 'learnMore') {
-					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
-				}
-			},
+			onSelect: item => this._selectItem(item),
 			onHide: () => {
 				this._pickerDisposables.clear();
 				triggerElement.focus();
@@ -371,7 +408,7 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
-		if (sandboxToggle) {
+		if (items.some(item => item.standaloneToggle)) {
 			this._pickerDisposables.add(autorun(reader => {
 				this._delegate.managedSandboxEnforced?.read(reader);
 				this._sandboxToggleDisabled.read(reader);
@@ -391,11 +428,12 @@ export class PermissionPicker extends Disposable {
 		return this._delegate.isResolving?.get() ?? false;
 	}
 
-	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
-		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, {
+	protected async _selectLevel(level: ChatPermissionLevel, isCurrentContext?: () => boolean): Promise<void> {
+		const confirmed = await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, {
 			defaultSettingKey: this._delegate.defaultSettingKey,
 			levelLabel: this._getPermissionLevelMeta(level).label,
-		})) {
+		});
+		if (!confirmed || isCurrentContext?.() === false) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
 				name: 'NewChatPermissionPicker',

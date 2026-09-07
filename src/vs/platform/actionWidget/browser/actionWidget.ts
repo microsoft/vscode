@@ -61,7 +61,7 @@ export interface IActionWidgetService {
 	readonly isVisible: boolean;
 }
 
-class ActionWidgetService extends Disposable implements IActionWidgetService {
+export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	declare readonly _serviceBrand: undefined;
 
 	get isVisible() {
@@ -86,7 +86,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
-			getAnchor: () => anchor,
+			getAnchor: () => list.getAnchor(),
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
 				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
@@ -96,6 +96,12 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
+			focus: () => {
+				list.focus();
+				if (listOptions?.initialSubmenuId) {
+					this._contextViewService.layout();
+				}
+			},
 		}, container, false);
 	}
 
@@ -232,8 +238,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
-
-		this._list.value?.focus();
 
 		// Track filter input focus state
 		const filterFocusedContext = ActionWidgetContextKeys.FilterFocused.bindTo(this._contextKeyService);
