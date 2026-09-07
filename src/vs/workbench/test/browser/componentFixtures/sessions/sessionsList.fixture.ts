@@ -630,7 +630,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Unread: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
 		render: ctx => renderSessionsList(ctx, {
