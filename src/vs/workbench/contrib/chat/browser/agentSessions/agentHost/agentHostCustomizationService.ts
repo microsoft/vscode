@@ -45,14 +45,8 @@ export interface IAgentHostCustomizationService {
 	getCustomizations(sessionResource: URI): readonly Customization[];
 
 	/**
-	 * Resolves once {@link getCustomizations} reflects a real snapshot for
-	 * `sessionResource` rather than the empty placeholder returned while the
-	 * session state is still loading. Resolves immediately when the session is
-	 * not backed by an agent host, or when a snapshot already arrived.
-	 *
-	 * Reactive callers should keep reading synchronously and re-render on
-	 * {@link onDidChangeCustomizations}; this exists for one-shot callers that
-	 * would otherwise mistake "not loaded yet" for "no customizations".
+	 * Waits up to two seconds for {@link getCustomizations} to reflect the session's first state snapshot; it may resolve earlier on cancellation, failure, or when no agent-host session exists.
+	 * Intended for one-shot reads; reactive callers should continue listening to {@link onDidChangeCustomizations}.
 	 */
 	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
 
