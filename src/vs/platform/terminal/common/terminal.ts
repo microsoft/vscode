@@ -1250,6 +1250,17 @@ Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
 
 export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
 
+// Renderers consume these events over the direct pty host connection, not the localPty channel.
+export const localPtyServiceUnbufferedEvents: readonly (keyof IPtyService)[] = [
+	'onProcessData',
+	'onProcessReady',
+	'onProcessReplay',
+	'onProcessOrphanQuestion',
+	'onDidRequestDetach',
+	'onDidChangeProperty',
+	'onProcessExit'
+];
+
 /**
  * A service responsible for communicating with the pty host process on Electron.
  *
