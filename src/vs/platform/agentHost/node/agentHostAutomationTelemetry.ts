@@ -34,7 +34,7 @@ export interface IAutomationRunTelemetry extends IAgentHostCopilotSkuTelemetry {
 }
 
 type AutomationConfigurationClassification = IAgentHostCopilotSkuClassification & {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded agent provider category, or default/other.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded saved provider category, or default/other; session-linked runs report the actual provider.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Trusted catalog model identifier, byokModel or unknown; omitted for the provider default.' };
 	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the saved model selection is default, auto or explicit.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded saved session mode, or providerDefault/other.' };
@@ -46,7 +46,7 @@ type AutomationConfigurationClassification = IAgentHostCopilotSkuClassification 
 };
 
 type AutomationRunClassification = IAgentHostCopilotSkuClassification & {
-	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the opaque automation identifier, stable across ownership migration.' };
+	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	runId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Native Agent Host automation run identifier.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run was manual, scheduled, catch-up or event-triggered.' };
 	runCreatedAt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UTC timestamp of the durable run claim.' };
@@ -64,7 +64,7 @@ export type IAutomationDefinitionTelemetry = IAutomationConfigurationTelemetry &
 type AutomationCreatedClassification = AutomationConfigurationClassification & {
 	owner: 'ulugbekna';
 	comment: 'Records newly persisted automation definitions, excluding migration and replay.';
-	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the opaque automation identifier, stable across ownership migration.' };
+	automationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 of the complete automation resource URI, stable across ownership migration.' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic execution is enabled at creation.' };
 	scheduleKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the definition is manual-only or has automatic triggers.' };
 };

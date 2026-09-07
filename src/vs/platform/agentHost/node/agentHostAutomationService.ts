@@ -955,7 +955,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const modelKind = modelId && agent ? getModelTelemetryContext(agent, modelId).modelTelemetryKind : modelId === 'auto' ? 'trusted' : 'unknown';
 		const folderCount = template.workingDirectories?.length ?? 0;
 		return {
-			provider: getAutomationTelemetryProvider(agent?.id ?? template.provider),
+			provider: getAutomationTelemetryProvider(template.provider),
 			model: toTelemetryModel(modelId, modelKind),
 			modelSelectionKind: modelId === undefined ? 'default' : modelId === 'auto' ? 'auto' : 'explicit',
 			mode: getAutomationTelemetryMode(template.config?.[SessionConfigKey.Mode]),
@@ -970,7 +970,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _definitionTelemetry(automation: AutomationEntry): IAutomationDefinitionTelemetry {
 		return {
 			...this._configurationTelemetry(automation.definition.session),
-			automationId: AgentSession.id(automation.resource),
+			automationId: automation.resource,
 			enabled: automation.definition.enabled,
 			scheduleKind: automation.definition.triggers.length === 0 ? 'manual' : 'scheduled',
 		};
@@ -979,7 +979,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _runTelemetry(run: AutomationRunState): IAutomationRunTelemetry {
 		const session = run.primarySession;
 		return {
-			automationId: AgentSession.id(run.automation),
+			automationId: run.automation,
 			runId: AgentSession.id(run.resource),
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
 			runCreatedAt: run.lifecycle.createdAt,
