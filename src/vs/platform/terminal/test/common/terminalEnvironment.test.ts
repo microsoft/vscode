@@ -41,6 +41,12 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
 		});
+		test('should not collapse when home path appears as substring of a different segment', () => {
+			strictEqual(collapseTildePath('/tmp/backup/home/user/file', '/home/user', '/'), '/tmp/backup/home/user/file');
+		});
+		test('should not collapse when path only shares a prefix with home', () => {
+			strictEqual(collapseTildePath('/home/user2/file', '/home/user', '/'), '/home/user2/file');
+		});
 	});
 	suite('sanitizeCwd', () => {
 		if (OS === OperatingSystem.Windows) {
