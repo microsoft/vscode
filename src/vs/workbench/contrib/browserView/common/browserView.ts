@@ -109,10 +109,10 @@ export function getAgentBrowserViewsNewestFirst(
 	for (const input of browserViewService.getKnownBrowserViews().values()) {
 		const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : undefined;
 		if (ownerId && ownerIds.has(ownerId)) {
-			views.unshift(input);
+			views.push(input);
 		}
 	}
-	return views;
+	return views.reverse();
 }
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
