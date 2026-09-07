@@ -43,6 +43,20 @@ const UNBREAKABLE_TEXT = [
 	'A short line.',
 ].join('\n');
 
+/**
+ * Unbreakable tokens, enough of them to overflow the height of the fixture so that the vertical
+ * scrollbar is painted. None of them offers a break opportunity, so wrapping has to split them at
+ * the wrap column itself, which puts the end of the wrapped view lines as far right as they go.
+ */
+const VIEWPORT_FILLING_TEXT = [
+	'ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ',
+	'A short line.',
+	'0123456789012345678901234567890123456789012345678901234567890123456789012345',
+	'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz',
+	'Another short line.',
+	'ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ',
+].join('\n');
+
 const WORD_WRAP_COLUMN = 28;
 
 interface IWordWrapIndicatorFixtureOptions {
@@ -159,6 +173,14 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A single long run of letters with no spaces in it, broken mid token across two view lines above a short unwrapped line. The first view line ends with a hooked arrow glyph immediately after its last letter, showing that a mid word break is marked the same way as a break at a space.'],
 		render: context => renderWordWrapIndicator(context, { text: UNBREAKABLE_TEXT }),
+	}),
+	WordWrapIndicatorViewportWrapping: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Long unbreakable runs of letters and digits separated by short unwrapped lines, wrapped to the width of the editor rather than to a fixed column. They add up to more view lines than fit the height, so the vertical scrollbar is painted along the right edge and the bottom view line is clipped. The long runs offer no break at a space, so each of their wrapped view lines runs the full width the wrap column allows. The hooked arrow glyph sits immediately after the last character of those view lines, drawn whole and with a clear gap before the scrollbar rather than cut off at the edge of the content or painted underneath it. The short line and the final view line of each run carry no glyph.'],
+		render: context => renderWordWrapIndicator(context, {
+			text: VIEWPORT_FILLING_TEXT,
+			options: { wordWrap: 'on', scrollbar: { vertical: 'visible' } },
+		}),
 	}),
 	WordWrapIndicatorSelected: defineComponentFixture({
 		labels: { kind: 'screenshot' },

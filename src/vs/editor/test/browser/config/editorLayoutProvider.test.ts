@@ -36,13 +36,20 @@ interface IEditorLayoutProviderOpts {
 	readonly minimapMaxColumn: number;
 	minimapSize?: 'proportional' | 'fill' | 'fit';
 	readonly pixelRatio: number;
+
+	/**
+	 * Defaults to `'off'`, i.e. to a layout that does not wrap at all.
+	 */
+	readonly wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
+	readonly wordWrapColumn?: number;
+	readonly wordWrapIndicator?: boolean;
 }
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
+	function computeLayoutInfo(input: IEditorLayoutProviderOpts): EditorLayoutInfo {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
@@ -88,8 +95,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		};
 		options._write(EditorOption.lineNumbers, lineNumbersOptions);
 
-		options._write(EditorOption.wordWrap, 'off');
-		options._write(EditorOption.wordWrapColumn, 80);
+		options._write(EditorOption.wordWrap, input.wordWrap ?? 'off');
+		options._write(EditorOption.wordWrapColumn, input.wordWrapColumn ?? 80);
+		options._write(EditorOption.wordWrapIndicator, input.wordWrapIndicator ?? false);
 		options._write(EditorOption.wordWrapOverride1, 'inherit');
 		options._write(EditorOption.wordWrapOverride2, 'inherit');
 		options._write(EditorOption.accessibilitySupport, 'auto');
@@ -107,7 +115,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			pixelRatio: input.pixelRatio,
 			glyphMarginDecorationLaneCount: 1,
 		});
-		assert.deepStrictEqual(actual, expected);
+		return actual;
+	}
+
+	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
+		assert.deepStrictEqual(computeLayoutInfo(input), expected);
 	}
 
 	test('EditorLayoutProvider 1', () => {
@@ -1428,5 +1440,62 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			}
 		});
 
+	});
+
+	test('leaves a column for the word wrap indicator when wrapping to the viewport', () => {
+		// 990px of content at 10px per character hold 98 columns once the 2px kept free for the
+		// cursor are taken off. The indicator is drawn after the last character of a wrapped view
+		// line, so it needs the last of those columns to itself; without it the glyph would reach
+		// past the viewport, where the vertical scrollbar is painted over it.
+		const wrappingOf = (wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded', wordWrapIndicator: boolean) => {
+			const layoutInfo = computeLayoutInfo({
+				outerWidth: 1000,
+				outerHeight: 800,
+				showGlyphMargin: false,
+				lineHeight: 16,
+				showLineNumbers: false,
+				lineNumbersMinChars: 0,
+				lineNumbersDigitCount: 1,
+				lineDecorationsWidth: 10,
+				typicalHalfwidthCharacterWidth: 10,
+				maxDigitWidth: 10,
+				verticalScrollbarWidth: 0,
+				verticalScrollbarHasArrows: false,
+				scrollbarArrowSize: 0,
+				horizontalScrollbarHeight: 0,
+				minimap: false,
+				minimapSide: 'right',
+				minimapRenderCharacters: true,
+				minimapMaxColumn: 150,
+				pixelRatio: 1,
+				wordWrap,
+				wordWrapColumn: 40,
+				wordWrapIndicator
+			});
+			// `viewportColumn` keeps describing how many columns the viewport holds, so that the
+			// minimap, which is sized from the same width, is unaffected by the indicator.
+			return { viewportColumn: layoutInfo.viewportColumn, wrappingColumn: layoutInfo.wrappingColumn };
+		};
+
+		assert.deepStrictEqual(
+			{
+				off: wrappingOf('off', true),
+				on: wrappingOf('on', false),
+				onWithIndicator: wrappingOf('on', true),
+				// Both bound the wrapping column well below the viewport, so there already is
+				// spare width for the glyph to land in.
+				bounded: wrappingOf('bounded', false),
+				boundedWithIndicator: wrappingOf('bounded', true),
+				wordWrapColumnWithIndicator: wrappingOf('wordWrapColumn', true)
+			},
+			{
+				off: { viewportColumn: 98, wrappingColumn: -1 },
+				on: { viewportColumn: 98, wrappingColumn: 98 },
+				onWithIndicator: { viewportColumn: 98, wrappingColumn: 97 },
+				bounded: { viewportColumn: 98, wrappingColumn: 40 },
+				boundedWithIndicator: { viewportColumn: 98, wrappingColumn: 40 },
+				wordWrapColumnWithIndicator: { viewportColumn: 98, wrappingColumn: 40 }
+			}
+		);
 	});
 });
