@@ -522,11 +522,52 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('openNewSession without toSide still replaces the active session', async () => {
+		const session = stubSession({ sessionId: 'active', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+
+		await view.openSession(session.resource);
+		await view.openNewSession();
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: view.activeSession.get(),
+		}, { visible: [null], active: undefined });
+	});
+
+	test('openNewSession with toSide inserts beside the active session and reuses a composer elsewhere', async () => {
+		const first = stubSession({ sessionId: 'first', providerId: 'test' });
+		const last = stubSession({ sessionId: 'last', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(first); }
+			override getSessions(): ISession[] { return [first, last]; }
+		};
+		const { view } = createSessionsManagementService(first, disposables, provider);
+
+		await view.openSession(first.resource);
+		view.insertAt(last, first.sessionId, 'right', false);
+		await view.openNewSession({ toSide: true });
+		const inserted = view.visibleSessions.get().map(s => s?.sessionId ?? null);
+		await view.openSession(last.resource);
+		await view.openNewSession({ toSide: true });
+
+		assert.deepStrictEqual({
+			inserted,
+			reused: view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: view.activeSession.get(),
+		}, {
+			inserted: ['first', null, 'last'],
+			reused: ['first', null, 'last'],
+			active: undefined,
+		});
+	});
+
 	test('repeated openNewSession with toSide keeps the single empty slot and re-activates it', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
 
 		await view.openSession(session.resource);
+		await view.openNewSession({ toSide: true });
 		await view.openNewSession({ toSide: true });
 		// Go back to the session, then ask for a side composer again. The grid caps
 		// at one empty slot, so the existing one is re-activated rather than duplicated.

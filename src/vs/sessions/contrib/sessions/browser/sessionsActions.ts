@@ -12,10 +12,8 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, IMenuService } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,11 +42,9 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, addDisposableListener, append, EventHelper, EventType, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
-import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -63,7 +59,7 @@ import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/b
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
-import { NEW_SESSION_ACTION_ID, NEW_SESSION_TO_SIDE_ACTION_ID } from '../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
@@ -746,11 +742,6 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				group: '1_newChat',
 				order: 0,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
-			}, {
-				id: Menus.NewSessionDropdown,
-				group: '2_chat',
-				order: 1,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
 			}],
 		});
 	}
@@ -1248,7 +1239,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@IHoverService protected readonly hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 		super(undefined, action);
@@ -1278,6 +1269,10 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	/** Hook invoked right before the action runs (e.g. for telemetry). */
 	protected onRun(): void { }
+
+	protected runAction(_event: MouseEvent | undefined): void {
+		void this.actionRunner.run(this.action, this._context);
+	}
 
 	protected configureButton(_button: Button): void { }
 
@@ -1310,7 +1305,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 				return;
 			}
 			this.onRun();
-			this.actionRunner.run(this.action, this._context);
+			this.runAction(isMouseEvent(e) ? e : undefined);
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
@@ -1373,10 +1368,6 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
  */
 export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
-	/** The two halves, kept so toolbar focus can be routed into them. */
-	private _primaryButton: Button | undefined;
-	private _dropdownButton: Button | undefined;
-
 	constructor(
 		action: IAction,
 		private readonly telemetrySource: SessionsInteractionSource,
@@ -1385,8 +1376,6 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, keybindingService, hoverService, contextKeyService);
@@ -1428,173 +1417,11 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		logSessionsInteraction(this.telemetryService, 'newSession', this.telemetrySource);
 	}
 
-	override render(container: HTMLElement): void {
-		BaseActionViewItem.prototype.render.call(this, container);
-
-		if (!this.element) {
-			return;
-		}
-
-		const menu = this._register(this.menuService.createMenu(Menus.NewSessionDropdown, this.contextKeyService));
-
-		const button = this._register(new ButtonWithDropdown(this.element, {
-			...defaultButtonStyles,
-			// The outer container owns the stroke and background so both halves sit
-			// flush inside it. Leaving these unset keeps Button from writing inline
-			// border/background styles that the stylesheet would have to fight.
-			buttonBorder: undefined,
-			buttonSecondaryBorder: undefined,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
-			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
-			buttonSeparator: asCssVariable(agentsNewSessionButtonBorder),
-			secondary: true,
-			supportIcons: true,
-			addPrimaryActionToDropdown: false,
-			contextMenuProvider: this.contextMenuService,
-			actions: { getActions: () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true })) },
-		}));
-		button.element.classList.add('agent-sessions-compact-new-button');
-		this._primaryButton = button.primaryButton;
-		this._dropdownButton = button.dropdownButton;
-		// The toolbar owns focus via a roving tabindex on the containing item, so the
-		// halves must not be tab stops of their own; `focus`/`setFocusable` below route
-		// focus into them and Left/Right Arrow moves between them.
-		button.primaryButton.element.tabIndex = -1;
-		button.dropdownButton.element.tabIndex = -1;
-		this._register(addDisposableListener(button.primaryButton.element, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.RightArrow)) {
-				button.primaryButton.element.tabIndex = -1;
-				button.dropdownButton.element.tabIndex = 0;
-				button.dropdownButton.element.focus();
-				event.stopPropagation();
-			}
-		}));
-		this._register(addDisposableListener(button.dropdownButton.element, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.LeftArrow)) {
-				button.dropdownButton.element.tabIndex = -1;
-				button.primaryButton.element.tabIndex = 0;
-				button.primaryButton.element.focus();
-				event.stopPropagation();
-			}
-		}));
-		const onboardingTargetId = this.onboardingTargetId;
-		if (onboardingTargetId) {
-			this._register(markOnboardingTarget(button.primaryButton.element, onboardingTargetId));
-		}
-		this._register(button.primaryButton.onDidClick(e => {
-			EventHelper.stop(e, true);
-			if (!this.action.enabled) {
-				return;
-			}
-			const mouseEvent = e as MouseEvent | undefined;
-			if (mouseEvent?.altKey) {
-				this.commandService.executeCommand(NEW_SESSION_TO_SIDE_ACTION_ID);
-				return;
-			}
-			this.onRun();
-			this.actionRunner.run(this.action, this._context);
-		}));
-
-		// Stop propagation for the dropdown button so activating the chevron does not
-		// bubble up to BaseActionViewItem's container listener and fire the primary action.
-		this._register(addDisposableListener(button.dropdownButton.element, EventType.CLICK, e => EventHelper.stop(e, true)));
-		this._register(addDisposableListener(button.dropdownButton.element, TouchEventType.Tap, (e: GestureEvent) => EventHelper.stop(e, true)));
-
-		button.dropdownButton.setTitle(localize('moreNewSessionActions', "More New Session Actions..."));
-		button.dropdownButton.element.setAttribute('aria-label', localize('moreNewSessionActionsAriaLabel', "More New Session Actions"));
-
-		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
-		const keybindingHint = $('span.new-session-keybinding-hint');
-		const keybindingHintLabel = this.showKeybindingHint
-			? this._register(new KeybindingLabel(keybindingHint, OS, {
-				disableTitle: true,
-				keybindingLabelBackground: 'transparent',
-				keybindingLabelForeground: 'inherit',
-				keybindingLabelBorder: 'transparent',
-				keybindingLabelBottomBorder: undefined,
-				keybindingLabelShadow: undefined,
-			}))
-			: undefined;
-		reset(button.primaryButton.element, buttonLabel);
-
-		const getKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(this.commandId, this.contextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(this.commandId);
-			return primaryKeybinding ?? resolvedKeybindings[0];
-		};
-
-		this._register(this.hoverService.setupDelayedHover(button.primaryButton.element, () => ({
-			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
-			appearance: { compact: true },
-			position: { hoverPosition: HoverPosition.BELOW },
-		})));
-
-		let lastRenderedKeybindingLabel: string | undefined | null = null;
-		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
-		const updateButton = () => {
-			const keybinding = getKeybinding();
-			const keybindingLabel = keybinding?.getLabel() ?? undefined;
-			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
-			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
-				return;
-			}
-
-			lastRenderedKeybindingLabel = keybindingLabel;
-			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
-
-			keybindingHintLabel?.set(keybinding);
-			if (keybindingHintLabel && keybinding) {
-				if (keybindingHint.parentElement !== button.primaryButton.element) {
-					append(button.primaryButton.element, keybindingHint);
-				}
-			} else {
-				keybindingHint.remove();
-			}
-
-			button.primaryButton.element.setAttribute('aria-label', this.getAriaLabel(keybindingAriaLabel));
-		};
-		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateButton));
-	}
-
-	/**
-	 * Route toolbar focus into the split button rather than the containing item, so
-	 * arrow navigation lands on the "New" half (or the chevron when arriving from the
-	 * right) instead of an element with no visible focus indicator.
-	 */
-	override focus(fromRight?: boolean): void {
-		if (!this._primaryButton || !this._dropdownButton) {
-			super.focus();
-			return;
-		}
-		this.element?.classList.add('focused');
-		if (fromRight) {
-			this._dropdownButton.element.tabIndex = 0;
-			this._dropdownButton.element.focus();
+	protected override runAction(event: MouseEvent | undefined): void {
+		if (event?.altKey) {
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true }).catch(onUnexpectedError);
 		} else {
-			this._primaryButton.element.tabIndex = 0;
-			this._primaryButton.element.focus();
-		}
-	}
-
-	override blur(): void {
-		if (this._primaryButton && this._dropdownButton) {
-			this._primaryButton.element.tabIndex = -1;
-			this._dropdownButton.element.tabIndex = -1;
-		}
-		super.blur();
-	}
-
-	override setFocusable(focusable: boolean): void {
-		if (!this._primaryButton || !this._dropdownButton) {
-			super.setFocusable(focusable);
-			return;
-		}
-		this._primaryButton.element.tabIndex = focusable ? 0 : -1;
-		if (!focusable) {
-			this._dropdownButton.element.tabIndex = -1;
+			super.runAction(event);
 		}
 	}
 }

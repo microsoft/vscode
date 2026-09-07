@@ -8,28 +8,27 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { NewSessionActionViewItem, SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
+import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
-import { NEW_SESSION_ACTION_ID, NEW_SESSION_TO_SIDE_ACTION_ID } from '../../../chat/common/constants.js';
-import { NEW_QUICK_CHAT_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
-import { createTestSession } from './sessionsListTestUtils.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import '../../browser/views/sessionsViewActions.js';
+import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 
 suite('Sessions - Actions', () => {
 
@@ -245,61 +244,147 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('contributes actions to the New Session dropdown menu', () => {
-		const items = MenuRegistry.getMenuItems(Menus.NewSessionDropdown)
-			.filter(isIMenuItem)
-			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
-			.map(item => ({
-				id: item.command.id,
-				group: item.group,
-				order: item.order,
-			}));
-
-		assert.deepStrictEqual(items, [
-			{ id: NEW_SESSION_TO_SIDE_ACTION_ID, group: '1_new', order: 1 },
-			{ id: NEW_QUICK_CHAT_COMMAND_ID, group: '1_new', order: 2 },
-			{ id: 'sessions.chatCompositeBar.addChat', group: '2_chat', order: 1 },
-		]);
+	test('does not register a separate New Session to the Side command or shortcut', () => {
+		const commandId = 'workbench.action.sessions.newChatToSide';
+		assert.deepStrictEqual({
+			command: CommandsRegistry.getCommand(commandId),
+			keybindings: KeybindingsRegistry.getDefaultKeybindings().filter(binding => binding.command === commandId),
+		}, {
+			command: undefined,
+			keybindings: [],
+		});
 	});
 
-	test('NewSessionActionViewItem renders split button, fires primary action, and does not fire on dropdown click', () => {
-		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		let primaryRuns = 0;
-		const executedCommands: string[] = [];
+	test('New button hover only includes the existing keyboard shortcut', () => {
+		class TestNewSessionActionViewItem extends NewSessionActionViewItem {
+			override getHoverContent(keybindingLabel: string | undefined): string {
+				return super.getHoverContent(keybindingLabel);
+			}
+		}
 
-		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override async executeCommand<T>(id: string): Promise<T | undefined> {
-				executedCommands.push(id);
-				return undefined;
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		instantiationService.stub(ICommandService, new TestCommandService());
+		const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New'));
+		const item = disposables.add(instantiationService.createInstance(
+			TestNewSessionActionViewItem, action, 'sidebar', constObservable<NewSessionButtonStyle>('default')
+		));
+
+		assert.deepStrictEqual({
+			withKeybinding: item.getHoverContent('Ctrl+N'),
+			withoutKeybinding: item.getHoverContent(undefined),
+		}, {
+			withKeybinding: 'New Session (Ctrl+N)',
+			withoutKeybinding: 'New Session',
+		});
+	});
+
+	for (const source of ['sidebar', 'titleBar'] as const) {
+		test(`New button in the ${source} opens to the side only on Alt-click`, () => {
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			const commandService = new TestCommandService();
+			instantiationService.stub(ICommandService, commandService);
+			let primaryRuns = 0;
+			const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New', undefined, true, async () => {
+				primaryRuns++;
+			}));
+			const style = observableValue<NewSessionButtonStyle>('newButtonStyle', 'default');
+			const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, source, style));
+			const container = document.createElement('div');
+			item.render(container);
+
+			const button = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button.monaco-button');
+			assert.ok(button);
+			assert.deepStrictEqual({
+				buttonCount: container.querySelectorAll('.monaco-button').length,
+				dropdown: container.querySelector('.monaco-button-dropdown'),
+				popup: button.getAttribute('aria-haspopup'),
+				label: button.querySelector('.new-session-button-label')?.textContent,
+			}, {
+				buttonCount: 1,
+				dropdown: null,
+				popup: null,
+				label: 'New',
+			});
+
+			button.click();
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+			action.enabled = false;
+			button.click();
+			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+
+			assert.deepStrictEqual({ primaryRuns, commands: commandService.calls }, {
+				primaryRuns: 3,
+				commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [{ toSide: true }] }],
+			});
+
+			style.set('lightweightWithKeybindingBackground', undefined);
+			assert.deepStrictEqual({
+				lightweight: button.classList.contains('lightweight'),
+				keybindingBackground: button.classList.contains('lightweight-keybinding-background'),
+			}, { lightweight: true, keybindingBackground: true });
+			style.set('default', undefined);
+			assert.deepStrictEqual({
+				lightweight: button.classList.contains('lightweight'),
+				keybindingBackground: button.classList.contains('lightweight-keybinding-background'),
+			}, { lightweight: false, keybindingBackground: false });
+		});
+	}
+
+	for (const toSide of [undefined, true]) {
+		for (const scenario of [
+			{ name: 'workspace', isQuickChat: false, targetAvailable: true },
+			{ name: 'unavailable provider', isQuickChat: false, targetAvailable: false },
+			{ name: 'quick chat', isQuickChat: true, targetAvailable: true },
+		]) {
+			test(`New Session preserves ${scenario.name} inheritance with toSide=${toSide}`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const { session } = createTestSession('active');
+				const activeSession = upcastPartial<IActiveSession>({
+					...session,
+					isQuickChat: constObservable(scenario.isQuickChat),
+				});
+				const requests: (IOpenNewSessionOptions | undefined)[] = [];
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable(activeSession);
+					override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+						requests.push(options);
+						return { session: undefined, trustDeclined: false };
+					}
+				});
+				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override isNewSessionTargetAvailable(): boolean { return scenario.targetAvailable; }
+				});
+
+				const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+				assert.ok(command);
+				await command.handler(instantiationService, toSide ? { toSide } : undefined);
+
+				assert.deepStrictEqual(requests, [{
+					folderUri: scenario.isQuickChat ? undefined : session.workspace.get()?.uri,
+					toSide,
+					...(!scenario.isQuickChat && scenario.targetAvailable ? {
+						providerId: session.providerId,
+						sessionTypeId: session.sessionType,
+					} : {}),
+				}]);
+			});
+		}
+	}
+
+	test('New Session propagates opening failures', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const error = new Error('Opening failed');
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+			override async openNewSession(): Promise<IOpenNewSessionResult> {
+				throw error;
 			}
 		});
-
-		const action = disposables.add(new Action(NEW_SESSION_ACTION_ID, 'New', undefined, true, async () => {
-			primaryRuns++;
-		}));
-
-		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'sidebar'));
-		const container = document.createElement('div');
-		item.render(container);
-
-		const primaryButton = container.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button)');
-		const dropdownButton = container.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-dropdown-button');
-
-		assert.ok(primaryButton, 'Primary button should be rendered');
-		assert.ok(dropdownButton, 'Dropdown button should be rendered');
-		assert.strictEqual(dropdownButton.getAttribute('aria-label'), 'More New Session Actions');
-		assert.strictEqual(dropdownButton.getAttribute('aria-haspopup'), 'true');
-
-		// Plain click runs the primary action in place.
-		primaryButton.click();
-		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [] });
-
-		// Alt+click opens to the side instead of in place.
-		primaryButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
-		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [NEW_SESSION_TO_SIDE_ACTION_ID] });
-
-		// The chevron must not bubble to the toolbar item and run the primary action.
-		dropdownButton.click();
-		assert.deepStrictEqual({ primaryRuns, executedCommands }, { primaryRuns: 1, executedCommands: [NEW_SESSION_TO_SIDE_ACTION_ID] });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		await assert.rejects(async () => command.handler(instantiationService, { toSide: true }), error);
 	});
 });

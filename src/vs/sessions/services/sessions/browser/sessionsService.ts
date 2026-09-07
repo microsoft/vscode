@@ -279,7 +279,7 @@ export interface ISessionsService {
 	 * session that is already visible. Passing `undefined` operates on the
 	 * empty (new-session) slot.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate?: boolean): void;
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -1104,7 +1104,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Without a folder (or when folder resolution failed above): switch to
 		// the new-session composer view.
-		// No-op when no session is active (empty new-session placeholder showing).
+		// No-op when the empty new-session placeholder is active, unless opening to the side.
 		if (!folderUri) {
 			this._dismissCustomViewForNavigation(intent);
 		}
@@ -1125,20 +1125,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return { session: targetSession, trustDeclined: false };
 	}
 
-	/**
-	 * Show `session` (or the empty new-session slot) either in place or beside
-	 * the active session.
-	 *
-	 * Inserting the empty slot is only possible while the grid has none, since
-	 * the visibility model caps the grid at a single empty slot and refuses to
-	 * relocate the existing one. When one is already present it is activated
-	 * where it sits rather than being moved next to the active session.
-	 */
+	/** Open beside the active session when requested, reusing an existing empty slot in place. */
 	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined): void {
 		if (toSide) {
 			const visible = this.visibleSessions.get();
-			// Anchor on the active session, falling back to the rightmost slot when
-			// the empty placeholder is active (it has no session id to anchor on).
+			// An empty active slot has no id; fall back to the rightmost session.
 			const anchorId = this._visibility.activeSession.get()?.sessionId ?? visible[visible.length - 1]?.sessionId;
 			const sessionId = session?.sessionId;
 			const canInsertEmptySlot = sessionId !== undefined || !visible.includes(undefined);
@@ -1211,7 +1202,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
-	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
 		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 
