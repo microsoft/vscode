@@ -380,3 +380,12 @@
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4aceb7c295b1a4b1cb8675fbbfa3376d9951506a0d02e6f34eac1770dd148110)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d40fed5ccaf446183e91efce92563fe87fe4505a6f3ec92219de95d74ede5803)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/54f41b5fe0f20683151eb5891abbe8ac449d2f16f7dde922e9a3a7104c638770)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6a869c24b606e74a74331f03f693b8459e7ab2a92f77269b4b2ca49b880a4ffa)
