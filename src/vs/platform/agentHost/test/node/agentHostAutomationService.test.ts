@@ -14,19 +14,24 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { hashAutomationTelemetryId } from '../../../telemetry/common/automationTelemetry.js';
+import { hashAutomationTelemetryId } from '../../node/agentHostAutomationTelemetry.js';
 import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/agent.js';
+import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
+import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -94,11 +99,14 @@ suite('AgentHostAutomationService', () => {
 	}
 
 	function createService(execution?: Partial<IAgentHostAutomationExecution>): AgentHostAutomationService {
-		const models: IAgentModelInfo[] = [{ provider: 'copilotcli', id: 'catalog-model', name: 'Catalog model', supportsVision: false }];
+		const models: IAgentModelInfo[] = [
+			{ provider: 'copilotcli', id: 'catalog-model', name: 'Catalog model', supportsVision: false },
+			{ provider: 'copilotcli', id: 'private-byok-model', name: 'Private model', supportsVision: false, _meta: createAgentModelByokMeta('private/vendor/model') },
+		];
 		const agent = upcastPartial<IAgent>({ id: 'copilotcli', models: constObservable(models) });
 		const providers = new class extends mock<IAgentHostProviderService>() {
-			override resolveProvider(): IAgent {
-				return agent;
+			override resolveProvider(provider?: string): IAgent | undefined {
+				return provider === undefined || provider === agent.id ? agent : undefined;
 			}
 		}();
 		const service = new AgentHostAutomationService({
@@ -155,7 +163,6 @@ suite('AgentHostAutomationService', () => {
 			name: 'automation.created',
 			data: {
 				automationId: hashAutomationTelemetryId('review-changes'),
-				executionAuthority: 'agentHost',
 				provider: 'copilotcli',
 				model: new TelemetryTrustedValue('catalog-model'),
 				modelSelectionKind: 'explicit',
@@ -171,6 +178,179 @@ suite('AgentHostAutomationService', () => {
 		}]);
 	});
 
+	test('records editable updates and deletion once without counting internal metadata or replays', async () => {
+		const service = createService();
+		const resource = 'ahp-automation:/review-changes';
+		await enableAndCreate(service, resource);
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource,
+			changes: { _meta: { 'test.internal': true } },
+		});
+		const disable = { type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: false } } as const;
+		await service.handleUpdate(disable);
+		await service.handleUpdate(disable);
+		const reconfigure = {
+			type: ActionType.AutomationUpdateRequested,
+			resource,
+			changes: { session: { provider: 'copilotcli', model: { id: 'catalog-model' }, config: { mode: 'plan', autoApprove: 'assisted' } } },
+		} as const;
+		writeFailures = 1;
+		await assert.rejects(service.handleUpdate(reconfigure), /storage unavailable/);
+		await service.handleUpdate(reconfigure);
+		writeFailures = 1;
+		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource }), /storage unavailable/);
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource });
+		await service.handleRemove({ type: ActionType.AutomationRemoved, resource });
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			name: event.name,
+			id: event.data.automationId,
+			enabled: event.data.enabled,
+			enabledChanged: event.data.enabledChanged,
+			sessionConfigurationChanged: event.data.sessionConfigurationChanged,
+			scheduleChanged: event.data.scheduleChanged,
+			promptChanged: event.data.promptChanged,
+		})), [
+			{ name: 'automation.created', id: hashAutomationTelemetryId('review-changes'), enabled: true, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined },
+			{ name: 'automation.updated', id: hashAutomationTelemetryId('review-changes'), enabled: false, enabledChanged: true, sessionConfigurationChanged: false, scheduleChanged: false, promptChanged: false },
+			{ name: 'automation.updated', id: hashAutomationTelemetryId('review-changes'), enabled: false, enabledChanged: false, sessionConfigurationChanged: true, scheduleChanged: false, promptChanged: false },
+			{ name: 'automation.deleted', id: hashAutomationTelemetryId('review-changes'), enabled: false, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined },
+		]);
+	});
+
+	test('migration bookkeeping is silent but later user edits to imported definitions are recorded', async () => {
+		const service = createService();
+		const resource = 'ahp-automation:/imported';
+		await service.handleCreate({
+			...createAction(resource),
+			definition: {
+				...definition(),
+				_meta: {
+					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true,
+					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
+				},
+			},
+		});
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource,
+			changes: { session: { provider: 'copilotcli' } },
+		});
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource,
+			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } },
+		});
+		await service.completeMigration();
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: false } });
+
+		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, id: event.data.automationId, enabled: event.data.enabled })), [
+			{ name: 'automation.updated', id: hashAutomationTelemetryId('imported'), enabled: false },
+		]);
+	});
+
+	test('redacts unknown models and provider configuration while retaining safe model selections', async () => {
+		const service = createService();
+		for (const model of [undefined, 'auto', 'private-byok-model', '/private/custom-model']) {
+			await service.handleCreate({
+				...createAction(`ahp-automation:/${generateUuid()}`),
+				definition: {
+					...definition(),
+					session: {
+						model: model ? { id: model } : undefined,
+						config: { mode: '/private/custom-mode', autoApprove: 'Private policy text', branch: 'private-branch' },
+					},
+				},
+			});
+		}
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			provider: event.data.provider,
+			model: event.data.model,
+			selection: event.data.modelSelectionKind,
+			mode: event.data.mode,
+			permissionLevel: event.data.permissionLevel,
+			isolation: event.data.isolationMode,
+		})), [
+			{ provider: 'copilotcli', model: undefined, selection: 'default', mode: 'other', permissionLevel: 'other', isolation: 'none' },
+			{ provider: 'copilotcli', model: new TelemetryTrustedValue('auto'), selection: 'auto', mode: 'other', permissionLevel: 'other', isolation: 'none' },
+			{ provider: 'copilotcli', model: 'byokModel', selection: 'explicit', mode: 'other', permissionLevel: 'other', isolation: 'none' },
+			{ provider: 'copilotcli', model: 'unknown', selection: 'explicit', mode: 'other', permissionLevel: 'other', isolation: 'none' },
+		]);
+	});
+
+	test('records a durable run claim before session creation settles and does not replay it', async () => {
+		const release = new DeferredPromise<URI>();
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => release.p,
+			startSession: async () => { await started.complete(); },
+		});
+		await service.completeMigration();
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), session: { provider: 'copilotcli', config: { mode: 'plan' } } },
+		});
+		const request: RunAutomationParams = { channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'claim' };
+		const run = await service.runAutomation(request);
+		await service.runAutomation(request);
+		await service.runAutomation({ ...request, requestId: 'overlap' });
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => event.data), [{
+			automationId: hashAutomationTelemetryId('review-changes'),
+			runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
+			trigger: 'manual',
+			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
+			provider: 'copilotcli',
+			agentSessionId: undefined,
+			sessionCreated: false,
+			model: undefined,
+			modelSelectionKind: 'default',
+			mode: 'plan',
+			permissionLevel: 'providerDefault',
+			isolationMode: 'none',
+			targetKind: 'quickChat',
+			folderCount: 0,
+			hasCustomAgent: false,
+		}]);
+		await release.complete(URI.parse('copilotcli:/claimed-session'));
+		await started.p;
+		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['automation.created', 'automation.runCreated', 'automation.runStarted']);
+	});
+
+	test('joins runs to existing Agent Host session telemetry without changing or duplicating it', async () => {
+		const session = URI.parse('copilotcli:/business-session');
+		const started = new DeferredPromise<void>();
+		const reporter = new AgentHostTelemetryReporter(telemetry);
+		const service = createService({
+			createSession: async () => session,
+			startSession: async (_, message) => {
+				reporter.userMessageSent(
+					'copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+					session.toString(), 'first-turn', undefined, 'direct', message, false,
+				);
+				await started.complete();
+			},
+		});
+		await service.completeMigration();
+		await service.handleCreate({ ...createAction(), definition: { ...definition(), session: { provider: 'copilotcli' } } });
+		await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'business-run' });
+		await started.p;
+
+		const starts = telemetry.events.filter(event => event.name === 'automation.runStarted');
+		const messages = telemetry.events.filter(event => event.name === 'agentHost.userMessageSent');
+		assert.deepStrictEqual({
+			events: telemetry.events.map(event => event.name),
+			runSession: starts.map(event => ({ provider: event.data.provider, agentSessionId: event.data.agentSessionId })),
+			messageSession: messages.map(event => ({ provider: event.data.provider, agentSessionId: event.data.agentSessionId })),
+			origins: messages.map(event => event.data.messageOriginKind),
+			legacyFields: starts.flatMap(event => Object.keys(event.data).filter(key => key === 'executionAuthority' || key === 'agentsWindowSessionId' || key === 'sessionProvider')),
+		}, {
+			events: ['automation.created', 'automation.runCreated', 'automation.runStarted', 'agentHost.userMessageSent'],
+			runSession: [{ provider: 'copilotcli', agentSessionId: 'business-session' }],
+			messageSession: [{ provider: 'copilotcli', agentSessionId: 'business-session' }],
+			origins: ['automation'],
+			legacyFields: [],
+		});
+	});
+
 	test('logs pre-session failure once without inventing a run-start or session identifier', async () => {
 		const service = createService({ createSession: async () => { throw new Error('/private/startup-error'); } });
 		await enableAndCreate(service);
@@ -178,7 +358,7 @@ suite('AgentHostAutomationService', () => {
 		await terminalRun(run.resource);
 		await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'failed-start' });
 
-		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => ({
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
 			name: event.name,
 			...event.data,
 			durationMs: Number(event.data.durationMs) >= 0,
@@ -186,15 +366,15 @@ suite('AgentHostAutomationService', () => {
 			name: 'automation.runCompleted',
 			automationId: hashAutomationTelemetryId('review-changes'),
 			runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
-			executionAuthority: 'agentHost',
 			trigger: 'manual',
 			runCreatedAt: stateManager.getAutomationRunState(run.resource)?.lifecycle.createdAt,
-			sessionProvider: undefined,
+			provider: 'default',
 			agentSessionId: undefined,
 			sessionCreated: false,
 			outcome: 'error',
 			durationMs: true,
 		}]);
+		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['automation.created', 'automation.runCreated', 'automation.runCompleted']);
 	});
 
 	test('execution remains gated after migration persistence failure and retries safely', async () => {
@@ -497,17 +677,15 @@ suite('AgentHostAutomationService', () => {
 			name: event.name,
 			automationId: event.data.automationId,
 			runId: event.data.runId,
-			executionAuthority: event.data.executionAuthority,
 			agentSessionId: event.data.agentSessionId,
 			sessionCreated: event.data.sessionCreated,
 			outcome: event.data.outcome,
-		})), ['automation.runStarted', 'automation.runCompleted'].map(name => ({
+		})), ['automation.runCreated', 'automation.runStarted', 'automation.runCompleted'].map(name => ({
 			name,
 			automationId: hashAutomationTelemetryId('review-changes'),
 			runId: hashAutomationTelemetryId(AgentSession.id(first.resource)),
-			executionAuthority: 'agentHost',
-			agentSessionId: 'automation-session',
-			sessionCreated: true,
+			agentSessionId: name === 'automation.runCreated' ? undefined : 'automation-session',
+			sessionCreated: name !== 'automation.runCreated',
 			outcome: name === 'automation.runCompleted' ? 'success' : undefined,
 		})));
 	});
@@ -615,7 +793,6 @@ suite('AgentHostAutomationService', () => {
 			targetKind: event.data.targetKind,
 			folderCount: event.data.folderCount,
 			isolationMode: event.data.isolationMode,
-			sessionProvider: event.data.sessionProvider,
 			agentSessionId: event.data.agentSessionId,
 		})), [{
 			provider: 'copilotcli',
@@ -626,7 +803,6 @@ suite('AgentHostAutomationService', () => {
 			targetKind: 'quickChat',
 			folderCount: 0,
 			isolationMode: 'none',
-			sessionProvider: 'copilotcli',
 			agentSessionId: 'configured-session',
 		}]);
 	});
@@ -648,6 +824,7 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, outcome: event.data.outcome, session: event.data.agentSessionId })), [
 			{ name: 'automation.created', outcome: undefined, session: undefined },
+			{ name: 'automation.runCreated', outcome: undefined, session: undefined },
 			{ name: 'automation.runStarted', outcome: undefined, session: 'interrupted-session' },
 			{ name: 'automation.runCompleted', outcome: 'interrupted', session: 'interrupted-session' },
 		]);
@@ -701,10 +878,9 @@ suite('AgentHostAutomationService', () => {
 			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data), [{
 				automationId: hashAutomationTelemetryId('review-changes'),
 				runId: hashAutomationTelemetryId(AgentSession.id(run.resource)),
-				executionAuthority: 'agentHost',
 				trigger: 'manual',
 				runCreatedAt: new Date(Date.UTC(2026, 0, 1)).toISOString(),
-				sessionProvider: 'copilotcli',
+				provider: 'copilotcli',
 				agentSessionId: `${outcome}-session`,
 				sessionCreated: true,
 				outcome,
@@ -899,7 +1075,10 @@ suite('AgentHostAutomationService', () => {
 			hasCompletedAt: true,
 			sessions: [session.toString()],
 			primarySession: session.toString(),
-			lifecycleEvents: [{ name: 'automation.runCompleted', outcome: 'cancelled', sessionCreated: false }],
+			lifecycleEvents: [
+				{ name: 'automation.runCreated', outcome: undefined, sessionCreated: false },
+				{ name: 'automation.runCompleted', outcome: 'cancelled', sessionCreated: false },
+			],
 		});
 	});
 
@@ -1040,6 +1219,7 @@ suite('AgentHostAutomationService', () => {
 
 		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, trigger: event.data.trigger, scheduleKind: event.data.scheduleKind })), [
 			{ name: 'automation.created', trigger: undefined, scheduleKind: 'scheduled' },
+			{ name: 'automation.runCreated', trigger: 'schedule', scheduleKind: undefined },
 			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: undefined },
 		]);
 	}));

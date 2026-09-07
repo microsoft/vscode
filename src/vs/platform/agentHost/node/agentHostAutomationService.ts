@@ -12,8 +12,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomationTelemetryPermissionLevel, getAutomationTelemetryProvider, logAutomationCreated, logAutomationRunCompleted, logAutomationRunStarted, type AutomationRunOutcome, type IAutomationConfigurationTelemetry, type IAutomationRunTelemetry } from '../../telemetry/common/automationTelemetry.js';
-import { toTelemetryModel } from '../../telemetry/common/languageModelTelemetry.js';
+import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomationTelemetryPermissionLevel, getAutomationTelemetryProvider, logAutomationCreated, logAutomationUpdated, logAutomationDeleted, logAutomationRunCreated, logAutomationRunCompleted, logAutomationRunStarted, type AutomationRunOutcome, type IAutomationConfigurationTelemetry, type IAutomationDefinitionTelemetry, type IAutomationRunTelemetry } from './agentHostAutomationTelemetry.js';
+import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -292,14 +292,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
-		if (!isAgentHostLegacyAutomationImport(definition)) {
-			logAutomationCreated(this._telemetryService, {
-				...this._configurationTelemetry(definition.session),
-				automationId: AgentSession.id(action.resource),
-				executionAuthority: 'agentHost',
-				enabled: definition.enabled,
-				scheduleKind: definition.triggers.length === 0 ? 'manual' : 'scheduled',
-			});
+		if (!isAgentHostLegacyAutomationImport(definition) && !pending) {
+			logAutomationCreated(this._telemetryService, this._definitionTelemetry(automation));
 		}
 		this._scheduleNext();
 	}
@@ -350,6 +344,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
+		const enabledChanged = existing.definition.enabled !== automation.definition.enabled;
+		const scheduleChanged = !equals(existing.definition.triggers, automation.definition.triggers);
+		const sessionConfigurationChanged = !equals(existing.definition.session, automation.definition.session);
+		const promptChanged = !equals(existing.definition.message, automation.definition.message);
+		if (!isAgentHostLegacyAutomationImportPending(existing.definition)
+			&& !isAgentHostLegacyAutomationImportPending(automation.definition)
+			&& (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || existing.definition.title !== automation.definition.title)) {
+			logAutomationUpdated(this._telemetryService, {
+				...this._definitionTelemetry(automation),
+				enabledChanged,
+				scheduleChanged,
+				sessionConfigurationChanged,
+				promptChanged,
+			});
+		}
 		this._scheduleNext();
 	}
 
@@ -371,6 +380,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, action);
+		logAutomationDeleted(this._telemetryService, this._definitionTelemetry(existing));
 		this._scheduleNext();
 	}
 
@@ -624,8 +634,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(nextCatalog, nextRuns, this._manualRunRequests);
 		this._catalog = nextCatalog;
 		this._runs = nextRuns;
-		for (const run of claimed.map(entry => entry.run)) {
+		for (const { run, definition } of claimed) {
 			this._stateManager.setAutomationRunState(run);
+			logAutomationRunCreated(this._telemetryService, {
+				...this._runTelemetry(run),
+				...this._configurationTelemetry(definition.session),
+			});
 		}
 		for (const automation of changed.values()) {
 			this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
@@ -702,6 +716,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._manualRunRequests = nextRequests;
 		this._stateManager.setAutomationRunState(run);
 		this._publishAutomation(nextCatalog, automation.resource);
+		logAutomationRunCreated(this._telemetryService, {
+			...this._runTelemetry(run),
+			...this._configurationTelemetry(automation.definition.session),
+		});
 		this._logService.info(`[AgentHostAutomationService] Created durable manual automation run: automation=${automation.resource}, run=${run.resource}.`);
 		return { run, definition: automation.definition };
 	}
@@ -937,7 +955,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const modelKind = modelId && agent ? getModelTelemetryContext(agent, modelId).modelTelemetryKind : modelId === 'auto' ? 'trusted' : 'unknown';
 		const folderCount = template.workingDirectories?.length ?? 0;
 		return {
-			provider: getAutomationTelemetryProvider(template.provider),
+			provider: getAutomationTelemetryProvider(agent?.id ?? template.provider),
 			model: toTelemetryModel(modelId, modelKind),
 			modelSelectionKind: modelId === undefined ? 'default' : modelId === 'auto' ? 'auto' : 'explicit',
 			mode: getAutomationTelemetryMode(template.config?.[SessionConfigKey.Mode]),
@@ -949,15 +967,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		};
 	}
 
+	private _definitionTelemetry(automation: AutomationEntry): IAutomationDefinitionTelemetry {
+		return {
+			...this._configurationTelemetry(automation.definition.session),
+			automationId: AgentSession.id(automation.resource),
+			enabled: automation.definition.enabled,
+			scheduleKind: automation.definition.triggers.length === 0 ? 'manual' : 'scheduled',
+		};
+	}
+
 	private _runTelemetry(run: AutomationRunState): IAutomationRunTelemetry {
 		const session = run.primarySession;
 		return {
 			automationId: AgentSession.id(run.automation),
 			runId: AgentSession.id(run.resource),
-			executionAuthority: 'agentHost',
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
 			runCreatedAt: run.lifecycle.createdAt,
-			sessionProvider: session ? getAutomationTelemetryProvider(AgentSession.provider(session)) : undefined,
+			provider: session ? getAutomationTelemetryProvider(AgentSession.provider(session)) : 'default',
 			agentSessionId: session ? AgentSession.id(session) : undefined,
 			sessionCreated: run.sessions.length > 0,
 		};

@@ -5,7 +5,6 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { AutomationRunOutcome } from '../../../../../platform/telemetry/common/automationTelemetry.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -144,10 +143,6 @@ export interface IAutomationRun {
 
 	/** Session resource URI, recorded as soon as the committed session is available. */
 	readonly sessionResource?: URI;
-	/** Provider-neutral session identity, absent on older or host-projected run records. */
-	readonly sessionId?: string;
-	/** Terminal result, including cancellation, timeout and restart interruption. Absent on older records. */
-	readonly outcome?: AutomationRunOutcome;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

@@ -151,8 +151,6 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 export interface IUpdateAutomationRunOptions {
 	readonly status?: IAutomationRun['status'];
 	readonly sessionResource?: URI;
-	readonly sessionId?: string;
-	readonly outcome?: IAutomationRun['outcome'];
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 }
@@ -213,7 +211,7 @@ export interface IAutomationStore {
 	 */
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim>;
 
-	/** Applies a patch to a run; terminal results are immutable, but session linkage may arrive later. Returns `undefined` if not found. */
+	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
 	/** Deletes a retained run history entry; missing IDs are ignored. */
 	deleteRun(runId: string): Promise<void>;
