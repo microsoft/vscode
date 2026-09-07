@@ -28,11 +28,7 @@ import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js
 import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility, type ISessionChatPillMenuEntry } from '../common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-<<<<<<< HEAD
-import { IChat } from '../../../services/sessions/common/session.js';
-=======
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
->>>>>>> cbb81cdaae0 (Merge pull request #334510 from microsoft/copilot/hide-chat-pills-subagent-chats)
+import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionBackgroundActivitiesControl, sessionSubagentsPillOptions } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl, sessionBrowsersPillOptions } from './sessionBrowsersControl.js';
@@ -132,12 +128,6 @@ export class SessionChatInputToolbar extends Disposable {
 		}
 		return this._findOwningSession(chat.resource, reader);
 	});
-
-	/**
-	 * Whether the reflected chat is a subagent (worker) chat. Its pills describe
-	 * the session the subagent was spawned from rather than the subagent's own
-	 * work, so the row stays hidden there.
-	 */
 	private readonly _isSubagentChat: IObservable<boolean> = derived(this, reader => this._chat.read(reader)?.origin?.kind === ChatOriginKind.Tool);
 
 	/** The current turn's diff stats. */
@@ -192,8 +182,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-<<<<<<< HEAD
-		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
+		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || (turnStatusPillsEnabled.read(reader) && !this._isSubagentChat.read(reader)));
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			artifacts: this._artifactSections,
@@ -213,14 +202,6 @@ export class SessionChatInputToolbar extends Disposable {
 				...metadataPills.pills.read(reader),
 				...turn.filter(pill => pill.action.id !== CHAT_TURN_CHANGES_PILL_ID),
 			];
-=======
-		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
-		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
-		const gitHubInfo = derived(this, reader => {
-			const session = this._session.read(reader);
-			const workspace = session?.workspace.read(reader);
-			return workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
->>>>>>> cbb81cdaae0 (Merge pull request #334510 from microsoft/copilot/hide-chat-pills-subagent-chats)
 		});
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Subagents, reader))));
 
@@ -339,7 +320,6 @@ export class SessionChatInputToolbar extends Disposable {
 					groups.push(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 					return Separator.join(...groups);
 				},
-<<<<<<< HEAD
 			});
 		}));
 
@@ -371,27 +351,6 @@ export class SessionChatInputToolbar extends Disposable {
 				this._onDidChangeVisibility.fire(visible);
 			}
 			this._scrollable.scanDomNode();
-=======
-			},
-			pullRequests: { sections: pullRequestSections, icon: pullRequestPresentation.icon },
-			issues: { sections: issueSections, icon: issueIcon },
-			artifacts: { sections: this._artifactSections },
-			references: { sections: this._referenceSections },
-			customizations: { sections: this._customizationSections },
-			browsers: { sections: this._browsers.sections },
-			subagents: { sections: this._backgroundActivities.sections },
-		}, SESSION_CHAT_PILL_KINDS));
-		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
-		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
-			debugName: 'SessionChatInputToolbar.content',
-			compact,
-			enabled: pillsVisible,
-			sources: constObservable(sources.sources),
-			offeredKinds: SESSION_CHAT_PILL_KINDS,
-			context: this._session,
-			actionRunner,
-			focusFallback,
->>>>>>> cbb81cdaae0 (Merge pull request #334510 from microsoft/copilot/hide-chat-pills-subagent-chats)
 		}));
 	}
 
