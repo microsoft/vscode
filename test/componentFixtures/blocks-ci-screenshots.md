@@ -336,6 +336,15 @@
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Soft/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/af268bfa64dd8a47c8e05e756742156c27b0ff49306146e2aa343260b5838735)
 
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e0a82b05f1166a334c8d48990d1dbfa3c4ae6dfa358a88ca3cf56fffbf93792e)
+
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a1db74bd19da0772ca4caeaf341646344e2cb775708c5732f00a30fd94473960)
+
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/38d000ecc104d74252f7bac7d47f712e8deb2bd4907657d50993cbf0ee9fcc3e)
+
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4c6dfa53103d4a06dd28aa56baad6798cd36894da97bffc351618aed8b10396f)
 
