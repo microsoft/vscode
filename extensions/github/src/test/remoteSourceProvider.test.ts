@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import type { Octokit } from '@octokit/rest';
-import { AuthenticationSession, EventEmitter, Uri, workspace } from 'vscode';
+import { AuthenticationSession, EventEmitter, FileType, Uri, workspace } from 'vscode';
 import { FileOwnedRepositoriesCacheStorage, GithubRemoteSourceProvider, OwnedRepositoriesCache, OwnedRepositoriesCacheStorage, RepositorySearchIndex } from '../remoteSourceProvider.js';
 
 suite('GithubRemoteSourceProvider', function () {
@@ -39,6 +39,11 @@ suite('GithubRemoteSourceProvider', function () {
 				if (this.value?.accountId === accountId) {
 					this.value = undefined;
 				}
+			},
+			async clear(exceptAccountId) {
+				if (this.value?.accountId !== exceptAccountId) {
+					this.value = undefined;
+				}
 			}
 		};
 	}
@@ -63,13 +68,14 @@ suite('GithubRemoteSourceProvider', function () {
 	function inMemoryFileSystem() {
 		const files = new Map<string, Uint8Array>();
 		const key = (uri: Uri) => uri.toString();
-		const fileSystem: Pick<typeof workspace.fs, 'createDirectory' | 'delete' | 'readFile' | 'rename' | 'writeFile'> = {
+		const fileSystem: Pick<typeof workspace.fs, 'createDirectory' | 'delete' | 'readDirectory' | 'readFile' | 'rename' | 'writeFile'> = {
 			createDirectory: async () => undefined,
 			delete: async uri => {
 				if (!files.delete(key(uri))) {
 					throw new Error('File not found');
 				}
 			},
+			readDirectory: async () => [...files.keys()].map(path => [path.split('/').pop()!, FileType.File]),
 			readFile: async uri => {
 				const contents = files.get(key(uri));
 				if (!contents) {
@@ -250,6 +256,42 @@ suite('GithubRemoteSourceProvider', function () {
 		assert.strictEqual(storage.value?.validatedAt, hour + 1);
 	});
 
+	test('retries cache validation on later requests after backoff', async function () {
+		const hour = 60 * 60 * 1000;
+		let currentTime = hour + 1;
+		const storage = cacheStorage({
+			version: 3,
+			accountId: 'owner',
+			owner: 'owner',
+			refreshedAt: hour,
+			validatedAt: 0,
+			repositories: ['owner/transactions']
+		});
+		let requestCount = 0;
+		const octokit = {
+			repos: {
+				listForAuthenticatedUser: async () => {
+					requestCount++;
+					if (requestCount === 1) {
+						throw new Error('Temporary failure');
+					}
+					throw Object.assign(new Error('Not modified'), { status: 304 });
+				}
+			},
+			search: { repos: async () => ({ data: { items: [] } }) }
+		} as unknown as Octokit;
+		const provider = createProvider(octokit, storage, () => currentTime);
+
+		await provider.getRemoteSources();
+		await flushAsyncWork();
+		currentTime += 60 * 1000 + 1;
+		provider.getRemoteSources();
+		await flushAsyncWork();
+
+		assert.strictEqual(requestCount, 2);
+		assert.strictEqual(storage.value?.validatedAt, currentTime);
+	});
+
 	test('keeps matching search results while a query is narrowed', async function () {
 		const octokit = {
 			users: { getAuthenticated: async () => ({ data: { login: 'owner' } }) },
@@ -328,6 +370,47 @@ suite('GithubRemoteSourceProvider', function () {
 		assert.strictEqual(signals[1].aborted, true);
 	});
 
+	test('publishes public search failures without discarding local results', async function () {
+		const octokit = {
+			users: { getAuthenticated: async () => ({ data: { login: 'owner' } }) },
+			repos: { listForAuthenticatedUser: async () => ({ data: [apiRepository('owner/transactions')], headers: {} }) },
+			paginate: async () => [],
+			search: { repos: async () => { throw new Error('Search unavailable'); } }
+		} as unknown as Octokit;
+		const provider = createProvider(octokit);
+		const errors: Error[] = [];
+		provider.onDidChangeRemoteSources(event => {
+			if (event.error) {
+				errors.push(event.error);
+			}
+		});
+
+		const results = await provider.getRemoteSources('transactions');
+		await flushAsyncWork();
+
+		assert.deepStrictEqual(results.map(result => result.name), ['$(github) owner/transactions']);
+		assert.deepStrictEqual(errors.map(error => error.message), ['Search unavailable']);
+	});
+
+	test('invalidates pending initialization when disposed', async function () {
+		let resolveSession: ((value: AuthenticationSession) => void) | undefined;
+		let repositoryRequestCount = 0;
+		const octokit = {
+			repos: { listForAuthenticatedUser: async () => { repositoryRequestCount++; return { data: [], headers: {} }; } }
+		} as unknown as Octokit;
+		const provider = new GithubRemoteSourceProvider(
+			async () => octokit,
+			async () => new Promise<AuthenticationSession>(resolve => resolveSession = resolve)
+		);
+
+		const sources = Promise.resolve(provider.getRemoteSources());
+		provider.dispose();
+		resolveSession?.(session());
+
+		assert.deepStrictEqual(await sources, []);
+		assert.strictEqual(repositoryRequestCount, 0);
+	});
+
 	test('deletes the cache after sign-out', async function () {
 		const sessionChanges = new EventEmitter<void>();
 		const storage = cacheStorage({
@@ -347,6 +430,27 @@ suite('GithubRemoteSourceProvider', function () {
 
 		assert.strictEqual(storage.value, undefined);
 		assert.deepStrictEqual(provider.getRemoteSources(), []);
+		provider.dispose();
+		sessionChanges.dispose();
+	});
+
+	test('deletes a removed account cache before initialization', async function () {
+		const sessionChanges = new EventEmitter<void>();
+		const storage = cacheStorage({
+			version: 3,
+			accountId: 'owner',
+			owner: 'owner',
+			refreshedAt: 1,
+			validatedAt: 1,
+			repositories: ['owner/private']
+		});
+		const octokit = {} as Octokit;
+		const provider = createProvider(octokit, storage, () => 1, sessionChanges, async () => undefined);
+
+		sessionChanges.fire();
+		await flushAsyncWork();
+
+		assert.strictEqual(storage.value, undefined);
 		provider.dispose();
 		sessionChanges.dispose();
 	});

@@ -5,7 +5,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { AuthenticationSession, Disposable, Event, EventEmitter, Uri, env, l10n, workspace } from 'vscode';
-import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base.js';
+import { RemoteSourceProvider, RemoteSource, RemoteSourceAction, RemoteSourceProviderChangeEvent } from './typings/git-base.js';
 import { getExistingSession, getOctokit, getSession } from './auth.js';
 import { Octokit } from '@octokit/rest';
 import { getRepositoryFromQuery, getRepositoryFromUrl } from './util.js';
@@ -33,6 +33,7 @@ export interface OwnedRepositoriesCacheStorage {
 	get(accountId: string): Promise<OwnedRepositoriesCache | undefined>;
 	update(cache: OwnedRepositoriesCache): Promise<void>;
 	delete(accountId: string): Promise<void>;
+	clear(exceptAccountId?: string): Promise<void>;
 }
 
 type QueryCacheEntry = {
@@ -54,7 +55,7 @@ export class FileOwnedRepositoriesCacheStorage implements OwnedRepositoriesCache
 
 	constructor(
 		private readonly storageUri: Uri,
-		private readonly fileSystem: Pick<typeof workspace.fs, 'createDirectory' | 'delete' | 'readFile' | 'rename' | 'writeFile'> = workspace.fs,
+		private readonly fileSystem: Pick<typeof workspace.fs, 'createDirectory' | 'delete' | 'readDirectory' | 'readFile' | 'rename' | 'writeFile'> = workspace.fs,
 		private readonly createTemporarySuffix: () => string = randomUUID
 	) { }
 
@@ -96,9 +97,35 @@ export class FileOwnedRepositoriesCacheStorage implements OwnedRepositoriesCache
 		});
 	}
 
+	clear(exceptAccountId?: string): Promise<void> {
+		return this.queueOperation(async () => {
+			let entries: [string, unknown][];
+			try {
+				entries = await this.fileSystem.readDirectory(this.storageUri);
+			} catch {
+				return;
+			}
+
+			const exceptFileName = exceptAccountId ? this.getCacheFileName(exceptAccountId) : undefined;
+			for (const [name] of entries) {
+				if (/^owned-repositories-v3-[a-f0-9]{16}\.json$/.test(name) && name !== exceptFileName) {
+					try {
+						await this.fileSystem.delete(Uri.joinPath(this.storageUri, name));
+					} catch {
+						// The cache may have been removed by another extension host.
+					}
+				}
+			}
+		});
+	}
+
 	private getCacheUri(accountId: string): Uri {
+		return Uri.joinPath(this.storageUri, this.getCacheFileName(accountId));
+	}
+
+	private getCacheFileName(accountId: string): string {
 		const accountHash = createHash('sha256').update(accountId).digest('hex').slice(0, 16);
-		return Uri.joinPath(this.storageUri, `owned-repositories-v3-${accountHash}.json`);
+		return `owned-repositories-v3-${accountHash}.json`;
 	}
 
 	private queueOperation(operation: () => Promise<void>): Promise<void> {
@@ -272,15 +299,20 @@ function isAbortError(error: unknown): boolean {
 	return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError';
 }
 
+function asError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
+}
+
 export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposable {
 
 	readonly name = 'GitHub';
 	readonly icon = 'github';
 	readonly supportsQuery = true;
 
-	private readonly onDidChangeRemoteSourcesEmitter = new EventEmitter<void>();
+	private readonly onDidChangeRemoteSourcesEmitter = new EventEmitter<RemoteSourceProviderChangeEvent>();
 	readonly onDidChangeRemoteSources = this.onDidChangeRemoteSourcesEmitter.event;
 
+	private isDisposed = false;
 	private account: { id: string; octokit: Octokit } | undefined;
 	private accountGeneration = 0;
 	private authenticationUnavailable = false;
@@ -314,14 +346,14 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 	}
 
 	dispose(): void {
-		this.cancelOwnedRepositoriesRefresh();
-		this.cancelQuery();
+		this.isDisposed = true;
+		this.resetAccount();
 		this.authenticationChangeSubscription?.dispose();
 		this.onDidChangeRemoteSourcesEmitter.dispose();
 	}
 
 	getRemoteSources(query?: string): RemoteSource[] | Promise<RemoteSource[]> {
-		if (this.authenticationUnavailable) {
+		if (this.isDisposed || this.authenticationUnavailable) {
 			return [];
 		}
 		if (!this.account) {
@@ -332,6 +364,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 	}
 
 	private getRemoteSourcesForCurrentAccount(query?: string): RemoteSource[] | Promise<RemoteSource[]> {
+		this.refreshOwnedRepositoriesIfNeeded();
 		const normalizedQuery = query?.trim();
 		if (!normalizedQuery) {
 			this.cancelQuery();
@@ -408,7 +441,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 
 				this.owner = user.data.login;
 				this.setOwnedRepositories(firstPage.data.map(asRemoteSourceResponse));
-				this.onDidChangeRemoteSourcesEmitter.fire();
+				this.onDidChangeRemoteSourcesEmitter.fire({});
 				void this.refreshOwnedRepositories(firstPage.data.map(asRemoteSourceResponse), firstPage.headers.etag);
 			} catch (error) {
 				if (!isAbortError(error) && this.isCurrentAccount(account.id, generation)) {
@@ -426,7 +459,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 	}
 
 	private refreshOwnedRepositoriesIfNeeded(): void {
-		if (this.now() - this.ownedRepositoriesValidatedAt < ownedRepositoriesValidationTtl || !this.canRetryOwnedRepositoriesRefresh()) {
+		if (this.ownedRepositoriesRefreshRequest || this.now() - this.ownedRepositoriesValidatedAt < ownedRepositoriesValidationTtl || !this.canRetryOwnedRepositoriesRefresh()) {
 			return;
 		}
 
@@ -512,7 +545,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 				this.ownedRepositoriesFirstPageEtag = firstPageEtag;
 				this.ownedRepositoriesRefreshFailureCount = 0;
 				await this.persistOwnedRepositories();
-				this.onDidChangeRemoteSourcesEmitter.fire();
+				this.onDidChangeRemoteSourcesEmitter.fire({});
 			} catch (error) {
 				if (!isAbortError(error) && this.isCurrentAccount(account.id, generation)) {
 					this.recordOwnedRepositoriesRefreshFailure(error);
@@ -581,7 +614,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 				this.queryCache.set(cacheKey, { createdAt: this.now(), results: raw.data.items.map(asRemoteSourceResponse) });
 				this.queryCacheIndex = undefined;
 				this.activeQueryRequest = undefined;
-				this.onDidChangeRemoteSourcesEmitter.fire();
+				this.onDidChangeRemoteSourcesEmitter.fire({});
 			},
 			error => {
 				if (this.activeQueryRequest?.controller !== controller) {
@@ -590,6 +623,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 				this.activeQueryRequest = undefined;
 				if (!isAbortError(error)) {
 					console.error(error);
+					this.onDidChangeRemoteSourcesEmitter.fire({ error: asError(error) });
 				}
 			}
 		);
@@ -648,13 +682,15 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 		try {
 			const session = await this.existingSessionProvider();
 			this.authenticationUnavailable = !session;
-			if (previousAccountId && (!session || session.account.id !== previousAccountId)) {
+			if (!previousAccountId) {
+				await this.clearOwnedRepositoriesCaches(session?.account.id);
+			} else if (!session || session.account.id !== previousAccountId) {
 				await this.deleteOwnedRepositoriesCache(previousAccountId);
 			}
 		} catch (error) {
 			console.error(error);
 		} finally {
-			this.onDidChangeRemoteSourcesEmitter.fire();
+			this.onDidChangeRemoteSourcesEmitter.fire({});
 		}
 	}
 
@@ -679,6 +715,14 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposa
 	private async deleteOwnedRepositoriesCache(accountId: string): Promise<void> {
 		try {
 			await this.cacheStorage?.delete(accountId);
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	private async clearOwnedRepositoriesCaches(exceptAccountId?: string): Promise<void> {
+		try {
+			await this.cacheStorage?.clear(exceptAccountId);
 		} catch (error) {
 			console.error(error);
 		}

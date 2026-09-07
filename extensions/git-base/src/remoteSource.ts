@@ -54,7 +54,7 @@ class RemoteSourceProviderQuickPick implements Disposable {
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name (type to search)');
 				this.disposables.push(this.quickpick.onDidChangeValue(this.onDidChangeValue, this));
 				if (this.provider.onDidChangeRemoteSources) {
-					this.disposables.push(this.provider.onDidChangeRemoteSources(() => this.query()));
+					this.disposables.push(this.provider.onDidChangeRemoteSources(event => event.error ? this.showError(event.error) : this.query()));
 				}
 			} else {
 				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name');
@@ -91,6 +91,19 @@ class RemoteSourceProviderQuickPick implements Disposable {
 				alwaysShow: true
 			}));
 		}
+	}
+
+	private showError(error: Error): void {
+		if (!this.quickpick || this.isDisposed) {
+			return;
+		}
+
+		const label = l10n.t('{0} Error: {1}', '$(error)', error.message);
+		const remoteSourceItems = this.quickpick.items.filter(item => item.remoteSource);
+		this.quickpick.items = remoteSourceItems.length === 0
+			? [{ label, alwaysShow: true }]
+			: [...remoteSourceItems, { label, kind: QuickPickItemKind.Separator }];
+		this.quickpick.busy = false;
 	}
 
 	@throttle
