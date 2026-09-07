@@ -15,7 +15,7 @@ import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { CustomizationType } from '../../../common/state/protocol/channels-session/state.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions } from '../../../node/codex/codexCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills } from '../../../node/codex/codexCustomizations.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { SkillMetadata } from '../../../node/codex/protocol/generated/v2/SkillMetadata.js';
 import type { SkillScope } from '../../../node/codex/protocol/generated/v2/SkillScope.js';
@@ -108,6 +108,79 @@ suite('codexCustomizations', () => {
 				{ uri: secondaryDirectory.toString(), children: [{ name: 'Secondary Agent', uri: secondaryOnlyAgent.toString() }] },
 			],
 		});
+	});
+
+	test('discovers GitHub workspace skills and preserves invocation metadata', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		const directory = URI.joinPath(workspace, '.github', 'skills');
+		const skillUri = URI.joinPath(directory, 'website', 'SKILL.md');
+		await Promise.all([
+			fileService.writeFile(skillUri, VSBuffer.fromString('---\nname: standalone-html-website\ndescription: Builds a self-contained website\nuser-invocable: false\ndisable-model-invocation: true\n---\nInclude the required footer.')),
+			fileService.writeFile(URI.joinPath(directory, 'SKILL.md'), VSBuffer.fromString('Not a skill directory.')),
+			fileService.writeFile(URI.joinPath(workspace, 'SKILL.md'), VSBuffer.fromString('Not a workspace skill.')),
+			fileService.writeFile(URI.joinPath(workspace, '.agents', 'skills', 'native', 'SKILL.md'), VSBuffer.fromString('Already discovered by Codex.')),
+		]);
+
+		const containers = await discoverCodexWorkspaceSkills([workspace, workspace], fileService);
+
+		assert.deepStrictEqual(containers.map(container => ({
+			uri: container.uri,
+			contents: container.contents,
+			writable: container.writable,
+			children: container.children?.map(child => child.type === CustomizationType.Skill ? {
+				name: child.name,
+				description: child.description,
+				uri: child.uri,
+				disableUserInvocation: child.disableUserInvocation,
+				disableModelInvocation: child.disableModelInvocation,
+			} : undefined),
+		})), [{
+			uri: directory.toString(),
+			contents: CustomizationType.Skill,
+			writable: true,
+			children: [{
+				name: 'standalone-html-website',
+				description: 'Builds a self-contained website',
+				uri: skillUri.toString(),
+				disableUserInvocation: true,
+				disableModelInvocation: true,
+			}],
+		}]);
+	});
+
+	test('discovers workspace skills across roots with primary-root name precedence', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
+		const secondary = URI.from({ scheme: Schemas.inMemory, path: '/secondary' });
+		const primarySkill = URI.joinPath(primary, '.github', 'skills', 'shared', 'SKILL.md');
+		const secondarySkill = URI.joinPath(secondary, '.github', 'skills', 'extra', 'SKILL.md');
+		await Promise.all([
+			fileService.writeFile(primarySkill, VSBuffer.fromString('---\nname: shared\ndescription: Primary skill\n---\nUse the primary workspace.')),
+			fileService.writeFile(URI.joinPath(secondary, '.github', 'skills', 'shared', 'SKILL.md'), VSBuffer.fromString('---\nname: shared\ndescription: Duplicate skill\n---\nDo not use the duplicate.')),
+			fileService.writeFile(secondarySkill, VSBuffer.fromString('---\nname: extra\ndescription: Secondary skill\n---\nUse the secondary workspace.')),
+		]);
+
+		const containers = await discoverCodexWorkspaceSkills([primary, secondary, primary], fileService);
+
+		assert.deepStrictEqual(containers.map(container => ({
+			uri: container.uri,
+			children: container.children?.map(child => ({ name: child.name, uri: child.uri })),
+		})), [
+			{ uri: URI.joinPath(primary, '.github', 'skills').toString(), children: [{ name: 'shared', uri: primarySkill.toString() }] },
+			{ uri: URI.joinPath(secondary, '.github', 'skills').toString(), children: [{ name: 'extra', uri: secondarySkill.toString() }] },
+		]);
+	});
+
+	test('ignores missing and non-directory workspace skill roots', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+		await fileService.writeFile(URI.joinPath(workspace, '.github', 'skills'), VSBuffer.fromString('Not a directory.'));
+
+		assert.deepStrictEqual(await discoverCodexWorkspaceSkills([workspace, URI.from({ scheme: Schemas.inMemory, path: '/missing' })], fileService), []);
 	});
 
 	test('surfaces each workspace root AGENTS.md as an always-on rule', async () => {

@@ -9,7 +9,7 @@ import { isAbsolute, normalize } from '../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
-import { readAgentComponents, toParsedAgent, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
+import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
@@ -107,6 +107,47 @@ export async function discoverCodexWorkspaceAgents(
 	}
 
 	return { agents, containers };
+}
+
+export async function discoverCodexWorkspaceSkills(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	const seenNames = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directory = URI.joinPath(workingDirectory, '.github', 'skills');
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const skills = (await readSkills(workingDirectory, [directory], fileService, { childDirectoriesOnly: true }))
+			.filter(skill => {
+				if (seenNames.has(skill.name)) {
+					return false;
+				}
+				seenNames.add(skill.name);
+				return true;
+			});
+		if (skills.length === 0) {
+			continue;
+		}
+		const uri = directory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(uri),
+			uri,
+			name: '.github',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: skills.map(skill => toParsedSkill(skill).customization),
+		});
+	}
+	return containers;
 }
 
 /**

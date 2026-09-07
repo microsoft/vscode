@@ -74,6 +74,7 @@ interface ITestWireRequest {
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
+		readonly extraRoots?: readonly string[];
 		readonly sandboxPolicy?: SandboxPolicy;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
@@ -1365,6 +1366,71 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('workspace skill catalog refresh removes deleted skills', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillUri = URI.joinPath(workspace, '.github', 'skills', 'website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: website\ndescription: Builds websites\n---\nInclude a footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace] });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await agent['_refreshSkillHookCustomizations'](entry);
+		await agent['_fileService'].del(skillUri);
+		await agent['_refreshSkillHookCustomizations'](entry);
+
+		assert.deepStrictEqual({
+			actions: signals.flatMap(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.SessionCustomizationUpdated || signal.action.type === ActionType.SessionCustomizationRemoved)
+				? [signal.action.type] : []),
+			publishedDirectoryIds: [...entry.publishedDirectoryCustomizationIds],
+		}, {
+			actions: [ActionType.SessionCustomizationUpdated, ActionType.SessionCustomizationRemoved],
+			publishedDirectoryIds: [],
+		});
+	});
+
+	test('workspace skill roots stay session-scoped rather than process-global', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillRoot = URI.joinPath(workspace, '.github', 'skills');
+		await agent['_fileService'].writeFile(URI.joinPath(skillRoot, 'website', 'SKILL.md'), VSBuffer.fromString('---\nname: website\ndescription: Builds websites\n---\nInclude a footer.'));
+		const owner = await createSession(agent, { workingDirectories: [workspace] });
+		const unrelated = await createSession(agent, { workingDirectories: [URI.file('/other')] });
+		const ownerLaunch = await agent['_buildCustomizationLaunch'](agent['_sessions'].get(AgentSession.id(owner.session))!);
+		const unrelatedLaunch = await agent['_buildCustomizationLaunch'](agent['_sessions'].get(AgentSession.id(unrelated.session))!);
+		const unrelatedChat = defaultChatOf(unrelated.session);
+		const unrelatedCustomizations = await agent.getChatCustomizations(unrelatedChat, chatContext(unrelated.session, unrelatedChat));
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+
+		try {
+			const applying = agent['_applySkillExtraRoots'](client);
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			await applying;
+
+			assert.deepStrictEqual({
+				ownerRoots: ownerLaunch.selectedCapabilityRoots.map(root => root.location.path),
+				unrelatedRoots: unrelatedLaunch.selectedCapabilityRoots,
+				unrelatedCustomizations,
+				method: request.method,
+				processGlobalRoots: request.params.extraRoots,
+			}, {
+				ownerRoots: [skillRoot.fsPath],
+				unrelatedRoots: [],
+				unrelatedCustomizations: [],
+				method: 'skills/extraRoots/set',
+				processGlobalRoots: [],
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('skill catalog refresh removes directory customizations that disappeared', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -1802,6 +1868,51 @@ suite('CodexAgent prewarm eviction', () => {
 			firstTurnSent: true,
 		});
 		peer.exit();
+	});
+
+	test('thread start discovers workspace skills without client plugins', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillsDirectory = URI.joinPath(workspace, '.github', 'skills');
+		const skillUri = URI.joinPath(skillsDirectory, 'standalone-html-website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: standalone-html-website\ndescription: Builds a self-contained website\n---\nAlways include a sticky Made with Copilot footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace], model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const customizations = await agent.getChatCustomizations(chat, chatContext(session, chat));
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+
+		try {
+			const send = agent.chats.sendMessage(chat, 'Create a Hello World website.', [workspace], undefined, 'turn-1');
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-skill' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				startMethod: start.method,
+				selectedPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+				skills: customizations
+					.flatMap(customization => customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+					.filter(customization => customization.type === CustomizationType.Skill)
+					.map(skill => ({ name: skill.name, uri: skill.uri })),
+			}, {
+				startMethod: 'thread/start',
+				selectedPaths: [skillsDirectory.fsPath],
+				skills: [{ name: 'standalone-html-website', uri: skillUri.toString() }],
+			});
+		} finally {
+			peer.exit();
+		}
 	});
 
 	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
