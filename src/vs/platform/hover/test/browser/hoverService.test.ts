@@ -294,6 +294,36 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should drop the scrollbar padding once content stops overflowing', () => {
+			const hover = showHover('Resizing hover', undefined, {
+				appearance: { maxHeightRatio: 0.25 }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const contentsDomNode = hoverWidget.domNode.querySelector<HTMLElement>('.monaco-hover-content');
+			assert.ok(contentsDomNode);
+			// HTMLElement hovers relayout when their content resizes, e.g. a collapsible section closing.
+			const resizingContent = document.createElement('div');
+			resizingContent.style.height = `${mainWindow.innerHeight}px`;
+			contentsDomNode.appendChild(resizingContent);
+
+			hoverWidget.layout();
+			const scrollbarPaddingWhileOverflowing = contentsDomNode.style.paddingRight;
+
+			resizingContent.style.height = '10px';
+			hoverWidget.layout();
+
+			assert.deepStrictEqual({
+				hadScrollbarPadding: scrollbarPaddingWhileOverflowing !== '',
+				scrollbarPadding: contentsDomNode.style.paddingRight,
+				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight
+			}, {
+				hadScrollbarPadding: true,
+				scrollbarPadding: '',
+				contentOverflows: false
+			});
+			hover.dispose();
+		});
+
 		test('should call onDidShow callback when hover is shown', () => {
 			const target = createTarget();
 			let didShowCalled = false;
