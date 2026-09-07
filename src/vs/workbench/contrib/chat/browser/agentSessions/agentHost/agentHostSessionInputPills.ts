@@ -18,7 +18,7 @@ import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agen
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -132,6 +132,15 @@ export function resolveAgentHostSessionChangeset(
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
+/** Resolves the chat channel URI a workbench chat resource addresses. */
+export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): URI | undefined {
+	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
+	if (explicitChatResource) {
+		return parseUri(explicitChatResource);
+	}
+	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString()) : undefined;
+}
+
 /** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
 export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): ReadonlySet<string> {
 	const ownerIds = new Set<string>([sessionResource.toString()]);
@@ -139,8 +148,7 @@ export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: 
 		return ownerIds;
 	}
 
-	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
-	const currentChatResource = parseUri(explicitChatResource ?? getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString());
+	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state);
 	if (!currentChatResource) {
 		return ownerIds;
 	}
@@ -237,7 +245,6 @@ export class AgentHostSessionInputPills extends Disposable {
 	) {
 		super();
 
-		const pillsEnabled = constObservable(true);
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -254,6 +261,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
+		// A subagent (worker) chat inherits the session-wide pills, where they read
+		// as the subagent's own work, so the row stays hidden there.
+		const subagentChat = derived(this, reader => {
+			const resource = sessionResource.read(reader);
+			const chatResource = resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+			return !!chatResource && isSubagentChatUri(chatResource);
+		});
+		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
@@ -364,7 +379,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
 			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
-			enabled: pillsEnabled,
+			enabled: pillsVisible,
 			sources: constObservable(sources.sources),
 			offeredKinds: offeredPillKinds,
 			ariaLabel: localize('agentHostSessionPills.ariaLabel', "Session status"),

@@ -34,6 +34,7 @@ import { INotebookEditorModelResolverService } from '../../common/notebookEditor
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from '../../common/notebookProvider.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../common/notebookService.js';
+import { getBuiltinNotebookTypes, IBuiltinNotebookType } from '../../common/notebookTypeRegistry.js';
 import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
@@ -49,6 +50,19 @@ import { SnapshotContext } from '../../../../services/workingCopy/common/fileWor
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { ICellRange } from '../../common/notebookRange.js';
+
+function createNotebookProviderInfo(viewType: string, data: INotebookContributionData): NotebookProviderInfo {
+	const info = new NotebookProviderInfo({
+		extension: data.extension,
+		id: viewType,
+		displayName: data.displayName,
+		providerDisplayName: data.providerDisplayName,
+		priority: data.priority || RegisteredEditorPriority.default,
+		selectors: []
+	});
+	info.update({ selectors: data.filenamePattern });
+	return info;
+}
 
 interface NotebookProviderInfoStoreMemento {
 	editors: NotebookProviderInfo[];
@@ -81,10 +95,16 @@ export class NotebookProviderInfoStore extends Disposable {
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+		for (const notebookType of getBuiltinNotebookTypes()) {
+			this._addBuiltinNotebookType(notebookType);
+		}
+
 		// Process the notebook contributions but buffer changes from the resolver
 		this._editorResolverService.bufferChangeEvents(() => {
 			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-				this.add(new NotebookProviderInfo(info), false);
+				if (!this._contributedEditors.has(info.id)) {
+					this.add(new NotebookProviderInfo(info), false);
+				}
 			}
 		});
 
@@ -98,7 +118,13 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}));
 
-		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		this._register(notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions)));
+	}
+
+	private _addBuiltinNotebookType({ viewType, data }: IBuiltinNotebookType): void {
+		if (!this._contributedEditors.has(viewType)) {
+			this.add(createNotebookProviderInfo(viewType, data), false);
+		}
 	}
 
 	override dispose(): void {
@@ -727,18 +753,7 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable {
-
-		const info = new NotebookProviderInfo({
-			extension: data.extension,
-			id: viewType,
-			displayName: data.displayName,
-			providerDisplayName: data.providerDisplayName,
-			priority: data.priority || RegisteredEditorPriority.default,
-			selectors: []
-		});
-
-		info.update({ selectors: data.filenamePattern });
-
+		const info = createNotebookProviderInfo(viewType, data);
 		const reg = this.notebookProviderInfoStore.add(info);
 		this._onDidChangeEditorTypes.fire();
 
