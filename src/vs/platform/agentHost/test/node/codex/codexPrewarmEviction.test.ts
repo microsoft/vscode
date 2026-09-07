@@ -45,7 +45,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
-import type { ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
@@ -1866,8 +1866,8 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
-			developerInstructions: 'Run focused tests.\n\nReview carefully.',
-			turnDeveloperInstructions: 'Run focused tests.\n\nReview carefully.',
+			developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
@@ -1928,11 +1928,11 @@ suite('CodexAgent prewarm eviction', () => {
 			resumedRoleFile,
 			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
 		}, {
-			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
-			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			start: { method: 'thread/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+			firstTurn: { method: 'turn/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
 			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
-			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
-			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
+			resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+			secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
 			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
 			needsResume: false,
 		});
