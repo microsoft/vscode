@@ -6,6 +6,7 @@
 import * as jsonc from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { ITypeScriptVersionProvider } from '../../tsServer/versionProvider';
+import { tryStat } from '../../utils/fs';
 import { TsLibMapReader } from './libMap';
 import { collectLinkCandidates, TsConfigLinkKind } from './links';
 import { createLinkDescriptors, TsConfigLinkDescriptors, TsConfigMissingTargetPolicy } from './resolvers';
@@ -24,13 +25,14 @@ export class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		document: vscode.TextDocument,
 		_token: vscode.CancellationToken
 	): vscode.DocumentLink[] {
-		const root = jsonc.parseTree(document.getText());
+		const text = document.getText();
+		const root = jsonc.parseTree(text);
 
 		if (!root) {
 			return [];
 		}
 
-		return collectLinkCandidates(root).map(candidate => {
+		return collectLinkCandidates(root, text).map(candidate => {
 			const args: OpenTsConfigLinkCommandArgs = {
 				resourceUri: { ...document.uri.toJSON(), $mid: undefined },
 				pathValue: candidate.value,
@@ -45,6 +47,12 @@ export class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			// decodes it again, so a value such as `./a%20b.json` would arrive already decoded.
 			// `Uri.from` stores the query verbatim, leaving one encode against the opener's one
 			// decode. This is how the workbench builds command links, see `createCommandUri`.
+			//
+			// Known limitation: following the link from its hover rather than from the document
+			// hands the opener a string, which it parses, so the query is decoded once more. A
+			// value carrying a literal `%` therefore resolves differently between the two
+			// gestures. The two paths differ by exactly one decode, which no single encoding of
+			// the arguments can satisfy at once.
 			const target = vscode.Uri.from({
 				scheme: 'command',
 				path: openTsConfigLinkCommandId,
@@ -61,14 +69,6 @@ export class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 
 /** Stats a link's target. Injectable so tests can simulate a file, a directory, or nothing at all. */
 export type TsConfigLinkStat = (target: vscode.Uri) => Promise<vscode.FileStat | undefined>;
-
-async function statTsConfigLinkTarget(target: vscode.Uri): Promise<vscode.FileStat | undefined> {
-	try {
-		return await vscode.workspace.fs.stat(target);
-	} catch {
-		return undefined;
-	}
-}
 
 /**
  * What `openTsConfigLink` decided to do once it knew how (or whether) a link resolves.
@@ -98,8 +98,10 @@ async function presentTsConfigLinkOutcome(outcome: TsConfigLinkOutcome): Promise
 			return;
 		case 'revealOutsideWorkspace':
 			// The explorer can only select what it shows. The OS file manager can show
-			// any local folder, but only on desktop and only for local files.
-			if (vscode.env.uiKind === vscode.UIKind.Desktop && outcome.target.scheme === 'file') {
+			// any local folder, but only on desktop and only for local files. A remote
+			// window is a desktop window too, and the `file:` paths it shows live on the
+			// remote, where the command quietly does nothing.
+			if (vscode.env.uiKind === vscode.UIKind.Desktop && vscode.env.remoteName === undefined && outcome.target.scheme === 'file') {
 				await vscode.commands.executeCommand('revealFileInOS', outcome.target);
 			} else {
 				vscode.window.showInformationMessage(vscode.l10n.t("{0} is a folder outside the workspace.", outcome.target.fsPath));
@@ -126,7 +128,7 @@ async function presentTsConfigLinkOutcome(outcome: TsConfigLinkOutcome): Promise
 export async function openTsConfigLink(
 	{ resourceUri, pathValue, linkKind }: OpenTsConfigLinkCommandArgs,
 	descriptors: TsConfigLinkDescriptors,
-	statTarget: TsConfigLinkStat = statTsConfigLinkTarget,
+	statTarget: TsConfigLinkStat = tryStat,
 	presentOutcome: TsConfigLinkOutcomeHandler = presentTsConfigLinkOutcome,
 	insideWorkspace: TsConfigLinkWorkspaceTest = isInsideWorkspace,
 ): Promise<void> {

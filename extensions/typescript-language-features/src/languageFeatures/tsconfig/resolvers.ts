@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { getActiveTypeScriptVersion } from '../../tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
-import { exists, looksLikeAbsoluteWindowsPath, looksLikeUriNotPath } from '../../utils/fs';
+import { exists, looksLikeAbsolutePath, looksLikeRelativePath, looksLikeUriNotPath, normalizeSlashes } from '../../utils/fs';
 import { TsLibMapReader } from './libMap';
 import { TsConfigLinkKind } from './links';
 
@@ -42,24 +42,6 @@ export interface TsConfigLinkKindDescriptor {
  * error rather than a link that silently inherits another kind's behavior.
  */
 export type TsConfigLinkDescriptors = Readonly<Record<TsConfigLinkKind, TsConfigLinkKindDescriptor>>;
-
-/**
- * Whether TypeScript would treat a value as a relative path rather than a
- * module or package name. Mirrors the compiler's `pathIsRelative`: `.`, `..`,
- * and anything under them, with either separator.
- */
-export function looksLikeRelativePath(value: string): boolean {
-	return /^\.\.?(?:$|[\\/])/.test(value);
-}
-
-/**
- * Whether a value is rooted on any platform, so the result does not depend on
- * the platform the extension host runs on. Mirrors the compiler's
- * `isRootedDiskPath`, minus URIs, which the selectors have already excluded.
- */
-export function looksLikeAbsolutePath(value: string): boolean {
-	return value.startsWith('/') || value.startsWith('\\') || looksLikeAbsoluteWindowsPath(value);
-}
 
 async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
 	let currentUri = baseDirUri;
@@ -112,28 +94,32 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string, missin
 		return absolutePath.with({ path: `${absolutePath.path}${missingSuffix}` });
 	}
 
-	if (looksLikeRelativePath(pathValue)) {
-		return resolve(vscode.Uri.joinPath(baseDirUri, pathValue));
+	const path = normalizeSlashes(pathValue);
+
+	if (looksLikeRelativePath(path)) {
+		return resolve(vscode.Uri.joinPath(baseDirUri, path));
 	}
 
-	if (looksLikeAbsolutePath(pathValue)) {
-		return resolve(vscode.Uri.file(pathValue));
+	if (looksLikeAbsolutePath(path)) {
+		return resolve(vscode.Uri.file(path));
 	}
 
 	// Otherwise resolve like a module
 	return resolveNodeModulesPath(baseDirUri, [
-		pathValue,
-		...pathValue.endsWith('.json') ? [] : [
-			`${pathValue}.json`,
-			`${pathValue}/tsconfig.json`,
+		path,
+		...path.endsWith('.json') ? [] : [
+			`${path}.json`,
+			`${path}/tsconfig.json`,
 		]
 	]);
 }
 
 async function resolveRelativePath(documentUri: vscode.Uri, value: string): Promise<vscode.Uri> {
-	return looksLikeAbsolutePath(value)
-		? vscode.Uri.file(value)
-		: vscode.Uri.joinPath(Utils.dirname(documentUri), value);
+	const path = normalizeSlashes(value);
+
+	return looksLikeAbsolutePath(path)
+		? vscode.Uri.file(path)
+		: vscode.Uri.joinPath(Utils.dirname(documentUri), path);
 }
 
 /**
@@ -151,25 +137,22 @@ export function libFileUri(versionPath: string, fileName: string): vscode.Uri {
 
 /**
  * The web build serves its lib files over http(s), where the workbench's fetch
- * provider answers every `stat` with a file and only `readFile` performs a request.
+ * provider answers every `stat` with a file and only `readFile` performs a
+ * request. Downloading a multi-megabyte lib file to prove it exists, and then
+ * again to show it, costs more than trusting the lib map that named it.
  */
-async function libFileExists(uri: vscode.Uri): Promise<boolean> {
-	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-		return exists(uri);
-	}
-
-	try {
-		await vscode.workspace.fs.readFile(uri);
-		return true;
-	} catch {
-		return false;
-	}
+function libFileIsServedRemotely(uri: vscode.Uri): boolean {
+	return uri.scheme === 'http' || uri.scheme === 'https';
 }
 
 /**
- * A `lib` entry names a file only through the install's lib map: `es7` is
- * `lib.es2016.d.ts`, and a name the map does not know is not a lib at all,
- * however plausible `lib.<name>.d.ts` would look.
+ * A `lib` entry names a file only through the install: `es7` is `lib.es2016.d.ts`,
+ * and a name that neither the install's files nor its lib map know is not a lib at
+ * all, however plausible `lib.<name>.d.ts` would look.
+ *
+ * Most entries do name `lib.<name>.d.ts`, which a single stat settles. Only the
+ * aliases need the lib map, and reading that map means loading the install's
+ * compiler, so it is consulted second.
  *
  * Known limitation: since TypeScript 5.0 a project can override a lib file by
  * installing `node_modules/@typescript/lib-dom` and the compiler prefers that
@@ -182,6 +165,11 @@ async function resolveLibPath(
 	value: string,
 ): Promise<vscode.Uri | undefined> {
 	const libName = value.toLowerCase();
+
+	// Every lib file the install ships is named for the entry that loads it, so the file
+	// proves the entry without the map. Only a value shaped like a lib name is looked up
+	// that way: one carrying a separator would point the link out of the install.
+	const namedFileName = /^[a-z0-9][a-z0-9.]*$/.test(libName) ? `lib.${libName}.d.ts` : undefined;
 
 	// The version the service is actually using first, then any other local
 	// install, then the TypeScript bundled with VS Code.
@@ -217,11 +205,23 @@ async function resolveLibPath(
 	const seen = new Set<string>();
 
 	for (const version of versions) {
-		if (seen.has(version.path)) {
+		// An install the service could not read is the one it falls back away from
+		// (`TypeScriptVersionManager.reset`), so a lib is not looked up in it either.
+		if (!version.isValid || seen.has(version.path)) {
 			continue;
 		}
 
 		seen.add(version.path);
+
+		// A file only proves the name where a `stat` means something, which rules out
+		// the web build: its fetch provider claims every file exists.
+		if (namedFileName) {
+			const namedFile = libFileUri(version.path, namedFileName);
+
+			if (!libFileIsServedRemotely(namedFile) && await exists(namedFile)) {
+				return namedFile;
+			}
+		}
 
 		const fileName = (await readLibMap(version))?.get(libName);
 
@@ -231,7 +231,7 @@ async function resolveLibPath(
 
 		const candidate = libFileUri(version.path, fileName);
 
-		if (await libFileExists(candidate)) {
+		if (libFileIsServedRemotely(candidate) || await exists(candidate)) {
 			return candidate;
 		}
 	}

@@ -11,14 +11,21 @@ import * as vscode from 'vscode';
 import { openTsConfigLink, TsConfigLinkOutcome, TsConfigLinkOutcomeHandler, TsconfigLinkProvider } from '../../languageFeatures/tsconfig';
 import { arrayWildcard, collectLinkCandidates, selectNonGlobPrefix, selectNonUriValue, selectStringNodes, selectWholeValue, TsConfigLinkKind } from '../../languageFeatures/tsconfig/links';
 import { readLibMapFromInstall } from '../../languageFeatures/tsconfig/libMap.electron';
-import { createLinkDescriptors, libFileUri, looksLikeAbsolutePath, looksLikeRelativePath, TsConfigLinkDescriptors, TsConfigLinkResolver, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
+import { createLinkDescriptors, libFileUri, TsConfigLinkDescriptors, TsConfigLinkResolver, typesPackageName } from '../../languageFeatures/tsconfig/resolvers';
+import { API } from '../../tsServer/api';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from '../../tsServer/versionProvider';
+import { looksLikeAbsolutePath, looksLikeRelativePath } from '../../utils/fs';
 
 /** The TypeScript this extension ships with, which is the only install a test can rely on. */
 function bundledTsServerPath(): string {
 	const extension = vscode.extensions.getExtension('vscode.typescript-language-features');
 	assert.ok(extension, 'Expected the extension to be present');
 	return path.join(extension.extensionPath, '..', 'node_modules', 'typescript', 'lib', 'tsserver.js');
+}
+
+/** A version an install can be read from, which is what the lib resolver looks things up in. */
+function validVersion(source: TypeScriptVersionSource, versionPath: string): TypeScriptVersion {
+	return new TypeScriptVersion(source, versionPath, API.fromSimpleString('5.0.0'));
 }
 
 const emptyMemento: vscode.Memento = { keys: () => [], get: <T>(_key: string, defaultValue?: T) => defaultValue, update: async () => { } };
@@ -101,6 +108,10 @@ suite('tsconfig links: selection', () => {
 			rootedGlob: selectNonGlobPrefix('/*.ts'),
 			ownDirectory: selectNonGlobPrefix('./*.ts'),
 			ownDirectoryChild: selectNonGlobPrefix('./src/*.ts'),
+			// TypeScript normalizes separators before matching, so both are separators here.
+			backslash: selectNonGlobPrefix('src\\**\\*'),
+			backslashOwnDirectory: selectNonGlobPrefix('.\\*.ts'),
+			mixed: selectNonGlobPrefix('src/lib\\**'),
 		}, {
 			noGlob: { offset: 0, length: 3 },
 			trailing: { offset: 0, length: 3 },
@@ -109,6 +120,9 @@ suite('tsconfig links: selection', () => {
 			rootedGlob: undefined,
 			ownDirectory: undefined,
 			ownDirectoryChild: { offset: 0, length: 5 },
+			backslash: { offset: 0, length: 3 },
+			backslashOwnDirectory: undefined,
+			mixed: { offset: 0, length: 7 },
 		});
 	});
 
@@ -129,7 +143,7 @@ suite('tsconfig links: selection', () => {
 
 suite('tsconfig links: collectLinkCandidates', () => {
 	function collect(text: string): { kind: string; linked: string }[] {
-		return collectLinkCandidates(parse(text))
+		return collectLinkCandidates(parse(text), text)
 			.map(candidate => ({ kind: candidate.kind, linked: text.slice(candidate.startOffset, candidate.endOffset) }));
 	}
 
@@ -188,7 +202,7 @@ suite('tsconfig links: collectLinkCandidates', () => {
 		const text = JSON.stringify({ include: ['src/**/*'] });
 
 		assert.deepStrictEqual(
-			collectLinkCandidates(parse(text)).map(candidate => candidate.value),
+			collectLinkCandidates(parse(text), text).map(candidate => candidate.value),
 			['src']);
 	});
 
@@ -196,21 +210,32 @@ suite('tsconfig links: collectLinkCandidates', () => {
 		const text = JSON.stringify({ extends: './base.json' });
 
 		assert.deepStrictEqual(
-			collectLinkCandidates(parse(text)).map(candidate => candidate.value),
+			collectLinkCandidates(parse(text), text).map(candidate => candidate.value),
 			['./base.json']);
 	});
 
-	test('drops a narrowed link when the value contains an escape', () => {
+	test('ranges a link over the source text an escaped value was decoded from', () => {
+		const escapedWhole = '{ "extends": "./a\\u0062.json" }';
+
 		assert.deepStrictEqual({
-			escapedWhole: collect('{ "extends": "./a\\u0062.json" }'),
-			escapedNarrowed: collect('{ "include": ["s\\u0072c/**/*"] }'),
+			whole: collect(escapedWhole),
+			// A Windows-authored pattern: every separator is an escape in the source.
+			narrowed: collect('{ "include": ["src\\\\**\\\\*"] }'),
+			narrowedAfterEscape: collect('{ "include": ["s\\u0072c/**/*"] }'),
 			// The range covers the raw source, but the value the resolver sees is decoded.
-			escapedWholeValue: collectLinkCandidates(parse('{ "extends": "./a\\u0062.json" }')).map(candidate => candidate.value),
+			wholeValue: collectLinkCandidates(parse(escapedWhole), escapedWhole).map(candidate => candidate.value),
 		}, {
-			escapedWhole: [{ kind: 'extends', linked: './a\\u0062.json' }],
-			escapedNarrowed: [],
-			escapedWholeValue: ['./ab.json'],
+			whole: [{ kind: 'extends', linked: './a\\u0062.json' }],
+			narrowed: [{ kind: 'path', linked: 'src' }],
+			narrowedAfterEscape: [{ kind: 'path', linked: 's\\u0072c' }],
+			wholeValue: ['./ab.json'],
 		});
+	});
+
+	test('ranges a link over a string the closing quote of which has not been typed yet', () => {
+		assert.deepStrictEqual(
+			collect('{ "extends": "./base.json'),
+			[{ kind: 'extends', linked: './base.json' }]);
 	});
 });
 
@@ -272,7 +297,7 @@ suite('tsconfig links: resolver helpers', () => {
 			},
 			globalVersion: undefined,
 			localVersion: undefined,
-			localVersions: [new TypeScriptVersion(TypeScriptVersionSource.NodeModules, '/missing/node_modules/typescript/lib/tsserver.js', undefined)],
+			localVersions: [validVersion(TypeScriptVersionSource.NodeModules, '/missing/node_modules/typescript/lib/tsserver.js')],
 			get bundledVersion(): TypeScriptVersion {
 				reads.bundledVersion++;
 				throw new Error('Could not find bundled tsserver.js');
@@ -285,8 +310,8 @@ suite('tsconfig links: resolver helpers', () => {
 		assert.deepStrictEqual({ target, reads }, { target: undefined, reads: { defaultVersion: 1, bundledVersion: 1 } });
 	});
 
-	test('resolves a lib entry only through the lib map of the install', async () => {
-		const version = new TypeScriptVersion(TypeScriptVersionSource.Bundled, bundledTsServerPath(), undefined);
+	test('resolves a lib entry through the install, reading its lib map only for a name no file carries', async () => {
+		const version = validVersion(TypeScriptVersionSource.Bundled, bundledTsServerPath());
 		const provider: ITypeScriptVersionProvider = {
 			updateConfiguration() { },
 			defaultVersion: version,
@@ -295,17 +320,66 @@ suite('tsconfig links: resolver helpers', () => {
 			localVersions: [],
 			bundledVersion: version,
 		};
-		const readLibMap = async () => new Map([['es7', 'lib.es2016.d.ts']]);
+		let mapReads = 0;
+		const readLibMap = async () => {
+			mapReads++;
+			return new Map([['es7', 'lib.es2016.d.ts']]);
+		};
 		const { resolve } = createLinkDescriptors(provider, emptyMemento, readLibMap)[TsConfigLinkKind.Lib];
 		const tsconfig = vscode.Uri.file('/workspace/tsconfig.json');
 
 		assert.deepStrictEqual({
+			// `lib.dom.d.ts` sits beside the server, so the name needs no map.
+			named: (await resolve(tsconfig, 'DOM'))?.toString(),
+			readsAfterNamed: mapReads,
 			alias: (await resolve(tsconfig, 'ES7'))?.toString(),
-			// `lib.dom.d.ts` exists beside the server, but a map that does not list it says it is not a lib.
-			unmapped: await resolve(tsconfig, 'DOM'),
+			// Neither a file beside the server nor an entry of the map.
+			unknown: await resolve(tsconfig, 'NOPE'),
+			// `lib.<value>.d.ts` would land on `typescript.d.ts`, a file the install ships
+			// and no lib entry names.
+			traversal: await resolve(tsconfig, './../typescript'),
 		}, {
+			named: libFileUri(version.path, 'lib.dom.d.ts').toString(),
+			readsAfterNamed: 0,
 			alias: libFileUri(version.path, 'lib.es2016.d.ts').toString(),
-			unmapped: undefined,
+			unknown: undefined,
+			traversal: undefined,
+		});
+	});
+
+	test('skips an install the service itself would fall back away from', async () => {
+		const unreadable = new TypeScriptVersion(TypeScriptVersionSource.WorkspaceSetting, '/workspace/node_modules/typescript/lib/tsserver.js', undefined);
+		const bundled = validVersion(TypeScriptVersionSource.Bundled, bundledTsServerPath());
+		const provider: ITypeScriptVersionProvider = {
+			updateConfiguration() { },
+			defaultVersion: unreadable,
+			globalVersion: undefined,
+			localVersion: unreadable,
+			localVersions: [unreadable],
+			bundledVersion: bundled,
+		};
+		const { resolve } = createLinkDescriptors(provider, emptyMemento, async () => undefined)[TsConfigLinkKind.Lib];
+
+		const target = await resolve(vscode.Uri.file('/workspace/tsconfig.json'), 'DOM');
+
+		assert.deepStrictEqual(target?.toString(), libFileUri(bundled.path, 'lib.dom.d.ts').toString());
+	});
+
+	test('reads a path written with Windows separators the way the compiler does', async () => {
+		const descriptors = createLinkDescriptors(
+			new Proxy({} as ITypeScriptVersionProvider, { get: () => { throw new Error('Unexpected version provider access'); } }),
+			emptyMemento,
+			async () => undefined);
+		const tsconfig = vscode.Uri.file('/workspace/tsconfig.json');
+
+		assert.deepStrictEqual({
+			relative: (await descriptors[TsConfigLinkKind.Extends].resolve(tsconfig, '.\\base.json'))?.toString(),
+			parent: (await descriptors[TsConfigLinkKind.Path].resolve(tsconfig, '..\\shared'))?.toString(),
+			unc: (await descriptors[TsConfigLinkKind.BuildOutput].resolve(tsconfig, '\\\\build01\\drops\\app.js'))?.toString(),
+		}, {
+			relative: 'file:///workspace/base.json',
+			parent: 'file:///shared',
+			unc: 'file://build01/drops/app.js',
 		});
 	});
 

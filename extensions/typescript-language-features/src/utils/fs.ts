@@ -5,18 +5,56 @@
 
 import * as vscode from 'vscode';
 
-export async function exists(resource: vscode.Uri): Promise<boolean> {
+/** Stats a resource, yielding `undefined` when nothing lives there. */
+export async function tryStat(resource: vscode.Uri): Promise<vscode.FileStat | undefined> {
 	try {
-		const stat = await vscode.workspace.fs.stat(resource);
-		// stat.type is an enum flag
-		return !!(stat.type & vscode.FileType.File);
+		return await vscode.workspace.fs.stat(resource);
 	} catch {
-		return false;
+		return undefined;
 	}
+}
+
+export async function exists(resource: vscode.Uri): Promise<boolean> {
+	const stat = await tryStat(resource);
+	// stat.type is an enum flag
+	return !!stat && !!(stat.type & vscode.FileType.File);
 }
 
 export function looksLikeAbsoluteWindowsPath(path: string): boolean {
 	return /^[a-zA-Z]:[\/\\]/.test(path);
+}
+
+/**
+ * Whether TypeScript would treat a value as a relative path rather than a
+ * module or package name. Mirrors the compiler's `pathIsRelative`: `.`, `..`,
+ * and anything under them, with either separator.
+ */
+export function looksLikeRelativePath(value: string): boolean {
+	return /^\.\.?(?:$|[\\/])/.test(value);
+}
+
+/**
+ * Whether a value is rooted on any platform, so the result does not depend on
+ * the platform the extension host runs on. Mirrors the compiler's
+ * `isRootedDiskPath`, minus URIs, which callers exclude where they accept them.
+ *
+ * Recognizing a value is only half of reading it the way the compiler does: a
+ * value that reaches a URI must pass through {@link normalizeSlashes} first.
+ */
+export function looksLikeAbsolutePath(value: string): boolean {
+	return value.startsWith('/') || value.startsWith('\\') || looksLikeAbsoluteWindowsPath(value);
+}
+
+/**
+ * Rewrites Windows separators into the separator every platform accepts, the way
+ * TypeScript's own `normalizeSlashes` does.
+ *
+ * A path written on Windows must resolve the same everywhere, and neither
+ * `Uri.file` nor `Uri.joinPath` treats a backslash as a separator unless the
+ * extension host itself runs on Windows.
+ */
+export function normalizeSlashes(path: string): string {
+	return path.replace(/\\/g, '/');
 }
 
 /**

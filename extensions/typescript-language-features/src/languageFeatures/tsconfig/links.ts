@@ -73,7 +73,8 @@ export function selectNonGlobPrefix(value: string): TsConfigLinkSelection | unde
 		return { offset: 0, length: value.length };
 	}
 
-	const separatorIndex = value.lastIndexOf('/', globIndex);
+	// Either separator, since TypeScript normalizes them before matching a pattern.
+	const separatorIndex = Math.max(value.lastIndexOf('/', globIndex), value.lastIndexOf('\\', globIndex));
 
 	if (separatorIndex <= 0) {
 		return undefined;
@@ -136,7 +137,7 @@ export const tsConfigLinkContributions: readonly TsConfigLinkContribution[] = [
 ];
 
 /** Finds every linkable value in a parsed document. Performs no file system access. */
-export function collectLinkCandidates(root: jsonc.Node): TsConfigLinkCandidate[] {
+export function collectLinkCandidates(root: jsonc.Node, text: string): TsConfigLinkCandidate[] {
 	const candidates: TsConfigLinkCandidate[] = [];
 
 	for (const contribution of tsConfigLinkContributions) {
@@ -150,21 +151,9 @@ export function collectLinkCandidates(root: jsonc.Node): TsConfigLinkCandidate[]
 				continue;
 			}
 
-			// `node.offset` is the opening quote and `node.length` spans both quotes.
-			// Anything longer means the source text was escaped, so an offset into the
-			// decoded value no longer lines up with the document.
-			const isVerbatim = node.length === value.length + 2;
-			const isWholeValue = selection.offset === 0 && selection.length === value.length;
-
-			if (!isVerbatim && !isWholeValue) {
-				// Underlining the wrong characters is worse than not linking.
-				continue;
-			}
-
-			const startOffset = node.offset + 1 + (isVerbatim ? selection.offset : 0);
-			const endOffset = isVerbatim
-				? startOffset + selection.length
-				: node.offset + node.length - 1;
+			const source = sourceOfStringNode(node, text);
+			const startOffset = source.offset + sourceIndexOfValueIndex(source.text, selection.offset);
+			const endOffset = source.offset + sourceIndexOfValueIndex(source.text, selection.offset + selection.length);
 
 			const linkedValue = value.slice(selection.offset, selection.offset + selection.length);
 
@@ -173,6 +162,46 @@ export function collectLinkCandidates(root: jsonc.Node): TsConfigLinkCandidate[]
 	}
 
 	return candidates;
+}
+
+/**
+ * The source text of a string node, without its quotes, and the document offset it starts at.
+ *
+ * `node.offset` is the opening quote and `node.length` spans the closing one, except
+ * in a string the user has not finished typing, which has no closing quote to trim.
+ */
+function sourceOfStringNode(node: jsonc.Node, text: string): { readonly offset: number; readonly text: string } {
+	const end = node.offset + node.length;
+	const isTerminated = node.length > 1 && text[end - 1] === '"';
+
+	return { offset: node.offset + 1, text: text.slice(node.offset + 1, isTerminated ? end - 1 : end) };
+}
+
+/**
+ * Where a position in a decoded value sits in the source text it was decoded from.
+ *
+ * `jsonc` hands back decoded values, so an offset into a value only lines up with
+ * the document while the source has no escapes. Walking the source keeps a
+ * narrowed link, such as the literal prefix of an `include` pattern, pointing at
+ * the characters it names in a value that has some.
+ */
+function sourceIndexOfValueIndex(source: string, valueIndex: number): number {
+	let index = 0;
+
+	for (let position = 0; position < source.length; position++) {
+		if (index === valueIndex) {
+			return position;
+		}
+
+		if (source[position] === '\\') {
+			// Every escape but `\uXXXX` is two characters, and both stand for one character.
+			position += source[position + 1] === 'u' ? 5 : 1;
+		}
+
+		index++;
+	}
+
+	return source.length;
 }
 
 /**
