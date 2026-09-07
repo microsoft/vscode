@@ -9,7 +9,8 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
-import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
@@ -41,7 +42,7 @@ suite('AgentHostPromptRegistry', () => {
 		const configWithToolInstructions = config.mode === 'replace'
 			? { ...config, content: `${config.content}\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` }
 			: config;
-		const content = configWithToolInstructions.content ? `${configWithToolInstructions.content}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS;
+		const content = configWithToolInstructions.content ? `${configWithToolInstructions.content}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` : AGENT_HOST_FILE_LINK_INSTRUCTIONS;
 		if (configWithToolInstructions.mode !== 'customize' || configWithToolInstructions.sections?.tool_instructions) {
 			return { ...configWithToolInstructions, content };
 		}
@@ -235,7 +236,7 @@ suite('AgentHostPromptRegistry', () => {
 						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
 						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
 					},
-					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
@@ -265,7 +266,7 @@ suite('AgentHostPromptRegistry', () => {
 						guidelines: { action: 'append', content: 'Be concise.' },
 						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
 					},
-					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
@@ -280,7 +281,7 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, [], true)),
-				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
@@ -380,7 +381,7 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, browserTools)),
-				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${BROWSER_LINE}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n${BROWSER_LINE}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
