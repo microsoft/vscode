@@ -18,7 +18,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationSessionTemplateAuthorityError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationSessionTemplateAuthorityError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -58,6 +58,7 @@ function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomati
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly created: ICreateAutomationOptions[] = [];
@@ -434,6 +435,7 @@ suite('AutomationTools', () => {
 		const result = await invoke(tool, {});
 
 		assert.deepStrictEqual(JSON.parse(getText(result)), {
+			catalogueState: 'ready',
 			automations: [{
 				id: 'automation-1',
 				name: 'Daily review',
@@ -455,6 +457,45 @@ suite('AutomationTools', () => {
 			}],
 		});
 	});
+
+	test('listAutomations describes when its catalogue is complete', () => {
+		const description = new ListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
+
+		assert.deepStrictEqual({
+			reportsState: description.includes('catalogueState'),
+			definesComplete: description.includes('only "ready" means the list is complete'),
+			warnsAboutFalseEmpty: description.includes('never interpret an empty non-ready result as no configured automations'),
+		}, { reportsState: true, definesComplete: true, warnsAboutFalseEmpty: true });
+	});
+
+	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
+		test(`listAutomations preserves available rows in an incomplete ${catalogueState} catalogue`, async () => {
+			const automationService = new FakeAutomationService();
+			automationService.catalogueState.set(catalogueState, undefined);
+			const tool = new ListAutomationsTool(automationService, createConfigurationService());
+			const empty = await invoke(tool, {});
+			const sessionTemplate = { modelId: 'provider-model', config: { providerOption: true } };
+			automationService.automations.set([createAutomation({ sessionTemplate })], undefined);
+			const populated = await invoke(tool, {});
+			const populatedContent = JSON.parse(getText(populated));
+
+			assert.deepStrictEqual({
+				empty: JSON.parse(getText(empty)),
+				emptyMessage: empty.toolResultMessage,
+				populated: {
+					state: populatedContent.catalogueState,
+					ids: populatedContent.automations.map((automation: { id: string }) => automation.id),
+					sessionTemplate: populatedContent.automations[0].sessionTemplate,
+				},
+				populatedMessage: populated.toolResultMessage,
+			}, {
+				empty: { catalogueState, automations: [] },
+				emptyMessage: 'Listed 0 available automations; catalogue is incomplete',
+				populated: { state: catalogueState, ids: ['automation-1'], sessionTemplate },
+				populatedMessage: 'Listed 1 available automations; catalogue is incomplete',
+			});
+		});
+	}
 
 	test('listAutomations emits flat aliases only for legacy rows', async () => {
 		const automation = createAutomation();

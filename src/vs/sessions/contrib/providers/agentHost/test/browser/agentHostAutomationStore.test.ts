@@ -11,7 +11,7 @@ import { autorun, observableValue } from '../../../../../../base/common/observab
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
@@ -562,6 +562,7 @@ suite('AgentHostAutomationStore', () => {
 		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
 
 		assert.deepStrictEqual({
+			catalogueState: store.catalogueState.get(),
 			subscribedChannel: connection.subscribedChannel,
 			dispatchChannel: connection.dispatched[0].channel,
 			definitionMeta: create.type === ActionType.AutomationCreateRequested ? create.definition._meta : undefined,
@@ -575,6 +576,7 @@ suite('AgentHostAutomationStore', () => {
 				enabled: automation.enabled,
 			},
 		}, {
+			catalogueState: 'ready',
 			subscribedChannel: URI.parse(AUTOMATION_CATALOG_URI).toString(),
 			dispatchChannel: AUTOMATION_CATALOG_URI,
 			definitionMeta: undefined,
@@ -2298,6 +2300,99 @@ suite('AgentHostAutomationStore', () => {
 			disconnectEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
 			duringReconnect: { state: 'loading', count: 0 },
 			afterReconnect: { state: 'ready', count: 1 },
+		});
+	});
+
+	test('keeps readable legacy rows visible while their provider is unavailable', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const storageKey = providerAutomationStorageKey('remote-agent-host');
+		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		await legacy.createAutomation({
+			name: 'Legacy automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'remote-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore('remote-agent-host', legacy, undefined, instantiationService, new NullLogService(), new TestConfigurationService()));
+		const availableRows = { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) };
+		storage.store(storageKey, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		assert.deepStrictEqual({
+			availableRows,
+			afterError: { state: store.catalogueState.get(), names: store.automations.get().map(automation => automation.name) },
+		}, {
+			availableRows: { state: 'unavailable', names: ['Legacy automation'] },
+			afterError: { state: 'error', names: ['Legacy automation'] },
+		});
+	});
+
+	test('transitions to unsupported and disabled authority atomically', async () => {
+		const connection = disposables.add(new TestAutomationConnection(true));
+		const storage = disposables.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAutomationStorageService, automationStorage);
+		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
+			'local-agent-host',
+			legacy,
+			undefined,
+			instantiationService,
+			new NullLogService(),
+			configurationService,
+		));
+		store.setConnection(connection);
+		await store.createAutomation({
+			name: 'Host automation',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const emissions: { automationCount: number; catalogueState: AutomationCatalogueState }[] = [];
+		disposables.add(autorun(reader => {
+			emissions.push({
+				automationCount: store.automations.read(reader).length,
+				catalogueState: store.catalogueState.read(reader),
+			});
+		}));
+
+		const beforeUnsupported = emissions.length;
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+		}, undefined);
+		const unsupportedEmissions = emissions.slice(beforeUnsupported);
+
+		connection.initializeResult.set({
+			protocolVersion: '1',
+			serverSeq: 0,
+			snapshots: [],
+			automations: { create: {}, runCancellation: {} },
+		}, undefined);
+		const beforeDisabled = emissions.length;
+		await configurationService.setUserConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CHAT_AUTOMATIONS_ENABLED_SETTING]),
+			change: { keys: [CHAT_AUTOMATIONS_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: candidate => candidate === CHAT_AUTOMATIONS_ENABLED_SETTING,
+		});
+		const disabledEmissions = emissions.slice(beforeDisabled);
+
+		assert.deepStrictEqual({
+			unsupportedEmissions,
+			disabledEmissions,
+		}, {
+			unsupportedEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
+			disabledEmissions: [{ automationCount: 0, catalogueState: 'unavailable' }],
 		});
 	});
 
