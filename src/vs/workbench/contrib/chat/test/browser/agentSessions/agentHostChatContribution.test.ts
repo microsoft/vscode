@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -32,7 +34,8 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -110,7 +113,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
+import { reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -2088,10 +2091,14 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('creates an empty draft from the last request selection when none exists', async () => {
+			const modelConfiguration = { thinkingLevel: 'low', contextSize: 272_000 };
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' })],
 			]);
-			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const { sessionHandler, agentHostService } = createContribution(disposables, {
+				languageModels,
+				languageModelsServiceOverride: { getModelConfiguration: () => ({ thinkingLevel: 'high' }) },
+			});
 			const backendSession = AgentSession.uri('copilot', 'last-selection-session');
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/last-selection-session' });
 
@@ -2111,8 +2118,8 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-1',
 					message: {
 						text: 'previous request',
-						origin: { kind: MessageKind.User },
-						model: { id: 'opus-4.7' },
+						origin: { kind: MessageKind.Automation },
+						model: { id: 'opus-4.7', config: modelConfiguration },
 						agent: { uri: 'agent://reviewer' },
 					},
 					responseParts: [],
@@ -2123,22 +2130,26 @@ suite('AgentHostChatContribution', () => {
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
+			const serializedState = chatSession.transferredState?.inputState;
+			const restoredState = serializedState ? reviveSerializableInputState(serializedState) : undefined;
 
 			assert.deepStrictEqual({
 				inputText: chatSession.transferredState?.inputState?.inputText,
 				model: chatSession.transferredState?.inputState?.selectedModel?.identifier,
 				mode: chatSession.transferredState?.inputState?.mode,
+				modelConfiguration: restoredState?.modelConfiguration,
 				draftAction: agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatDraftChanged)?.action,
 			}, {
 				inputText: '',
 				model: 'agent-host-copilot:opus-4.7',
 				mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
+				modelConfiguration,
 				draftAction: {
 					type: ActionType.ChatDraftChanged,
 					draft: {
 						text: '',
 						origin: { kind: MessageKind.User },
-						model: { id: 'opus-4.7' },
+						model: { id: 'opus-4.7', config: modelConfiguration },
 						agent: { uri: 'agent://reviewer' },
 					},
 				},
@@ -4911,6 +4922,37 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(notifications.map(part => part.content.value), ['Background command completed']);
 		}));
 
+		test('workspace transition response part is announced once as a polite status', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const ariaHost = dom.append(document.body, dom.$('div'));
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/responsePart',
+				session,
+				turnId,
+				part: {
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Now working in vscode',
+					_meta: toAgentSystemNotificationMeta({
+						kind: AgentSystemNotificationKind.WorkspaceTransition,
+						workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+						workspaceName: 'vscode',
+					}),
+				},
+			} as ChatAction);
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Continuing work' } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['Workspace changed. This session is now working in vscode using an isolated worktree.'],
+			);
+		}));
+
 		test('worktree failure response parts become live warnings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -7435,6 +7477,58 @@ suite('AgentHostChatContribution', () => {
 				assert.strictEqual(response.parts.length, 1);
 				assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, '4');
 			}
+		});
+
+		test('restored workspace transition does not emit a live status announcement', async () => {
+			const ariaHost = dom.append(document.body, dom.$('div'));
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'restored-workspace-transition');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'provider-continuation',
+					message: withMessageRequestHiddenFromTranscript({
+						text: 'Continue the original task in the converted workspace.',
+						origin: { kind: MessageKind.SystemNotification },
+						_meta: toAgentWorkspaceContinuationMessageMeta(),
+					}, true),
+					responseParts: [{
+						kind: ResponsePartKind.SystemNotification,
+						content: 'Now working in vscode',
+						_meta: toAgentSystemNotificationMeta({
+							kind: AgentSystemNotificationKind.WorkspaceTransition,
+							workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
+							workspaceName: 'vscode',
+						}),
+					}, {
+						kind: ResponsePartKind.Markdown,
+						id: 'provider-response',
+						content: 'Provider continued work',
+					}],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const session = await sessionHandler.provideChatSessionContent(
+				URI.from({ scheme: 'agent-host-copilot', path: '/restored-workspace-transition' }),
+				CancellationToken.None,
+			);
+			disposables.add(toDisposable(() => session.dispose()));
+			const response = session.history.find(item => item.type === 'response');
+
+			assert.deepStrictEqual({
+				history: session.history.map(item => item.type),
+				responseParts: response?.type === 'response' ? response.parts.map(part => part.kind) : undefined,
+				statusAnnouncements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+			}, {
+				history: ['request', 'response'],
+				responseParts: ['systemNotification', 'markdownContent'],
+				statusAnnouncements: [],
+			});
 		});
 
 		test('restores agent feedback attachments into request history variable data', async () => {
@@ -11968,7 +12062,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('detects server-initiated turn and fires onDidStartServerRequest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('forwards a hidden workspace-continuation request to the live transcript adapter', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			// Create and subscribe a session
@@ -11995,7 +12089,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
-			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
+			// Now simulate the server-initiated turn that resumes after workspace conversion.
 			const serverTurnId = 'server-turn-1';
 			const serverRequestEvents: IChatSessionServerRequest[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
@@ -12005,7 +12099,11 @@ suite('AgentHostChatContribution', () => {
 				action: {
 					type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z',
 					turnId: serverTurnId,
-					message: withMessageRequestHiddenFromTranscript({ text: 'queued message text', origin: { kind: MessageKind.User } }, true),
+					message: withMessageRequestHiddenFromTranscript({
+						text: 'Continue in the requested workspace.',
+						origin: { kind: MessageKind.SystemNotification },
+						_meta: toAgentWorkspaceContinuationMessageMeta(),
+					}, true),
 				} as ChatAction,
 				serverSeq: 3,
 				origin: undefined, // Server-originated — no client origin
@@ -12016,7 +12114,7 @@ suite('AgentHostChatContribution', () => {
 			// onDidStartServerRequest should have fired, carrying the provider turn id
 			assert.deepStrictEqual(
 				serverRequestEvents.map(e => ({ id: e.id, prompt: e.prompt, isHidden: e.isHidden, isRequestHidden: e.isRequestHidden })),
-				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nqueued message text', isHidden: false, isRequestHidden: true }],
+				[{ id: serverTurnId, prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.', isHidden: false, isRequestHidden: true }],
 			);
 
 			// isCompleteObs should be false (turn in progress)

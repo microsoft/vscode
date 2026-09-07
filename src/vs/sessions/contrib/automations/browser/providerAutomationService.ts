@@ -298,9 +298,13 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 				prompt: previous.prompt,
 				schedule: previous.schedule,
 				target: previous.target,
-				modelId: previous.modelId ?? null,
-				mode: previous.mode ?? null,
-				permissionLevel: previous.permissionLevel ?? null,
+				...(previous.sessionTemplate
+					? { sessionTemplate: previous.sessionTemplate }
+					: {
+						modelId: previous.modelId ?? null,
+						mode: previous.mode ?? null,
+						permissionLevel: previous.permissionLevel ?? null,
+					}),
 				enabled: previous.enabled,
 			}, expected);
 			if (result.kind === 'conflict') {
