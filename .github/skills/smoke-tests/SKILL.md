@@ -19,7 +19,6 @@ Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js
 | Option | Description |
 |--------|-------------|
 | `-g <pattern>` (alias `-f`) | Grep filter on test/suite titles (mocha `grep`). |
-| `--group <all\|core\|chat>` | Run all tests (default), non-chat tests, or Chat, Agents Window, and Copilot CLI tests. Cannot be combined with `-g`. |
 | `--build <path>` | Run against a packaged build instead of the compiled-from-source dev build. |
 | `--tracing` | Capture Playwright traces (and screenshots on failure). |
 | `--web` | Run the browser smoke tests instead of Electron. |

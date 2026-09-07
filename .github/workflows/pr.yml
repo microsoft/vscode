@@ -106,21 +106,6 @@ jobs:
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
 
-  agent-host-e2e-changes:
-    name: Agent Host E2E Changes
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=agent-host-e2e-changes-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
-    outputs:
-      affected: ${{ steps.detect.outputs.affected }}
-    steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Detect Agent Host E2E changes
-        id: detect
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   linux-cli-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml
@@ -146,19 +131,6 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  linux-agent-host-e2e-tests:
-    name: Linux
-    needs: agent-host-e2e-changes
-    if: needs.agent-host-e2e-changes.outputs.affected == 'true'
-    uses: ./.github/workflows/pr-linux-test.yml
-    with:
-      job_name: Agent-Host-E2E
-      electron_tests: true
-      agent_host_e2e_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-
   linux-electron-smoke-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
@@ -167,17 +139,6 @@ jobs:
       electron_tests: true
       unit_tests: false
       integration_tests: false
-      smoke_test_group: core
-
-  linux-electron-chat-smoke-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-test.yml
-    with:
-      job_name: Electron-Smoke-Chat
-      electron_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_test_group: chat
 
   linux-browser-tests:
     name: Linux
@@ -211,19 +172,6 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  macos-agent-host-e2e-tests:
-    name: macOS
-    needs: agent-host-e2e-changes
-    if: needs.agent-host-e2e-changes.outputs.affected == 'true'
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Agent-Host-E2E
-      electron_tests: true
-      agent_host_e2e_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-
   macos-electron-smoke-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
@@ -232,17 +180,6 @@ jobs:
       electron_tests: true
       unit_tests: false
       integration_tests: false
-      smoke_test_group: core
-
-  macos-electron-chat-smoke-tests:
-    name: macOS
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Electron-Smoke-Chat
-      electron_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_test_group: chat
 
   macos-electron-network-proxy-smoke-tests:
     name: macOS
@@ -287,19 +224,6 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  windows-agent-host-e2e-tests:
-    name: Windows
-    needs: agent-host-e2e-changes
-    if: needs.agent-host-e2e-changes.outputs.affected == 'true'
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Agent-Host-E2E
-      electron_tests: true
-      agent_host_e2e_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-
   windows-electron-smoke-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
@@ -308,17 +232,6 @@ jobs:
       electron_tests: true
       unit_tests: false
       integration_tests: false
-      smoke_test_group: core
-
-  windows-electron-chat-smoke-tests:
-    name: Windows
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Electron-Smoke-Chat
-      electron_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_test_group: chat
 
   windows-browser-tests:
     name: Windows

@@ -19,22 +19,16 @@ on:
       integration_tests:
         type: boolean
         default: true
-      agent_host_e2e_tests:
-        type: boolean
-        default: false
       smoke_tests:
         type: boolean
         default: true
-      smoke_test_group:
-        type: string
-        default: all
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ (inputs.agent_host_e2e_tests && '-agent-host-e2e') || (inputs.smoke_tests && inputs.smoke_test_group == 'chat' && '-chat') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -43,6 +37,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      - name: Detect Agent Host E2E changes
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        id: agent-host-e2e-changes
+        uses: ./.github/actions/detect-agent-host-e2e-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -139,14 +140,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🧪 Run Agent Host E2E tests
-        if: ${{ inputs.agent_host_e2e_tests }}
-        timeout-minutes: 15
-        shell: pwsh
-        run: node scripts/test-agent-host-e2e.ts --tfs "Agent Host E2E"
-        env:
-          VSCODE_SKIP_PRELAUNCH: '1'
-
       - name: Compile browser integration test runner
         if: ${{ inputs.browser_tests && inputs.integration_tests }}
         working-directory: test/integration/browser
@@ -229,7 +222,13 @@ jobs:
         continue-on-error: true
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected == 'true' }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: node scripts/test-integration-with-agent-host-e2e.ts --tfs "Integration Tests"
+
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected != 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
@@ -279,7 +278,7 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing --group ${{ inputs.smoke_test_group }}
+        run: npm run smoketest-no-compile -- --tracing
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

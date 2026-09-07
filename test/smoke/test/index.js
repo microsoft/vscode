@@ -13,25 +13,17 @@ const minimist = require('minimist');
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
 	boolean: ['web', 'fail-zero'],
-	string: ['f', 'g', 'group']
+	string: ['f', 'g']
 });
 
 const suite = opts['web'] ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
-const smokeTestGroup = opts['group'] || 'all';
-if (!['all', 'core', 'chat'].includes(smokeTestGroup)) {
-	throw new Error(`Unknown smoke test group '${smokeTestGroup}'. Expected all, core, or chat.`);
-}
-if (smokeTestGroup !== 'all' && (opts['f'] || opts['g'])) {
-	throw new Error('Smoke test groups cannot be combined with a grep filter.');
-}
 
 const options = {
 	color: true,
 	timeout: 2 * 60 * 1000,
 	slow: 30 * 1000,
-	grep: opts['f'] || opts['g'] || (smokeTestGroup !== 'all' ? 'Chat|Agents Window|Copilot CLI' : undefined),
-	invert: smokeTestGroup === 'core',
-	failZero: opts['fail-zero'] || smokeTestGroup !== 'all'
+	grep: opts['f'] || opts['g'],
+	failZero: opts['fail-zero']
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
