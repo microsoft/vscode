@@ -958,13 +958,16 @@ export class ActionListWidget<T> extends Disposable {
 				this.onListHover(e);
 			}
 		}));
-		this._register(this._list.onMouseMove(e => {
-			if (this._ignoreInitialHover && (e.browserEvent.movementX !== 0 || e.browserEvent.movementY !== 0)) {
+		const initialMouseMove = this._register(new MutableDisposable());
+		initialMouseMove.value = this._list.onMouseMove(e => {
+			if (e.browserEvent.movementX !== 0 || e.browserEvent.movementY !== 0) {
+				initialMouseMove.clear();
 				this._ignoreInitialHover = false;
 				this.onListHover(e);
 			}
-		}));
+		});
 		this._register(this._list.onMouseDown(() => {
+			initialMouseMove.clear();
 			this._ignoreInitialHover = false;
 		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));

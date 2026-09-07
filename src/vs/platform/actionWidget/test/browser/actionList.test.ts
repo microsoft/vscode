@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -216,6 +217,31 @@ suite('ActionListWidget', () => {
 		row.click();
 		assert.deepStrictEqual(selected, ['second']);
 	});
+
+	for (const activation of ['mousemove', 'mousedown'] as const) {
+		test(`stops mapping mouse moves after ${activation} enables hover`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second')],
+				listOptions: { showFilter: false },
+			});
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+			const getAttribute = spy(row, 'getAttribute');
+			disposables.add({ dispose: () => getAttribute.restore() });
+
+			row.dispatchEvent(new MouseEvent(activation, { bubbles: true, movementX: 1 }));
+			const mappedActivation = getAttribute.calledWith('data-index');
+			getAttribute.resetHistory();
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+			assert.deepStrictEqual({
+				mappedActivation,
+				mappedSubsequentMovement: getAttribute.calledWith('data-index'),
+			}, {
+				mappedActivation: true,
+				mappedSubsequentMovement: false,
+			});
+		});
+	}
 
 	test('initial pointer movement and clicks do not select disabled items', () => {
 		const selected: string[] = [];
