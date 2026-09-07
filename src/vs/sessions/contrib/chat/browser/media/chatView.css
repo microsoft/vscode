@@ -69,6 +69,18 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
 }
 
+/* The checkpoint and fork rows sit straight on the wallpaper: their controls are
+ * transparent at rest and only :hover supplies a fill. Back each row's toolbar and
+ * its sibling text with one opaque plate — the move the editor-instance restore row
+ * already makes in chat.css — so the controls stay transparent and their existing
+ * hover fill composites over it. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-label-text,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-dot-separator {
+	background-color: var(--session-view-background);
+}
+
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
 }
