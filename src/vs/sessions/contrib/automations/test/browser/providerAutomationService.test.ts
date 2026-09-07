@@ -13,8 +13,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAutomation, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationActiveRunError, AutomationCatalogueState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -163,23 +161,23 @@ suite('ProviderAutomationService', () => {
 		let providerStore: AutomationStore;
 		switch (providerFailure) {
 			case 'staleRunRecovery':
-				providerStore = new FailingStaleRunRecoveryAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				providerStore = new FailingStaleRunRecoveryAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
 				break;
 			case 'migration':
-				providerStore = new PartiallyFailingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				providerStore = new PartiallyFailingMigrationAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
 				break;
 			case 'transfer':
-				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				providerStore = new FailingTransferAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
 				break;
 			case 'acknowledgement':
-				providerStore = new AcknowledgingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				providerStore = new AcknowledgingMigrationAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
 				break;
 			case 'concurrentMigrationUpdate':
 			case 'concurrentMigrationDelete':
 			case 'concurrentMigrationRun':
 			case 'continuousMigrationUpdate': {
-				const mutatingStore = new ConcurrentlyMutatingMigrationAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
-				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				const mutatingStore = new ConcurrentlyMutatingMigrationAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
+				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), automationStorage));
 				if (providerFailure === 'concurrentMigrationUpdate') {
 					mutatingStore.mutation = 'update';
 				} else if (providerFailure === 'concurrentMigrationDelete') {
@@ -193,19 +191,19 @@ suite('ProviderAutomationService', () => {
 				break;
 			}
 			case 'concurrentTransferRun': {
-				const mutatingStore = new ConcurrentlyMutatingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
-				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				const mutatingStore = new ConcurrentlyMutatingTransferAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
+				mutatingStore.legacyWriter = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), automationStorage));
 				providerStore = mutatingStore;
 				break;
 			}
 			case 'destinationDeleteDuringRollback': {
-				const deletingStore = new DestinationDeletingTransferAutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
-				deletingStore.destinationStore = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+				const deletingStore = new DestinationDeletingTransferAutomationStore(storageKey, storage, new NullLogService(), automationStorage);
+				deletingStore.destinationStore = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), automationStorage));
 				providerStore = deletingStore;
 				break;
 			}
 			default:
-				providerStore = new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage);
+				providerStore = new AutomationStore(storageKey, storage, new NullLogService(), automationStorage);
 		}
 		teardown.add(providerStore);
 		const provider = upcastPartial<ISessionsProvider>({
@@ -223,7 +221,6 @@ suite('ProviderAutomationService', () => {
 		const instantiationService = teardown.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IAutomationStorageService, automationStorage);
 		instantiationService.stub(ISessionsProvidersService, providers);
 		instantiationService.stub(IInstantiationService, instantiationService);
@@ -250,7 +247,6 @@ suite('ProviderAutomationService', () => {
 			providerAutomationStorageKey('stateful-provider'),
 			storage,
 			new NullLogService(),
-			NullTelemetryService,
 			automationStorage,
 		));
 		store.setCatalogueState('loading');
@@ -328,8 +324,8 @@ suite('ProviderAutomationService', () => {
 
 	test('aggregates error, loading, and unavailable states independently of provider order', () => {
 		const { service, storage, automationStorage, addProvider } = createService();
-		const first = teardown.add(new MutableCatalogueAutomationStore('first', storage, new NullLogService(), NullTelemetryService, automationStorage));
-		const second = teardown.add(new MutableCatalogueAutomationStore('second', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const first = teardown.add(new MutableCatalogueAutomationStore('first', storage, new NullLogService(), automationStorage));
+		const second = teardown.add(new MutableCatalogueAutomationStore('second', storage, new NullLogService(), automationStorage));
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'first', order: 1, automations: first }));
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'second', order: 2, automations: second }));
 		let observedState: AutomationCatalogueState = 'ready';
@@ -359,7 +355,6 @@ suite('ProviderAutomationService', () => {
 			providerAutomationStorageKey('loading-provider'),
 			storage,
 			new NullLogService(),
-			NullTelemetryService,
 			automationStorage,
 		));
 		store.setCatalogueState('loading');
@@ -484,7 +479,7 @@ suite('ProviderAutomationService', () => {
 	test('allows unrelated edits while an active run defers storage migration', async () => {
 		const { service, providerStore, storage, automationStorage } = createService();
 		await service.waitForMigrationForTesting();
-		const legacy = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const legacy = teardown.add(new AutomationStore(AUTOMATION_STORAGE_KEY, storage, new NullLogService(), automationStorage));
 		const target = { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } } as const;
 		const created = await legacy.createAutomation({
 			name: 'Active',
@@ -1043,7 +1038,7 @@ suite('ProviderAutomationService', () => {
 		await service.startStaleRunRecovery('Recovered after restart.');
 
 		const activeProviderId = 'late-active-provider';
-		const activeStore = teardown.add(new AutomationStore(providerAutomationStorageKey(activeProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const activeStore = teardown.add(new AutomationStore(providerAutomationStorageKey(activeProviderId), storage, new NullLogService(), automationStorage));
 		const activeAutomation = await activeStore.createAutomation({
 			name: 'Active recovery',
 			prompt: 'prompt',
@@ -1056,7 +1051,7 @@ suite('ProviderAutomationService', () => {
 
 		service.stopStaleRunRecovery();
 		const inactiveProviderId = 'late-inactive-provider';
-		const inactiveStore = teardown.add(new AutomationStore(providerAutomationStorageKey(inactiveProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const inactiveStore = teardown.add(new AutomationStore(providerAutomationStorageKey(inactiveProviderId), storage, new NullLogService(), automationStorage));
 		const inactiveAutomation = await inactiveStore.createAutomation({
 			name: 'Inactive recovery',
 			prompt: 'prompt',
@@ -1080,7 +1075,7 @@ suite('ProviderAutomationService', () => {
 		const { service, storage, automationStorage, addProvider } = createService();
 		await service.startStaleRunRecovery('Recovered after restart.');
 		const providerId = 'late-migrating-provider';
-		const store = teardown.add(new MigrationDeferringAutomationStore(providerAutomationStorageKey(providerId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const store = teardown.add(new MigrationDeferringAutomationStore(providerAutomationStorageKey(providerId), storage, new NullLogService(), automationStorage));
 		const automation = await store.createAutomation({
 			name: 'Late migration',
 			prompt: 'prompt',
@@ -1129,7 +1124,7 @@ suite('ProviderAutomationService', () => {
 		});
 		const { service, storage, automationStorage, addProvider } = createService(legacy);
 		const recovery = service.startStaleRunRecovery('Recovered after restart.');
-		const lateStore = teardown.add(new AutomationStore(providerAutomationStorageKey(lateProviderId), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const lateStore = teardown.add(new AutomationStore(providerAutomationStorageKey(lateProviderId), storage, new NullLogService(), automationStorage));
 		addProvider(upcastPartial<ISessionsProvider>({ id: lateProviderId, order: 1, automations: lateStore }));
 
 		await recovery;
