@@ -16,7 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { resolveChangesetUriTemplate, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifacts, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionGitHubState, SessionState, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -26,7 +26,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
-import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
@@ -102,13 +102,18 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 		&& isGitHubArtifactLink(artifact.link);
 }
 
-/** Partitions Agent Host metadata into dedicated GitHub, artifact, and reference pills. */
+/**
+ * Partitions Agent Host metadata into dedicated GitHub, artifact, and reference
+ * pills. Every list is most recent first, so each pill's dropdown opens on what
+ * the session did last.
+ */
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
-	const entries = readSessionArtifacts(meta);
+	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
 	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
-	const pullRequestUrls = dedupeLinks(getSessionRelatedPullRequestUrls(github), artifactPullRequests);
+	// Recorded pull requests lead discovered ones, as in the Agents Window.
+	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
 	const issueUrls = dedupeLinks(artifactIssues);
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
@@ -331,8 +336,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return [];
 			}
 			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
-			return [...this._browserViewService.getKnownBrowserViews().values()]
-				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId));
+			return getAgentBrowserViewsNewestFirst(this._browserViewService, ownerIds);
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
 			return visibility.isVisible(SessionChatPillKind.Browsers, reader)

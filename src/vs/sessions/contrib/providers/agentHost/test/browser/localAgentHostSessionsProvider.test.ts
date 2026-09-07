@@ -7798,11 +7798,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			issues: gitHubInfo?.issues?.map(issue => issue.number),
 			artifacts: session.artifacts?.get().map(artifact => artifact.id),
 		}, {
-			activePullRequest: 50,
-			pullRequests: [50, 41],
+			// Newest first, so the latest pull request is the active one.
+			activePullRequest: 41,
+			pullRequests: [41, 50],
 			// Only issues the session produced are polled; a referenced one stays a reference.
 			issues: [7],
-			artifacts: ['a2', 'a5', 'a6', 'a7'],
+			artifacts: ['a7', 'a6', 'a5', 'a2'],
 		});
 	}));
 

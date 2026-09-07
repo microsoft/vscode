@@ -191,9 +191,10 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 
 /**
  * Builds the sections shown in a pill from one group of agent-set entries —
- * the artifacts pill and the references pill each build their own. Websites
- * the browsers pill already lists are left out, so the same page is offered
- * once across the pills.
+ * the artifacts pill and the references pill each build their own. Entries keep
+ * the order they arrive in, which is newest first, so each section opens on
+ * what the session recorded last. Websites the browsers pill already lists are
+ * left out, so the same page is offered once across the pills.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
