@@ -504,6 +504,47 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the request edit input opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendEditInput = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
+			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
+			const inlineInputPart = dom.append(editContainer, dom.$('.interactive-input-part'));
+			const composerInputPart = dom.append(session, dom.$('.interactive-input-part.editing'));
+			return {
+				inline: dom.append(inlineInputPart, dom.$('.chat-input-container')),
+				composer: dom.append(composerInputPart, dom.$('.chat-input-container')),
+			};
+		};
+		const background = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
+		const plain = appendEditInput(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const inlineStyle = dom.getWindow(background.inline).getComputedStyle(background.inline);
+		const composerStyle = dom.getWindow(background.composer).getComputedStyle(background.composer);
+		const plainInlineStyle = dom.getWindow(plain.inline).getComputedStyle(plain.inline);
+		assert.deepStrictEqual({
+			inlineBackgroundColor: inlineStyle.backgroundColor,
+			inlineBackgroundImage: inlineStyle.backgroundImage,
+			composerBackgroundColor: composerStyle.backgroundColor,
+			composerBackgroundImage: composerStyle.backgroundImage,
+			plainInlineBackgroundColor: plainInlineStyle.backgroundColor,
+			plainInlineBackgroundImage: plainInlineStyle.backgroundImage,
+		}, {
+			inlineBackgroundColor: 'rgb(32, 32, 32)',
+			inlineBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			composerBackgroundColor: 'rgb(32, 32, 32)',
+			composerBackgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			plainInlineBackgroundColor: 'rgba(255, 255, 255, 0.3)',
+			plainInlineBackgroundImage: 'none',
+		});
+	});
+
 	test('applies a borderless translucent side fade to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
@@ -564,39 +605,48 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
-		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
-		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
-		const inSessionWidget = dom.append(chatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
-		const inSessionContent = dom.append(inSessionWidget, dom.$('.new-chat-widget-content'));
+		const newChatContainer = dom.append(newChatWidget, dom.$('.new-chat-widget-container'));
+		const bottomContainer = dom.append(newChatContainer, dom.$('.new-chat-bottom-container'));
+		const bottomAction = dom.append(bottomContainer, dom.$('.action-label'));
+		const workspacePickerSlot = dom.append(newChatContainer, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const workspacePill = dom.append(workspacePickerSlot, dom.$('.action-label'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
-		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
-		const plainNewChatContent = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-content'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainSecondaryToolbar = dom.append(plainSession, dom.$('.chat-secondary-toolbar'));
 		const plainSecondaryAction = dom.append(plainSecondaryToolbar, dom.$('.action-label'));
 		const plainContextUsage = dom.append(plainSecondaryToolbar, dom.$('.chat-context-usage-widget'));
+		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
+		const plainNewChatContainer = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-container'));
+		const plainBottomContainer = dom.append(plainNewChatContainer, dom.$('.new-chat-bottom-container'));
+		const plainBottomAction = dom.append(plainBottomContainer, dom.$('.action-label'));
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
 
 		const newChatStyle = dom.getWindow(newChatContent).getComputedStyle(newChatContent);
+		const bottomActionStyle = dom.getWindow(bottomAction).getComputedStyle(bottomAction);
+		const workspacePillStyle = dom.getWindow(workspacePill).getComputedStyle(workspacePill);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
-			newChatBorderRadius: newChatStyle.borderRadius,
 			newChatPadding: newChatStyle.padding,
-			inSessionBackgroundColor: dom.getWindow(inSessionContent).getComputedStyle(inSessionContent).backgroundColor,
+			bottomActionBackgroundColor: bottomActionStyle.backgroundColor,
+			bottomActionBorderColor: bottomActionStyle.borderColor,
+			bottomActionBorderStyle: bottomActionStyle.borderStyle,
+			bottomActionBorderRadius: bottomActionStyle.borderRadius,
+			workspacePillBackgroundColor: workspacePillStyle.backgroundColor,
 			secondaryActionBackgroundColor: secondaryActionStyle.backgroundColor,
 			secondaryActionBackgroundImage: secondaryActionStyle.backgroundImage,
 			secondaryActionBorderColor: secondaryActionStyle.borderColor,
@@ -604,17 +654,20 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
-			plainNewChatBackgroundColor: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).backgroundColor,
-			plainNewChatPadding: dom.getWindow(plainNewChatContent).getComputedStyle(plainNewChatContent).padding,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
+			plainBottomActionBackgroundColor: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).backgroundColor,
+			plainBottomActionBorderStyle: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).borderStyle,
 		}, {
-			newChatBackgroundColor: 'color(srgb 1 1 1 / 0.86)',
-			newChatBorderRadius: '8px',
-			newChatPadding: '12px',
-			inSessionBackgroundColor: 'rgba(0, 0, 0, 0)',
+			newChatBackgroundColor: 'rgba(0, 0, 0, 0)',
+			newChatPadding: '0px',
+			bottomActionBackgroundColor: 'rgb(255, 255, 255)',
+			bottomActionBorderColor: 'rgb(96, 96, 96)',
+			bottomActionBorderStyle: 'solid',
+			bottomActionBorderRadius: '4px',
+			workspacePillBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			secondaryActionBorderColor: 'rgb(128, 128, 128)',
@@ -622,12 +675,12 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
-			plainNewChatBackgroundColor: 'rgba(0, 0, 0, 0)',
-			plainNewChatPadding: '0px',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
+			plainBottomActionBackgroundColor: 'rgb(255, 255, 255)',
+			plainBottomActionBorderStyle: 'none',
 		});
 	});
 

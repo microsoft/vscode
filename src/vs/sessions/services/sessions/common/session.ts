@@ -925,6 +925,8 @@ export interface ISessionWorkspaceBrowseAction {
 	 * execution workspace.
 	 */
 	readonly attachesContext?: boolean;
+	/** Whether this action can select a repository to attach as prompt context. */
+	readonly supportsContextAttachment?: boolean;
 	/**
 	 * Execute the browse action and return the selected workspace, or undefined
 	 * if cancelled. The current execution workspace is provided so context
