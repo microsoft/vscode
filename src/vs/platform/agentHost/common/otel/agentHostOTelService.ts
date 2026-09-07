@@ -68,6 +68,15 @@ export interface IAgentHostOTelService {
 	 * Repeated calls re-export an immutable anchor so collectors can restore
 	 * parent-resolution state. Long-lived sessions periodically rotate the parent
 	 * span while retaining their trace ID.
+	 *
+	 * `sessionUri` is the anchor key. Every lookup for one conversation must pass
+	 * the same value (the chat's own resource, never a shared configuration
+	 * scope), otherwise two anchors and two parents exist for that conversation.
+	 *
+	 * The anchor export is queued, not awaited. In DB mode with an OTLP/HTTP JSON
+	 * endpoint it shares the serialized forwarder with provider spans and reaches
+	 * the collector before that turn's provider spans. In pass-through mode the
+	 * runtime exports on its own connection and no ordering is guaranteed.
 	 */
 	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined;
 

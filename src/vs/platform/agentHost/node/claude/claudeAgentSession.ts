@@ -226,6 +226,16 @@ export class ClaudeAgentSession extends Disposable {
 	private _mcpDiscovery: SessionMcpDiscovery | undefined;
 	private _mcpLaunchEnablementRevision = 0;
 	private _appliedMcpLaunchEnablementRevision = 0;
+	/**
+	 * Anchor key this session's trace context is looked up under: the chat's
+	 * own persistence resource, captured at materialize. A peer/side chat
+	 * shares its owning session's configuration resource but not this key.
+	 * Every lookup for one conversation goes through
+	 * {@link _lookupTraceContext}; otherwise the anchors diverge and each
+	 * send rebuilds the subprocess.
+	 */
+	private _traceSessionUri: string | undefined;
+	/** W3C context the live subprocess was launched with; compared at each send to detect rotation. */
 	private _materializedTraceContext: IAgentHostTraceContext | undefined;
 
 	/** Exposed for the materializer's MCP-server build closure. */
@@ -627,7 +637,8 @@ export class ClaudeAgentSession extends Disposable {
 		const { mcpServers, deniedMcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
+		const traceSessionUri = ctx.resource.toString();
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, traceSessionUri);
 
 		const options = await buildOptions(
 			{
@@ -685,6 +696,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
+		this._traceSessionUri = traceSessionUri;
 		this._materializedTraceContext = traceContext;
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (!event.origin || event.session !== ctx.configResource.toString()) {
@@ -745,7 +757,7 @@ export class ClaudeAgentSession extends Disposable {
 				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
-				const rebuildTraceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
+				const rebuildTraceContext = this._lookupTraceContext();
 				const rebuildOptions = await buildOptions(
 					{
 						sessionId: this.sessionId,
@@ -1061,9 +1073,10 @@ export class ClaudeAgentSession extends Disposable {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, resource.toString());
-		const traceContextChanged = traceContext?.traceparent !== this._materializedTraceContext?.traceparent
-			|| traceContext?.tracestate !== this._materializedTraceContext?.tracestate;
+		// `resource` is the session-wide configuration scope, which the
+		// permission-mode read below needs. The anchor key is the chat's own
+		// resource, captured at materialize; the lookup goes through that key.
+		const traceContextChanged = this._hasTraceContextRotated();
 		if (this.toolDiff.hasDifference
 			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
 			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
@@ -1084,6 +1097,30 @@ export class ClaudeAgentSession extends Disposable {
 			this._hostInstructions = undefined;
 			this._agentMergeTurn = false;
 		}
+	}
+
+	/**
+	 * Look up (and re-export) the session's current anchor under the key
+	 * captured at materialize. Only valid once materialized. Both the
+	 * per-turn rotation check and the rematerializer go through here, which
+	 * keeps them from disagreeing on the key.
+	 */
+	private _lookupTraceContext(): IAgentHostTraceContext | undefined {
+		if (this._traceSessionUri === undefined) {
+			throw new Error(`Cannot resolve trace context for Claude session ${this.sessionId}: not materialized`);
+		}
+		return this._otelService.getSessionTraceContext(this.sessionId, this._traceSessionUri);
+	}
+
+	/**
+	 * Whether the host has rotated the session anchor since the live
+	 * subprocess was launched. Claude receives `TRACEPARENT`/`TRACESTATE`
+	 * through its environment; a rotated parent needs a rebuild.
+	 */
+	private _hasTraceContextRotated(): boolean {
+		const current = this._lookupTraceContext();
+		return current?.traceparent !== this._materializedTraceContext?.traceparent
+			|| current?.tracestate !== this._materializedTraceContext?.tracestate;
 	}
 
 	private _restrictAgentMergeGitHubTool(toolName: string, input: unknown): SyncHookJSONOutput | undefined {
