@@ -1,0 +1,12 @@
+parameters:
+  - name: enabled
+    type: boolean
+
+steps:
+  - ${{ if eq(parameters.enabled, true) }}:
+    - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" restore
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      condition: and(succeeded(), ne(variables['TEST_CHECKPOINTS_RESTORED'], 'true'))
+      displayName: Restore test checkpoints
+      timeoutInMinutes: 3

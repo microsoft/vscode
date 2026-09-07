@@ -5,6 +5,8 @@ parameters:
     type: string
   - name: VSCODE_TEST_SUITE
     type: string
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
   - name: VSCODE_RUN_CHECKS
     type: boolean
     default: false
@@ -46,6 +48,7 @@ jobs:
         parameters:
           VSCODE_ARCH: x64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
+          VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_RUN_CHECKS: ${{ parameters.VSCODE_RUN_CHECKS }}
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:

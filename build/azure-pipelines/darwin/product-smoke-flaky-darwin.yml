@@ -7,6 +7,8 @@ parameters:
     type: boolean
   - name: iterations
     type: object
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
 
 jobs:
   - template: ../common/product-smoke-flaky-build.yml@self
@@ -24,6 +26,7 @@ jobs:
           parameters:
             VSCODE_ARCH: arm64
             VSCODE_CIBUILD: true
+            VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
             VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
       archiveWorkspaceSteps:
         - script: |

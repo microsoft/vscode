@@ -1,0 +1,33 @@
+parameters:
+  - name: testId
+    type: string
+    values:
+      - unit-electron
+      - unit-node
+      - unit-browser-chromium
+      - unit-browser-webkit
+      - integration-electron
+      - integration-remote
+      - integration-browser-chromium
+      - integration-browser-firefox
+      - integration-browser-webkit
+      - smoke-electron
+      - smoke-browser-chromium
+      - smoke-remote
+      - smoke-packaged-agent-host
+      - smoke-agents-pac
+      - smoke-agents-pac-kerberos
+      - copilot-extension
+      - copilot-completions-core
+      - copilot-sanity
+
+steps:
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_FILE)
+      artifactName: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_ARTIFACT)
+      sbomEnabled: false
+      isProduction: false
+    condition: and(succeeded(), eq(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_READY'], 'true'), ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
+    displayName: Publish ${{ parameters.testId }} checkpoint
+    timeoutInMinutes: 2
