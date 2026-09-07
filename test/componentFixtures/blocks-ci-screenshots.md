@@ -255,6 +255,12 @@
 #### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b3a1b549107ec9feba73377ba4c66eeba2894988f82974c253039056e9101e3d)
 
+#### editor/wordWrapIndicator/WordWrapIndicatorViewportWrapping/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3b5e3121788d2eac73b79a03f94686e9c7ddcce27526269faee566a3ecabe08e)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorViewportWrapping/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2945563f28440c62c812e2c80ac40620807822ec8b691bac9b79a85610b4fc50)
+
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2f3f859c302172469115f4e7c5245b7006bdb5cad9b43d2a69c9046a99ec88ce)
 
