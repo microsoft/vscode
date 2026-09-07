@@ -22,6 +22,7 @@ import {
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
+import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -30,6 +31,7 @@ import {
 	type URI as ProtocolURI,
 	readSessionGitState,
 	isDefaultChatUri,
+	isHostNoticeTurn,
 	lastAttributableTurnId,
 	SessionLifecycle,
 } from '../common/state/sessionState.js';
@@ -1476,13 +1478,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	/**
-	 * Returns the turn id whose checkpoint best represents the latest state of
-	 * the session's shared working tree. For single-chat sessions this is the
-	 * default chat's last turn. For multi-chat sessions it is the last turn of
-	 * the most-recently-modified chat (peer-chat turn checkpoints are stored
-	 * under the session URI keyed by their turn id). Host notice turns are
-	 * skipped — they capture no checkpoint, so picking one would drop the
-	 * session changeset off its git fast path.
+	 * Returns the latest completed attributable turn across chats, whose
+	 * checkpoint represents the session's shared working tree.
 	 */
 	private _latestTurnIdAcrossChats(session: ProtocolURI): string | undefined {
 		const sessionState = this._stateManager.getSessionState(session);
@@ -1496,15 +1493,21 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		let bestTurnId: string | undefined;
-		let bestModifiedAt = '';
+		let bestCompletedAt = '';
 		for (const chat of chats) {
 			const turns = isDefaultChatUri(chat.resource)
 				? sessionState.turns
 				: this._stateManager.getChatState(chat.resource)?.turns;
-			const lastTurnId = lastAttributableTurnId(turns);
-			if (lastTurnId && chat.modifiedAt >= bestModifiedAt) {
-				bestModifiedAt = chat.modifiedAt;
-				bestTurnId = lastTurnId;
+			const lastTurn = turns?.findLast(turn => !isHostNoticeTurn(turn));
+			if (!lastTurn) {
+				continue;
+			}
+			const completedAt = lastTurn.startedAt
+				? addMillisecondsToTimestamp(lastTurn.startedAt, lastTurn.duration ?? 0)
+				: chat.modifiedAt;
+			if (completedAt >= bestCompletedAt) {
+				bestCompletedAt = completedAt;
+				bestTurnId = lastTurn.id;
 			}
 		}
 		return bestTurnId;
@@ -1538,10 +1541,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		// Session
 		if (kind === 'session') {
-			// Get session checkpoints. In multi-chat sessions the working tree
-			// is shared and each chat's turn checkpoints are stored under the
-			// session URI keyed by their turn id, so the most-recently-modified
-			// chat's last turn captures the full working-tree delta.
+			// The latest completed attributable turn captures the shared working-tree delta across chats.
 			const latestTurnId = this._latestTurnIdAcrossChats(session);
 			if (!latestTurnId) {
 				return undefined;
