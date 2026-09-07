@@ -46,6 +46,7 @@ export interface IAgentHostCustomizationService {
 
 	/**
 	 * Waits up to two seconds for {@link getCustomizations} to reflect the session's first state snapshot; it may resolve earlier on cancellation, failure, or when no agent-host session exists.
+	 * The wait is shared per session, so repeated calls observe one deadline rather than restarting it, and resolve immediately once it has elapsed.
 	 * Intended for one-shot reads; reactive callers should continue listening to {@link onDidChangeCustomizations}.
 	 */
 	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
