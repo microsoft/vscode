@@ -13,13 +13,14 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
-import { NewSessionActionViewItemContribution, SessionConversationActionsContribution } from './sessionsActions.js';
+import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING } from './views/sessionsList.js';
+import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
@@ -68,6 +69,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('sessions.list.showEmptyDefaultGroups', "Controls whether the Chats group is shown in the sessions list even when it is empty."),
 			default: true,
 			experiment: { mode: 'auto' }
+		},
+		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['accent', 'soft', 'outline'],
+			default: 'outline',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT,
+			},
+			description: localize('sessions.automations.newBadgeStyle', "Controls the visual style of the Automations first-use badge."),
+		},
+		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['default', 'lightweight', 'lightweightWithKeybindingBackground'],
+			default: 'default',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto',
+				name: NEW_SESSION_BUTTON_STYLE_TREATMENT,
+			},
+			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
 		},
 	},
 });

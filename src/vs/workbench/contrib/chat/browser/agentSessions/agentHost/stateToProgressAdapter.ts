@@ -14,7 +14,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readMessageSystemInitiatedLabel, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -26,7 +26,7 @@ import { SessionServerToolName } from '../../../../../../platform/agentHost/comm
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
@@ -75,6 +75,10 @@ function shouldHideCompletedAgentHostAskUserTool(toolCall: ToolCallState): boole
 
 function isRenameChatTool(toolCall: ToolCallState): boolean {
 	return toolCall.toolName === SessionServerToolName.RenameChat || toolCall.toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+}
+
+function isSetWorkspaceTool(toolCall: ToolCallState): boolean {
+	return toolCall.toolName === SessionServerToolName.SetWorkspace || toolCall.toolName.endsWith(`__${SessionServerToolName.SetWorkspace}`);
 }
 
 function isAutomaticTitleRename(toolCall: ToolCallState): boolean {
@@ -484,6 +488,20 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
 				: { kind: 'systemNotification', content: markdown };
+		case AgentSystemNotificationKind.WorkspaceTransition:
+			if (!meta.workspaceName || !meta.workspaceKind) {
+				return { kind: 'systemNotification', content: markdown };
+			}
+			return {
+				kind: 'systemNotification',
+				content: markdown,
+				icon: meta.workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact,
+				presentation: 'workspaceTransition',
+				workspaceName: meta.workspaceName,
+				accessibilityLabel: meta.workspaceKind === AgentSystemNotificationWorkspaceKind.Worktree
+					? localize('agentHost.workspaceTransition.worktree', "Workspace changed. This session is now working in {0} using an isolated worktree.", meta.workspaceName)
+					: localize('agentHost.workspaceTransition.folder', "Workspace changed. This session is now working directly in {0}.", meta.workspaceName),
+			};
 		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
@@ -942,6 +960,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			...(isMessageRequestHiddenFromTranscript(turn.message) ? { isRequestHidden: true } : {}),
 			...(isSystemInitiated ? {
 				isSystemInitiated: true,
+				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
@@ -2353,7 +2372,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			};
 		} else if (getToolKind(tc) === 'terminal' && getInlineToolInput(tc.toolInput)) {
 			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-		} else {
+		} else if (!isSetWorkspaceTool(tc)) {
 			const toolInput = getInlineToolInput(tc.toolInput);
 			if (toolInput) {
 				let rawInput: unknown;

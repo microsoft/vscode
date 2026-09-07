@@ -62,6 +62,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
+	/** Cancel startup session restoration so this new-session navigation wins. */
+	readonly cancelRestore?: boolean;
 }
 
 /**
@@ -343,8 +345,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancellation for the in-flight {@link restoreVisibleSessions}. Kept
 	 * separate from {@link _openSessionCts} so that additive new-session
 	 * operations (the new-chat composer eagerly creating a draft on startup)
-	 * do not abort restoring the previously visible grid. Only an explicit
-	 * navigation to a specific session cancels a restore.
+	 * do not abort restoring the previously visible grid. Explicit navigation
+	 * to a session, or a new-session handoff with `cancelRestore`, cancels it.
 	 */
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
@@ -718,8 +720,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/**
 	 * Cancel an in-flight {@link restoreVisibleSessions}. Called when the user
-	 * explicitly navigates to a specific session, so restore stops fighting
-	 * the user's choice. Additive new-session operations do NOT call this.
+	 * explicitly navigates to a session, including a new-session handoff that
+	 * sets `cancelRestore`, so restore stops fighting the user's choice.
 	 */
 	private _cancelRestore(): void {
 		// `cancel()` (not just `clear()`/dispose) so the in-flight restore's
@@ -1050,6 +1052,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.cancelRestore) {
+			this._cancelRestore();
+		}
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for
@@ -1107,15 +1112,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// their state from the still-alive session object. Otherwise clear the
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
-
-		// A quick-chat draft must not be restored into the workspace new-session
-		// composer (symmetric to the New Quick Chat gesture): discard it and show
-		// a fresh workspace composer instead.
-		if (newSession?.isQuickChat?.get()) {
-			this.sessionsManagementService.discardNewSession(newSession);
-			this._activate(undefined);
-			return { session: undefined, trustDeclined: false };
-		}
 
 		this._activate(newSession ?? undefined);
 		return { session: newSession ?? undefined, trustDeclined: false };

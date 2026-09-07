@@ -160,7 +160,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IHostService private readonly hostService: IHostService,
+		@IHostService protected readonly hostService: IHostService,
 		@IMenuService protected readonly menuService: IMenuService,
 	) {
 		super(themeService);
@@ -646,10 +646,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateTabHeight(): void {
+		const isCompact = this.groupsView.partOptions.tabHeight === 'compact';
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
 		// Signal compact mode via a CSS class so the modern tab rules in tabs.css
 		// can apply a proportionally smaller --editor-group-tab-height value.
-		this.parent.classList.toggle('compact-height', this.groupsView.partOptions.tabHeight === 'compact');
+		this.parent.classList.toggle('compact-height', isCompact);
+		this.parent.parentElement?.classList.toggle('editor-tabs-compact-height', isCompact);
 	}
 
 	private updateTabActionSpaceReservation(): void {

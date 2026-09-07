@@ -21,7 +21,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidgetService, isIChatResourceViewContext } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
@@ -64,9 +64,10 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView'): string {
 	const content = [];
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
+		content.push(localize('chat.modelPicker.tiers', "In the tabbed model picker, the selected model's details open beside the list. Moving between model rows updates the details immediately without selecting a model. The card stays visible when the pointer leaves a row. Press Right Arrow from a model row to focus its details, and Left Arrow to return. When Auto routing tiers are available, the tiers remain visible while Auto is off. Use arrow keys to move between tiers, then Enter or Space to choose a tier and turn Auto on. Turning Auto off preserves the selected tier."));
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files. Focus an additions and deletions label and press Enter or Space to open the changes in a diff editor.'));
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {
@@ -81,6 +82,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('workbench.action.openAgentsWindow', 'To open the Agents Window, invoke the Open Agents Window command{0}. In screen reader mode, this keybinding includes Alt to avoid conflicts with screen reader shortcuts.', '<keybinding:workbench.action.openAgentsWindow>'));
 			content.push(localize('workbench.action.chat.openAgentHostFolderPicker', 'When starting an agent session in a multi-root workspace, you can choose which root folder it runs in by invoking the Folder command{0}, then selecting a folder from the list.', '<keybinding:workbench.action.chat.openAgentHostFolderPicker>'));
 			content.push(localize('chat.agentHostApprovalsPicker', 'When an agent session exposes approval presets, use Tab to reach the Approvals picker and choose how it handles workspace access, commands, and the internet.'));
+		}
+		if (sessionStatusPillsSupported) {
+			content.push(localize('chat.sessionStatusPills', 'When session status pills appear above the input, use Tab to focus the toolbar, then use the left and right arrow keys to move between pills. Press Enter or Space to activate a pill. Open the context menu{0} to choose which optional pills are visible.', '<keybinding:editor.action.showContextMenu>'));
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. One pet appears in whichever editor or Agents window is active. Drag it around the chat with the mouse and release it to drop it, or flick it in any direction to throw it along the gesture before gravity pulls it down. Pointer collisions are ignored for half a second after a drag release. After that, while the pet is falling, move the pointer into it to bounce it upward; pointer movement and where it catches the pet affect the bounce. Sideways and upward travel do not start the bounce counter. A counter beside the pet tracks consecutive bounces and remains for up to five seconds after landing, or until the pet next reacts or interacts. Landing with at least twenty bounces triggers confetti unless reduced motion is enabled. If it falls past the input, a despawn effect appears at the bottom and a respawn effect appears at the top before it automatically returns to the input. Moving the pointer rapidly between the pet\u2019s left and right sides makes it dizzy. With the keyboard, use Tab to focus the pet, then the left and right arrows to make it hop along the input until it reaches an edge. Hold Shift with the left or right arrow to throw it toward a wall; while it is airborne, press Enter or Space to bounce it upward. Rapidly alternate the unmodified arrows to make it dizzy. Press Enter or Space while it is resting to interact with it. When an achievement unlocks, the pet shows a gold star for ten seconds; activate the pet during that time to open Achievements. Open its context menu{0} (for example Shift+F10), use the up and down arrow keys to choose Achievements, Go on the Run, Come Back, Grow, Shrink, Reset Size, Stable Colors, or Insiders Colors, and press Enter to activate the choice. Grow and Shrink change its size in twenty-percent steps, while Reset Size restores its default size. The pet position and selected size are shared across chats and windows and remembered after you restart.', '<keybinding:editor.action.showContextMenu>'));
@@ -206,7 +210,8 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService));
+	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

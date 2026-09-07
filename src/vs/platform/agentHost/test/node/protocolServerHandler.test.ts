@@ -17,6 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -43,6 +44,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 class MockProtocolTransport implements IProtocolTransport {
 	constructor(readonly transportKind = AgentHostTransportKind.Unknown) { }
 
+	isDisposed = false;
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
 	private readonly _onDidSend = new Emitter<ProtocolMessage>();
@@ -66,6 +68,7 @@ class MockProtocolTransport implements IProtocolTransport {
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		this._onMessage.dispose();
 		this._onDidSend.dispose();
 		this._onClose.dispose();
@@ -347,6 +350,25 @@ function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | un
 	return sent.find(message => isJsonRpcResponse(message) && message.id === id);
 }
 
+function findRequest(sent: ProtocolMessage[], method: string): { readonly jsonrpc: '2.0'; readonly id: number; readonly method: string; readonly params?: unknown } | undefined {
+	for (const message of sent) {
+		if (
+			hasKey(message, { id: true, method: true })
+			&& typeof message.id === 'number'
+			&& typeof message.method === 'string'
+			&& message.method === method
+		) {
+			return {
+				jsonrpc: '2.0',
+				id: message.id,
+				method: message.method,
+				...(hasKey(message, { params: true }) ? { params: message.params } : {}),
+			};
+		}
+	}
+	return undefined;
+}
+
 function waitForResponse(transport: MockProtocolTransport, id: number): Promise<ProtocolMessage> {
 	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
@@ -449,6 +471,53 @@ suite('ProtocolServerHandler', () => {
 				'vscode.getAgentHostSessionStateFile.chat': true,
 			},
 		});
+	});
+
+	test('routes a workspace trust request to the initiating client', async () => {
+		const transport = connectClient('client-1');
+		while (!findResponse(transport.sent, 1)) {
+			await Promise.resolve();
+		}
+
+		const trustPromise = clientConnections.requestWorkspaceTrust('client-1', {
+			workspace: 'file:///workspace/project',
+		});
+		const reverseRequest = findRequest(transport.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		if (!reverseRequest) {
+			assert.fail('Expected a reverse workspace trust request.');
+		}
+		transport.simulateMessage({
+			jsonrpc: '2.0',
+			id: reverseRequest.id,
+			result: { trusted: true },
+		});
+
+		assert.deepStrictEqual({
+			request: reverseRequest,
+			trusted: await trustPromise,
+		}, {
+			request: {
+				jsonrpc: '2.0',
+				id: reverseRequest.id,
+				method: RequestAgentHostWorkspaceTrustExtensionMethod,
+				params: { workspace: 'file:///workspace/project' },
+			},
+			trusted: true,
+		});
+	});
+
+	test('rejects a pending workspace trust request when the client disconnects', async () => {
+		const transport = connectClient('client-1');
+		while (!findResponse(transport.sent, 1)) {
+			await Promise.resolve();
+		}
+
+		const trustPromise = clientConnections.requestWorkspaceTrust('client-1', {
+			workspace: 'file:///workspace/project',
+		});
+		transport.simulateClose();
+
+		await assert.rejects(trustPromise, /disconnected/);
 	});
 
 	test('handshake advertises only implemented automation capabilities', () => {
@@ -721,6 +790,15 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.id, 7);
 		assert.strictEqual(resp.result, null);
 		transport.simulateClose();
+	});
+
+	test('dispose closes a connection before initialize', () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+
+		handler.dispose();
+
+		assert.strictEqual(transport.isDisposed, true);
 	});
 
 	test('unknown requests return MethodNotFound before and after initialize', () => {
@@ -2819,6 +2897,113 @@ suite('ProtocolServerHandler', () => {
 		await reconnectRespPromise;
 		assert.deepStrictEqual(subscribeCalls, [sessionUri], 'reconnect should call subscribe to restore evicted state');
 		assert.ok(stateManager.getSnapshot(sessionUri), 'state should have been re-hydrated by reconnect');
+	});
+
+	test('reconnect answers replay even when initialize gave a channel no baseline', async () => {
+		// Reproduces the server half of the eternal-spinner incident. `initialize`
+		// registers a state channel whose snapshot has not materialized yet
+		// (`_addInitialSubscription` uses the SYNCHRONOUS `getSnapshot`, unlike
+		// `subscribe`, which awaits `AgentService.subscribe` and restores evicted
+		// state). The client is subscribed with no baseline from THIS process, yet
+		// the next reconnect passes the purely-global `canReplay` check and is
+		// answered with deltas only — which a client applies onto nothing.
+		const transport1 = connectClient('client-no-baseline', [sessionUri]);
+		const initResp = findResponse(transport1.sent, 1) as { result: InitializeResult };
+		const initSeq = initResp.result.serverSeq;
+		const sessionSnapshot = initResp.result.snapshots?.find(snapshot => snapshot.resource === sessionUri);
+		transport1.simulateClose();
+
+		// Mirror the incident's timing: the replay buffer is empty and the client
+		// is level with the server, so `canReplay` is true. The session then
+		// materializes DURING the async restore — exactly what happened as the
+		// restarted host restored its sessions while answering the reconnect.
+		agentService.subscribe = async (resource, _clientId) => {
+			if (!stateManager.getSnapshot(resource.toString())) {
+				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			}
+			return stateManager.getSnapshot(resource.toString())!;
+		};
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-no-baseline',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [sessionUri],
+		}));
+		const reconnectResp = await reconnectRespPromise as { result: ReconnectResult };
+
+		assert.deepStrictEqual({
+			initializeGaveSnapshot: sessionSnapshot !== undefined,
+			reconnectType: reconnectResp.result.type,
+		}, {
+			// The channel was subscribed without a baseline...
+			initializeGaveSnapshot: false,
+			// ...so the server must send a snapshot, not deltas onto nothing.
+			reconnectType: 'snapshot',
+		});
+	});
+
+	test('a channel reported missing does not deny replay for the client\'s other channels', async () => {
+		// A terminal channel from a dead host process can never be baselined:
+		// `initialize` registers it with no snapshot, and the follow-up restore
+		// reports it `missing`. Its baseline debt must be released — otherwise a
+		// single unrestorable channel would force full snapshots for every other
+		// channel this client holds, forever. (The real incident's reconnect
+		// reported 15 such terminal channels.)
+		const deadTerminal = 'agenthost-terminal:/dead-from-previous-process';
+		const transport1 = connectClient('client-missing-debt', [sessionUri, deadTerminal]);
+		const initResp = findResponse(transport1.sent, 1) as { result: InitializeResult };
+		const initSeq = initResp.result.serverSeq;
+		transport1.simulateClose();
+
+		// The session restores; the terminal cannot.
+		agentService.subscribe = async (resource, _clientId) => {
+			if (resource.toString() === deadTerminal) {
+				throw new Error('No agent for session: ' + deadTerminal);
+			}
+			if (!stateManager.getSnapshot(resource.toString())) {
+				stateManager.restoreSession(makeSessionSummary(), []);
+			}
+			return stateManager.getSnapshot(resource.toString())!;
+		};
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const firstRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-missing-debt',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [sessionUri, deadTerminal],
+		}));
+		const firstResp = await firstRespPromise as { result: ReconnectResult };
+
+		// A second reconnect, now that the session has a baseline and the dead
+		// terminal has been reported missing, must be free to replay again.
+		transport2.simulateClose();
+		const transport3 = new MockProtocolTransport();
+		server.simulateConnection(transport3);
+		const secondRespPromise = waitForResponse(transport3, 1);
+		transport3.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-missing-debt',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [sessionUri, deadTerminal],
+		}));
+		const secondResp = await secondRespPromise as { result: ReconnectResult };
+
+		assert.deepStrictEqual({
+			firstType: firstResp.result.type,
+			firstMissing: firstResp.result.type === 'replay' ? firstResp.result.missing : [],
+			secondType: secondResp.result.type,
+		}, {
+			// Debt forced a snapshot the first time, as intended...
+			firstType: 'snapshot',
+			firstMissing: [],
+			// ...and the unrestorable terminal did not poison the next reconnect.
+			secondType: 'replay',
+		});
 	});
 
 	test('reconnect re-registers the reverse-RPC filesystem authority', async () => {

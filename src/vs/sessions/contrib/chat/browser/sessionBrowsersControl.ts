@@ -10,21 +10,11 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
-import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
-
-/** Presentation of the browsers pill. */
-export const sessionBrowsersPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'sessionBrowsers',
-	icon: Codicon.globe,
-	title: localize('browsers.ariaLabel', "Browsers"),
-	summaryLabel: count => localize('browsers.activeBrowsers', "{0} Active Browsers", count),
-	summaryAriaLabel: count => localize('browsers.show', "Show {0} browsers", count),
-};
 
 const NO_URLS: ReadonlySet<string> = new Set();
 
@@ -46,7 +36,7 @@ function urlsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 /** Supplies the live browsers of the viewed chat (and its subagents) to its pill. */
 export class SessionBrowsersControl extends Disposable {
 
-	/** The pill's sections, empty while the user has the pill hidden. */
+	/** The pill's sections before the shared controller applies user visibility. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** The URLs the pill's browsers show, empty while the user has the pill hidden. */
 	readonly urls: IObservable<ReadonlySet<string>>;
@@ -105,7 +95,7 @@ export class SessionBrowsersControl extends Disposable {
 		});
 
 		this.hasData = derived(this, reader => getChatPillEntries(allSections.read(reader)).length > 0);
-		this.sections = derived(this, reader => visible.read(reader) ? allSections.read(reader) : []);
+		this.sections = allSections;
 		this.urls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: urlsEqual }, reader => visible.read(reader) ? allUrls.read(reader) : NO_URLS);
 
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._refreshBrowserListeners()));

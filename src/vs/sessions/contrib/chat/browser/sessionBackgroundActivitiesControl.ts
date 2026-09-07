@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
@@ -16,15 +15,6 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 const SUBAGENT_LABEL_MAX_LENGTH = 30;
-
-/** Presentation of the subagents pill. */
-export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'sessionBackgroundActivities',
-	icon: Codicon.agent,
-	title: localize('backgroundActivities.ariaLabel', "Background Activities"),
-	summaryLabel: count => localize('backgroundActivities.subagentsSummary', "{0} Subagents", count),
-	summaryAriaLabel: count => localize('backgroundActivities.showSubagents', "Show {0} subagents", count),
-};
 
 /**
  * Supplies the background activities of the viewed chat to its pill. Today

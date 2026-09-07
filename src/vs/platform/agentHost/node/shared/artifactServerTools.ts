@@ -125,6 +125,9 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 		isEnabled(): boolean {
 			return accessor?.isEnabled() === true;
 		},
+		isEnabledForSession(): boolean {
+			return true;
+		},
 		getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {

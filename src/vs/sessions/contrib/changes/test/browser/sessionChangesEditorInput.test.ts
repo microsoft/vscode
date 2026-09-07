@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,6 +17,7 @@ import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiff
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
@@ -23,6 +25,12 @@ import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const emptyChangesViewService = new class extends mock<IChangesViewService>() {
+		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+	};
+	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
+		override readonly activeSessionChangeCountObs = constObservable(0);
+	};
 
 	test('releases resolved multi-diff models without disposing restorable input state', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -32,6 +40,8 @@ suite('SessionChangesEditorInput', () => {
 				return true;
 			}
 		});
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
+		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		const viewModel = disposables.add(new MultiDiffEditorViewModel({
 			documents: ValueWithChangeEvent.const([]),
 		}, instantiationService));
@@ -87,9 +97,9 @@ suite('SessionChangesEditorInput', () => {
 		}
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IChangesViewService, {});
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
-		instantiationService.stub(ISessionChangesService, {});
+		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
 			isVisible: () => true,
@@ -124,9 +134,9 @@ suite('SessionChangesEditorInput', () => {
 		}
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		instantiationService.stub(IChangesViewService, {});
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
-		instantiationService.stub(ISessionChangesService, {});
+		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
 			isVisible: () => true,
@@ -155,7 +165,12 @@ suite('SessionChangesEditorInput', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = disposables.add(new SessionChangesEditorInput(URI.parse('test-changes:session'), instantiationService, layoutService));
+		const input = disposables.add(new SessionChangesEditorInput(
+			URI.parse('test-changes:session'),
+			instantiationService,
+			emptySessionChangesService,
+			layoutService,
+		));
 		let capabilitiesChanges = 0;
 		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -178,4 +193,54 @@ suite('SessionChangesEditorInput', () => {
 			capabilitiesChanges: 1
 		});
 	});
+
+	test('updates the tab badge class and accessible label with the changed file count', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return true;
+			}
+		};
+		const resource = URI.parse('test-changes:session');
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionChangeCountObs = derived(reader => changes.read(reader).length);
+		};
+		const input = disposables.add(new SessionChangesEditorInput(
+			resource,
+			instantiationService,
+			sessionChangesService,
+			layoutService,
+		));
+		let labelChanges = 0;
+		disposables.add(input.onDidChangeLabel(() => labelChanges++));
+
+		changes.set([createFileChange(1)], undefined);
+		const oneChangeAriaLabel = input.getAriaLabel();
+		changes.set(Array.from({ length: 10 }, (_, index) => createFileChange(index)), undefined);
+
+		assert.deepStrictEqual({
+			oneChangeAriaLabel,
+			tenChangesAriaLabel: input.getAriaLabel(),
+			labelExtraClasses: input.getLabelExtraClasses(),
+			labelChanges,
+		}, {
+			oneChangeAriaLabel: 'Changes, 1 file',
+			tenChangesAriaLabel: 'Changes, 10 files',
+			labelExtraClasses: ['session-changes-editor-label'],
+			labelChanges: 2,
+		});
+	});
 });
+
+function createFileChange(index: number): ISessionFileChange {
+	const uri = URI.file(`/workspace/file${index}.ts`);
+	return {
+		uri,
+		originalUri: uri.with({ scheme: 'git', query: 'ref=base' }),
+		modifiedUri: uri.with({ scheme: 'git', query: 'ref=head' }),
+		insertions: 1,
+		deletions: 0,
+	};
+}

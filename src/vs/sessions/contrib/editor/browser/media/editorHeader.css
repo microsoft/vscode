@@ -22,9 +22,13 @@
 	align-items: center;
 	box-sizing: border-box;
 	width: 100%;
-	min-height: 29px;
+	min-height: var(--vscode-spacing-size320);
 	overflow: hidden;
 	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container.editor-tabs-compact-height .title > .editor-group-header {
+	min-height: var(--vscode-spacing-size280);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {

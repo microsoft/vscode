@@ -627,7 +627,7 @@ suite('AgentMergeController', () => {
 			whilePaused: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge settings changed for this session.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -635,14 +635,14 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge default settings changed for all sessions.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}],
 			notices: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge settings changed for this session.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -650,12 +650,12 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge default settings changed for all sessions.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
-				content: 'Agent Merge settings changed.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
+				content: 'Agent Merge default settings changed for all sessions.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
 			}],
 		});
 	});

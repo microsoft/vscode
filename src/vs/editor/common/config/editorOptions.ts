@@ -863,6 +863,8 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
+export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.

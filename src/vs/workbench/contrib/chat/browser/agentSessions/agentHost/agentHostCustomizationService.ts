@@ -11,7 +11,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -569,7 +569,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const provisionalSession = this._provisionalSessionService.get(sessionResource);
 		if (provisionalSession) {
 			// Provisional (untitled) sessions are always backed by the ambient host.
-			return { connection: this._connectionsService.ambientConnection, backendSession: provisionalSession };
+			return {
+				connection: this._connectionsService.ambientConnection,
+				connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+				backendSession: provisionalSession,
+			};
 		}
 
 		if (isUntitledChatSession(sessionResource)) {

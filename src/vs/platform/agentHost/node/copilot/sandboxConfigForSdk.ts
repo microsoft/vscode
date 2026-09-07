@@ -186,8 +186,8 @@ export function buildSandboxConfigForSdk(
 		addCurrentWorkingDirectory: true,
 		allowDevToolAccess: true,
 		auth: {
-			git: false,
-			gh: false,
+			git: true,
+			gh: true,
 		},
 		userPolicy: {
 			filesystem: {
@@ -198,7 +198,7 @@ export function buildSandboxConfigForSdk(
 			},
 			network: {
 				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
-				allowLocalNetwork: true,
+				allowLocalNetwork: false,
 			},
 		},
 	};

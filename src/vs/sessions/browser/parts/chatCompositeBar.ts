@@ -39,6 +39,7 @@ import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
+import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -142,10 +143,14 @@ export class ChatCompositeBar extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
 		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
+		const updateCompactHeight = () => this._container.classList.toggle('compact-height', this._editorGroupsService.partOptions.tabHeight === 'compact');
+		updateCompactHeight();
+		this._register(this._editorGroupsService.onDidChangeEditorPartOptions(updateCompactHeight));
 
 		// Tabs row — only shown when the group has multiple chats or is split out.
 		this._tabsRow = $('.chat-composite-bar-tabs-row');

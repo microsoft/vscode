@@ -36,7 +36,7 @@ import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chat
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions } from '../../../browser/parts/chatView.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -104,9 +104,15 @@ export class NewChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
-	override selectWorkspace(folderUri: URI, providerId?: string): void {
+	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectWorkspace(folderUri, providerId);
+			this._widget.selectWorkspace(folderUri, options);
+		}
+	}
+
+	override selectNoWorkspace(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.selectNoWorkspace();
 		}
 	}
 
@@ -175,10 +181,13 @@ export class ChatView extends AbstractChatView {
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
+	override readonly isLoadingTranscript = observableValue(this, false);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
+	/** Whether this view occupies the first group in the session's chat grid. */
+	private _isPrimary = false;
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
@@ -294,7 +303,7 @@ export class ChatView extends AbstractChatView {
 		this._banners.setActive(this._isActive);
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
 		const updateChatPillsVisibility = (visible: boolean) => {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 		};
@@ -412,7 +421,7 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
-		this._externalSessionBanner.setSession(session);
+		this._externalSessionBanner.setSession(this._isPrimary ? session : undefined);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -462,6 +471,15 @@ export class ChatView extends AbstractChatView {
 		this._loadChat(resource, this._currentSessionObs.get());
 	}
 
+	/**
+	 * Drives the widget's loading affordance and the observable mirror of it together, so a
+	 * consumer reading {@link isLoadingTranscript} can never disagree with what the widget shows.
+	 */
+	private _setLoading(isLoading: boolean): void {
+		this._widget.setLoading(isLoading);
+		this.isLoadingTranscript.set(isLoading, undefined);
+	}
+
 	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
@@ -471,7 +489,7 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
-		this._widget.setLoading(true);
+		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -486,7 +504,7 @@ export class ChatView extends AbstractChatView {
 					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 				}
 				if (isCurrentChat && isCurrentLoad) {
-					this._widget.setLoading(false);
+					this._setLoading(false);
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
 				return;
@@ -499,7 +517,7 @@ export class ChatView extends AbstractChatView {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
-			this._widget.setLoading(false);
+			this._setLoading(false);
 			if (session) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
 			}
@@ -518,7 +536,7 @@ export class ChatView extends AbstractChatView {
 			if (isEqual(this._currentChatResource, resource) && this._loadCts.value === cts) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
-				this._widget.setLoading(false);
+				this._setLoading(false);
 			}
 			if (!token.isCancellationRequested && this._loadCts.value === cts && session) {
 				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
@@ -658,6 +676,14 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
+	override setPrimary(primary: boolean): void {
+		if (this._isPrimary === primary) {
+			return;
+		}
+		this._isPrimary = primary;
+		this._externalSessionBanner.setSession(primary ? this._currentSessionObs.get() : undefined);
+	}
+
 	override setActive(active: boolean): void {
 		if (this._isActive === active) {
 			return;
@@ -722,11 +748,11 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
+		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
-	createChatView(): AbstractChatView {
-		return this.instantiationService.createInstance(ChatView);
+	createChatView(instantiationService = this.instantiationService): AbstractChatView {
+		return instantiationService.createInstance(ChatView);
 	}
 }

@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsService.js';
 import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
+import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
 
 /** A connection stand-in identified by a `marker` so equality checks read clearly. */
@@ -98,14 +99,54 @@ suite('AgentHostConnectionsService', () => {
 
 		const local = service.resolveSessionResource(URI.parse('agent-host-copilotcli:/abc123'));
 		assert.strictEqual(local?.connection, ambient);
+		assert.strictEqual(local?.connectionAuthority, AMBIENT_AGENT_HOST_AUTHORITY);
 		assert.strictEqual(local?.backendSession.toString(), 'copilotcli:/abc123');
 
 		const remote = service.resolveSessionResource(URI.parse('remote-myhost-copilotcli:/xyz789'));
 		assert.strictEqual(remote?.connection, remoteConn);
+		assert.strictEqual(remote?.connectionAuthority, 'myhost');
 		assert.strictEqual(remote?.backendSession.toString(), 'copilotcli:/xyz789');
 
 		// Non-agent-host scheme and unknown remote authority resolve to undefined.
 		assert.strictEqual(service.resolveSessionResource(URI.parse('vscode-chat-editor:/foo')), undefined);
 		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
+	});
+
+	test('applies provider session resolution policy', () => {
+		const remoteConn = fakeConnection('remote-host');
+		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);
+		const { service } = createService([info('myhost', 'My Remote')], byAddress);
+		let resolutionChanges = 0;
+		store.add(service.onDidChangeSessionResolution(() => resolutionChanges++));
+
+		const registration = store.add(service.registerSessionResolutionPolicy('myhost', {
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			defaultChangesetKind: ChangesetKind.Session,
+		}));
+		const mapped = service.resolveSessionResource(URI.parse('remote-myhost-copilot:/xyz789'));
+		registration.dispose();
+		const restored = service.resolveSessionResource(URI.parse('remote-myhost-copilot:/xyz789'));
+
+		assert.deepStrictEqual({
+			mapped: {
+				backendSession: mapped?.backendSession.toString(),
+				defaultChangesetKind: mapped?.defaultChangesetKind,
+			},
+			restored: {
+				backendSession: restored?.backendSession.toString(),
+				defaultChangesetKind: restored?.defaultChangesetKind,
+			},
+			resolutionChanges,
+		}, {
+			mapped: {
+				backendSession: 'ahp-session:/xyz789',
+				defaultChangesetKind: ChangesetKind.Session,
+			},
+			restored: {
+				backendSession: 'copilot:/xyz789',
+				defaultChangesetKind: undefined,
+			},
+			resolutionChanges: 2,
+		});
 	});
 });

@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -149,6 +150,9 @@ export class PermissionPicker extends Disposable {
 	protected _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
 	protected _triggerElement: HTMLElement | undefined;
 	protected readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _pickerDisposables = this._register(new DisposableStore());
+	private readonly _sandboxToggleDisabled = derived(this, reader => this._delegate.managedSandboxEnforced?.read(reader) === true
+		&& !this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader));
 
 	constructor(
 		protected readonly _delegate: IPermissionPickerDelegate,
@@ -159,6 +163,7 @@ export class PermissionPicker extends Disposable {
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IHoverService protected readonly hoverService: IHoverService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 	}
@@ -187,7 +192,7 @@ export class PermissionPicker extends Disposable {
 		if (this._delegate.getPermissionLevelHover) {
 			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
 				const meta = this._getPermissionLevelMeta(this._currentLevel);
-				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
+				return { content: this._getTriggerHover(this._currentLevel, meta) };
 			}));
 		}
 
@@ -347,6 +352,7 @@ export class PermissionPicker extends Disposable {
 				}
 			},
 			onHide: () => {
+				this._pickerDisposables.clear();
 				triggerElement.focus();
 			},
 		};
@@ -365,6 +371,20 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
+		if (sandboxToggle) {
+			this._pickerDisposables.add(autorun(reader => {
+				this._delegate.managedSandboxEnforced?.read(reader);
+				this._sandboxToggleDisabled.read(reader);
+				const standaloneToggle = this._getSandboxStandaloneToggle();
+				const disabled = standaloneToggle?.disabled === true;
+				this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
+					...item,
+					standaloneToggle,
+					disabled,
+					hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
+				} : item));
+			}));
+		}
 	}
 
 	protected _isResolving(): boolean {
@@ -410,18 +430,24 @@ export class PermissionPicker extends Disposable {
 
 		dom.clearNode(trigger);
 		const meta = this._getPermissionLevelMeta(this._currentLevel);
-		const label = this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+		const sandboxed = this._isSandboxToggleAvailable() && this._isSandboxingEnabled();
+		const accessibleLabel = sandboxed
 			? localize('permissionPicker.sandboxedLabel', "{0} (sandboxed)", meta.label)
 			: meta.label;
 
 		dom.append(trigger, renderIcon(meta.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
+		labelSpan.textContent = meta.label;
+		if (sandboxed) {
+			const sandboxIcon = dom.append(trigger, renderIcon(Codicon.shield));
+			sandboxIcon.classList.add('sessions-chat-sandbox-icon');
+			sandboxIcon.ariaHidden = 'true';
+		}
 
 		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
 		trigger.ariaLabel = hover
-			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", label, hover)
-			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", accessibleLabel, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", accessibleLabel);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot || this._currentLevel === ChatPermissionLevel.Assisted);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
@@ -432,15 +458,18 @@ export class PermissionPicker extends Disposable {
 			return undefined;
 		}
 		const managed = this._isSandboxManaged();
+		const disabled = this._isSandboxToggleDisabled();
 		return {
 			label: localize('permissionPicker.sandboxToggle', "Sandboxing for terminal"),
 			title: managed
-				? localize('permissionPicker.managedSandboxToggleTitle', "Sandboxing is managed by your organization")
+				? disabled
+					? localize('permissionPicker.requiredSandboxToggleTitle', "Sandboxing is required by your organization")
+					: localize('permissionPicker.editableManagedSandboxToggleTitle', "Sandboxing is enabled by your organization, but you may disable it")
 				: localize('permissionPicker.sandboxToggleTitle', "Run terminal commands inside a sandbox that restricts file system and network access"),
 			checked: this._isSandboxingEnabled(),
-			disabled: managed,
+			disabled,
 			onChange: (checked: boolean) => {
-				if (this._isSandboxManaged()) {
+				if (this._isSandboxToggleDisabled()) {
 					return;
 				}
 				const settingId = this._delegate.getSandboxToggleSettingId?.();
@@ -472,6 +501,10 @@ export class PermissionPicker extends Disposable {
 		return this._delegate.managedSandboxEnforced?.get() === true;
 	}
 
+	private _isSandboxToggleDisabled(): boolean {
+		return this._sandboxToggleDisabled.get();
+	}
+
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
 		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
@@ -481,6 +514,13 @@ export class PermissionPicker extends Disposable {
 
 	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
 		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
+	}
+
+	private _getTriggerHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string {
+		const hover = this._getPermissionLevelHover(level, meta) ?? '';
+		return this._isSandboxToggleAvailable() && this._isSandboxingEnabled()
+			? localize('permissionPicker.sandboxedHover', "{0} Terminal commands are sandboxed.", hover)
+			: hover;
 	}
 
 	protected _getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {

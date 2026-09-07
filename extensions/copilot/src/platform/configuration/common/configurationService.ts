@@ -1123,6 +1123,8 @@ export namespace ConfigKey {
 	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
 	/** When enabled, sends `reasoning_effort: 'low'` to Gemini 3 models. */
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
+	/** Default thinking effort for Claude Opus models in the model picker. Empty keeps the built-in default ('high'). */
+	export const ClaudeOpusDefaultReasoningEffort = defineSetting<string>('chat.claudeOpusDefaultReasoningEffort', ConfigType.ExperimentBased, '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);

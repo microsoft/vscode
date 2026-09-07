@@ -370,6 +370,10 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
 	}
 
+	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.messageOriginKind;
+	}
+
 	getInitiatorClientId(session: string, turnId: string): string | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.initiatorClientId;
 	}
@@ -424,6 +428,7 @@ export class AgentHostTurnTracker extends Disposable {
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason: timing.lastHangReason,
 				result,
 				hangReportCount: timing.hangReportCount,
@@ -505,6 +510,7 @@ export class AgentHostTurnTracker extends Disposable {
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId: timing.turnId,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,
