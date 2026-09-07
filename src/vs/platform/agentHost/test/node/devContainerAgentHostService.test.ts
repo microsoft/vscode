@@ -11,6 +11,7 @@ import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -310,10 +311,10 @@ suite('Dev Container Agent Host Main Service', () => {
 		const environment = await service.resolveShellEnvironment();
 
 		assert.deepStrictEqual({
-			path: environment.PATH,
+			path: getCaseInsensitive(environment, 'PATH'),
 			testValue: environment.VSCODE_TEST_VALUE,
 		}, {
-			path: process.env.PATH,
+			path: getCaseInsensitive(process.env, 'PATH'),
 			testValue: 'resolved',
 		});
 	});
