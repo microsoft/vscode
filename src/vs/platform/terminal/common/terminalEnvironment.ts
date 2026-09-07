@@ -29,20 +29,13 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 
 	let escapeConfig: ShellEscapeConfig;
 	switch (shellType) {
-		case PosixShellType.Sh:
-			// POSIX sh does not support $'...' ANSI-C quoting; use close/escape/reopen
-			escapeConfig = {
-				bothQuotes: (path) => `'${path.replace(/'/g, `'\\''`)}'`,
-				singleQuotes: (path) => `'${path.replace(/'/g, `'\\''`)}'`,
-				noSingleQuotes: (path) => `'${path}'`
-			};
-			break;
 		case PosixShellType.Bash:
+		case PosixShellType.Sh:
 		case PosixShellType.Zsh:
 		case WindowsShellType.GitBash:
 			escapeConfig = {
 				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
-				singleQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
@@ -63,10 +56,10 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			};
 			break;
 		default:
-			// Default to POSIX-compatible quoting for unknown shells
+			// Default to POSIX shell escaping for unknown shells
 			escapeConfig = {
-				bothQuotes: (path) => `'${path.replace(/'/g, `'\\''`)}'`,
-				singleQuotes: (path) => `'${path.replace(/'/g, `'\\''`)}'`,
+				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
 			break;
@@ -103,7 +96,7 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	}
 	const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
 	const normalizedUserHome = userHome.replace(/\\/g, '/').toLowerCase();
-	if (normalizedPath !== normalizedUserHome && !normalizedPath.startsWith(normalizedUserHome + '/')) {
+	if (!normalizedPath.includes(normalizedUserHome)) {
 		return path;
 	}
 	return `~${separator}${path.slice(userHome.length + 1)}`;
