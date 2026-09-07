@@ -197,6 +197,9 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 1;
 		await assert.rejects(service.handleUpdate(reconfigure), /storage unavailable/);
 		await service.handleUpdate(reconfigure);
+		const rename = { type: ActionType.AutomationUpdateRequested, resource, changes: { title: 'Private title' } } as const;
+		await service.handleUpdate(rename);
+		await service.handleUpdate(rename);
 		writeFailures = 1;
 		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource }), /storage unavailable/);
 		await service.handleRemove({ type: ActionType.AutomationRemoved, resource });
@@ -210,11 +213,13 @@ suite('AgentHostAutomationService', () => {
 			sessionConfigurationChanged: event.data.sessionConfigurationChanged,
 			scheduleChanged: event.data.scheduleChanged,
 			promptChanged: event.data.promptChanged,
+			titleChanged: event.data.titleChanged,
 		})), [
-			{ name: 'automation.created', id: hashAutomationTelemetryId(resource), enabled: true, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined },
-			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: true, sessionConfigurationChanged: false, scheduleChanged: false, promptChanged: false },
-			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: false, sessionConfigurationChanged: true, scheduleChanged: false, promptChanged: false },
-			{ name: 'automation.deleted', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined },
+			{ name: 'automation.created', id: hashAutomationTelemetryId(resource), enabled: true, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined, titleChanged: undefined },
+			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: true, sessionConfigurationChanged: false, scheduleChanged: false, promptChanged: false, titleChanged: false },
+			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: false, sessionConfigurationChanged: true, scheduleChanged: false, promptChanged: false, titleChanged: false },
+			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: false, sessionConfigurationChanged: false, scheduleChanged: false, promptChanged: false, titleChanged: true },
+			{ name: 'automation.deleted', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined, titleChanged: undefined },
 		]);
 	});
 
