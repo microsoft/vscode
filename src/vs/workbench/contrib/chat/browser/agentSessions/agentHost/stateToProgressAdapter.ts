@@ -1404,7 +1404,13 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 					&& toolInvocationOptions
 					&& tc.contributor.clientId !== toolInvocationOptions.currentClientId;
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					if (shouldObserveSubagentChat(tc)) {
+						const invocation = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions, resourceUris);
+						finalizeToolInvocation(invocation, tc, sessionResource, connectionAuthority, resourceUris);
+						parts.push(invocation);
+					} else {
+						parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					}
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
 					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
@@ -1872,6 +1878,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
 				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+				isChatAvailable: false,
 			},
 		};
 	}
@@ -2452,6 +2459,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+			isChatAvailable: false,
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
@@ -2607,6 +2615,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		existing.toolSpecificData = {
 			kind: 'subagent',
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
+			isChatAvailable: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isChatAvailable : false,
 			description: getSubagentTaskDescription(tc),
 			agentDisplayName: subagentContent.title,
 			agentName: subagentContent.agentName,
@@ -2725,6 +2734,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			invocation.toolSpecificData = {
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
+				isChatAvailable: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isChatAvailable : false,
 				description: getSubagentTaskDescription(tc),
 				agentDisplayName: subagentContent.title,
 				agentName: subagentContent.agentName,
@@ -2741,6 +2751,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			invocation.toolSpecificData = {
 				kind: 'subagent',
 				isActive: invocation.toolSpecificData.isActive,
+				isChatAvailable: invocation.toolSpecificData.isChatAvailable,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				...(invocation.toolSpecificData.agentDisplayName ? { agentDisplayName: invocation.toolSpecificData.agentDisplayName } : {}),
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,

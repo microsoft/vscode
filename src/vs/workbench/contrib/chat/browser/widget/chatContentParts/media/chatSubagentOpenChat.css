@@ -32,6 +32,10 @@
 	outline: none;
 }
 
+.chat-subagent-open-chat-toolbar .actions-container .action-item.chat-subagent-pill-widget.hidden {
+	display: none;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-header {
 	display: inline-flex;
 	align-items: center;

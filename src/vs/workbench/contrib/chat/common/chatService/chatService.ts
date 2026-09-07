@@ -1212,6 +1212,8 @@ export interface IChatSubagentToolInvocationData {
 	 * serializable across the extension host protocol.
 	 */
 	chatResource?: string;
+	/** Whether the provider has resolved the subagent's chat, rather than only its prospective resource. */
+	isChatAvailable?: boolean;
 }
 
 /**

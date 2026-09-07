@@ -41,6 +41,7 @@ import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
+	readonly isChatAvailable?: boolean;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
 	readonly agentType?: string;
@@ -417,8 +418,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _setEnabled(enabled: boolean): void {
-		this._action.enabled = enabled;
-		this._sourceAction.enabled = enabled;
+		const canOpen = enabled && asOpenSubagentChatContext(this._context)?.isChatAvailable !== false;
+		this._action.enabled = canOpen;
+		this._sourceAction.enabled = canOpen;
 		this.updateEnabled();
 	}
 

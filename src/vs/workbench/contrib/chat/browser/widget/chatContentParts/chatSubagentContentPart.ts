@@ -382,6 +382,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			const agentType = this.getAgentTypeLabel();
 			this._openChatToolbar.context = {
 				chatResource,
+				isChatAvailable: data?.kind === 'subagent' ? data.isChatAvailable : undefined,
 				parentSessionResource: this.context.element.sessionResource.toString(),
 				title: this.description,
 				...(agentType ? { agentType } : {}),
@@ -405,7 +406,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private _shouldReserveOpenChatPresentation(): boolean {
-		return this._shouldUseOpenChatPresentation() && isAgentHostTarget(getChatSessionType(this.context.element.sessionResource));
+		return this._shouldUseOpenChatPresentation()
+			&& isAgentHostTarget(getChatSessionType(this.context.element.sessionResource))
+			&& !IChatToolInvocation.isComplete(this._subagentToolInvocation);
 	}
 
 	private _shouldKeepCollapsedForCarouselConfirmation(): boolean {
@@ -931,8 +934,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	private getToolLabel(toolInvocation: IChatToolInvocation, state: IChatToolInvocation.State = toolInvocation.state.get()): string | undefined {
-		if (state.type === IChatToolInvocation.StateKind.Streaming) {
+	private getToolLabel(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state: IChatToolInvocation.State | undefined): string | undefined {
+		if (state?.type === IChatToolInvocation.StateKind.Streaming) {
 			return undefined;
 		}
 		if (toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(toolInvocation.toolSpecificData)) {
@@ -941,7 +944,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				return intention;
 			}
 		}
-		const message = toolInvocation.invocationMessage;
+		const message = IChatToolInvocation.isComplete(toolInvocation)
+			? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage
+			: toolInvocation.invocationMessage;
 		const messageText = typeof message === 'string' ? message : message.value;
 		const label = messageText.replace(/\s+/g, ' ').trim();
 		if (!label) {
@@ -966,13 +971,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 * This method is public to support testing.
 	 */
 	public trackToolState(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
-		// Only track live tool invocations
-		if (toolInvocation.kind !== 'toolInvocation') {
-			return;
-		}
-
-		const initialState = toolInvocation.state.get();
-		let wasStreamingForPresentation = initialState.type === IChatToolInvocation.StateKind.Streaming;
+		const initialState = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.get() : undefined;
+		let wasStreamingForPresentation = initialState?.type === IChatToolInvocation.StateKind.Streaming;
 		if (!wasStreamingForPresentation) {
 			this.currentRunningToolCallId = toolInvocation.toolCallId;
 			this.currentRunningToolMessage = this.getToolLabel(toolInvocation, initialState);
@@ -980,7 +980,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
 			this._updateToolPresentation();
 		}
-		if (initialState.type === IChatToolInvocation.StateKind.Completed || initialState.type === IChatToolInvocation.StateKind.Cancelled) {
+		if (toolInvocation.kind !== 'toolInvocation' || IChatToolInvocation.isComplete(toolInvocation)) {
 			return;
 		}
 		const addToolToCarousel = this._addToolToCarousel;
@@ -1063,12 +1063,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._toolStateTracking.add(toolStateAutorun);
 	}
 
-	private updateActiveToolPresentation(toolCallId: string, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State): void {
+	private updateActiveToolPresentation(toolCallId: string, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State | undefined): void {
 		this.activeToolPresentations.delete(toolCallId);
 		if (label && icon) {
 			this.mostRecentToolPresentation = { callId: toolCallId, label, icon };
 		}
-		if (label && icon && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
+		if (label && icon && state && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
 			this.activeToolPresentations.set(toolCallId, { label, icon });
 		}
 	}
