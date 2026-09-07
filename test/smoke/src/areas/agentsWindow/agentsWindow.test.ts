@@ -238,6 +238,13 @@ export function setup(logger: Logger) {
 					name: 'Agents Window Smoke',
 					image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
 					remoteUser: 'vscode',
+					postCreateCommand: [
+						'set -e',
+						'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
+						'mkdir -p ~/.vscode-cli-insider',
+						'curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-${cli_arch}/insider" | tar xz -C ~/.vscode-cli-insider',
+						'chmod +x ~/.vscode-cli-insider/code-insiders',
+					].join(' && '),
 				}, null, 2));
 			},
 			cleanupWorkspace: workspacePath => {

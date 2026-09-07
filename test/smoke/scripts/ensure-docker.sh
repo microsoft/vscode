@@ -16,6 +16,6 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 export HOMEBREW_NO_AUTO_UPDATE=1
-brew install docker colima qemu
-colima start --runtime docker --vm-type qemu --cpu 2 --memory 4 --disk 20
+brew install docker colima
+colima start --runtime docker --vm-type vz --cpu 2 --memory 4 --disk 20
 docker info
