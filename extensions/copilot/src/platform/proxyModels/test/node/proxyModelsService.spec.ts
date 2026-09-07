@@ -10,12 +10,45 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { getEditorVersionHeaders, IEnvService } from '../../../env/common/envService';
+import { WireTypes } from '../../../inlineEdits/common/dataTypes/inlineEditsModelsTypes';
 import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../../networking/common/fetcherService';
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { ProxyModelsService } from '../../node/proxyModelsService';
 
 suite('ProxyModelsService', function () {
+
+	test('validates optional eagerness prompts from the models response', function () {
+		const withEagernessPrompt = WireTypes.ModelList.validator.validate({
+			models: [{
+				serviceType: 'NESChat',
+				name: 'test-model',
+				provider: 'test-provider',
+				capabilities: {
+					promptStrategy: 'patchBased02Optimized',
+					eagernessPrompt: 'aggressionHighLow',
+				},
+			}],
+		});
+		const withoutEagernessPrompt = WireTypes.ModelList.validator.validate({
+			models: [{
+				serviceType: 'NESChat',
+				name: 'test-model',
+				provider: 'test-provider',
+				capabilities: {
+					promptStrategy: 'patchBased02Optimized',
+				},
+			}],
+		});
+
+		assert.deepStrictEqual({
+			withEagernessPrompt: withEagernessPrompt.content?.models[0].capabilities.eagernessPrompt,
+			withoutEagernessPrompt: withoutEagernessPrompt.content?.models[0].capabilities.eagernessPrompt,
+		}, {
+			withEagernessPrompt: 'aggressionHighLow',
+			withoutEagernessPrompt: undefined,
+		});
+	});
 
 	test('includes editor-related headers when fetching the models list', async function () {
 		let capturedHeaders: { [name: string]: string } | undefined;

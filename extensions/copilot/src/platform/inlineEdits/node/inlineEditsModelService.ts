@@ -263,6 +263,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 				return {
 					modelName: m.name,
 					promptingStrategy: m.capabilities.promptStrategy,
+					eagernessPrompt: m.capabilities.eagernessPrompt === 'aggressionHighLow' ? m.capabilities.eagernessPrompt : undefined,
 					includeTagsInCurrentFile: false, // FIXME@ulugbekna: determine this based on model capabilities and config
 					source: ModelSource.Fetched,
 					lintOptions: undefined,

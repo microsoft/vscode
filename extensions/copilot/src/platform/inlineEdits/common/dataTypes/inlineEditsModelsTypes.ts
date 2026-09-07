@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IValidator, vArray, vObj, vString } from '../../../configuration/common/validator';
+import { IValidator, vArray, vObj, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
 
 export namespace WireTypes {
 
 	export namespace Capabilities {
 		export type t = {
 			promptStrategy: string;
+			eagernessPrompt?: string;
 		};
 		export function is(obj: unknown): obj is t {
 			return !!obj && typeof obj === 'object' &&
-				typeof (obj as t).promptStrategy === 'string';
+				typeof (obj as t).promptStrategy === 'string' &&
+				((obj as t).eagernessPrompt === undefined || typeof (obj as t).eagernessPrompt === 'string');
 		}
 		export const validator: IValidator<t> = vObj({
 			promptStrategy: vString(),
+			eagernessPrompt: vUnion(vString(), vUndefined()),
 		});
 	}
 
@@ -54,4 +57,3 @@ export namespace WireTypes {
 		}
 	}
 }
-
