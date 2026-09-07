@@ -304,6 +304,20 @@ suite('Dev Container Agent Host Main Service', () => {
 		assert.strictEqual(await service.resolveShellEnvironment(), process.env);
 	});
 
+	test('merges the resolved shell environment with the inherited environment', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, { VSCODE_TEST_VALUE: 'resolved' }));
+
+		const environment = await service.resolveShellEnvironment();
+
+		assert.deepStrictEqual({
+			path: environment.PATH,
+			testValue: environment.VSCODE_TEST_VALUE,
+		}, {
+			path: process.env.PATH,
+			testValue: 'resolved',
+		});
+	});
+
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];

@@ -1865,6 +1865,8 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/** Address to listen on. Defaults to loopback. */
+	host?: string;
 	/** Reject requests that do not carry this exact header. */
 	requiredRequestHeader?: {
 		name: string;
@@ -1936,7 +1938,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			requestWaiters = requestWaiters.filter(fn => !fn());
 			handleRequest(req, res);
 		});
-		server.listen(port, '127.0.0.1', () => {
+		server.listen(port, options?.host ?? '127.0.0.1', () => {
 			const addr = server.address();
 			const actualPort = typeof addr === 'object' && addr ? addr.port : port;
 			const url = `http://127.0.0.1:${actualPort}`;

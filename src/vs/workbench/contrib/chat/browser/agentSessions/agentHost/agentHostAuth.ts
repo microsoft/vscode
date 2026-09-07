@@ -441,6 +441,26 @@ export async function authenticateProtectedResources(
 	}
 }
 
+export async function authenticateAgentProtectedResourcesWithToken(
+	agents: readonly AgentInfo[],
+	token: string,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+): Promise<void> {
+	for (const agent of agents) {
+		await authenticateProtectedResourcesWithToken(agent.protectedResources ?? [], token, options);
+	}
+}
+
+export async function authenticateProtectedResourcesWithToken(
+	protectedResources: readonly ProtectedResourceMetadata[],
+	token: string,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+): Promise<void> {
+	for (const resource of protectedResources) {
+		await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported, token);
+	}
+}
+
 /**
  * Reconciles resources backed by an authentication session that was explicitly
  * removed.

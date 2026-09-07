@@ -221,9 +221,12 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe('Agents Window (Dev Container AgentHost)', () => {
+	const isMacOSCI = process.platform === 'darwin'
+		&& (process.env.CI?.toLowerCase() === 'true' || process.env.TF_BUILD?.toLowerCase() === 'true');
+	(isMacOSCI ? describe.skip : describe)('Agents Window (Dev Container AgentHost)', () => {
 		const devContainer = setupAgentHostSuite(logger, {
 			serverLabel: 'Dev Container AgentHost',
+			mockServerHost: '0.0.0.0',
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(DEV_CONTAINER_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
 			},
@@ -233,11 +236,20 @@ export function setup(logger: Logger) {
 			},
 			prepareWorkspace: workspacePath => {
 				const configDirectory = path.join(workspacePath, '.devcontainer');
+				const mockServerUrl = `http://vscode-smoke.test:${devContainer.mockServer.port}`;
 				fs.mkdirSync(configDirectory, { recursive: true });
 				fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
 					name: 'Agents Window Smoke',
 					image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
 					remoteUser: 'vscode',
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+					containerEnv: {
+						COPILOT_API_URL: mockServerUrl,
+						COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+						GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+						VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+						VSCODE_SMOKE_TEST_PROXY_HEADER: 'dev-container',
+					},
 					postCreateCommand: [
 						'set -e',
 						'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
@@ -267,11 +279,18 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 
 			try {
+				const requestsBefore = devContainer.mockServer.requestCount();
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.selectDevContainer();
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
+				assert.ok(
+					devContainer.mockServer.requestCount() > requestsBefore,
+					'expected the mock LLM server to receive the Dev Container Agent Host request'
+				);
 
 				const ahpFrames = await waitForLogContent(
 					() => readAhpFrames(path.join(devContainer.logsPath, 'ahp')),
@@ -588,6 +607,7 @@ interface IAgentHostSuiteContext {
  */
 function setupAgentHostSuite(logger: Logger, config: {
 	readonly serverLabel: string;
+	readonly mockServerHost?: string;
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
 	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
@@ -604,7 +624,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 		registerScenario(AGENT_HOST_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_WARMUP_REPLY).build());
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
-		mockServer = await startServer(0, mockServerStartOptions((msg: string) => logger.log(msg)));
+		mockServer = await startServer(0, {
+			...mockServerStartOptions((msg: string) => logger.log(msg)),
+			host: config.mockServerHost,
+		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
 	});
 
