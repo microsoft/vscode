@@ -100,6 +100,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				updateScrollLeftPosition();
 			}
+			if (e.hasChanged(EditorOption.padding)) {
+				this._updateWidgetWidth();
+			}
 		}));
 		this._register(this._editor.onDidScrollChange((e) => {
 			if (e.scrollLeftChanged) {
@@ -189,6 +192,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const layoutInfo = this._editor.getLayoutInfo();
 		const lineNumbersWidth = layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
+		this._linesDomNodeScrollable.style.maxWidth = this._editor.getOption(EditorOption.padding).maxEditorCanvasWidth > 0
+			? `${Math.max(0, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth)}px`
+			: '';
 		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
 		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
 	}

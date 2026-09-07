@@ -112,13 +112,7 @@ export class EditorScrollbar extends ViewPart {
 
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
 
-		const minimap = options.get(EditorOption.minimap);
-		const side = minimap.side;
-		if (side === 'right') {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
-		} else {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
-		}
+		this.scrollbarDomNode.setWidth(layoutInfo.width - layoutInfo.contentLeft);
 		this.scrollbarDomNode.setHeight(layoutInfo.height);
 	}
 

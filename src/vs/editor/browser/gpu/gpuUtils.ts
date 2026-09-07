@@ -5,6 +5,15 @@
 
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import type { EditorLayoutInfo } from '../../common/config/editorOptions.js';
+
+export function getContentScissorRect(layout: EditorLayoutInfo, devicePixelRatio: number, canvasWidth: number, canvasHeight: number, constrainWidth: boolean): [number, number, number, number] {
+	const left = Math.min(canvasWidth, Math.max(0, Math.ceil(layout.contentLeft * devicePixelRatio)));
+	const right = constrainWidth
+		? Math.min(canvasWidth, Math.floor((layout.contentLeft + layout.contentWidth - layout.verticalScrollbarWidth) * devicePixelRatio))
+		: canvasWidth;
+	return [left, 0, Math.max(0, right - left), canvasHeight];
+}
 
 export const quadVertices = new Float32Array([
 	1, 0,

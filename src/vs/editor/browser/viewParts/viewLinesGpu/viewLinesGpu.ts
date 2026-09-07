@@ -16,7 +16,7 @@ import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
-import { quadVertices } from '../../gpu/gpuUtils.js';
+import { getContentScissorRect, quadVertices } from '../../gpu/gpuUtils.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
@@ -498,8 +498,12 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		pass.setVertexBuffer(0, this._vertexBuffer);
 
 		// Only draw the content area
-		const contentLeft = Math.ceil(this._viewGpuContext.contentLeft.get() * this._viewGpuContext.devicePixelRatio.get());
-		pass.setScissorRect(contentLeft, 0, this.canvas.width - contentLeft, this.canvas.height);
+		pass.setScissorRect(...getContentScissorRect(
+			this._context.configuration.options.get(EditorOption.layoutInfo),
+			this._viewGpuContext.devicePixelRatio.get(),
+			this.canvas.width, this.canvas.height,
+			this._context.configuration.options.get(EditorOption.padding).maxEditorCanvasWidth > 0
+		));
 
 		pass.setBindGroup(0, this._bindGroup);
 

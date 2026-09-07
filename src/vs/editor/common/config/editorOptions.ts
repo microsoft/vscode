@@ -2974,7 +2974,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			decorationsLeft += minimapLayout.minimapWidth;
 			contentLeft += minimapLayout.minimapWidth;
 		}
-		const contentWidth = remainingWidth - minimapLayout.minimapWidth;
+		const availableCanvasWidth = remainingWidth - minimapLayout.minimapWidth;
+		const contentWidth = padding.maxEditorCanvasWidth > 0
+			? Math.min(availableCanvasWidth, padding.maxEditorCanvasWidth + verticalScrollbarWidth)
+			: availableCanvasWidth;
+		contentLeft += Math.floor(Math.max(0, availableCanvasWidth - contentWidth) / 2);
 
 		// (leaving 2px for the cursor to have space after the last character)
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth));
@@ -3608,6 +3612,11 @@ export interface IEditorPaddingOptions {
 	 * Spacing between bottom edge of editor and last line.
 	 */
 	bottom?: number;
+	/**
+	 * Maximum text viewport width in CSS pixels, excluding gutters, minimap, and scrollbar.
+	 * Extra space is split evenly on either side of the text. Defaults to 0 (no limit).
+	 */
+	maxEditorCanvasWidth?: number;
 }
 
 /**
@@ -3619,7 +3628,7 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddin
 
 	constructor() {
 		super(
-			EditorOption.padding, 'padding', { top: 0, bottom: 0 },
+			EditorOption.padding, 'padding', { top: 0, bottom: 0, maxEditorCanvasWidth: 0 },
 			{
 				'editor.padding.top': {
 					type: 'number',
@@ -3634,6 +3643,13 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddin
 					minimum: 0,
 					maximum: 1000,
 					description: nls.localize('padding.bottom', "Controls the amount of space between the bottom edge of the editor and the last line.")
+				},
+				'editor.padding.maxEditorCanvasWidth': {
+					type: 'number',
+					default: 0,
+					minimum: 0,
+					maximum: 10000,
+					description: nls.localize('padding.maxEditorCanvasWidth', "Controls the maximum width of the text area in pixels, excluding gutters, minimap, and scrollbar. Extra space is split evenly on either side of the text. Set to 0 to use the full available width.")
 				}
 			}
 		);
@@ -3647,7 +3663,8 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddin
 
 		return {
 			top: EditorIntOption.clampedInt(input.top, 0, 0, 1000),
-			bottom: EditorIntOption.clampedInt(input.bottom, 0, 0, 1000)
+			bottom: EditorIntOption.clampedInt(input.bottom, 0, 0, 1000),
+			maxEditorCanvasWidth: EditorIntOption.clampedInt(input.maxEditorCanvasWidth, 0, 0, 10000)
 		};
 	}
 }

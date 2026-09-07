@@ -13,7 +13,7 @@ import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
-import { observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
+import { getContentScissorRect, observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer, type IObjectCollectionBufferEntry } from './objectCollectionBuffer.js';
 import { RectangleRendererBindingId, rectangleRendererWgsl } from './rectangleRenderer.wgsl.js';
 
@@ -57,7 +57,6 @@ export class RectangleRenderer extends ViewEventHandler {
 
 	constructor(
 		private readonly _context: ViewContext,
-		private readonly _contentLeft: IObservable<number>,
 		private readonly _devicePixelRatio: IObservable<number>,
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _ctx: GPUCanvasContext,
@@ -285,8 +284,12 @@ export class RectangleRenderer extends ViewEventHandler {
 		pass.setBindGroup(0, this._bindGroup);
 
 		// Only draw the content area
-		const contentLeft = Math.ceil(this._contentLeft.get() * this._devicePixelRatio.get());
-		pass.setScissorRect(contentLeft, 0, this._canvas.width - contentLeft, this._canvas.height);
+		pass.setScissorRect(...getContentScissorRect(
+			this._context.configuration.options.get(EditorOption.layoutInfo),
+			this._devicePixelRatio.get(),
+			this._canvas.width, this._canvas.height,
+			this._context.configuration.options.get(EditorOption.padding).maxEditorCanvasWidth > 0
+		));
 
 		pass.draw(quadVertices.length / 2, this._shapeCollection.entryCount);
 		pass.end();
