@@ -24,7 +24,6 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -1249,18 +1248,15 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('restoreVisibleSessions connects the active remote session on demand', async () => {
+	test('restoreVisibleSessions prepares only the active session', async () => {
 		const session = stubSession({
 			sessionId: 'remote',
-			providerId: 'agenthost-test',
+			providerId: 'test',
 		});
-		let connectCalls = 0;
+		const preparations: { sessionId: string; reason: string }[] = [];
 		const provider = new class extends TestSessionsProvider {
-			override readonly id = 'agenthost-test';
-			readonly canConnectOnDemand = true;
-			readonly connectionStatus = constObservable(RemoteAgentHostConnectionStatus.disconnected);
-			async connect(): Promise<void> {
-				connectCalls++;
+			override async prepareSessionForOpen(preparedSession: ISession, reason: 'open' | 'restore'): Promise<void> {
+				preparations.push({ sessionId: preparedSession.sessionId, reason });
 			}
 		}(session);
 
@@ -1290,10 +1286,38 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			active: view.activeSession.get()?.sessionId,
-			connectCalls,
+			preparations,
 		}, {
 			active: 'remote',
-			connectCalls: 1,
+			preparations: [{ sessionId: 'remote', reason: 'restore' }],
+		});
+	});
+
+	test('openSession awaits provider preparation before activation', async () => {
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [active, target]; }
+			override prepareSessionForOpen(session: ISession, reason: 'open' | 'restore'): Promise<void> {
+				return session === target && reason === 'open' ? preparation.p : Promise.resolve();
+			}
+		}(active);
+		const { view } = createSessionsManagementService(active, disposables, provider);
+
+		await view.openSession(active.resource);
+		const opening = view.openSession(target.resource);
+		await timeout(0);
+		const activeBeforePreparation = view.activeSession.get()?.sessionId;
+		preparation.complete();
+		await opening;
+
+		assert.deepStrictEqual({
+			activeBeforePreparation,
+			activeAfterPreparation: view.activeSession.get()?.sessionId,
+		}, {
+			activeBeforePreparation: 'active',
+			activeAfterPreparation: 'target',
 		});
 	});
 

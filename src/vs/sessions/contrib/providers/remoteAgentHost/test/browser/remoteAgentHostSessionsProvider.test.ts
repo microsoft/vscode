@@ -534,7 +534,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(statuses, [SessionStatus.InProgress, SessionStatus.Error, SessionStatus.InProgress]);
 	});
 
-	test('opening a cached session connects its remote host on demand', async () => {
+	test('resolves a cached session without connecting during restore and prepares it on demand', async () => {
 		let connectCalls = 0;
 		const connectionHolder: { provider?: RemoteAgentHostSessionsProvider } = {};
 		connection.addSession(createSession('cached-session'));
@@ -553,18 +553,23 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const sessionResource = provider.getSessions()[0].resource;
 
 		const unrelated = await provider.resolveSessionResource(URI.parse('other:///session'), 'open');
-		const resolved = await provider.resolveSessionResource(sessionResource, 'open');
+		const resolved = await provider.resolveSessionResource(sessionResource, 'restore');
+		const connectCallsAfterResolve = connectCalls;
+		await provider.prepareSessionForOpen(provider.getSessions()[0], 'restore');
 		const resolvedWhileConnected = await provider.resolveSessionResource(sessionResource, 'open');
+		await provider.prepareSessionForOpen(provider.getSessions()[0], 'open');
 
 		assert.deepStrictEqual({
 			unrelated,
 			resolved: resolved?.toString(),
 			resolvedWhileConnected: resolvedWhileConnected?.toString(),
+			connectCallsAfterResolve,
 			connectCalls,
 		}, {
 			unrelated: undefined,
 			resolved: sessionResource.toString(),
 			resolvedWhileConnected: sessionResource.toString(),
+			connectCallsAfterResolve: 0,
 			connectCalls: 1,
 		});
 	});

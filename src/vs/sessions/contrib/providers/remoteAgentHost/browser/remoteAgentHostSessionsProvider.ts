@@ -442,13 +442,13 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	async resolveSessionResource(resource: URI, _reason?: SessionResourceResolveReason): Promise<URI | undefined> {
 		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
-		if (!ownsResource) {
-			return undefined;
-		}
+		return ownsResource ? resource : undefined;
+	}
+
+	async prepareSessionForOpen(_session: ISession, _reason: SessionResourceResolveReason): Promise<void> {
 		if (!this._connection && this._connectOnDemand) {
 			await this._connectOnDemand();
 		}
-		return resource;
 	}
 
 	protected override mapWorkingDirectoryUri(uri: URI): URI {

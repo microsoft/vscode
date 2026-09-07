@@ -247,14 +247,19 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	}
 
 	private async _waitForConnector(token: CancellationToken): Promise<IDevContainerAgentHostConnector> {
-		const connector = await raceCancellationError(
-			raceTimeout(Event.toPromise(this._onDidRegisterConnector.event), CONNECTOR_REGISTRATION_TIMEOUT_MS),
-			token,
-		);
-		if (!connector) {
-			throw new Error(localize('devContainerAgentHost.connectorUnavailable', "No Dev Container Agent Host connector is registered."));
+		const connectorPromise = Event.toPromise(this._onDidRegisterConnector.event);
+		try {
+			const connector = await raceCancellationError(
+				raceTimeout(connectorPromise, CONNECTOR_REGISTRATION_TIMEOUT_MS),
+				token,
+			);
+			if (!connector) {
+				throw new Error(localize('devContainerAgentHost.connectorUnavailable', "No Dev Container Agent Host connector is registered."));
+			}
+			return connector;
+		} finally {
+			connectorPromise.cancel();
 		}
-		return connector;
 	}
 
 	private async _connect(connector: IDevContainerAgentHostConnector, workspaceUri: URI, key: string, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
@@ -517,7 +522,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY,
 			JSON.stringify([...this._storedConnections.values()]),
 			StorageScope.APPLICATION,
-			StorageTarget.USER,
+			StorageTarget.MACHINE,
 		);
 	}
 

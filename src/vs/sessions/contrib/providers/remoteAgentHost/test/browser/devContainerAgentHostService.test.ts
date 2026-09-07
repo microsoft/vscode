@@ -19,7 +19,7 @@ import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/br
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -386,6 +386,10 @@ suite('Dev Container Agent Host Service', () => {
 			connectorCalls,
 			connected: restoredProvider?.wiredConnection !== undefined,
 			statusBeforeConnector,
+			storageTargets: {
+				machine: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
+				user: storageService.keys(StorageScope.APPLICATION, StorageTarget.USER),
+			},
 		}, {
 			restoredProvider: {
 				id: `agenthost-${agentHostAuthority(address)}`,
@@ -397,6 +401,10 @@ suite('Dev Container Agent Host Service', () => {
 			connectorCalls: 1,
 			connected: true,
 			statusBeforeConnector: RemoteAgentHostConnectionStatus.connecting,
+			storageTargets: {
+				machine: ['devContainerAgentHost.connections'],
+				user: [],
+			},
 		});
 	});
 
