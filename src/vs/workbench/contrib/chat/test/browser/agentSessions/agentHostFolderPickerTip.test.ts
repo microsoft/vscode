@@ -31,7 +31,7 @@ suite('AgentHostFolderPickerTip', () => {
 			hasHeaderDismiss: typeof listOptions.headerDismiss === 'function',
 		}, {
 			widgetClassName: FOLDER_PICKER_TIP_CLASS,
-			headerText: 'Primary directory',
+			headerText: 'Select a primary directory',
 			headerIcon: Codicon.info.id,
 			headerLinkLabel: 'Learn more',
 			headerLinkUri: FOLDER_PICKER_TIP_LEARN_MORE_URL,

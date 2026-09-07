@@ -53,6 +53,9 @@ export function tagWithParent(
 		if (s.kind === 'pending_confirmation') {
 			return { ...s, parentToolCallId: parentToolUseId };
 		}
+		if (s.kind === 'model_call_completed') {
+			return { ...s, parentToolCallId: parentToolUseId };
+		}
 		return s;
 	});
 	const spawn = registry.getSpawn(parentToolUseId);

@@ -4,67 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionBackgroundActivitiesControl } from '../../browser/sessionBackgroundActivitiesControl.js';
 import { isNonNegativeIntegerInput, weightedRandomDebugIncrement } from '../../browser/sessionChatInputToolbarDebug.js';
 
+interface ISubagentSpec {
+	readonly title: string;
+	readonly status: SessionStatus;
+}
+
 interface IControlSpec {
 	readonly subagents?: readonly string[];
 	readonly subagentStatus?: SessionStatus;
+	/** Per-subagent title/status pairs; overrides `subagents`/`subagentStatus` when set. */
+	readonly subagentEntries?: readonly ISubagentSpec[];
 	readonly enabled?: boolean;
+	/** Whether the user keeps the subagents pill visible. */
+	readonly visible?: boolean;
 }
 
 interface IControlHarness {
 	readonly control: SessionBackgroundActivitiesControl;
-	readonly getPickerItems: () => readonly ICapturedPickerItem[];
 	readonly getOpenedChat: () => URI | undefined;
 }
 
-interface ICapturedPickerItem {
-	readonly kind: ActionListItemKind;
-	readonly label: string;
-	readonly category: string;
-	readonly icon: string;
+function createChat(resource: URI, title: string, status: SessionStatus, origin?: IChat['origin']): IChat {
+	return new class extends mock<IChat>() {
+		override readonly resource = resource;
+		override readonly title = constObservable(title);
+		override readonly status = constObservable(status);
+		override readonly origin = origin;
+	}();
 }
 
 function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): IControlHarness {
-	const mainChat = new class extends mock<IChat>() {
-		override readonly resource = URI.parse('chat:main');
-		override readonly title = constObservable('Main');
-		override readonly status = constObservable(SessionStatus.InProgress);
-	}();
-	const subagents = (spec.subagents ?? []).map((title, index) => new class extends mock<IChat>() {
-		override readonly resource = URI.parse(`chat:subagent-${index}`);
-		override readonly title = constObservable(title);
-		override readonly status = constObservable(spec.subagentStatus ?? SessionStatus.InProgress);
-		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: mainChat.resource };
-	}());
+	const mainChat = createChat(URI.parse('chat:main'), 'Main', SessionStatus.InProgress);
+	const subagentSpecs: readonly ISubagentSpec[] = spec.subagentEntries
+		?? (spec.subagents ?? []).map(title => ({ title, status: spec.subagentStatus ?? SessionStatus.InProgress }));
+	const subagents = subagentSpecs.map((entry, index) =>
+		createChat(URI.parse(`chat:subagent-${index}`), entry.title, entry.status, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource }));
 	const session = new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:main');
 		override readonly chats = constObservable([mainChat, ...subagents]);
-	}();
-
-	let pickerItems: ICapturedPickerItem[] = [];
-	const actionWidgetService = new class extends mock<IActionWidgetService>() {
-		override get isVisible() { return false; }
-		override hide(): void { }
-		override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], _delegate: IActionListDelegate<T>): void {
-			pickerItems = items.map(item => ({
-				kind: item.kind,
-				label: item.label ?? '',
-				category: item.group?.title ?? '',
-				icon: item.group?.icon?.id ?? '',
-			}));
-		}
 	}();
 
 	let openedChat: URI | undefined;
@@ -78,32 +65,20 @@ function createControl(spec: IControlSpec, store: ReturnType<typeof ensureNoDisp
 		constObservable(session),
 		constObservable(mainChat),
 		constObservable(spec.enabled ?? true),
-		actionWidgetService,
+		constObservable(spec.visible ?? true),
 		sessionsService,
 	));
 
-	return {
-		control,
-		getPickerItems: () => pickerItems,
-		getOpenedChat: () => openedChat,
-	};
+	return { control, getOpenedChat: () => openedChat };
 }
 
-function summarize(control: SessionBackgroundActivitiesControl): { readonly text: string; readonly ariaLabel: string | null; readonly icons: readonly string[] } {
-	const button = control.element.querySelector<HTMLElement>('.session-activity-pill-button')!;
-	const knownIcons = [Codicon.globe, Codicon.agent, Codicon.sessionInProgress, Codicon.chevronDown];
-	return {
-		text: button.textContent ?? '',
-		ariaLabel: button.getAttribute('aria-label'),
-		icons: [...button.querySelectorAll<HTMLElement>('.codicon')]
-			.map(element => knownIcons.find(icon => element.classList.contains(`codicon-${icon.id}`))?.id ?? 'unknown'),
-	};
+/** The sections the control publishes, reduced to what the pill renders from. */
+function sections(control: SessionBackgroundActivitiesControl): readonly { readonly title: string; readonly entries: readonly { readonly label: string; readonly icon: string }[] }[] {
+	return control.sections.get().map(section => ({
+		title: section.title,
+		entries: section.entries.map(entry => ({ label: entry.label, icon: entry.icon?.id ?? '' })),
+	}));
 }
-
-function click(control: SessionBackgroundActivitiesControl): void {
-	control.element.querySelector<HTMLElement>('.session-activity-pill-button')!.click();
-}
-
 suite('SessionBackgroundActivitiesControl', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,36 +114,85 @@ suite('SessionBackgroundActivitiesControl', () => {
 		});
 	});
 
-	test('renders single and aggregate labels, icons, and subagent truncation', () => {
+	test('publishes subagents as one section, truncating long labels', () => {
 		const cases: IControlSpec[] = [
 			{ subagents: ['Research'] },
 			{ subagents: ['Investigate the authentication failure in production'] },
 			{ subagents: ['Research', 'Review'] },
 		];
-		const disabled = createControl({ subagents: ['Research'], enabled: false }, store);
 
 		assert.deepStrictEqual({
-			enabled: cases.map(spec => summarize(createControl(spec, store).control)),
-			disabledVisible: disabled.control.isVisible.get(),
+			sections: cases.map(spec => sections(createControl(spec, store).control)),
+			disabled: sections(createControl({ subagents: ['Research'], enabled: false }, store).control),
 		}, {
-			enabled: [
-				{ text: 'Research', ariaLabel: 'Open Research', icons: ['agent'] },
-				{ text: 'Investigate the authentication...', ariaLabel: 'Open Investigate the authentication...', icons: ['agent'] },
-				{ text: '2 Active Subagents', ariaLabel: 'Show 2 background activities', icons: ['agent', 'chevron-down'] },
+			sections: [
+				[{ title: 'Subagents', entries: [{ label: 'Research', icon: 'agent' }] }],
+				[{ title: 'Subagents', entries: [{ label: 'Investigate the authentication...', icon: 'agent' }] }],
+				[{ title: 'Subagents', entries: [{ label: 'Research', icon: 'agent' }, { label: 'Review', icon: 'agent' }] }],
 			],
-			disabledVisible: false,
+			disabled: [],
 		});
 	});
 
-	test('keeps subagents visible while they need input', () => {
-		const harness = createControl({ subagents: ['Waiting'], subagentStatus: SessionStatus.NeedsInput }, store);
+	test('lists subagents in every status, not only the ones still running', () => {
+		const harness = createControl({
+			subagentEntries: [
+				{ title: 'Running', status: SessionStatus.InProgress },
+				{ title: 'Waiting', status: SessionStatus.NeedsInput },
+				{ title: 'Completed', status: SessionStatus.Completed },
+				{ title: 'Failed', status: SessionStatus.Error },
+			],
+		}, store);
+
+		assert.deepStrictEqual(sections(harness.control), [
+			{
+				title: 'Subagents', entries: [
+					{ label: 'Running', icon: 'agent' },
+					{ label: 'Waiting', icon: 'agent' },
+					{ label: 'Completed', icon: 'agent' },
+					{ label: 'Failed', icon: 'agent' },
+				],
+			},
+		]);
+	});
+
+	test('excludes subagents that belong to a different chat scope, regardless of status', () => {
+		const mainChat = createChat(URI.parse('chat:main'), 'Main', SessionStatus.InProgress);
+		const otherChat = createChat(URI.parse('chat:other'), 'Other', SessionStatus.InProgress);
+		const ownSubagent = createChat(URI.parse('chat:subagent-own'), 'Own', SessionStatus.Completed, { kind: ChatOriginKind.Tool, parentChat: mainChat.resource });
+		const unrelatedSubagent = createChat(URI.parse('chat:subagent-other'), 'Unrelated', SessionStatus.InProgress, { kind: ChatOriginKind.Tool, parentChat: otherChat.resource });
+		const session = new class extends mock<IActiveSession>() {
+			override readonly resource = URI.parse('session:main');
+			override readonly chats = constObservable([mainChat, otherChat, ownSubagent, unrelatedSubagent]);
+		}();
+		const currentChat = observableValue<IChat>('currentChat', mainChat);
+
+		const control = store.add(new SessionBackgroundActivitiesControl(
+			constObservable(session),
+			currentChat,
+			constObservable(true),
+			constObservable(true),
+			new class extends mock<ISessionsService>() { }(),
+		));
+		const whileOnMainChat = sections(control);
+		currentChat.set(otherChat, undefined);
+		const whileOnOtherChat = sections(control);
+
+		assert.deepStrictEqual({ whileOnMainChat, whileOnOtherChat }, {
+			whileOnMainChat: [{ title: 'Subagents', entries: [{ label: 'Own', icon: 'agent' }] }],
+			whileOnOtherChat: [{ title: 'Subagents', entries: [{ label: 'Unrelated', icon: 'agent' }] }],
+		});
+	});
+
+	test('still reports data while the user hides the pill, so it can be shown again', () => {
+		const harness = createControl({ subagents: ['Research'], visible: false }, store);
 
 		assert.deepStrictEqual({
-			visible: harness.control.isVisible.get(),
-			summary: summarize(harness.control),
+			sections: sections(harness.control),
+			hasData: harness.control.hasData.get(),
 		}, {
-			visible: true,
-			summary: { text: 'Waiting', ariaLabel: 'Open Waiting', icons: ['agent'] },
+			sections: [],
+			hasData: true,
 		});
 	});
 
@@ -185,31 +209,19 @@ suite('SessionBackgroundActivitiesControl', () => {
 			agentFeedback: 4,
 			autoIncrementChanges: false,
 		});
-		const forced = summarize(harness.control);
+		const forced = sections(harness.control);
 		harness.control.setDebugData(undefined);
 
-		assert.deepStrictEqual({ forced, visibleAfterClear: harness.control.isVisible.get() }, {
-			forced: { text: 'Debug Subagent', ariaLabel: 'Open Debug Subagent', icons: ['agent'] },
-			visibleAfterClear: false,
+		assert.deepStrictEqual({ forced, afterClear: sections(harness.control) }, {
+			forced: [{ title: 'Subagents', entries: [{ label: 'Debug Subagent', icon: 'agent' }] }],
+			afterClear: [],
 		});
 	});
 
-	test('lists subagents in a picker under a category header', () => {
-		const harness = createControl({ subagents: ['Research', 'Review'] }, store);
-
-		click(harness.control);
-
-		assert.deepStrictEqual(harness.getPickerItems(), [
-			{ kind: ActionListItemKind.Header, label: 'Subagents', category: 'Subagents', icon: '' },
-			{ kind: ActionListItemKind.Action, label: 'Research', category: '', icon: Codicon.agent.id },
-			{ kind: ActionListItemKind.Action, label: 'Review', category: '', icon: Codicon.agent.id },
-		]);
-	});
-
-	test('opens a single subagent directly', () => {
+	test('opening an entry opens that subagent chat', () => {
 		const harness = createControl({ subagents: ['Research'] }, store);
 
-		click(harness.control);
+		harness.control.sections.get()[0].entries[0].open();
 
 		assert.deepStrictEqual(harness.getOpenedChat()?.toString(), 'chat:subagent-0');
 	});

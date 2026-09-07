@@ -40,10 +40,11 @@
 		"agentsPanel.border": "#00000000",
 		// modern ui
 		"surface.border": "#F3F3F3",
-		"modernActivityBar.activeBackground": "#e4e6f122",
-		"modernActivityBar.hoverBackground": "#E8E8E822",
-		"modernActivityBar.activeForeground": "#FFF",
-		"modernActivityBar.hoverForeground": "#FFF"
+		"modernActivityBarItem.activeBackground": "#e4e6f122",
+		"modernActivityBarItem.hoverBackground": "#E8E8E822",
+		"modernActivityBarItem.activeForeground": "#FFF",
+		"modernActivityBarItem.hoverForeground": "#FFF",
+		"modernActivityBar.border": "#2C2C2C"
 	},
 	"tokenColors": [
 		{

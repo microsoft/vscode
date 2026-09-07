@@ -59,8 +59,6 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
-const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
 
@@ -120,8 +118,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
 	private readonly closeOtherEditorTabsInGroupAction = this._register(this.instantiationService.createInstance(CloseOtherEditorTabsInGroupAction, CloseOtherEditorTabsInGroupAction.ID, CloseOtherEditorTabsInGroupAction.LABEL));
 
-	// Alt-hold alternative to a tab's close action (JetBrains-style); see updateTabActionsForAltState().
-	private wantsCloseOthersAction: boolean;
+	// Alt-hold alternative to a tab's close action (JetBrains-style), applied only
+	// to the currently hovered tab; see updateTabActionForHoveredTab().
+	private hoveredTabIndex: number | undefined;
+	private isAltPressed = false;
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
@@ -175,24 +175,72 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 
-		// React to Alt being held/released to swap in the "Close Others" tab action. Initialize
-		// from the current state too, in case this control is created mid-hold.
-		this.wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
-		this._register(modifierKeyEmitter.event(() => this.updateTabActionsForAltState()));
+		// React to Alt being held/released to swap in the "Close Others" tab action
+		// for the currently hovered tab only (if any).
+		this._register(ModifierKeyEmitter.getInstance().event(e => this.setAltPressed(e.altKey)));
+
+		// Alt can get stuck when focus leaves the window while it is held (e.g. Alt+Tab
+		// to another application) because the matching `keyup` is never received. Give
+		// up on the swap entirely in that case so that a tab that is still hovered does
+		// not silently keep the "Close Others" action (https://github.com/microsoft/vscode/issues/331979)
+		this._register(this.hostService.onDidChangeFocus(hasFocus => {
+			if (!hasFocus) {
+				this.setAltPressed(false);
+				this.setHoveredTab(undefined);
+			}
+		}));
 	}
 
-	private updateTabActionsForAltState(): void {
-		const wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
-		if (wantsCloseOthersAction === this.wantsCloseOthersAction) {
+	// Tracks whether Alt is currently held to swap a tab's close action (see
+	// redrawTabAction()). Besides the modifier key events this is also re-validated
+	// from mouse events over the tabs because those always carry the actual state,
+	// even when a `keyup` went to another application.
+	private setAltPressed(isAltPressed: boolean): void {
+		if (this.isAltPressed === isAltPressed) {
 			return;
 		}
 
-		this.wantsCloseOthersAction = wantsCloseOthersAction;
+		this.isAltPressed = isAltPressed;
 
-		// Only the action items need to change here, not labels/decorations/toolbar/layout.
-		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
-			this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar);
-		});
+		this.updateTabActionForHoveredTab();
+	}
+
+	private updateTabActionForHoveredTab(): void {
+		if (typeof this.hoveredTabIndex !== 'number') {
+			return; // no tab hovered, nothing to update
+		}
+
+		this.redrawTabActionAtIndex(this.hoveredTabIndex);
+	}
+
+	private redrawTabActionAtIndex(tabIndex: number): void {
+		const editor = this.tabsModel.getEditorByIndex(tabIndex);
+		if (editor) {
+			this.doWithTab(tabIndex, editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabAction(editor, tabIndex, tabContainer, tabActionBar));
+		}
+	}
+
+	// Tracks which tab (if any) the mouse is currently over so the Alt-hold "Close
+	// Others" swap (see redrawTabAction()) applies only to that single tab.
+	private setHoveredTab(tabIndex: number | undefined): void {
+		if (this.hoveredTabIndex === tabIndex) {
+			return;
+		}
+
+		const previousHoveredTabIndex = this.hoveredTabIndex;
+		this.hoveredTabIndex = tabIndex;
+
+		if (!this.isAltPressed) {
+			return; // Alt is not held, no action swap in effect to redraw
+		}
+
+		if (typeof previousHoveredTabIndex === 'number') {
+			this.redrawTabActionAtIndex(previousHoveredTabIndex);
+		}
+
+		if (typeof tabIndex === 'number') {
+			this.redrawTabActionAtIndex(tabIndex);
+		}
 	}
 
 	protected override create(parent: HTMLElement): HTMLElement {
@@ -234,7 +282,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Create Editor Toolbar
-		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions'], !!this.menuIds?.tabsBarAddTab);
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -396,6 +444,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				e.preventDefault();
 			}
 		}));
+
+		// Clear the hovered tab once the mouse leaves the tabs container entirely
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_LEAVE, () => {
+			this.setHoveredTab(undefined);
+		}));
+
+		// Re-validate the Alt state from mouse events over the tabs: the `keyup` for
+		// Alt may have been missed while another application had focus, in which case
+		// the tab action would otherwise remain swapped to "Close Others". Listen in
+		// the capture phase because the tab action stops the mouse down event.
+		for (const eventType of [EventType.MOUSE_MOVE, EventType.MOUSE_DOWN]) {
+			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent) => {
+				this.setAltPressed(e.altKey);
+			}, true));
+		}
 
 		// Prevent auto-pasting (https://github.com/microsoft/vscode/issues/201696)
 		if (isLinux) {
@@ -665,6 +728,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private handleClosedEditors(): void {
+
+		// A stale hovered tab index could otherwise leave a tab
+		// showing "Close Others" after the tabs it pointed past got removed
+		if (typeof this.hoveredTabIndex === 'number' && this.hoveredTabIndex >= this.tabsModel.count) {
+			this.setHoveredTab(undefined);
+		}
 
 		// There are tabs to show
 		if (this.tabsModel.count) {
@@ -1022,6 +1091,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Open on Click / Touch
 		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
 		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
+
+		// Track hover so the Alt-hold "Close Others" action swap (see redrawTabAction())
+		// only applies to the tab the mouse is currently over.
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
+			this.setHoveredTab(tabIndex);
+		}));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_LEAVE, () => {
+			if (this.hoveredTabIndex === tabIndex) {
+				this.setHoveredTab(undefined);
+			}
+		}));
 
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
@@ -1622,8 +1702,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const hasCloseAction = isCloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
-		// Alt swaps a visible Close action to Close Others; Unpin is unaffected.
-		const wantsCloseOthersAction = hasCloseAction && this.wantsCloseOthersAction;
+		// Alt swaps a visible Close action to Close Others, but only for the
+		// currently hovered tab; Unpin is unaffected.
+		const wantsCloseOthersAction = hasCloseAction && this.isAltPressed && tabIndex === this.hoveredTabIndex;
+		this.closeOtherEditorTabsInGroupAction.enabled = this.groupView.count > 1;
 
 		let tabAction;
 		if (hasAction) {

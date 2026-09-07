@@ -179,6 +179,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.voiceSessionController.pttDown();
 			},
 			pttUp: () => this.voiceSessionController.pttUp(),
+			toggleMute: () => this.voiceSessionController.setMuted(!this.voiceSessionController.isMuted.get()),
 			closeWindow: () => this.closeWindow(),
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
 			openSession: (resource) => {

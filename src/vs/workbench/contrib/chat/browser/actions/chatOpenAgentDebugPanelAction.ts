@@ -20,12 +20,12 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatDebugService } from '../../common/chatDebugService.js';
+import { CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST, CHAT_DEBUG_HAS_ACTIVE_SESSION, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IChatDebugEditorOptions, CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST } from '../chatDebug/chatDebugTypes.js';
+import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 /**
@@ -64,11 +64,6 @@ export function registerChatOpenAgentDebugPanelAction() {
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 0,
-					group: '4_logs'
-				}, {
 					id: MenuId.ChatWelcomeContext,
 					group: '2_settings',
 					order: 0,
@@ -119,11 +114,19 @@ export function registerChatOpenAgentDebugPanelAction() {
 				icon: Codicon.chatExport,
 				f1: true,
 				category: Categories.Developer,
-				precondition: ChatContextKeys.enabled,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					CHAT_DEBUG_HAS_ACTIVE_SESSION,
+					CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate(),
+				),
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID), CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate()),
+					when: ContextKeyExpr.and(
+						ActiveEditorContext.isEqualTo(ChatDebugEditorInput.ID),
+						CHAT_DEBUG_HAS_ACTIVE_SESSION,
+						CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.negate(),
+					),
 					order: 10
 				}],
 			});

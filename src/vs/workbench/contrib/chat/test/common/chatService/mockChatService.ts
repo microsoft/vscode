@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -12,11 +13,13 @@ import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference,
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
+import { ICustomizationMigrationHint } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 export class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
+	getPendingRequestSessionTypes(): readonly string[] { return []; }
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
@@ -24,6 +27,10 @@ export class MockChatService implements IChatService {
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
+
+	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
+		return Disposable.None;
+	}
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
@@ -121,7 +128,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions): Promise<void> {
+	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions, _preserveRequestId?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

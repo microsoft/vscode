@@ -16,6 +16,7 @@ declare module 'vscode' {
 		| 'file'
 		| 'folder'
 		| 'session'
+		| 'chat'
 		| 'repository'
 		| 'branch';
 
@@ -79,9 +80,9 @@ declare module 'vscode' {
 		readonly uriPattern: RegExp;
 
 		/**
-		 * The semantic kind used for an initial presentation before provider data is available.
+		 * The semantic kind produced by this provider.
 		 */
-		readonly initialKind: LinkPresentationKind;
+		readonly kind: LinkPresentationKind;
 	}
 
 	/**

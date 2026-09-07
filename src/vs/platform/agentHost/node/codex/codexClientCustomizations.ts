@@ -13,8 +13,20 @@ import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefin
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+
+export const CODEX_FILE_LINK_INSTRUCTIONS = [
+	AGENT_HOST_FILE_LINK_INSTRUCTIONS,
+	'',
+	'<file_link_path_format>',
+	'- Use the actual filesystem path. Example prefixes such as `/path/to` or `/abs/path` are placeholders, not text to prepend to a path.',
+	'- On Windows, drive-letter paths are already absolute: [foo.ts](C:/project/foo.ts). Do not add a leading `/` or prepend the working directory.',
+	'- For UNC paths, preserve the server and share: [foo.ts](//server/share/foo.ts).',
+	'</file_link_path_format>',
+].join('\n');
 
 /**
  * Codex ingests **client-pushed** plugin customizations (the "Open Plugins"
@@ -52,7 +64,7 @@ export interface ICodexAgentRoleSource {
 
 export interface ICodexCustomizationConfig {
 	readonly agentRoles: readonly ICodexAgentRoleSource[];
-	readonly developerInstructions?: string;
+	readonly developerInstructions: string;
 }
 
 /**
@@ -139,7 +151,7 @@ export class CodexClientCustomizationStore {
 	toCustomizations(): PluginCustomization[] {
 		return this._merged().map(plugin => {
 			const base = plugin.customization ?? plugin.synced.customization;
-			const children = plugin.parsed ? parsedPluginChildren(plugin.parsed) : base.children;
+			const children = base.children ?? (plugin.parsed ? parsedPluginChildren(plugin.parsed) : undefined);
 			return {
 				...base,
 				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
@@ -167,7 +179,7 @@ export function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[
  * definition of a given name wins), matching the dedupe used elsewhere.
  * Returns an empty object when the plugins declare no MCP servers.
  */
-export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[]): Record<string, ICodexMcpServerConfigJson> {
+export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[], primaryCwd?: URI): Record<string, ICodexMcpServerConfigJson> {
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const plugin of plugins) {
 		for (const def of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
@@ -176,7 +188,8 @@ export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[
 				continue;
 			}
 			if (!Object.prototype.hasOwnProperty.call(out, def.name)) {
-				out[def.name] = toCodexMcpServerJson(def.configuration);
+				const defaultCwd = readClientPluginMcpDefaultCwd(plugin.synced.customization, def.name, primaryCwd) ?? def.defaultCwd;
+				out[def.name] = toCodexMcpServerJson(def.configuration, defaultCwd);
 			}
 		}
 	}
@@ -197,6 +210,16 @@ export function codexPluginMcpServerSources(plugins: readonly ICodexClientPlugin
 }
 
 const emptyMcpDefs: readonly IMcpServerDefinition[] = [];
+
+export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerDefinition[]): Record<string, ICodexMcpServerConfigJson> {
+	const out: Record<string, ICodexMcpServerConfigJson> = {};
+	for (const definition of definitions) {
+		if (!Object.hasOwn(out, definition.name)) {
+			out[definition.name] = toCodexMcpServerJson(definition.configuration, definition.defaultCwd);
+		}
+	}
+	return out;
+}
 
 /**
  * Derives the codex skill roots (absolute fsPaths) for a set of client
@@ -290,11 +313,12 @@ export async function codexCustomizationConfig(
 	const developerInstructions = [
 		...pluginInstructions,
 		...(selectedAgentInstructions ? [selectedAgentInstructions.trim()] : []),
+		CODEX_FILE_LINK_INSTRUCTIONS,
 	].filter(Boolean).join('\n\n');
 
 	return {
 		agentRoles: [...agentRoles.values()],
-		...(developerInstructions ? { developerInstructions } : {}),
+		developerInstructions,
 	};
 }
 

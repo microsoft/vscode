@@ -21,6 +21,7 @@ import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPull
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { SessionIsActiveContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
 
 /**
@@ -87,7 +88,7 @@ export function getPullRequestUrl(coords: { owner: string; repo: string; prNumbe
 	return `https://github.com/${coords.owner}/${coords.repo}/pull/${coords.prNumber}`;
 }
 
-export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>, prUrl?: string): string {
+export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHubCICheck; annotations: string }>, prUrl?: string, query: string = FIX_CI_QUERY): string {
 	const sections = failedChecks.map(({ check, annotations }) => {
 		const parts = [
 			`Check: ${check.name}`,
@@ -103,7 +104,7 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
 		return parts.join('\n');
 	});
 
-	const lines = [FIX_CI_QUERY];
+	const lines = [query];
 	if (prUrl) {
 		lines.push(`Pull request: ${prUrl}`);
 	}
@@ -122,7 +123,7 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
  * when there are no failing checks. Shared by the widget-based active-session
  * action and the blocked-sessions list's background fix.
  */
-export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel): Promise<string | undefined> {
+export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel, query?: string): Promise<string | undefined> {
 	const checks = ciModel.checks.get();
 	const failedChecks = getFailedChecks(checks);
 	if (failedChecks.length === 0) {
@@ -134,7 +135,7 @@ export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel): Promi
 		return { check, annotations };
 	}));
 
-	return buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel));
+	return buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel), query);
 }
 
 /**
@@ -144,8 +145,8 @@ export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel): Promi
  * active-session action; the blocked-sessions list sends in the background via
  * {@link buildFixCIPrompt} instead.
  */
-export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatWidget: IChatWidget): Promise<void> {
-	const prompt = await buildFixCIPrompt(ciModel);
+export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatWidget: IChatWidget, query?: string): Promise<void> {
+	const prompt = await buildFixCIPrompt(ciModel, query);
 	if (!prompt) {
 		return;
 	}
@@ -226,7 +227,7 @@ class FixCIChecksAction extends Action2 {
 		}
 
 		const sessionResource = activeSession.resource;
-		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+		const chatWidget = await whenChatWidgetForSession(chatWidgetService, sessionResource);
 		if (!chatWidget) {
 			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for session', sessionResource.toString());
 			return;

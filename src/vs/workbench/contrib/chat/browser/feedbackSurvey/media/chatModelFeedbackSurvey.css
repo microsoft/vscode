@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Card chrome, header, title and the close button come from widget/media/chatCard.css. */
+
+.chat-feedback-survey-widget.hidden {
+	display: none;
+}
+
+.chat-feedback-survey-container {
+	margin: 8px 0;
+}
+
+.chat-feedback-survey-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80);
+}
+
+.chat-feedback-survey-list {
+	display: flex;
+	flex-direction: column;
+}
+
+/*
+ * The card border already shows focus, so the list must not draw a second ring. This needs to
+ * outrank the workbench rule for `[tabindex="0"]:focus` in style.css, hence the extra scoping.
+ */
+.chat-feedback-survey-widget .chat-feedback-survey-container .chat-feedback-survey-list:focus,
+.chat-feedback-survey-widget .chat-feedback-survey-container .chat-feedback-survey-list-item:focus {
+	outline: none;
+}
+
+.chat-feedback-survey-list-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	user-select: none;
+}
+
+.chat-feedback-survey-list-label {
+	flex: 1;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	overflow-wrap: break-word;
+}
+
+.chat-feedback-survey-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-feedback-survey-list-item.active {
+	background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+}
+
+.chat-feedback-survey-list:focus .chat-feedback-survey-list-item.active {
+	background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+.chat-feedback-survey-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.chat-feedback-survey-progress {
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+/*
+ * The combined thumbs control in the response footer. Both glyphs sit in one control so it
+ * reads as a single way to give feedback rather than two competing verdicts. The class is on
+ * the action-label anchor, which is the focusable element the toolbar renders.
+ */
+.action-label.chat-feedback-survey-pill {
+	width: auto;
+}
+
+.action-label.chat-feedback-survey-pill .chat-feedback-survey-pill-icons {
+	display: flex;
+	align-items: center;
+}
+
+.action-label.chat-feedback-survey-pill .chat-feedback-survey-pill-icon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/*
+ * The glyphs overlap and sit on a slight diagonal so the pair reads as one icon on a single
+ * small button rather than as two separate votes.
+ */
+.action-label.chat-feedback-survey-pill .chat-feedback-survey-pill-icon:first-child {
+	transform: translateY(-2px);
+}
+
+.action-label.chat-feedback-survey-pill .chat-feedback-survey-pill-icon:last-child {
+	margin-left: -5px;
+	transform: translateY(2px);
+}

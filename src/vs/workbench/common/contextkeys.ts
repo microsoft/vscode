@@ -6,12 +6,14 @@
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
-import { IContextKeyService, IContextKey, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, IContextKey, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { IsMacNativeContext } from '../../platform/contextkey/common/contextkeys.js';
 import { basename, dirname, extname, isEqual } from '../../base/common/resources.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { Schemas } from '../../base/common/network.js';
+import { MenuSettings } from '../../platform/window/common/window.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput } from './editor.js';
@@ -51,6 +53,19 @@ export const IsWindowAlwaysOnTopContext = new RawContextKey<boolean>('isWindowAl
 
 export const IsAuxiliaryWindowContext = new RawContextKey<boolean>('isAuxiliaryWindow', false, localize('isAuxiliaryWindow', "Window is an auxiliary window"));
 
+export const MenuBarVisibleContext = ContextKeyExpr.or(
+	IsMacNativeContext,
+	ContextKeyExpr.and(
+		ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'),
+		ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'),
+		ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')
+	)
+)!;
+
+export const CustomMenuBarVisibleContext = ContextKeyExpr.and(
+	IsMacNativeContext.negate(),
+	MenuBarVisibleContext
+)!;
 
 //#endregion
 
@@ -94,7 +109,6 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 
 // Editor Part Context Keys
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
-export const EditorPartSingleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.toNegated();
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
 
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));

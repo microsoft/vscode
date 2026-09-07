@@ -12,7 +12,7 @@ import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isC
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
-import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
@@ -97,7 +97,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				syncedContainerNames.add(c.name.toLowerCase());
 			}
 			for (const child of c.children) {
-				if (child.type === CustomizationType.Skill) {
+				if (child.type === CustomizationType.Skill && isSkillEligibleForUserInvocation(child)) {
 					known.add(this._toSlashCommandCandidate(c, child).toLowerCase());
 				}
 			}
@@ -221,6 +221,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 									label: insertText,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
+										...(command.kind === 'skill' ? { isSkill: true } : {}),
 										...(description !== undefined ? { description } : {}),
 										...(argumentHint !== undefined ? { argumentHint } : {})
 									}),

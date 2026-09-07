@@ -64,7 +64,7 @@
 	overflow: hidden;
 	white-space: nowrap;
 	opacity: 0;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	transition: max-width 0.3s ease-out, opacity 0.3s ease-out;
 }
 

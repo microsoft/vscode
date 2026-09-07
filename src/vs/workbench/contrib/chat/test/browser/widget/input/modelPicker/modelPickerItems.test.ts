@@ -244,6 +244,29 @@ suite('buildModelPickerItems', () => {
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
 	});
 
+	test('accessibility provider announces hover notices with their severity', () => {
+		const model = createModel('gpt-4.1', 'GPT-4.1');
+		model.metadata = {
+			...model.metadata,
+			priceCategory: 'medium',
+			warningText: { data_retention: 'Prompts are **retained** for 30 days.' },
+			infoText: { model_relocated: 'Now serves from a [new region](https://aka.ms/region).' },
+		} as ILanguageModelChatMetadata;
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([model])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(
+			provider.getAriaLabel(item),
+			'GPT-4.1, Medium cost, Warning: Prompts are retained for 30 days., Info: Now serves from a new region.');
+	});
+
+	test('accessibility provider leaves models without notices unchanged', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([createModel('gpt-4.1', 'GPT-4.1')])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(provider.getAriaLabel(item), 'GPT-4.1');
+	});
+
 	test('auto model always appears first', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');

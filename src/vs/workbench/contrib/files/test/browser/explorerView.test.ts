@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
-import { getContext } from '../../browser/views/explorerView.js';
+import { getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -15,6 +15,10 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IWorkspace, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 
 suite('Files - ExplorerView', () => {
 
@@ -66,6 +70,27 @@ suite('Files - ExplorerView', () => {
 		assert.deepStrictEqual(provideDecorations(unknown), {
 			tooltip: 'Unknown File Type',
 			letter: '?'
+		});
+	});
+
+	test('preserves workspace name case only for user named workspaces', async function () {
+		const untitledWorkspacesHome = TestEnvironmentService.untitledWorkspacesHome;
+		function workspace(configuration: URI | null): IWorkspace {
+			return { id: 'test', folders: [], configuration };
+		}
+
+		assert.deepStrictEqual({
+			empty: shouldPreserveWorkspaceNameCase(WorkbenchState.EMPTY, workspace(null), TestEnvironmentService),
+			folder: shouldPreserveWorkspaceNameCase(WorkbenchState.FOLDER, workspace(null), TestEnvironmentService),
+			untitled: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(joinPath(untitledWorkspacesHome, '1234', 'workspace.json')), TestEnvironmentService),
+			untitledDifferentCase: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(joinPath(untitledWorkspacesHome.with({ path: untitledWorkspacesHome.path.toUpperCase() }), '1234', 'workspace.json')), TestEnvironmentService),
+			named: shouldPreserveWorkspaceNameCase(WorkbenchState.WORKSPACE, workspace(URI.file('/some/path/myWorkspace.code-workspace')), TestEnvironmentService),
+		}, {
+			empty: false,
+			folder: true,
+			untitled: false,
+			untitledDifferentCase: false,
+			named: true,
 		});
 	});
 

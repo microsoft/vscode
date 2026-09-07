@@ -57,13 +57,20 @@ interface StreamChunk {
 	delayMs: number;
 }
 
+type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
+
+interface ScenarioToolCall {
+	toolNamePattern: RegExp;
+	arguments: ScenarioToolCallArguments;
+}
+
 /**
  * A single turn in a multi-turn scenario.
  */
 type ScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -91,7 +98,7 @@ type ScenarioTurn =
 type ModelScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -997,7 +1004,7 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		_log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId);
+			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, messages);
 			return;
 		}
 
@@ -1143,7 +1150,7 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		_log(`[mock-llm]   ${ts} → responses-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input);
 			return;
 		}
 
@@ -1229,10 +1236,11 @@ function resolveCurrentResponsesApiTurn(turns: ScenarioTurn[], input: any[]): { 
  */
 async function streamResponsesApiToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1273,7 +1281,7 @@ async function streamResponsesApiToolCalls(
 
 		const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 		const itemId = `fc_${callId}`;
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 
 		const item = {
 			id: itemId,
@@ -1636,7 +1644,7 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
 		_log(`[mock-llm]   ${ts} → messages-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, messages);
 			return;
 		}
 
@@ -1673,10 +1681,11 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
  */
 async function streamAnthropicToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
@@ -1708,7 +1717,7 @@ async function streamAnthropicToolCalls(
 			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
 		});
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1778,9 +1787,10 @@ async function streamThinkingThenContent(
  */
 async function streamToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
-	scenarioId: string
+	scenarioId: string,
+	request: readonly any[]
 ): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeToolCallInitialChunk())}\n\n`);
 
@@ -1799,7 +1809,7 @@ async function streamToolCalls(
 		res.write(`data: ${JSON.stringify(makeToolCallStartChunk(i, callId, toolName))}\n\n`);
 		await sleep(10);
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1811,6 +1821,10 @@ async function streamToolCalls(
 	res.write(`data: ${JSON.stringify(makeToolCallFinishChunk())}\n\n`);
 	res.write('data: [DONE]\n\n');
 	res.end();
+}
+
+function resolveScenarioToolCallArguments(argumentsOrResolver: ScenarioToolCallArguments, request: readonly any[]): Record<string, any> {
+	return typeof argumentsOrResolver === 'function' ? argumentsOrResolver(request) : argumentsOrResolver;
 }
 
 interface MockLlmServerHandle {

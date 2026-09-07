@@ -3,10 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
+import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
+
+export const IAgentHostServerToolService = createDecorator<IAgentHostServerToolService>('agentHostServerToolService');
+
+/** Injectable Agent Host server-tool registry and advertiser. */
+export interface IAgentHostServerToolService extends IAgentServerToolHost {
+	readonly _serviceBrand: undefined;
+}
 
 /**
  * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
@@ -34,6 +42,18 @@ export interface IServerToolDisplay {
 	readonly invocationMessage?: StringOrMarkdown;
 	/** Past-tense message shown once the tool completes. When omitted, the provider reuses `invocationMessage`. */
 	readonly pastTenseMessage?: StringOrMarkdown;
+	/** Short title shown when the tool requires confirmation. */
+	readonly confirmationTitle?: string;
+	/** Plain-language description of the decision shown when the tool requires confirmation. */
+	readonly confirmationMessage?: StringOrMarkdown;
+	/** Whether the generic raw-input preview should be omitted from the confirmation. */
+	readonly hideConfirmationInput?: boolean;
+}
+
+export interface IServerToolExecutionContext {
+	readonly sessionUri: URI;
+	readonly chatUri: URI;
+	readonly turnId?: string;
 }
 
 /**
@@ -52,9 +72,22 @@ export interface IServerToolDisplay {
  */
 export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
-	readonly definitions: readonly ToolDefinition[];
+	readonly definitions: readonly IAgentServerToolDefinition[];
+	/**
+	 * Names this group's tools were previously advertised under, mapped to the
+	 * name that replaced them. A renamed tool has to keep answering to its old
+	 * name: restored history and prompts written against the old name would
+	 * otherwise fail to route and lose their dedicated display. Legacy names are
+	 * never advertised, and the host translates them before dispatching, so a
+	 * group only ever sees its current names.
+	 */
+	readonly legacyToolNames?: ReadonlyMap<string, string>;
+	/** Whether each session keeps the definitions first advertised to it instead of following later enablement changes. */
+	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled(toolName: string): boolean;
+	/** Whether a contributed tool is supported by a specific session. */
+	isEnabledForSession(toolName: string, sessionUri: URI): boolean;
 	/**
 	 * Whether {@link toolName} (one of this group's {@link definitions}) can
 	 * ever prompt for confirmation. Providers exclude such tools from their
@@ -65,12 +98,12 @@ export interface IServerToolGroup {
 	canRequireConfirmation?(toolName: string): boolean;
 	/**
 	 * Whether {@link toolName} needs to prompt for the invocation currently
-	 * being made against {@link sessionUri}. Implement this for
+	 * being made in {@link IServerToolExecutionContext.chatUri}. Implement this for
 	 * state-dependent confirmation (e.g. nothing to confirm yet) while keeping
 	 * {@link canRequireConfirmation} stable for provider allow-lists. Absent
 	 * falls back to {@link canRequireConfirmation}.
 	 */
-	requiresConfirmation?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
+	requiresConfirmation?(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, toolName: string): boolean;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -80,7 +113,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	execute(stateManager: AgentHostStateManager, context: IServerToolExecutionContext, toolName: string, rawArgs: unknown): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -109,9 +142,14 @@ export interface IServerToolGroup {
  * tool on a session's {@link SessionState.serverTools} so clients see them as
  * server-provided.
  */
-export class AgentServerToolHost implements IAgentServerToolHost {
+export class AgentServerToolHost implements IAgentHostServerToolService {
 
+	declare readonly _serviceBrand: undefined;
+
+	/** Every name the host answers to — current and legacy — and its owning group. */
 	private readonly _groupByToolName = new Map<string, IServerToolGroup>();
+	/** Legacy names mapped to the current name that replaced them. */
+	private readonly _currentToolNames = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -125,14 +163,57 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 				this._groupByToolName.set(def.name, group);
 			}
 		}
+		// Registered after every current name, so a legacy name can never shadow
+		// a tool that is actually advertised under it.
+		for (const group of this._groups) {
+			for (const [legacyName, currentName] of group.legacyToolNames ?? []) {
+				if (this._groupByToolName.has(legacyName)) {
+					continue;
+				}
+				this._groupByToolName.set(legacyName, group);
+				this._currentToolNames.set(legacyName, currentName);
+			}
+		}
 	}
 
-	get definitions(): readonly ToolDefinition[] {
+	/** The name a group knows a tool by, translating a legacy name if needed. */
+	private _currentToolName(toolName: string): string {
+		return this._currentToolNames.get(toolName) ?? toolName;
+	}
+
+	get definitions(): readonly IAgentServerToolDefinition[] {
 		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
 	}
 
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
+		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
+		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
+		return this._groups.flatMap(group => {
+			if (materializedDefinitions && group.materializeDefinitions) {
+				// A session's tool membership is fixed at materialization time, but
+				// each still-current tool's metadata (description, schema) is refreshed
+				// from the group so restored sessions pick up wording changes instead
+				// of pinning the descriptions they were first advertised with. Tools
+				// with no current definition (e.g. the retired create_chat) keep their
+				// stored metadata.
+				const currentByName = new Map(group.definitions.map(definition => [definition.name, definition]));
+				return materializedDefinitions
+					.filter(definition => this._groupByToolName.get(definition.name) === group)
+					.filter(definition => !currentByName.has(definition.name) || group.isEnabledForSession(definition.name, sessionUri))
+					.map(definition => currentByName.get(definition.name) ?? definition);
+			}
+			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name) && group.isEnabledForSession(definition.name, sessionUri));
+			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
+		});
+	}
+
 	get toolNames(): readonly string[] {
-		return this.definitions.map(definition => definition.name);
+		return [
+			...this.definitions.map(definition => definition.name),
+			...this._groups.flatMap(group => [...(group.legacyToolNames ?? [])]
+				.filter(([, currentName]) => group.isEnabled(currentName))
+				.map(([legacyName]) => legacyName)),
+		];
 	}
 
 	advertise(sessionUri: URI): void {
@@ -142,40 +223,59 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
-			tools: [...this.definitions],
+			tools: this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri)),
 		});
 	}
 
 	canRequireConfirmation(toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		return group?.isEnabled(toolName) === true && (group.canRequireConfirmation?.(toolName) ?? false);
+		const name = this._currentToolName(toolName);
+		return group?.isEnabled(name) === true && (group.canRequireConfirmation?.(name) ?? false);
 	}
 
-	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
+	requiresConfirmation(chatUri: URI, toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		if (group && !this._isEnabledForSession(group, sessionUri, toolName)) {
+		const name = this._currentToolName(toolName);
+		if (group && !this._isEnabledForSession(group, chatUri, name, toolName)) {
 			return false;
 		}
-		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
-			?? group?.canRequireConfirmation?.(toolName)
+		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), name)
+			?? group?.canRequireConfirmation?.(name)
 			?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		if (!this._isEnabledForSession(group, sessionUri, toolName)) {
+		const name = this._currentToolName(toolName);
+		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
 	}
 
-	private _isEnabledForSession(group: IServerToolGroup, sessionUri: URI, toolName: string): boolean {
-		const advertisedTools = this._stateManager.getSessionState(sessionUri)?.serverTools;
+	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+		return {
+			sessionUri: parseRequiredSessionUriFromChatUri(chatUri),
+			chatUri,
+			turnId: this._stateManager.getActiveTurnId(chatUri),
+		};
+	}
+
+	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, ...definition }) => definition);
+	}
+
+	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
+		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		if (!group.isEnabledForSession(toolName, sessionUri)) {
+			return false;
+		}
+		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
-			? advertisedTools.some(tool => tool.name === toolName)
+			? advertisedTools.some(tool => tool.name === toolName) || group.legacyToolNames?.has(requestedToolName) === true
 			: group.isEnabled(toolName);
 	}
 }

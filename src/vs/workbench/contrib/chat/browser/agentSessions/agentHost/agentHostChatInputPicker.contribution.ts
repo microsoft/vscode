@@ -56,6 +56,9 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					IsSessionsWindowContext.negate(),
 					// Equal-peer providers add every workspace folder automatically, so they do not need a primary picker.
 					ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory,
+					// Hidden by default; the harness decision reveals the picker (e.g. when several folders carry hooks),
+					// so the chip never flashes visible-then-hidden while the decision is resolving.
+					ChatContextKeys.chatAgentHostFolderPickerVisible,
 				),
 			}],
 		});

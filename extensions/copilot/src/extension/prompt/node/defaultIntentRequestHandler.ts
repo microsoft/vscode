@@ -544,6 +544,12 @@ export class DefaultIntentRequestHandler {
 				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
+			case ChatFetchResponseType.Refusal: {
+				const errorDetails = await this.getErrorDetails(fetchResult);
+				const chatResult = { errorDetails, metadata: metadataFragment };
+				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
+				return chatResult;
+			}
 			case ChatFetchResponseType.PromptFiltered: {
 				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: FilterReason.Prompt } };

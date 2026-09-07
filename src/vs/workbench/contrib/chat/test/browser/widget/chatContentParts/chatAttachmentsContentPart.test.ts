@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
@@ -74,6 +77,33 @@ suite('ChatAttachmentsContentPart', () => {
 			},
 		} as ILanguageModelsService);
 	}
+
+	test('should keep the image preview in thumbnail hovers by default', () => {
+		const imageHoverContents: HTMLElement[] = [];
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, hoverOptions) => {
+				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				if (target.classList.contains('image-attachment') && dom.isHTMLElement(options.content)) {
+					imageHoverContents.push(options.content);
+				}
+				return Disposable.None;
+			},
+		});
+
+		disposables.add(instantiationService.createInstance(
+			ChatAttachmentsContentPart,
+			{ variables: [createImageEntry('image.png', new Uint8Array([0x89, 0x50, 0x4E, 0x47]))] }
+		));
+
+		assert.deepStrictEqual({
+			imageHovers: imageHoverContents.length,
+			imageHoverPreviews: imageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+		}, {
+			imageHovers: 1,
+			imageHoverPreviews: 1,
+		});
+	});
 
 	suite('updateVariables', () => {
 		test('should update variables and re-render', () => {

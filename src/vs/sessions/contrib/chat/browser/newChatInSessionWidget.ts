@@ -22,7 +22,7 @@ import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -40,7 +40,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	constructor(
-		_options: IChatViewOptions,
+		_options: IChatViewOptions & { readonly petHostPreferred?: IObservable<boolean> },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -73,6 +73,7 @@ export class NewChatInSessionWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			petHostPreferred: _options.petHostPreferred,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 		}));
@@ -85,19 +86,26 @@ export class NewChatInSessionWidget extends Disposable {
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
-		this._renderSubSessionTip(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
+		// Rendered after the composer: the tip docks inside the composer's stack,
+		// so the pet stands on it rather than on the composer boundary.
+		this._renderSubSessionTip();
 
 		chatWidgetContainer.classList.add('revealed');
 	}
 
-	private _renderSubSessionTip(container: HTMLElement): void {
+	private _renderSubSessionTip(): void {
 		if (this.storageService.getBoolean(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, StorageScope.PROFILE, false)) {
 			return;
 		}
 
+		const tipContainer = this._newChatInput.hostNoticeContainerElement;
+		if (!tipContainer) {
+			return;
+		}
+
 		const store = new DisposableStore();
-		const tipContainer = dom.append(container, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
+		tipContainer.classList.add('sub-session-tip-container');
 
 		const message = localize(
 			'subSessionTip.message',
@@ -126,7 +134,7 @@ export class NewChatInSessionWidget extends Disposable {
 			this.storageService.store(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, true, StorageScope.PROFILE, StorageTarget.USER);
 			// Stood down before it leaves the DOM: once detached it cannot report.
 			setChatInputStackSlot(tipContainer, ChatInputStackSlot.Empty);
-			tipContainer.remove();
+			// The slot belongs to the composer, so only the tip inside it goes away.
 			this._tipDisposable.clear();
 			if (hadFocus) {
 				this._newChatInput.focus();

@@ -23,7 +23,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { ParsedPromptFile } from './promptFileParser.js';
+import { isPromptFileTildePath, ParsedPromptFile } from './promptFileParser.js';
 import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, matchesSessionType, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo, type InstructionsCollectionEvent, type InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
@@ -33,6 +33,7 @@ import { ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 
 export interface InstructionsCollectionResult {
 	readonly telemetryEvent: InstructionsCollectionEvent;
@@ -77,6 +78,7 @@ export class ComputeAutomaticInstructions {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 	}
 
@@ -592,8 +594,12 @@ export class ComputeAutomaticInstructions {
 			const result = await this._parseInstructionsFile(next, token);
 			if (result && result.body) {
 				const refsToCheck: { resource: URI }[] = [];
+				let userHome: URI | undefined;
 				for (const ref of result.body.fileReferences) {
-					const url = result.body.resolveFilePath(ref.content);
+					if (isPromptFileTildePath(ref.content)) {
+						userHome ??= await this._pathService.userHome();
+					}
+					const url = result.body.resolveFilePath(ref.content, userHome);
 					if (url && !seen.has(url) && (isPromptOrInstructionsFile(url) || this._workspaceService.getWorkspaceFolder(url) !== undefined)) {
 						// only add references that are either prompt or instruction files or are part of the workspace
 						refsToCheck.push({ resource: url });

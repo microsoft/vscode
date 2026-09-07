@@ -162,14 +162,21 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 
 	/**
 	 * Resolves a chat endpoint from a family string. The internal utility
-	 * families (`copilot-utility` / `copilot-utility-small`) are routed through
-	 * their dedicated resolvers; any other value is treated as a CAPI model
-	 * family (e.g. `gemini-3-flash`, `gpt-5-mini`) and resolved directly. This
-	 * lets callers such as the execution and search subagents honor their
-	 * `*.model` override settings rather than silently falling back to the
-	 * parent model.
+	 * aliases are routed through their dedicated resolvers; any other value is
+	 * treated as a CAPI model family (e.g. `gemini-3-flash`, `gpt-5-mini`) and
+	 * resolved directly. This lets callers such as the execution and search
+	 * subagents honor their `*.model` override settings rather than silently
+	 * falling back to the parent model.
 	 */
 	private async _resolveFamily(family: string): Promise<IChatEndpoint> {
+		if (family === 'copilot-dictation-cleanup-nano') {
+			const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily('gpt-5.4-nano');
+			return this.getOrCreateChatEndpointInstance(modelMetadata);
+		}
+		if (family === 'copilot-dictation-cleanup-luna') {
+			const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily('gpt-5.6-luna');
+			return this.getOrCreateChatEndpointInstance(modelMetadata);
+		}
 		if (family === 'copilot-utility' || family === 'copilot-utility-small') {
 			return this._resolveUtilityFamily(family);
 		}
