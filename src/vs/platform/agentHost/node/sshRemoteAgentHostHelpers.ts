@@ -499,7 +499,7 @@ export interface IWaitForNewEndpointOptions {
 const DEFAULT_ENDPOINT_REGISTRATION_POLL_COUNT = 20;
 const MAX_ENDPOINT_REGISTRATION_POLL_INTERVAL_MS = 5_000;
 const ENDPOINT_REGISTRATION_PROGRESS_INTERVAL_MS = 10_000;
-const COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS = 300_000;
+export const COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS = 300_000;
 
 /** Gets the endpoint-registration deadline for a newly installed CLI. */
 export function getNewAgentHostRegistrationTimeoutMs(installedCLI: boolean): number | undefined {

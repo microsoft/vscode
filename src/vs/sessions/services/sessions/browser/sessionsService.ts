@@ -33,6 +33,8 @@ import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -1557,6 +1559,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		if (token.isCancellationRequested) {
 			return;
+		}
+		if (activeSession) {
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			if (provider
+				&& isAgentHostProvider(provider)
+				&& provider.canConnectOnDemand
+				&& provider.connect
+				&& provider.connectionStatus
+				&& RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())
+			) {
+				void provider.connect().catch(error => this.logService.warn(`[SessionsView] Failed to connect restored session provider '${provider.id}'`, error));
+			}
 		}
 
 		// Lay out all currently-available sessions atomically in the persisted

@@ -24,6 +24,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -1245,6 +1246,54 @@ suite('SessionsManagementService', () => {
 			visible: ['a', 'b', 'c'],
 			sticky: [true, false, false],
 			active: 'b',
+		});
+	});
+
+	test('restoreVisibleSessions connects the active remote session on demand', async () => {
+		const session = stubSession({
+			sessionId: 'remote',
+			providerId: 'agenthost-test',
+		});
+		let connectCalls = 0;
+		const provider = new class extends TestSessionsProvider {
+			override readonly id = 'agenthost-test';
+			readonly canConnectOnDemand = true;
+			readonly connectionStatus = constObservable(RemoteAgentHostConnectionStatus.disconnected);
+			async connect(): Promise<void> {
+				connectCalls++;
+			}
+		}(session);
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(
+			'agentSessions.activeSessionStates',
+			JSON.stringify([{ sessionResource: session.resource.toString(), visibleOrder: 0, isSticky: false, isActive: true }]),
+			1 /* StorageScope.WORKSPACE */,
+			1 /* StorageTarget.MACHINE */,
+		);
+
+		instantiationService.stub(IStorageService, storage);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+		instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+		instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+		});
+
+		const managementService = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, managementService, disposables);
+		await view.restoreVisibleSessions();
+
+		assert.deepStrictEqual({
+			active: view.activeSession.get()?.sessionId,
+			connectCalls,
+		}, {
+			active: 'remote',
+			connectCalls: 1,
 		});
 	});
 
