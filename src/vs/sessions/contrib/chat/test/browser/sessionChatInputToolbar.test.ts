@@ -17,8 +17,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
-import { ISessionChatPillVisibilityService } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
-import { ISessionPullRequestPillService, SessionPullRequestPillService } from '../../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -226,13 +225,9 @@ suite('SessionChatInputToolbar', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		}));
-		instantiationService.stub(ISessionChatPillVisibilityService, upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		}));
-		instantiationService.stub(ISessionPullRequestPillService, store.add(instantiationService.createInstance(SessionPullRequestPillService)));
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		visibility.toggle(SessionChatPillKind.Subagents);
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({

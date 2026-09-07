@@ -27,7 +27,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
-import { SessionPullRequestPillService } from '../../../browser/sessionPullRequestPill.js';
+import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
@@ -202,12 +202,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -227,7 +222,6 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -307,12 +301,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -332,7 +321,6 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const button = row?.querySelector('.chat-pill-button');
@@ -455,8 +443,7 @@ suite('AgentHostSessionInputPills', () => {
 			getKnownBrowserViews: () => new Map(),
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
-		const pullRequestPillService = store.add(instantiationService.createInstance(SessionPullRequestPillService));
-		const filterActions = pullRequestPillService.createPillData(constObservable([])).getContextMenuActions();
+		const filterActions = createSessionPullRequestPillData(constObservable([]), visibility.pullRequests).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -476,7 +463,6 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			pullRequestPillService,
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -587,12 +573,8 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map([[browser.id, browser]]),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set([SessionChatPillKind.Browsers]),
-			isVisible: kind => kind !== SessionChatPillKind.Browsers,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		visibility.hide(SessionChatPillKind.Browsers);
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -612,7 +594,6 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 
 		assert.deepStrictEqual({
@@ -656,12 +637,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -697,7 +673,6 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			store.add(instantiationService.createInstance(SessionPullRequestPillService)),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;

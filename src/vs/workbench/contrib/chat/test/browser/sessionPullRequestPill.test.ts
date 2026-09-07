@@ -8,10 +8,15 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { SessionPullRequestPillService, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
+import { SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
-suite('SessionPullRequestPillService', () => {
+suite('SessionPullRequestPillData', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createVisibility(storageService = store.add(new TestStorageService())) {
+		return store.add(new SessionChatPillVisibility(storageService)).pullRequests;
+	}
 
 	const sections = constObservable<readonly IChatPullRequestPillSection[]>([{
 		title: 'Pull Requests',
@@ -25,9 +30,9 @@ suite('SessionPullRequestPillService', () => {
 	}]);
 
 	test('filters data before rendering and updates existing sources through contributed actions', async () => {
-		const service = store.add(new SessionPullRequestPillService(store.add(new TestStorageService())));
-		const first = service.createPillData(sections);
-		const second = service.createPillData(sections);
+		const visibility = createVisibility();
+		const first = createSessionPullRequestPillData(sections, visibility);
+		const second = createSessionPullRequestPillData(sections, visibility);
 		const updates: string[][] = [];
 		store.add(autorun(reader => updates.push(second.sections.read(reader).flatMap(section => section.entries.map(entry => entry.id)))));
 
@@ -55,11 +60,10 @@ suite('SessionPullRequestPillService', () => {
 
 	test('persists the filter in application storage and restores it', async () => {
 		const storageService = store.add(new TestStorageService());
-		const service = store.add(new SessionPullRequestPillService(storageService));
-		const data = service.createPillData(sections);
+		const data = createSessionPullRequestPillData(sections, createVisibility(storageService));
 		await data.getContextMenuActions()[1].run();
 		const filtered = {
-			restoredAll: store.add(new SessionPullRequestPillService(storageService)).createPillData(sections).getContextMenuActions()[0].checked,
+			restoredAll: createSessionPullRequestPillData(sections, createVisibility(storageService)).getContextMenuActions()[0].checked,
 			application: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.APPLICATION),
 			profile: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.PROFILE),
 			workspace: storageService.getBoolean('sessions.chatPills.pullRequests.showAll', StorageScope.WORKSPACE),
@@ -68,7 +72,7 @@ suite('SessionPullRequestPillService', () => {
 
 		assert.deepStrictEqual({
 			filtered,
-			restoredAll: store.add(new SessionPullRequestPillService(storageService)).createPillData(sections).getContextMenuActions()[0].checked,
+			restoredAll: createSessionPullRequestPillData(sections, createVisibility(storageService)).getContextMenuActions()[0].checked,
 		}, {
 			filtered: { restoredAll: false, application: false, profile: undefined, workspace: undefined },
 			restoredAll: true,
@@ -76,12 +80,12 @@ suite('SessionPullRequestPillService', () => {
 	});
 
 	test('keeps configuration available while filtered data is empty but not after the source is cleared', async () => {
-		const service = store.add(new SessionPullRequestPillService(store.add(new TestStorageService())));
+		const visibility = createVisibility();
 		const input = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', [{
 			title: 'Pull Requests',
 			entries: [{ id: 'closed', label: 'Closed', pullRequestState: 'closed', open: () => { } }],
 		}]);
-		const data = service.createPillData(input);
+		const data = createSessionPullRequestPillData(input, visibility);
 		await data.getContextMenuActions()[1].run();
 		const filtered = { sections: data.sections.get(), hasData: data.hasData.get() };
 		input.set([], undefined);
@@ -98,7 +102,7 @@ suite('SessionPullRequestPillService', () => {
 	test('preserves the show-all default for an invalid stored filter', () => {
 		const storageService = store.add(new TestStorageService());
 		storageService.store('sessions.chatPills.pullRequests.showAll', 'invalid', StorageScope.APPLICATION, StorageTarget.USER);
-		const data = store.add(new SessionPullRequestPillService(storageService)).createPillData(sections);
+		const data = createSessionPullRequestPillData(sections, createVisibility(storageService));
 
 		assert.strictEqual(data.getContextMenuActions()[0].checked, true);
 	});

@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
-import { ISessionPullRequestPillService, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
@@ -257,7 +257,6 @@ export class SessionChatInputToolbar extends Disposable {
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
-		@ISessionPullRequestPillService pullRequestPillService: ISessionPullRequestPillService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -349,7 +348,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
 				},
 			},
-			pullRequests: pullRequestPillService.createPillData(pullRequestSections, pullRequestPresentation.icon),
+			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
 			issues: { sections: issueSections, icon: issueIcon },
 			artifacts: { sections: this._artifactSections },
 			references: { sections: this._referenceSections },

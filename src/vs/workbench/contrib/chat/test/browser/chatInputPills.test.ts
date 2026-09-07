@@ -14,7 +14,7 @@ import { computePullRequestIcon, type ChatPullRequestState } from '../../../../c
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
-import { SessionPullRequestPillService, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../browser/sessionPullRequestPill.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
 suite('StandardChatInputPillSources', () => {
@@ -65,8 +65,8 @@ suite('StandardChatInputPillSources', () => {
 		return { id, label: id, pillLabel: id, icon: computePullRequestIcon(state ?? 'open'), pullRequestState: state, open: () => { } };
 	}
 
-	function createPullRequestService() {
-		return store.add(new SessionPullRequestPillService(store.add(new TestStorageService())));
+	function createPullRequestVisibility() {
+		return store.add(new SessionChatPillVisibility(store.add(new TestStorageService()))).pullRequests;
 	}
 
 	test('uses one canonical composition for different offered kind sets', () => {
@@ -107,7 +107,7 @@ suite('StandardChatInputPillSources', () => {
 	});
 
 	test('offers checked pull request options directly below Hide for mouse and keyboard', async () => {
-		const data = createPullRequestService().createPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]));
+		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]), createPullRequestVisibility());
 		const pills = createPills({
 			pullRequests: data,
 		});
@@ -188,10 +188,10 @@ suite('StandardChatInputPillSources', () => {
 				pullRequestEntry('#5'),
 			],
 		}]);
-		const service = createPullRequestService();
-		const firstData = service.createPillData(sections);
+		const pullRequestVisibility = createPullRequestVisibility();
+		const firstData = createSessionPullRequestPillData(sections, pullRequestVisibility);
 		const first = createPills({ pullRequests: firstData, references: { sections } });
-		const second = createPills({ pullRequests: service.createPillData(sections) }, first.visibility);
+		const second = createPills({ pullRequests: createSessionPullRequestPillData(sections, pullRequestVisibility) }, first.visibility);
 		const before = { first: first.labels(), second: second.labels() };
 		await firstData.getContextMenuActions()[1].run();
 		const filtered = { first: first.labels(), second: second.labels() };
@@ -215,7 +215,7 @@ suite('StandardChatInputPillSources', () => {
 	});
 
 	test('keeps options reachable when every pull request is filtered out', async () => {
-		const data = createPullRequestService().createPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]));
+		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'merged')] }]), createPullRequestVisibility());
 		const pills = createPills({
 			pullRequests: data,
 		});
@@ -246,10 +246,10 @@ suite('StandardChatInputPillSources', () => {
 
 	test('renders summary icon updates from the pull request data provider', async () => {
 		const icon = observableValue('pullRequestSummaryIcon', computePullRequestIcon('merged'));
-		const data = createPullRequestService().createPillData(constObservable([{
+		const data = createSessionPullRequestPillData(constObservable([{
 			title: 'Pull Requests',
 			entries: [pullRequestEntry('#1', 'merged'), pullRequestEntry('#2', 'draft'), pullRequestEntry('#3', 'draft')],
-		}]), icon);
+		}]), createPullRequestVisibility(), icon);
 		const pills = createPills({
 			pullRequests: data,
 		});
