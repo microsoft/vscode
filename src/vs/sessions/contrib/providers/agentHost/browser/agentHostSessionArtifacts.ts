@@ -155,9 +155,7 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined): ISessi
 		pullRequestUrls.push(link);
 	}
 
-	// The walk above runs in recorded order — oldest to newest — so the first
-	// title recorded for a pull request link wins. Hand the results back newest
-	// first, the order every pill lists them in.
+	// Reversed here, after the walk let the first title recorded for a link win.
 	entries.reverse();
 	pullRequestUrls.reverse();
 	issueUrls.reverse();

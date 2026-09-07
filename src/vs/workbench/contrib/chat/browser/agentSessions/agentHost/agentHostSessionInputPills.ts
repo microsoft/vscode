@@ -26,7 +26,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
-import { browserViewUrlMatches, BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
@@ -112,9 +112,7 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const github = readSessionGitHubState(meta);
 	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
-	// The pull requests the session recorded lead the ones discovered from its
-	// GitHub state, matching how the Agents Window promotes them, and both
-	// groups already run most recent first.
+	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
 	const issueUrls = dedupeLinks(artifactIssues);
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
@@ -338,11 +336,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return [];
 			}
 			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
-			// Known browsers are kept in the order they opened, so reverse them
-			// to list the most recently opened one at the top of the pill.
-			return [...this._browserViewService.getKnownBrowserViews().values()]
-				.filter(input => input.model?.owner.type === 'agent' && ownerIds.has(input.model.owner.sessionId))
-				.reverse();
+			return getAgentBrowserViewsNewestFirst(this._browserViewService, ownerIds);
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
 			return visibility.isVisible(SessionChatPillKind.Browsers, reader)
