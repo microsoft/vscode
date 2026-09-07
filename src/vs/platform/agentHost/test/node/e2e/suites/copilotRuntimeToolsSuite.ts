@@ -18,7 +18,7 @@ import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 
 export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
