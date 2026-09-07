@@ -156,7 +156,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				states: before.turns.map(() => TurnState.Complete),
 			});
 			const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-selected-agent', 'Reply exactly "RESUMED".', 4);
-			assert.strictEqual(followup.responseText.trim(), 'RESUMED');
+			const request: { stream?: boolean } = JSON.parse(context.observedModelRequestBodies.at(-1)!);
+			assert.deepStrictEqual({ response: followup.responseText.trim(), streaming: request.stream }, { response: 'RESUMED', streaming: true });
 		});
 	}
 
