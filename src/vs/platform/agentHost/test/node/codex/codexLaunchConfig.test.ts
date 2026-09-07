@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams } from '../../../node/codex/codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +59,35 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
 	});
 
+	test('defines workspace-only permission profiles after extra arguments', () => {
+		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
+		const expectedOverrides = [
+			'default_permissions="vscode-workspace"',
+			'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd*" = "deny", "/private/etc/passwd*" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
+			'permissions.vscode-workspace-read-only={ extends = "vscode-workspace", filesystem = { ":workspace_roots" = { "." = "read" } } }',
+		];
+		assert.deepStrictEqual({
+			profiles: expectedOverrides.map(override => config.args.includes(override)),
+			secureDefaultWins: config.args.indexOf('default_permissions=":danger-full-access"') < config.args.indexOf('default_permissions="vscode-workspace"'),
+			selection: {
+				workspace: codexPermissionProfile('workspace-write', false),
+				workspaceWithNetwork: codexPermissionProfile('workspace-write', true),
+				readOnly: codexPermissionProfile('read-only', true),
+				fullAccess: codexPermissionProfile('danger-full-access', false),
+			},
+		}, {
+			profiles: expectedOverrides.map(() => true),
+			secureDefaultWins: true,
+			selection: {
+				workspace: 'vscode-workspace',
+				workspaceWithNetwork: 'vscode-workspace-network',
+				readOnly: 'vscode-workspace-read-only',
+				fullAccess: ':danger-full-access',
+			},
+		});
+	});
+
 	test('resume explicitly binds each session provider', () => {
 		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
@@ -83,6 +112,20 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'custom-provider',
 			cwd: '/repo-a',
 			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
+			config: { 'features.image_generation': false },
+		});
+		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-d', {}, ['/repo'], {}, undefined, false, {
+			approvalPolicy: 'on-request',
+			approvalsReviewer: 'auto_review',
+			permissions: 'vscode-workspace',
+		}), {
+			threadId: 'thread-d',
+			modelProvider: 'openai',
+			cwd: '/repo',
+			runtimeWorkspaceRoots: ['/repo'],
+			approvalPolicy: 'on-request',
+			approvalsReviewer: 'auto_review',
+			permissions: 'vscode-workspace',
 			config: { 'features.image_generation': false },
 		});
 	});
