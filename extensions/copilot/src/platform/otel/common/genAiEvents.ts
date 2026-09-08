@@ -114,6 +114,14 @@ export function emitToolCallEvent(
 	});
 }
 
+export function emitToolCallStartedEvent(otel: IOTelService, toolName: string, toolCallId: string): void {
+	otel.emitLogRecord(`copilot_chat.tool.call.started: ${toolName}`, {
+		'event.name': 'copilot_chat.tool.call.started',
+		[GenAiAttr.TOOL_NAME]: toolName,
+		[GenAiAttr.TOOL_CALL_ID]: toolCallId,
+	});
+}
+
 export function emitAgentTurnEvent(
 	otel: IOTelService,
 	turnIndex: number,

@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
-import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitToolCallEvent, emitToolCallStartedEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { extractToolParameters } from '../../../platform/otel/node/extractToolParameters';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -132,6 +132,7 @@ export class ToolsService extends BaseToolsService {
 		const parentChatSessionId = getCurrentCapturingToken()?.parentChatSessionId;
 		const debugLogLabel = getCurrentCapturingToken()?.debugLogLabel;
 		const parentTraceContext = (options as { parentTraceContext?: { traceId: string; spanId: string } }).parentTraceContext;
+		const chatStreamToolCallId = (options as { chatStreamToolCallId?: string }).chatStreamToolCallId;
 		const span = this._otelService.startSpan(`execute_tool ${name}`, {
 			kind: SpanKind.INTERNAL,
 			parentTraceContext,
@@ -140,7 +141,7 @@ export class ToolsService extends BaseToolsService {
 				...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 				[GenAiAttr.TOOL_NAME]: String(name),
 				[GenAiAttr.TOOL_TYPE]: isMcpTool ? GenAiToolType.EXTENSION : GenAiToolType.FUNCTION,
-				[GenAiAttr.TOOL_CALL_ID]: (options as { chatStreamToolCallId?: string }).chatStreamToolCallId ?? '',
+				[GenAiAttr.TOOL_CALL_ID]: chatStreamToolCallId ?? '',
 				...(toolInfo?.description ? { [GenAiAttr.TOOL_DESCRIPTION]: toolInfo.description } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
@@ -148,6 +149,7 @@ export class ToolsService extends BaseToolsService {
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 			},
 		});
+		emitToolCallStartedEvent(this._otelService, String(name), chatStreamToolCallId ?? '');
 		// Always capture tool call arguments for the debug panel
 		if (options.input !== undefined) {
 			try {
@@ -171,7 +173,6 @@ export class ToolsService extends BaseToolsService {
 
 		// For runSubagent tool, store this execute_tool span's trace context so the subagent's
 		// invoke_agent span can be parented to THIS tool call (not the grandparent invoke_agent).
-		const chatStreamToolCallId = (options as { chatStreamToolCallId?: string }).chatStreamToolCallId;
 		const chatRequestId = (options as { chatRequestId?: string }).chatRequestId;
 		const subAgentInvocationId = (options as { subAgentInvocationId?: string }).subAgentInvocationId;
 		if (String(name) === 'runSubagent') {
