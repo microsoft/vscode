@@ -23,6 +23,16 @@ suite('Chat Accessibility Help', () => {
 		}, { details: true, immediatePreview: true, inactiveTiers: true, activation: true });
 	});
 
+	test('documents keyboard search in the model picker', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			typing: help.includes('Type while the model list is focused to search across all providers'),
+			navigation: help.includes('Up and Down Arrow to navigate results'),
+			selection: help.includes('Enter to select a model, and Escape to close the picker'),
+			editing: help.includes('Left and Right Arrow move the text cursor'),
+		}, { typing: true, navigation: true, selection: true, editing: true });
+	});
+
 	test('documents the archive suggestion only while it is shown', () => {
 		const keybindingService = new MockKeybindingService();
 		const shown = getAccessibilityHelpText('agentView', keybindingService, true, false, false, true, true);

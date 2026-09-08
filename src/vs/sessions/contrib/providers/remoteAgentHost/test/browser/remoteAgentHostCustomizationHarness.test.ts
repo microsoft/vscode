@@ -170,6 +170,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getWorkingDirectories(_sessionResource: URI): readonly string[] {
 			return [];
 		},
+		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
+			return [];
+		},
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},

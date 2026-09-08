@@ -15,28 +15,35 @@ import type { LineRange, RegionResult } from '../../../../../platform/languageCo
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { TS7RegionContextProvider } from '../regionContextProvider';
 
-const fixtures = path.join(__dirname, '../../../serverPlugin/fixtures/context');
-const projectDirectory = path.join(fixtures, 'p14');
-const configFile = path.join(projectDirectory, 'tsconfig.json');
-const fileName = path.join(projectDirectory, 'source/f1.ts');
-const structuralEntitiesFile = path.join(projectDirectory, 'source/structuralEntities.ts');
-const structuralEntitiesSource = fs.readFileSync(structuralEntitiesFile, 'utf8');
 
 suite('TypeScript 7 region context', () => {
 	let api: API;
 
+	let fixtures!: string;
+	let projectDirectory!: string;
+	let configFile!: string;
+	let fileName!: string;
+	let structuralEntitiesFile!: string;
+	let structuralEntitiesSource!: string;
+
 	beforeAll(() => {
 		api = new API({ cwd: process.cwd() });
+		fixtures = path.join(__dirname, '../../../serverPlugin/fixtures/context');
+		projectDirectory = path.join(fixtures, 'p14');
+		configFile = path.join(projectDirectory, 'tsconfig.json');
+		fileName = path.join(projectDirectory, 'source/f1.ts');
+		structuralEntitiesFile = path.join(projectDirectory, 'source/structuralEntities.ts');
+		structuralEntitiesSource = fs.readFileSync(structuralEntitiesFile, 'utf8');
 	});
 
 	afterAll(async () => {
 		await api.close();
 	});
 
-	async function getRegions(ranges: vscode.Range[], requested?: LineRange, sourceFile: string = fileName): Promise<RegionResult | undefined> {
+	async function getRegions(ranges: vscode.Range[], requested?: LineRange, filePath: string = fileName): Promise<RegionResult | undefined> {
 		const provider = new TS7RegionContextProvider(new TestLogService(), new TestTypeScript7Api(api, configFile));
 		try {
-			return await provider.getRegions(vscode.Uri.file(sourceFile), 'typescript', ranges, requested);
+			return await provider.getRegions(vscode.Uri.file(filePath), 'typescript', ranges, requested);
 		} finally {
 			provider.dispose();
 		}
