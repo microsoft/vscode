@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { DefaultConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import { ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
+import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ISearchConfigurationProperties, SearchSortOrder } from '../../../../services/search/common/search.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import '../../browser/search.common.contribution.js';
+
+// Capture the common contribution before configuration tests clear the global registry.
+const sharedSearchConfiguration = deepClone(Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+	.getConfigurations().find(node => node.properties?.['search.searchOnType']));
 
 suite('Shared search configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,8 +31,12 @@ suite('Shared search configuration', () => {
 	let queryBuilder: QueryBuilder;
 	const folder = URI.file('/workspace');
 
-	setup(async () => {
-		const defaults = await store.add(new DefaultConfiguration(new NullLogService())).initialize();
+	setup(() => {
+		assert.ok(sharedSearchConfiguration?.properties);
+		const defaults = ConfigurationModel.createEmptyModel(new NullLogService());
+		for (const [key, schema] of Object.entries(sharedSearchConfiguration.properties)) {
+			defaults.setValue(key, deepClone(schema.default));
+		}
 		const searchDefaults = defaults.getValue<ISearchConfigurationProperties>('search');
 		assert.ok(searchDefaults);
 		searchConfiguration = searchDefaults;
