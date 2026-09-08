@@ -214,6 +214,44 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('terminal full-output references survive chat serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
+		const fullOutput = { uri: URI.parse('vscode-agent-host://remote-host/output'), nonce: 'one', contentType: 'text/plain', sizeHint: 8192 };
+		model.acceptResponseProgress(request, {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'terminal-full-output',
+			toolName: 'bash',
+			isComplete: true,
+			invocationMessage: 'Running command',
+			pastTenseMessage: 'Ran command',
+			toolSpecificData: {
+				kind: 'terminal',
+				language: 'shellscript',
+				commandLine: { original: 'build' },
+				terminalCommandOutput: { text: 'preview', truncated: true, fullOutput },
+			},
+		});
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.ok(invocation?.kind === 'toolInvocationSerialized' && invocation.toolSpecificData?.kind === 'terminal');
+		const output = invocation.toolSpecificData.terminalCommandOutput;
+		assert.deepStrictEqual({
+			text: output?.text,
+			truncated: output?.truncated,
+			fullOutput: { ...output?.fullOutput, uri: URI.revive(output?.fullOutput?.uri)?.toString() },
+		}, {
+			text: 'preview',
+			truncated: true,
+			fullOutput: { ...fullOutput, uri: fullOutput.uri.toString() },
+		});
+	});
+
 	test('voice progress is live-only response metadata', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';
@@ -2112,6 +2150,44 @@ suite('serializeSendOptions', () => {
 
 suite('ChatResponseResource', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('terminal output URI round-trips reserved tool IDs and distinguishes artifact versions', () => {
+		const session = URI.parse('vscode-chat-session://local/session1');
+		const reference = { uri: URI.file('/tmp/full output #1.txt'), nonce: 'one' };
+		const resource = ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', reference);
+		const parsed = ChatResponseResource.parseTerminalOutputUri(URI.parse(resource.toString()));
+		const variants = [
+			resource,
+			ChatResponseResource.createTerminalOutputUri(session.with({ path: '/session2' }), 'call/1?#', reference),
+			ChatResponseResource.createTerminalOutputUri(session, 'call-2', reference),
+			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, uri: URI.file('/tmp/other.txt') }),
+			ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', { ...reference, nonce: 'two' }),
+		];
+		assert.deepStrictEqual({
+			session: parsed?.sessionResource.toString(),
+			toolCallId: parsed?.toolCallId,
+			legacyParser: ChatResponseResource.parseUri(resource),
+			identical: ChatResponseResource.createTerminalOutputUri(session, 'call/1?#', reference).toString(),
+			identities: new Set(variants.map(uri => uri.toString())).size,
+		}, {
+			session: session.toString(),
+			toolCallId: 'call/1?#',
+			legacyParser: undefined,
+			identical: resource.toString(),
+			identities: 5,
+		});
+	});
+
+	test('terminal output parser rejects malformed or unrelated resources', () => {
+		const base = ChatResponseResource.createTerminalOutputUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', { uri: URI.file('/tmp/output') });
+		assert.deepStrictEqual([
+			base.with({ scheme: 'invalid' }),
+			base.with({ path: '/terminal//full-output.txt' }),
+			base.with({ path: '/terminal/%E0%A4%A/full-output.txt' }),
+			base.with({ path: '/terminal/call-1/wrong.txt' }),
+			ChatResponseResource.createUri(URI.parse('vscode-chat-session://local/session1'), 'call-1', 0),
+		].map(uri => ChatResponseResource.parseTerminalOutputUri(uri)), [undefined, undefined, undefined, undefined, undefined]);
+	});
 
 	test('createUri roundtrips through parseUri without basename', () => {
 		const sessionResource = URI.parse('vscode-chat-session://local/session1');

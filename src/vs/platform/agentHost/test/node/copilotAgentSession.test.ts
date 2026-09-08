@@ -7682,13 +7682,14 @@ Use the attached image as context.
 				toolCallId: 'tc-rewrite',
 				success: true,
 				result: {
-					content: 'Output too large',
+					content: 'Output too large. Saved to: /tmp/artifact-b.txt',
 					contents: [{
 						type: 'shell_exit',
 						shellId: '0',
 						exitCode: 0,
 						outputPreview: 'line 1\nline 2\n',
 						outputTruncated: true,
+						outputFilePath: '/tmp/artifact-a.txt',
 					}],
 				},
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
@@ -7712,7 +7713,12 @@ Use the attached image as context.
 				resets: [],
 				finalized: [{ uri: terminalUri, exitCode: 0 }],
 				disposed: [terminalUri],
-				result: { exitCode: 0, preview: 'line 1\nline 2\n', truncated: true },
+				result: {
+					exitCode: 0,
+					preview: 'line 1\nline 2\n',
+					truncated: true,
+					fullOutput: { uri: URI.file('/tmp/artifact-a.txt').toString(), contentType: 'text/plain' },
+				},
 			});
 		});
 
@@ -8100,7 +8106,7 @@ Use the attached image as context.
 				success: true,
 				result: {
 					content: 'Build completed\n',
-					contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+					contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n', outputFilePath: '/tmp/read-shell-output.txt' }],
 				},
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 

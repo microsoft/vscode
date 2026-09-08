@@ -18,7 +18,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
-import { URI, UriDto } from '../../../../../base/common/uri.js';
+import { URI, UriComponents, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -3492,11 +3492,41 @@ export namespace ChatResponseResource {
 	export const scheme = Schemas.vscodeChatResponseResource;
 
 	export function createUri(sessionResource: URI, toolCallId: string, index: number, basename?: string): URI {
+		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
+	}
+
+	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, reference: { readonly uri: UriComponents; readonly nonce?: string }): URI {
+		const query = new URLSearchParams({ uri: URI.revive(reference.uri).toString() });
+		if (reference.nonce !== undefined) {
+			query.set('nonce', reference.nonce);
+		}
+		return createScopedUri(sessionResource, `/terminal/${encodeURIComponent(toolCallId)}/full-output.txt`, query.toString());
+	}
+
+	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
 			authority: encodeHex(VSBuffer.fromString(sessionResource.toString())),
-			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+			path,
+			query,
 		});
+	}
+
+	export function parseTerminalOutputUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string } {
+		const parts = uri.path.split('/');
+		if (uri.scheme !== scheme || parts.length !== 4 || parts[1] !== 'terminal' || !parts[2] || parts[3] !== 'full-output.txt') {
+			return undefined;
+		}
+		let toolCallId: string;
+		try {
+			toolCallId = decodeURIComponent(parts[2]);
+		} catch (error) {
+			if (error instanceof URIError) {
+				return undefined;
+			}
+			throw error;
+		}
+		return { sessionResource: parseSessionResource(uri), toolCallId };
 	}
 
 	export function parseUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string; index: number } {
@@ -3514,22 +3544,23 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
-		let sessionResource: URI;
+		return {
+			sessionResource: parseSessionResource(uri),
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
+
+	function parseSessionResource(uri: URI): URI {
 		try {
-			sessionResource = URI.parse(decodeHex(uri.authority).toString());
+			return URI.parse(decodeHex(uri.authority).toString());
 		} catch (e) {
 			if (e instanceof SyntaxError) { // pre-1.108 local session ID
-				sessionResource = LocalChatSessionUri.forSession(uri.authority);
+				return LocalChatSessionUri.forSession(uri.authority);
 			} else {
 				throw e;
 			}
 		}
-
-		return {
-			sessionResource,
-			toolCallId: toolCallId,
-			index: Number(index),
-		};
 	}
 }
 

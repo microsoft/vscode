@@ -655,6 +655,13 @@ export interface IChatVoiceProgressPart {
 	readonly value: string;
 }
 
+export interface IChatTerminalOutputReference {
+	readonly uri: UriComponents;
+	readonly sizeHint?: number;
+	readonly contentType?: string;
+	readonly nonce?: string;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {
@@ -736,6 +743,7 @@ export interface IChatTerminalToolInvocationData {
 		text: string;
 		truncated?: boolean;
 		lineCount?: number;
+		fullOutput?: IChatTerminalOutputReference;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {

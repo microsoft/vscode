@@ -234,6 +234,12 @@
 	width: 100%;
 	background: inherit;
 }
+.chat-terminal-full-output-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	background: inherit;
+}
 .chat-terminal-output-container.chat-terminal-output-container-no-output .chat-terminal-output-body {
 	padding-bottom: 5px;
 }

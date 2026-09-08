@@ -16,7 +16,8 @@ import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationCon
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, type CompletionsResult, type ResourceReadResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
@@ -484,6 +485,57 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 			success: true,
 			exitCode: 7,
 		});
+	});
+
+	test('shell full output is readable through its content reference', async function () {
+		this.timeout(180_000);
+		const { sessionUri } = await createWorkspaceSession('shell-full-output');
+		const turnId = 'turn-shell-full-output';
+		const command = `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\\n' + 'x'.repeat(131072) + '\\nFULL_OUTPUT_MIDDLE\\n' + 'y'.repeat(131072) + '\\nFULL_OUTPUT_END\\n')"`;
+		const expected = `FULL_OUTPUT_BEGIN\n${'x'.repeat(131072)}\nFULL_OUTPUT_MIDDLE\n${'y'.repeat(131072)}\nFULL_OUTPUT_END\n`;
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			`Run exactly \`${command}\` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".`, 1);
+		const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
+			.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
+		const completion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+			.find(action => action.toolCallId === shellStart.toolCallId);
+		const terminalResult = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal)?.result;
+		assert.ok(terminalResult?.fullOutput, 'expected a structured full-output reference');
+		const reference = terminalResult.fullOutput;
+		try {
+			const output = await context.client.call<ResourceReadResult>('resourceRead', {
+				channel: ROOT_STATE_URI, uri: reference.uri, encoding: ContentEncoding.Utf8,
+			});
+			const chatUri = buildDefaultChatUri(sessionUri);
+			context.client.notify('unsubscribe', { channel: chatUri });
+			const snapshot = await fetchSessionWithChat(context.client, sessionUri);
+			const restoredCall = snapshot.turns.find(turn => turn.id === turnId)?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
+			const restoredReference = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
+				? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)?.result?.fullOutput
+				: undefined;
+			assert.deepStrictEqual({
+				exitCode: terminalResult.exitCode,
+				truncated: terminalResult.truncated,
+				output: output.data,
+				encoding: output.encoding,
+				restoredReference,
+			}, {
+				exitCode: 0,
+				truncated: true,
+				output: expected,
+				encoding: ContentEncoding.Utf8,
+				restoredReference: reference,
+			});
+		} finally {
+			await context.client.call('resourceDelete', { channel: ROOT_STATE_URI, uri: reference.uri });
+		}
+		await assert.rejects(
+			() => context.client.call('resourceRead', { channel: ROOT_STATE_URI, uri: reference.uri }),
+			{ code: AhpErrorCodes.NotFound },
+		);
 	});
 
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell can be read and stopped after asynchronous execution', async function () {

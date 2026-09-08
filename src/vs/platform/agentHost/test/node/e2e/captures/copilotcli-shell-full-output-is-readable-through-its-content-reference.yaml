@@ -1,0 +1,47 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Run exactly `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\n' + 'x'.repeat(131072) + '\nFULL_OUTPUT_MIDDLE\n' + 'y'.repeat(131072) + '\nFULL_OUTPUT_END\n')"` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node -e "process.stdout.write('FULL_OUTPUT_BEGIN\n' + 'x'.repeat(131072) + '\nFULL_OUTPUT_MIDDLE\n' + 'y'.repeat(131072) + '\nFULL_OUTPUT_END\n')"
+            description: Print large output with markers
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Run exactly `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\n' + 'x'.repeat(131072) + '\nFULL_OUTPUT_MIDDLE\n' + 'y'.repeat(131072) + '\nFULL_OUTPUT_END\n')"` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: node -e "process.stdout.write('FULL_OUTPUT_BEGIN\n' + 'x'.repeat(131072) + '\nFULL_OUTPUT_MIDDLE\n' + 'y'.repeat(131072) + '\nFULL_OUTPUT_END\n')"
+                description: Print large output with markers
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Output too large to read at once (256.1 KB). Saved to: ${tool_output_0}
+                Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
+
+                Preview (first 500 chars):
+                FULL_OUTPUT_BEGIN
+                xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: done
+      stopReason: end_turn

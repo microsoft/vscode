@@ -19,7 +19,7 @@ import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirm
 import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
-import { getMediaMime } from '../../../../base/common/mime.js';
+import { getMediaMime, Mimes } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
@@ -117,6 +117,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					exitCode: sdkContent.exitCode,
 					...(typeof sdkContent.outputPreview === 'string' ? { preview: sdkContent.outputPreview } : {}),
 					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
+					...(sdkContent.outputFilePath ? { fullOutput: { uri: URI.file(sdkContent.outputFilePath).toString(), contentType: Mimes.text } } : {}),
 				};
 				shellExit = { shellId: sdkContent.shellId, result };
 				const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
