@@ -16,6 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { isWorktreeUnderRepository } from '../../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -204,6 +205,24 @@ suite('WorktreeIsolation', () => {
 
 		// No home directory supplied (e.g. the browser trust gate): unchanged sibling behavior.
 		assert.strictEqual(getWorktreesRoot(home).fsPath, URI.file('/home/alice.worktrees').fsPath);
+	});
+
+	test('isWorktreeUnderRepository recognizes the .git-nested container without knowing the home directory', () => {
+		// The browser workspace-trust gate calls isWorktreeUnderRepository(candidate, repositoryRoot)
+		// with no home-directory argument (it has no such concept). A worktree actually created
+		// under the .git-nested container (because repositoryRoot was the home directory) must
+		// still pass this check, or workspace trust throws and worktree creation fails outright.
+		const home = URI.file('/home/alice');
+		const nestedWorktree = URI.joinPath(getWorktreesRoot(home, home), 'my-branch');
+		assert.strictEqual(isWorktreeUnderRepository(nestedWorktree, home), true);
+
+		// The container itself is still excluded, same as the sibling container always was.
+		assert.strictEqual(isWorktreeUnderRepository(getWorktreesRoot(home, home), home), false);
+
+		// Ordinary (non-home) repositories are unaffected.
+		const repo = URI.file('/src/vscode');
+		assert.strictEqual(isWorktreeUnderRepository(URI.joinPath(getWorktreesRoot(repo), 'my-branch'), repo), true);
+		assert.strictEqual(isWorktreeUnderRepository(URI.file('/etc/passwd'), repo), false);
 	});
 
 	test('getWorktreesRoot detects the home directory case-insensitively on Windows/macOS', () => {

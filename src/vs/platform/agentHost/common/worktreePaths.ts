@@ -42,18 +42,25 @@ export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI 
 
 /**
  * Whether `candidate` is an individual VS Code-created worktree of
- * `repositoryRoot` — a **strict descendant** of {@link getWorktreesRoot}, never
- * the shared `<repo>.worktrees` container itself.
+ * `repositoryRoot` — a **strict descendant** of one of the two possible
+ * {@link getWorktreesRoot} containers, never a container itself.
  *
- * The browser workspace-trust gates use this to decide whether a working
- * directory may inherit trust from its (trusted) base repository. The container
- * must be excluded: trusting `<repo>.worktrees` would, via workspace trust's
- * equal-or-descendant resolution, silently trust every current and future
- * worktree under it. Paths are normalized first so an equivalent spelling of the
- * container (e.g. a trailing `.`) cannot slip past the strict-descendant check.
+ * The browser workspace-trust gates (which have no notion of the user's home
+ * directory, see {@link getWorktreesRoot}) use this to decide whether a working
+ * directory may inherit trust from its (trusted) base repository, so both the
+ * sibling container and the `.git`-nested one used when `repositoryRoot` is the
+ * home directory are checked: passing `repositoryRoot` as its own `homeDirectory`
+ * deterministically reproduces the latter without actually needing to know the
+ * real home directory here. Each container itself must be excluded: trusting a
+ * container would, via workspace trust's equal-or-descendant resolution, silently
+ * trust every current and future worktree under it. Paths are normalized first
+ * so an equivalent spelling of a container (e.g. a trailing `.`) cannot slip past
+ * the strict-descendant check.
  */
 export function isWorktreeUnderRepository(candidate: URI, repositoryRoot: URI): boolean {
-	const worktreesRoot = normalizePath(getWorktreesRoot(repositoryRoot));
 	const normalizedCandidate = normalizePath(candidate);
-	return isEqualOrParent(normalizedCandidate, worktreesRoot) && !isEqual(normalizedCandidate, worktreesRoot);
+	return [getWorktreesRoot(repositoryRoot), getWorktreesRoot(repositoryRoot, repositoryRoot)].some(container => {
+		const worktreesRoot = normalizePath(container);
+		return isEqualOrParent(normalizedCandidate, worktreesRoot) && !isEqual(normalizedCandidate, worktreesRoot);
+	});
 }
