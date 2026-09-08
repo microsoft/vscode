@@ -8,9 +8,21 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+
+function getArtifactLinkKey(link: URI): string {
+	return link.toString().replace(/\/+$/, '').toLowerCase();
+}
+
+function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
+	const state = pullRequest.liveState ?? pullRequest.state;
+	if (state !== 'open') {
+		return state;
+	}
+	return pullRequest.liveState !== undefined && getPullRequestStatusFromIcon(pullRequest.icon) === 'draft' ? 'draft' : state;
+}
 
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
@@ -157,6 +169,16 @@ interface IStoredSessionStats {
 	// the fields existed still load; `buildSummary` defaults them.
 	pullRequestCount?: number;
 	pullRequestStatus?: PullRequestStatus;
+	// Artifact and reference counts are optional so rows persisted before these
+	// fields existed still load; `buildSummary` defaults them.
+	pullRequestArtifactMergedCount?: number;
+	pullRequestArtifactOpenCount?: number;
+	pullRequestArtifactDraftCount?: number;
+	pullRequestArtifactClosedCount?: number;
+	issueArtifactCount?: number;
+	otherArtifactCount?: number;
+	artifactCount?: number;
+	referenceCount?: number;
 }
 
 /**
@@ -213,6 +235,14 @@ export interface ISessionLifecycleSummary {
 	linesDeleted: number;
 	pullRequestCount: number;
 	pullRequestStatus: PullRequestStatus | undefined;
+	pullRequestArtifactMergedCount: number;
+	pullRequestArtifactOpenCount: number;
+	pullRequestArtifactDraftCount: number;
+	pullRequestArtifactClosedCount: number;
+	issueArtifactCount: number;
+	otherArtifactCount: number;
+	artifactCount: number;
+	referenceCount: number;
 	userSessionsTotal: number;
 	userSessionsInWorkspace: number;
 	userSessionsForProvider: number;
@@ -461,6 +491,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		entry.isExternal = session.isExternal?.get() ?? entry.isExternal ?? false;
 		this._updateWorkspaceTopology(entry, session);
 		this._updatePullRequestState(entry, session);
+		this._updateArtifactCounts(entry, session);
 		this._updateChangesSummary(entry, session);
 	}
 
@@ -493,6 +524,74 @@ export class SessionsLifecycleTracker extends Disposable {
 		const pullRequests = gitHubInfo.pullRequests;
 		entry.pullRequestCount = pullRequests?.length ?? (gitHubInfo.pullRequest ? 1 : 0);
 		entry.pullRequestStatus = getPullRequestStatusFromIcon(gitHubInfo.pullRequest?.icon ?? pullRequests?.[0]?.icon);
+	}
+
+	private _updateArtifactCounts(entry: IStoredSessionStats, session: ISession): void {
+		const artifacts = session.recordedArtifacts?.get() ?? session.artifacts?.get();
+		if (!artifacts) {
+			return;
+		}
+
+		const pullRequestStatuses = new Map<string, PullRequestStatus>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
+				const status = getResolvedPullRequestStatus(pullRequest);
+				if (status) {
+					pullRequestStatuses.set(getArtifactLinkKey(pullRequest.uri), status);
+				}
+			}
+		}
+
+		let pullRequestArtifactMergedCount = 0;
+		let pullRequestArtifactOpenCount = 0;
+		let pullRequestArtifactDraftCount = 0;
+		let pullRequestArtifactClosedCount = 0;
+		let issueArtifactCount = 0;
+		let otherArtifactCount = 0;
+		let artifactCount = 0;
+		let referenceCount = 0;
+
+		for (const artifact of artifacts) {
+			if (!artifact.isArtifact) {
+				referenceCount++;
+				continue;
+			}
+
+			artifactCount++;
+			if (artifact.kind === SessionArtifactKind.Issue) {
+				issueArtifactCount++;
+				continue;
+			}
+			if (artifact.kind !== SessionArtifactKind.PullRequest) {
+				otherArtifactCount++;
+				continue;
+			}
+
+			const status = artifact.link ? pullRequestStatuses.get(getArtifactLinkKey(artifact.link)) : undefined;
+			switch (status) {
+				case 'merged':
+					pullRequestArtifactMergedCount++;
+					break;
+				case 'open':
+					pullRequestArtifactOpenCount++;
+					break;
+				case 'draft':
+					pullRequestArtifactDraftCount++;
+					break;
+				case 'closed':
+					pullRequestArtifactClosedCount++;
+					break;
+			}
+		}
+
+		entry.pullRequestArtifactMergedCount = pullRequestArtifactMergedCount;
+		entry.pullRequestArtifactOpenCount = pullRequestArtifactOpenCount;
+		entry.pullRequestArtifactDraftCount = pullRequestArtifactDraftCount;
+		entry.pullRequestArtifactClosedCount = pullRequestArtifactClosedCount;
+		entry.issueArtifactCount = issueArtifactCount;
+		entry.otherArtifactCount = otherArtifactCount;
+		entry.artifactCount = artifactCount;
+		entry.referenceCount = referenceCount;
 	}
 
 	private _updateChangesSummary(entry: IStoredSessionStats, session: ISession): void {
@@ -628,6 +727,14 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		linesDeleted: 0,
 		pullRequestCount: 0,
 		pullRequestStatus: undefined,
+		pullRequestArtifactMergedCount: 0,
+		pullRequestArtifactOpenCount: 0,
+		pullRequestArtifactDraftCount: 0,
+		pullRequestArtifactClosedCount: 0,
+		issueArtifactCount: 0,
+		otherArtifactCount: 0,
+		artifactCount: 0,
+		referenceCount: 0,
 	};
 }
 
@@ -683,6 +790,14 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		linesDeleted: entry.linesDeleted,
 		pullRequestCount: entry.pullRequestCount ?? 0,
 		pullRequestStatus: entry.pullRequestStatus,
+		pullRequestArtifactMergedCount: entry.pullRequestArtifactMergedCount ?? 0,
+		pullRequestArtifactOpenCount: entry.pullRequestArtifactOpenCount ?? 0,
+		pullRequestArtifactDraftCount: entry.pullRequestArtifactDraftCount ?? 0,
+		pullRequestArtifactClosedCount: entry.pullRequestArtifactClosedCount ?? 0,
+		issueArtifactCount: entry.issueArtifactCount ?? 0,
+		otherArtifactCount: entry.otherArtifactCount ?? 0,
+		artifactCount: entry.artifactCount ?? 0,
+		referenceCount: entry.referenceCount ?? 0,
 		userSessionsTotal: requestCounters.userSessionsTotal,
 		userSessionsInWorkspace: requestCounters.userSessionsInWorkspace,
 		userSessionsForProvider: requestCounters.userSessionsForProvider,
