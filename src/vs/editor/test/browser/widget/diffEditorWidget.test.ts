@@ -137,6 +137,21 @@ suite('DiffEditorWidget2', () => {
 			});
 		});
 
+		test('keeps both editors at their minimum width when the sash is dragged to a limit', () => {
+			const { edges, dragSashTo } = createSashLayout();
+			edges(1000, gutterWidth);
+			dragSashTo(20);
+			const atTheLeftLimit = edges(1000, gutterWidth);
+			dragSashTo(980);
+			assert.deepStrictEqual({
+				atTheLeftLimit,
+				atTheRightLimit: edges(1000, gutterWidth),
+			}, {
+				atTheLeftLimit: { original: 100, modified: 865, gutter: 35 },
+				atTheRightLimit: { original: 865, modified: 100, gutter: 35 },
+			});
+		});
+
 		test('keeps whole pixels when a dragged sash is resized to a fractional position', () => {
 			const { edges, dragSashTo } = createSashLayout();
 			edges(1000, gutterWidth);
