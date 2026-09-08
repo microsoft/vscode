@@ -31,7 +31,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with session \"agent-host-session://claude/${uuid_0}\", then reply exactly \"found\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-05T22:45:39.182Z","modifiedAt":"2026-08-05T22:45:38.161Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
+              content: '{"sessions":[{"session":"claude:/${uuid_0}","title":"Call list_sessions exactly once with session \"agent-host-session://claude/${uuid_0}\", then reply exactly \"found\".","status":"inProgress","workingDirectory":"file://${workdir}","unread":true,"createdAt":"2026-08-28T00:08:19.491Z","modifiedAt":"2026-08-28T00:08:15.225Z","changesets":[{"label":"All Changes","changeKind":"session","uriTemplate":"claude:/${uuid_0}/changeset/session","description":"Show all changes made in this session"},{"label":"This Turn","changeKind":"turn","uriTemplate":"claude:/${uuid_0}/changeset/turn/{turnId}","description":"Show changes made in this turn"}]}]}'
     response:
       content: found
       stopReason: end_turn

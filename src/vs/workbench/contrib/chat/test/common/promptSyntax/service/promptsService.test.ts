@@ -999,6 +999,52 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('does not cache partially completed canceled agent discovery', async () => {
+			const rootFolder = '/custom-agents-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+			const firstAgent = URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md');
+			const secondAgent = URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md');
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{ path: firstAgent.path, contents: ['---', 'description: First agent.', '---'] },
+				{ path: secondAgent.path, contents: ['---', 'description: Second agent.', '---'] },
+			]);
+
+			const firstReadCompleted = new DeferredPromise<void>();
+			const secondReadStarted = new DeferredPromise<void>();
+			const releaseSecondRead = new DeferredPromise<void>();
+			const readFile = fileService.readFile.bind(fileService);
+			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> => {
+				if (resource.toString() === firstAgent.toString()) {
+					const result = await readFile(resource, options, token);
+					firstReadCompleted.complete();
+					return result;
+				}
+				if (resource.toString() === secondAgent.toString()) {
+					secondReadStarted.complete();
+					await releaseSecondRead.p;
+				}
+				return readFile(resource, options, token);
+			});
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			const canceledDiscovery = service.getCustomAgents(cancellationTokenSource.token);
+			await Promise.all([firstReadCompleted.p, secondReadStarted.p]);
+			cancellationTokenSource.cancel();
+			await assert.rejects(canceledDiscovery, CancellationError);
+			releaseSecondRead.complete();
+			await timeout(0);
+			readFileStub.restore();
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			assert.deepStrictEqual(
+				agents.map(agent => agent.name).sort(),
+				['agent1', 'agent2'],
+			);
+		});
+
 
 		test('header with handOffs', async () => {
 			const rootFolderName = 'custom-agents-with-handoffs';
@@ -4803,7 +4849,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'my-plugin',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'deploy' }]),
@@ -4849,7 +4895,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'devtools',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ci' }]),
@@ -4902,7 +4948,7 @@ suite('PromptsService', () => {
 				format: PluginFormat.Copilot,
 				label: 'datadog',
 				enablement,
-				remove: () => { },
+				remove: async () => true,
 				hooks: observableValue('testPluginHooks', []),
 				commands: observableValue('testPluginCommands', []),
 				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
@@ -5138,7 +5184,7 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,
@@ -5411,7 +5457,7 @@ suite('PromptsService', () => {
 					format: PluginFormat.Copilot,
 					label: basename(URI.file(path)),
 					enablement,
-					remove: () => { },
+					remove: async () => true,
 					hooks,
 					commands,
 					skills,

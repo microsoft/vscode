@@ -14,7 +14,8 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { AbstractChatView, IChatViewOptions } from './chatView.js';
+import { IChat } from '../../services/sessions/common/session.js';
+import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -70,6 +71,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
+	private readonly _scopedInstantiationService: IInstantiationService;
 
 	/** Whether the hosted groups view currently shows a grid (more than one group). */
 	private _isGridLayout = false;
@@ -101,11 +103,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
 			[ISessionContext, new SessionContext(this._sessionObs)],
 		)));
-
 
 		// Expose the centered-content cap as a CSS variable so styles that need
 		// to align with the centered band (e.g. the chat-view progress bar) can
@@ -120,16 +121,16 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
-		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
+		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
 
-		this._groupsView = this._register(scopedInstantiationService.createInstance(ChatGroupsView));
+		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView));
 		this._contentContainer.appendChild(this._groupsView.element);
 
-		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._applyActiveSessionStyles();
@@ -174,19 +175,41 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._header.setSession(session);
-		if (session) {
-			this._standaloneView.clear();
-			this._contentContainer.replaceChildren(this._groupsView.element);
-			this._groupsView.setSession(session, options);
+		if (session && !session.isCreated.get()) {
+			this._groupsView.setSession(undefined, options);
+			let view = this._standaloneView.value;
+			if (!view || view.kind !== 'newSession') {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.value = view;
+			}
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+			this._openSessionDisposables.add(autorun(reader => {
+				if (session.isCreated.read(reader) && this._currentSession === session) {
+					this._showSessionGroups(session, options);
+				}
+			}));
+		} else if (session) {
+			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options);
+			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
 			this._standaloneView.value = view;
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
 		this._floatingToolbar.setSession(session);
+		this._layoutChildren();
+	}
+
+	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+		this._standaloneView.clear();
+		this._contentContainer.replaceChildren(this._groupsView.element);
+		this._groupsView.setSession(session, options);
 		this._layoutChildren();
 	}
 
@@ -262,9 +285,22 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._isVisible && this._header.startTitleEditing();
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
+	getFocusedChat(): IChat | undefined {
+		return this._groupsView.getFocusedChat();
+	}
+
+	getSession(): IActiveSession | undefined {
+		return this._currentSession;
+	}
+
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId) : this._groupsView.selectWorkspace(folderUri, providerId);
+		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
+	}
+
+	selectNoWorkspace(): void {
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
 	}
 
 	/** Opens the given chat in a group beside the active one ("open to the side"). */

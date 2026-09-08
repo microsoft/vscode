@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { URI as ProtocolURI } from './state/sessionState.js';
+import type { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IAgentHostChangesetSubscriptionService = createDecorator<IAgentHostChangesetSubscriptionService>('agentHostChangesetSubscriptionService');
@@ -14,6 +15,14 @@ export const IAgentHostChangesetSubscriptionService = createDecorator<IAgentHost
  */
 export interface IAgentHostChangesetSubscriptionService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires with the session URI whenever that session transitions between
+	 * having and not having changeset subscribers. Services that hold
+	 * per-session resources only while a client is watching (e.g. the pull
+	 * request status watcher) key off this rather than polling.
+	 */
+	readonly onDidChangeSessionSubscriptions: Event<ProtocolURI>;
 
 	/**
 	 * Returns the set of changeset URIs currently subscribed for `session`.

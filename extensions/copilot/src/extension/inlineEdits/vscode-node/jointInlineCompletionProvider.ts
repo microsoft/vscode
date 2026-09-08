@@ -52,6 +52,7 @@ import { captureExpectedAbortCommandId, captureExpectedConfirmCommandId, capture
 import { InlineEditLogger } from './parts/inlineEditLogger';
 import { VSCodeWorkspace } from './parts/vscodeWorkspace';
 import { makeSettable } from './utils/observablesUtils';
+import { observeUnifiedCompletions } from './unifiedCompletions';
 
 export class JointCompletionsProviderContribution extends Disposable implements IExtensionContribution {
 
@@ -66,7 +67,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 	// private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
 	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
-	private readonly _supportsUnifiedCompletions = observableFromEvent(this, this._modelService.onModelListUpdated, () => this._modelService.selectedModelConfiguration().supportsUnifiedCompletions ?? false);
+	private readonly _unifiedCompletions = observeUnifiedCompletions(this, this._configurationService, this._expService, this._modelService);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
 		const copilotToken = this._copilotToken.read(reader);
@@ -123,7 +124,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 				// A model whose strategy bakes in `supportsUnifiedCompletions` runs as the single unified
 				// provider: this stands in for the `modelUnification` deployment toggle so the behavior can
 				// be driven purely from the selected model's prompting strategy.
-				const modelUnification = this._supportsUnifiedCompletions.read(reader) || (unificationStateValue?.modelUnification ?? false);
+				const modelUnification = this._unifiedCompletions.read(reader);
 
 				const excludes = this._excludedProviders.read(reader).slice();
 

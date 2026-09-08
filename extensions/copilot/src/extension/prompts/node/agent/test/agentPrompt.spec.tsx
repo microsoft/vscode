@@ -18,6 +18,7 @@ import { createTextDocumentData } from '../../../../../util/common/test/shims/te
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import type { LanguageModelToolInformation } from 'vscode';
 import { ChatRequestEditedFileEventKind, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { addCacheBreakpoints } from '../../../../intents/node/cacheBreakpoints';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
@@ -383,5 +384,92 @@ testFamilies.forEach(family => {
 				],
 			}, undefined))).toMatchFileSnapshot(getSnapshotFile('edited_file_events_grouped_by_kind'));
 		});
+	});
+});
+
+suite('AgentPrompt - Gemini Flash prompt additions experiment', () => {
+	let accessor: ITestingServicesAccessor;
+
+	beforeAll(() => {
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[URI.file('/workspace')]]));
+		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
+		accessor = services.createTestingAccessor();
+	});
+
+	afterAll(() => {
+		accessor.dispose();
+	});
+
+	async function renderForFamily(family: string, includeToolSpecificTools = true): Promise<string> {
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, family);
+		const toolsService = accessor.get(IToolsService);
+		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
+		const conversation = new Conversation('sessionId', [turn]);
+		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
+		const syntheticTool = (name: ToolName): LanguageModelToolInformation => ({
+			name,
+			description: '',
+			inputSchema: undefined,
+			tags: [],
+			source: undefined,
+		});
+		const availableTools = includeToolSpecificTools
+			? [...toolsService.tools, syntheticTool(ToolName.CoreRunInTerminal), syntheticTool(ToolName.FindTextInFiles)]
+			: toolsService.tools.filter(t => t.name !== ToolName.CoreRunInTerminal && t.name !== ToolName.FindTextInFiles);
+		const props: AgentPromptProps = {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				},
+			},
+			customizations,
+		};
+		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
+		const r = await renderer.render();
+		return r.messages.map(m => messageToMarkdown(m)).join('\n\n');
+	}
+
+	function assertAdditions(rendered: string, expected: { readAst: boolean; toolBatching: boolean; searchPrecision: boolean }) {
+		expect({
+			readAst: rendered.includes('Read ast/definitions first'),
+			toolBatching: rendered.includes('**Tool Batching**'),
+			searchPrecision: rendered.includes('**Search Precision**'),
+		}).toEqual(expected);
+	}
+
+	test('additions appear for Gemini Flash 3.6 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('additions appear for Gemini Flash 3.7 when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.7-flash'), { readAst: true, toolBatching: true, searchPrecision: true });
+	});
+
+	test('tool-specific additions are gated on tool availability', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-3.6-flash', /* includeToolSpecificTools */ false), { readAst: true, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for Gemini Flash 3.6 when experiment is disabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, false);
+		assertAdditions(await renderForFamily('gemini-3.6-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
+	});
+
+	test('additions are omitted for other Gemini families even when experiment is enabled', async () => {
+		accessor.get(IConfigurationService).setConfig(ConfigKey.EnableGeminiFlashPromptAdditions, true);
+		assertAdditions(await renderForFamily('gemini-2.0-flash'), { readAst: false, toolBatching: false, searchPrecision: false });
 	});
 });

@@ -310,11 +310,16 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
+			const { activity, ...changes } = notification.changes;
 			const updated: IAgentHostSessionListEntry = {
 				provider,
 				rawId,
 				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
-				summary: { ...cached.summary, ...notification.changes },
+				summary: {
+					...cached.summary,
+					...changes,
+					...(Object.prototype.hasOwnProperty.call(notification.changes, 'activity') ? { activity: activity ?? undefined } : {}),
+				},
 			};
 			if (!this._isSessionInWorkspace(updated)) {
 				this._mutationGeneration++;

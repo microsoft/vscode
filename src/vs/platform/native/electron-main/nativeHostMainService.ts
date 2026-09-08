@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -652,6 +652,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
+	}
+
+	async setApplicationBadge(windowId: number | undefined, badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.setApplicationBadge(badge);
 	}
 
 	async openExternal(windowId: number | undefined, url: string, defaultApplication?: string): Promise<boolean> {
@@ -1347,10 +1352,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Toast Notifications
 
 	private readonly activeToasts = this._register(new DisposableMap<string>());
+	private readonly activeToastDedupeKeys = new Map<string, string>();
 
 	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
 		if (!Notification.isSupported()) {
 			return { supported: false, clicked: false };
+		}
+		if (options.dedupeKey && this.activeToastDedupeKeys.has(options.dedupeKey)) {
+			return { supported: true, suppressed: true, clicked: false };
 		}
 
 		const toast = new Notification({
@@ -1365,11 +1374,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const disposables = new DisposableStore();
 		this.activeToasts.set(options.id, disposables);
+		if (options.dedupeKey) {
+			this.activeToastDedupeKeys.set(options.dedupeKey, options.id);
+		}
 
 		const cts = new CancellationTokenSource();
 
 		disposables.add(toDisposable(() => {
 			this.activeToasts.deleteAndDispose(options.id);
+			if (options.dedupeKey && this.activeToastDedupeKeys.get(options.dedupeKey) === options.id) {
+				this.activeToastDedupeKeys.delete(options.dedupeKey);
+			}
 			toast.removeAllListeners();
 			toast.close();
 			cts.dispose(true);

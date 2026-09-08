@@ -158,6 +158,8 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return toolSpecificData.operation === 'created'
 				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
 				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		case 'sessionCreated':
+			return toolSpecificData.fullTitle ?? toolSpecificData.label;
 		default:
 			return '';
 	}
@@ -377,6 +379,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'markdownContent': {
 				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
+			case 'systemNotification': {
+				const text = part.accessibilityLabel ?? renderChatMessageAsPlaintext(part.content);
 				if (text.trim()) {
 					contentParts.push({ partIndex, text });
 				}

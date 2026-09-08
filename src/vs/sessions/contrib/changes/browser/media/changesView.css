@@ -39,13 +39,6 @@
 	justify-content: center;
 	flex: 1;
 	padding: 32px;
-	text-align: center;
-	gap: 8px;
-}
-
-.changes-view-body .changes-welcome-message {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
 }
 
 /* Main container */
@@ -345,7 +338,10 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
 	gap: 2px;
 
-	.codicon {
+	/* The leading icon is exempt: it shares its box — margin included — with the
+	 * spinner that replaces it while the action runs, so the button bar owns its
+	 * spacing and the button keeps its width across the swap. */
+	.codicon:not(.monaco-button-leading-icon) {
 		margin: 0;
 	}
 }

@@ -13,7 +13,7 @@ import {
 	ISerializedBrowserFaviconsSnapshot,
 	ISerializedBrowserHistoryEntriesSnapshot,
 } from '../common/browserHistory.js';
-import { BrowserViewStorageScope, IBrowserViewStorageKeys } from '../common/browserView.js';
+import { IBrowserViewStorageKeys, isInMemoryStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
 const FLUSH_INTERVAL_MS = 2000;
@@ -54,7 +54,7 @@ export class BrowserSessionHistory extends Disposable implements IBrowserSession
 	constructor(session: BrowserSession) {
 		super();
 
-		this.storageKeys = session.storageScope === BrowserViewStorageScope.Ephemeral
+		this.storageKeys = isInMemoryStorageScope(session.storageScope)
 			? {}
 			: {
 				history: `browser.history.entries.${session.id}`,
