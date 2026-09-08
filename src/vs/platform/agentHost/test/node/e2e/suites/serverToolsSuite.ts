@@ -389,7 +389,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			await driveServerTool(
 				session,
 				'turn-artifact-list-remove-add',
-				'Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".',
+				'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".',
 				ArtifactServerToolName.AddArtifactOrReference,
 			);
 			const [artifact] = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
