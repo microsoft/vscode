@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -773,6 +773,8 @@ interface ICredentialUpdateSession {
 }
 
 class MockCopilotSession {
+	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
+	setModelError: Error | undefined;
 	readonly workingDirectoryCalls: string[] = [];
 	readonly workingDirectoryErrors: Array<Error | undefined> = [];
 	readonly workingDirectoryResults: string[] = [];
@@ -839,7 +841,12 @@ class MockCopilotSession {
 
 	async send(): Promise<string> { return ''; }
 	async abort(): Promise<void> { }
-	async setModel(): Promise<void> { }
+	async setModel(...args: Parameters<CopilotSession['setModel']>): Promise<void> {
+		this.setModelCalls.push(args);
+		if (this.setModelError) {
+			throw this.setModelError;
+		}
+	}
 	async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> { return []; }
 	async disconnect(): Promise<void> { }
 }
@@ -6009,14 +6016,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables the rubber duck CLI feature by default', async () => {
+		test('enables Rubber Duck and disables Advisor by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
 
-				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], 'true');
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+				assert.deepStrictEqual({
+					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
+					advisor: env?.['ANTHROPIC_ADVISOR'],
+				}, {
+					rubberDuck: 'true',
+					advisor: 'false',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -10840,7 +10854,7 @@ suite('CopilotAgent', () => {
 			readonly remapCalls: ReadonlyMap<string, string>[];
 			readonly sends: { prompt: string; turnId: string | undefined; mode: unknown; senderClientId: string | undefined }[];
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
-			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined }[];
+			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined; autoTier?: string | null }[];
 			readonly agentCalls: (string | undefined)[];
 			aborted: number;
 			discardedTurns: number;
@@ -10881,7 +10895,9 @@ suite('CopilotAgent', () => {
 					rec.sends.push({ prompt, turnId, mode, senderClientId });
 				},
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
-				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
+				async setModel(id: string, reasoningEffort?: string, contextTier?: string, autoTier?: string | null): Promise<void> {
+					rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier, ...(autoTier !== undefined ? { autoTier } : {}) });
+				},
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				async abort(): Promise<void> { rec.aborted++; },
 				discardActiveTurn(): void { rec.discardedTurns++; },
@@ -11959,10 +11975,11 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('changeModel keeps the Auto routing profile the session launched with', async () => {
+		test('changeModel forwards and persists Auto routing preferences and resets', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const sdkSession = new MockCopilotSession();
+			client.createSession = async () => sdkSession as unknown as CopilotSession;
 			const { agent } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
@@ -11980,21 +11997,104 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
-				// The runtime fixed the profile at creation, so recording this change would leave a
-				// resumed session routing with 'intelligence' while its metadata claims 'efficiency'.
-				await agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'efficiency' } }, exactChatContext(result.session, chat, result.session));
+				const selections: ModelSelection[] = [
+					{ id: 'auto', config: { tier: 'efficiency' } },
+					{ id: 'auto', config: { tier: 'balance' } },
+					{ id: 'auto' },
+				];
+				const storedModels: (string | undefined)[] = [];
+				const database = disposables.add(sessionDataService.openDatabase(session));
+				for (const model of selections) {
+					await agent.chats.changeModel(chat, model, exactChatContext(result.session, chat, result.session));
+					storedModels.push(await database.object.getMetadata('copilot.model'));
+				}
 
-				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
-				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto', config: { tier: 'intelligence' } });
+				sdkSession.setModelError = new Error('Auto preference rejected');
+				await assert.rejects(
+					agent.chats.changeModel(chat, { id: 'auto', config: { tier: 'intelligence' } }, exactChatContext(result.session, chat, result.session)),
+					/Auto preference rejected/,
+				);
+
+				assert.deepStrictEqual({
+					modelCalls: sdkSession.setModelCalls,
+					storedModels,
+					storedAfterRejection: await database.object.getMetadata('copilot.model'),
+				}, {
+					modelCalls: [
+						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'efficiency' }],
+						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'balance' }],
+						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: null }],
+						['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: 'intelligence' }],
+					],
+					storedModels: selections.map(model => JSON.stringify(model)),
+					storedAfterRejection: JSON.stringify({ id: 'auto' }),
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('drops a provisional Auto routing profile when the gate turns off before the first send', async () => {
+		test('changeModel applies Auto preferences, overrides, and resets only to the targeted chat', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				rootConfig: { [CopilotCliConfigKey.AutoModeTiers]: true },
+			});
+			try {
+				const session = AgentSession.uri('copilotcli', 'auto-tier-peer');
+				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
+				const chatB = URI.parse(buildChatUri(session, 'peer-b'));
+				const a = makeFakeChatSession(session, 'sdk-a');
+				const b = makeFakeChatSession(session, 'sdk-b');
+				setPeerChatStub(agent, chatA, a.fake);
+				setPeerChatStub(agent, chatB, b.fake);
+				const changes: string[] = [];
+				disposables.add(agent.onDidChangeChatData(e => changes.push(e.providerData)));
+				const selections: ModelSelection[] = [
+					{ id: 'auto', config: { tier: 'intelligence' } },
+					{ id: 'auto', config: { tier: 'efficiency' } },
+					{ id: 'auto' },
+					{ id: 'gpt-5', config: { tier: 'balance' } },
+					{ id: 'auto' },
+				];
+
+				await agent.chats.changeModel(chatA, selections[0], exactChatContext(session, chatA));
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false, [CopilotCliConfigKey.AutoModeTierOverride]: 'balance' });
+				await agent.chats.changeModel(chatA, selections[1], exactChatContext(session, chatA));
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTierOverride]: '' });
+				await agent.chats.changeModel(chatA, selections[2], exactChatContext(session, chatA));
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: true });
+				await agent.chats.changeModel(chatA, selections[3], exactChatContext(session, chatA));
+				await agent.chats.changeModel(chatA, selections[4], exactChatContext(session, chatA));
+
+				assert.deepStrictEqual({
+					aModels: a.rec.modelCalls,
+					bModels: b.rec.modelCalls,
+					changes,
+					persisted: chatBackings(agent).get(chatA.toString())?.model,
+				}, {
+					aModels: [
+						{ id: 'auto', effort: undefined, tier: undefined, autoTier: 'intelligence' },
+						{ id: 'auto', effort: undefined, tier: undefined, autoTier: 'balance' },
+						{ id: 'auto', effort: undefined, tier: undefined, autoTier: null },
+						{ id: 'gpt-5', effort: undefined, tier: undefined },
+						{ id: 'auto', effort: undefined, tier: undefined, autoTier: null },
+					],
+					bModels: [],
+					changes: selections.map(model => JSON.stringify({ sdkSessionId: 'sdk-a', model })),
+					persisted: { id: 'auto' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not apply a provisional Auto routing preference when the gate turns off before the first send', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const capiCalls: SessionConfig['capi'][] = [];
+			client.createSession = async config => {
+				capiCalls.push(config.capi);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
@@ -12011,13 +12111,14 @@ suite('CopilotAgent', () => {
 					model: { id: 'auto', config: { tier: 'intelligence' } },
 				});
 
-				// Still provisional, so the launcher has not run. With the gate off it omits
-				// `capi.autoTier`, so persisting the selection would claim a profile never sent.
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.AutoModeTiers]: false });
 				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 
 				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
-				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'auto' });
+				assert.deepStrictEqual({ model: JSON.parse(stored ?? 'null'), capiCalls }, {
+					model: { id: 'auto', config: { tier: 'intelligence' } },
+					capiCalls: [undefined],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

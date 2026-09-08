@@ -46,7 +46,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -3940,13 +3940,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
-			// Resolve the profile once and freeze it on the plan. The gate can flip while the session
-			// is provisional, or during the async launch below.
-			const autoTier = resolveCopilotAutoTier(provisional.model, this._configurationService, this._logService, sdkSessionId);
-			const model = provisional.model
-				? this._withEffectiveAutoTier(provisional.model, autoTier, sdkSessionId, 'Auto routing profiles are unavailable')
-				: undefined;
-			provisional.model = model;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -3964,7 +3957,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
-				autoTier,
 				workspaceless: provisional.workspaceless,
 			};
 			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
@@ -4464,8 +4456,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let launchPlan: CopilotSessionLaunchPlan;
 			let sdkSessionId: string;
 			let inheritedTurnId: string | undefined;
-			// Frozen before the async launch so the profile sent matches the one persisted below.
-			const forkAutoTier = resolveCopilotAutoTier(model, this._configurationService, this._logService, chatSdkId);
 			let sourceEntry: CopilotAgentSession | undefined;
 			if (fork) {
 				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
@@ -4486,7 +4476,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id), autoTier: forkAutoTier },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -4504,7 +4494,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
-					autoTier: forkAutoTier,
 				};
 			}
 
@@ -4946,7 +4935,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id), autoTier: resolveCopilotAutoTier(info.model, this._configurationService, this._logService, context.sdkSessionId ?? context.configurationId) },
+					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				const initializingSession = agentSession;
@@ -5043,58 +5032,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
-			// The selection to record, which can differ from the request: the runtime fixes a
-			// materialized session's routing profile.
-			let recorded = model;
 			if (provisional) {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
-				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
-				if (entry) {
-					recorded = this._pinLaunchAutoTier(model, entry, current.configurationId);
-				}
+				// Clear stale SDK preferences when the picker is disabled or an override is removed.
+				const autoTier = isAutoModel(model.id)
+					? resolveCopilotAutoTier(model, this._configurationService, this._logService, current.configurationId) ?? null
+					: undefined;
+				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext), autoTier);
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.configurationResource.toString()) {
-					await this._storeSessionMetadata(current.resource, recorded, undefined, undefined, undefined, undefined);
+					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
 				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {
-				const updated: IPersistedChat = { ...backing, model: recorded };
+				const updated: IPersistedChat = { ...backing, model };
 				this._chatBackings.set(current.chatKey, updated);
 				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 		});
-	}
-
-	/**
-	 * Rewrites a model selection so its Auto routing profile matches the one the runtime is actually
-	 * using. Recording anything else would leave the picker and resume metadata out of step.
-	 */
-	private _withEffectiveAutoTier(model: ModelSelection, effective: AutoModeTier | undefined, sessionId: string, reason: string): ModelSelection {
-		// Only the Auto model routes per turn, so any other selection carries no profile to correct.
-		if (!isAutoModel(model.id)) {
-			return model;
-		}
-		const requested = model.config?.[AutoTierConfigKey];
-		if (requested === effective) {
-			return model;
-		}
-		this._logService.info(`[Copilot:${sessionId}] ${reason}; recording '${effective ?? 'the service default'}' instead of '${requested}'`);
-		const config = { ...model.config };
-		if (effective === undefined) {
-			delete config[AutoTierConfigKey];
-		} else {
-			config[AutoTierConfigKey] = effective;
-		}
-		return Object.keys(config).length > 0 ? { ...model, config } : { id: model.id };
-	}
-
-	/** The selection to record for a session that launched with `session`'s fixed routing profile. */
-	private _pinLaunchAutoTier(model: ModelSelection, session: CopilotAgentSession, sessionId: string): ModelSelection {
-		return this._withEffectiveAutoTier(model, session.launchAutoTier, sessionId, 'Auto routing profile is fixed for this session');
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -5538,7 +5497,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
 				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
-				autoTier: resolveCopilotAutoTier(storedMetadata.model, this._configurationService, this._logService, sessionId),
 			},
 		};
 
