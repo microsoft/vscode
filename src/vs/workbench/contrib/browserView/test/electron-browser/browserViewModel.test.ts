@@ -45,6 +45,7 @@ suite('BrowserViewModel', () => {
 			destroyBrowserView: async () => { },
 		});
 		const browserViewWorkbenchService = upcastPartial<IBrowserViewWorkbenchService>({
+			isSharingAvailable: true,
 			onDidChangeSharingAvailable: Event.None,
 		});
 		let infoCalls = 0;
@@ -111,7 +112,7 @@ suite('BrowserViewModel', () => {
 			results,
 			infoCalls,
 		}, {
-			results: urls.map(() => false),
+			results: urls.map(() => undefined),
 			infoCalls: urls.length,
 		});
 	});
