@@ -36,6 +36,12 @@
 #### chat/aiCustomizations/aiCustomizationManagementEditor/HooksEmptyWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5b8ca93b243eeef6a6a74eb1481c879dde79e372bcf18b654b16d3e08f785751)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/McpMigration/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/282c31651cacb49dde60c5e6565ae593a53f84a331bbeceb4299e8cc929c55ba)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/McpMigration/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9dabe0d32b05a7361893edc57abb70de2d56b988987a79f5fc967bc0196a80dc)
+
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServerDetailNarrow/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fcf65cf63da613b5e1057641c6a837279409733028d4c994890f7b1d8c514ca5)
 
@@ -410,3 +416,21 @@
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6a869c24b606e74a74331f03f693b8459e7ab2a92f77269b4b2ca49b880a4ffa)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f8767471201b45f1193d7df64a848809e6e7557a4973896a9722f78e17e40610)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/50440b966cd7c6cf462f584c7048f5a669b292463ae8914657281b048c1a6806)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1378229a45238eac02e9b4d12d2a37da63d58e9e81612a7a0c09da7bc5a11242)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c3cc700411e3faa1c62693702347277e25f5ce218bcaff3c8382978e4ebed96c)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d17288e25fd966b8dc7fe9300c1adcfe5c77b5b700ff6ffb4eea37e6d1a773ae)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2786fba1b7f0b41a26e238ea678ef381bd004d977f16abcb600239e142d1488e)

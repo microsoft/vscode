@@ -4388,6 +4388,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.monaco-toolbar .action-label.chat-fork-action-label {
 			padding: 0 var(--vscode-spacing-size60);
+
+			.chat-fork-action-icon {
+				justify-content: center;
+			}
 		}
 
 		.monaco-toolbar .actions-container > .action-item:last-child .action-label {
