@@ -764,7 +764,7 @@ suite('Sessions - Chat View', () => {
 			newChatBackgroundColor: 'rgba(0, 0, 0, 0)',
 			newChatPadding: '0px',
 			bottomActionBackgroundColor: 'rgb(255, 255, 255)',
-			bottomActionBorderColor: 'rgb(96, 96, 96)',
+			bottomActionBorderColor: 'rgb(128, 128, 128)',
 			bottomActionBorderStyle: 'solid',
 			bottomActionBorderRadius: '4px',
 			workspacePillBackgroundColor: 'rgb(255, 255, 255)',
