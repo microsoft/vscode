@@ -125,6 +125,55 @@ suite('AutomationInputCompletions', () => {
 		});
 	});
 
+	test('retriggers suggestions when deleting back to a trigger character', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const model = store.add(createTextModel('/review', null, undefined, URI.parse('vscode-chat-input:automation')));
+		const onDidChangeModelContent = store.add(new Emitter<IModelContentChangedEvent>());
+		const editor = upcastPartial<ICodeEditor>({
+			getModel: () => model,
+			getPosition: () => model.getPositionAt(model.getValueLength()),
+			onDidChangeModelContent: onDidChangeModelContent.event,
+			setDecorationsByType: () => [],
+		});
+		const codeEditorService = upcastPartial<ICodeEditorService>({
+			registerDecorationType: () => ({ dispose() { } }),
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'automation',
+			resource: URI.parse('agent-host-copilot:automation'),
+		});
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(session),
+		});
+		class TestAutomationInputCompletions extends AutomationInputCompletions {
+			triggerCount = 0;
+
+			protected override triggerSuggest(): void {
+				this.triggerCount++;
+			}
+		}
+		const completions = store.add(new TestAutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService, new NullLogService()));
+		await timeout(0);
+
+		model.setValue('/r');
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({
+			changes: [{ range: new Range(1, 3, 1, 8), rangeOffset: 2, rangeLength: 5, text: '' }],
+		}));
+		await timeout(0);
+		const afterPartialDeletion = completions.triggerCount;
+
+		model.setValue('/');
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({
+			changes: [{ range: new Range(1, 2, 1, 3), rangeOffset: 1, rangeLength: 1, text: '' }],
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterPartialDeletion, afterBareTriggerDeletion: completions.triggerCount }, {
+			afterPartialDeletion: 0,
+			afterBareTriggerDeletion: 1,
+		});
+	});
+
 	test('restores persisted skill references and removes stale decorations after edits', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const model = store.add(createTextModel(
@@ -164,12 +213,12 @@ suite('AutomationInputCompletions', () => {
 		await timeout(0);
 		model.setValue('/reviewx then /plan and /runtime-skill plus /unknown');
 		decorationRanges.set('decoration-1', new Range(1, 25, 1, 39));
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({ changes: [] }));
 		await timeout(250);
 		const afterRightEdgeEdit = decorations;
 		model.setValue('/reviewx then /plan and x/runtime-skill plus /unknown');
 		decorationRanges.set('decoration-0', new Range(1, 26, 1, 40));
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({ changes: [] }));
 		await timeout(250);
 
 		assert.deepStrictEqual({ afterRightEdgeEdit, afterLeftEdgeEdit: decorations }, {
