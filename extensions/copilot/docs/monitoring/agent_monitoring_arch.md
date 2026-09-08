@@ -168,6 +168,10 @@ Key methods:
 
 Selection happens in `src/extension/extension/vscode-node/services.ts`: exactly one of `NodeOTelService` or `InMemoryOTelService` is bound to `IOTelService` per extension host based on `resolveOTelConfig().enabled`.
 
+### File Exporter Serialization
+
+The file exporters write one JSON object per line. SDK `ReadableSpan` implementations contain circular internal span-processor state, so `FileSpanExporter` snapshots the public span fields instead of serializing the SDK object directly. Span and link contexts are expanded into plain data, including serialized trace state. If any signal cannot be serialized, the exporter reports a failed export and does not write a placeholder record.
+
 ### Two TracerProviders in Same Process
 
 When the CLI SDK is active with OTel enabled:
