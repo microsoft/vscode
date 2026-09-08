@@ -244,7 +244,8 @@ Treat a session as the user-visible unit of work. `create_session` requires a
 relationship: `currentSession` creates a peer chat for tasks in the current plan
 or deliverable, sharing its workspace, lifecycle, and aggregate diff;
 `independent` creates a top-level session for a separate deliverable that needs
-its own workspace, provider, or lifecycle. A title is required for both
+its own workspace, provider, or lifecycle, or for an explicitly requested
+worktree. A title is required for both
 relationships and is applied before the initial prompt starts.
 
 Sessions created by the `create_session` server tool record only the creating
@@ -261,9 +262,15 @@ configured project root over a transient worktree. Ambiguous names require an
 explicit project URI.
 
 An independent session inherits the creating session's host-owned isolation
-selection independently of provider-owned configuration. The target workspace
-still constrains the effective selection, so a folder that cannot support Git
-worktrees resolves to folder isolation.
+selection independently of provider-owned configuration;
+otherwise it uses worktree isolation. The optional `worktree` argument overrides
+that selection. Agents must set it only when the user explicitly asks to create a
+worktree (`true`) or work without one (`false`); otherwise they must omit it.
+With `false`, a supplied worktree folder resolves to its known project root
+before session creation; folders without a known project are used directly.
+The option is invalid with `currentSession`, whose chats share the existing
+workspace. The target workspace still constrains the effective selection, so a
+folder that cannot support Git worktrees resolves to folder isolation.
 
 ---
 
