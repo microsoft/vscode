@@ -11,6 +11,100 @@
 	overflow: hidden;
 }
 
+.connectors-list-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+.connectors-list-widget .list-search-and-button-container {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.connectors-list-widget .list-search-container {
+	flex: 1;
+	min-width: 0;
+}
+
+.connectors-list-widget .list-search-container .monaco-inputbox {
+	width: 100%;
+}
+
+.connectors-list-container {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.connectors-state {
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	text-align: center;
+}
+
+.connector-list-item {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.connector-section-header {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+}
+
+.connector-list-item-details {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.connector-list-item-trailing {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.connector-list-item-action {
+	opacity: 0;
+}
+
+.connector-list-item:hover .connector-list-item-action,
+.connector-list-item:focus-within .connector-list-item-action,
+.monaco-list-row.focused .connector-list-item-action {
+	opacity: 1;
+}
+
+.connector-list-item-action .monaco-button {
+	width: auto;
+}
+
+.connectors-list-widget.narrow-layout .connector-list-item {
+	padding-inline: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.connectors-list-widget.narrow-layout .connector-list-item-trailing {
+	align-items: flex-end;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
 .plugin-list-widget .plugin-card-section-count {
 	min-width: var(--vscode-spacing-size160);
 	padding: 0 var(--vscode-spacing-size40);
@@ -254,6 +348,8 @@
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
 .plugin-list-widget > .mcp-list-container,
+.connectors-list-widget > .connectors-list-container,
+.connectors-list-widget > .connectors-state,
 .tools-list-widget > .section-title-header,
 .tools-list-widget > .tools-list-search-and-button-container {
 	width: min(100%, 840px);
@@ -803,6 +899,14 @@ per-word capitalization does not survive translation. */
 	min-height: 38px;
 }
 
+.connectors-list-widget .section-title-header .section-title-description {
+	min-height: 0;
+}
+
+.connectors-list-widget .list-search-and-button-container {
+	padding-top: 0;
+}
+
 .ai-customization-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .ai-customization-management-editor .customization-migration-banner .section-title-link,
@@ -944,6 +1048,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
+.ai-customization-management-editor .connectors-content-container,
 .ai-customization-management-editor .models-content-container,
 .ai-customization-management-editor .tools-content-container {
 	height: 100%;
@@ -1622,6 +1727,7 @@ per-word capitalization does not survive translation. */
 
 /* Embedded plugin detail view */
 .ai-customization-management-editor .plugin-detail-container,
+.ai-customization-management-editor .connector-detail-container,
 .ai-customization-management-editor .tools-detail-container {
 	position: relative;
 	height: 100%;
@@ -1639,18 +1745,21 @@ per-word capitalization does not survive translation. */
 /* Inline back button with the embedded detail header */
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail {
 	padding: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-header {
 	align-items: center;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
@@ -1658,6 +1767,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container,
+.ai-customization-management-editor .connector-detail-editor-container,
 .ai-customization-management-editor .tools-detail-editor-container {
 	flex: 1;
 	overflow: auto;
@@ -1788,38 +1898,38 @@ per-word capitalization does not survive translation. */
 	outline: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-header {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-header {
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
 	row-gap: var(--vscode-spacing-size80);
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot {
 	grid-column: 1;
 	grid-row: 1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty {
 	display: none;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-header-text {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-header-text {
 	grid-column: 2;
 	grid-row: 1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty + .embedded-detail-header-text {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty + .embedded-detail-header-text {
 	grid-column: 1 / -1;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-title-actions {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-title-actions {
 	grid-column: 2;
 	grid-row: 2;
 	justify-content: flex-start;
 	margin-left: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail.narrow-layout .embedded-detail-leading-slot:empty ~ .embedded-detail-title-actions {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-connector-detail).narrow-layout .embedded-detail-leading-slot:empty ~ .embedded-detail-title-actions {
 	grid-column: 1 / -1;
 }
 
@@ -1887,19 +1997,37 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-description,
+.ai-customization-management-editor .ai-customization-embedded-detail.embedded-connector-detail .embedded-detail-description,
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-section {
 	padding-inline-start: 0;
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail.embedded-plugin-detail .embedded-detail-facts {
+.ai-customization-management-editor .ai-customization-embedded-detail.embedded-connector-detail .embedded-detail-section {
+	padding-inline-start: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail:is(.embedded-plugin-detail, .embedded-connector-detail) .embedded-detail-facts {
 	padding-inline-start: 0;
 	margin-bottom: 0;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts {
+.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts,
+.ai-customization-management-editor .embedded-connector-detail .connector-detail-facts {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .embedded-connector-detail .embedded-detail-status-badge.running {
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
+}
+
+.ai-customization-management-editor .embedded-connector-detail .embedded-detail-status-badge.starting {
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 18%, transparent);
+}
+
+.ai-customization-management-editor .embedded-connector-detail .embedded-detail-status-badge.error {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground) 18%, transparent);
 }
 
 .ai-customization-management-editor .embedded-plugin-detail .plugin-detail-readme-message {
@@ -1948,6 +2076,13 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.ai-customization-management-editor .embedded-connector-detail .embedded-detail-fact-value {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-value.has-actions {
@@ -2125,6 +2260,13 @@ per-word capitalization does not survive translation. */
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.ai-customization-management-editor .embedded-connector-detail .plugin-detail-contribution-description {
+	overflow: visible;
+	overflow-wrap: anywhere;
+	text-overflow: clip;
+	white-space: normal;
 }
 
 .vscode-high-contrast .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-flat-list {

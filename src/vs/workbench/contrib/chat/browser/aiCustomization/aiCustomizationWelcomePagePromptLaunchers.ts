@@ -85,16 +85,22 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			promptType: PromptsType.hook,
 		},
 		{
-			id: AICustomizationManagementSection.McpServers,
-			label: localize('mcpServers', "MCP Servers"),
-			icon: Codicon.server,
-			description: localize('mcpServersDesc', "Connect agents to external tools and data through MCP servers. Manage the servers available to your agent."),
-		},
-		{
 			id: AICustomizationManagementSection.Plugins,
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
+		},
+		{
+			id: AICustomizationManagementSection.Connectors,
+			label: localize('connectors', "Connectors"),
+			icon: Codicon.debugConnected,
+			description: localize('connectorsDesc', "Connect services to give agents secure access to your work and data."),
+		},
+		{
+			id: AICustomizationManagementSection.McpServers,
+			label: localize('mcpServers', "MCP Servers"),
+			icon: Codicon.server,
+			description: localize('mcpServersDesc', "Connect agents to external tools and data through MCP servers. Manage the servers available to your agent."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,

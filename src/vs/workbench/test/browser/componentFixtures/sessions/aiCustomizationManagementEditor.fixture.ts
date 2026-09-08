@@ -11,7 +11,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
@@ -44,6 +44,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ConnectorConnectionStatus, IConnectorPresentation, IConnectorsManagementService } from '../../../../contrib/chat/common/connectorsManagementService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -702,6 +703,148 @@ interface IRenderEditorOptions {
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
+	readonly connectors?: readonly IConnectorPresentation[];
+	readonly connectorsAvailable?: boolean;
+	readonly connectorsSearchQuery?: string;
+}
+
+function createFixtureConnector(
+	id: string,
+	displayName: string,
+	description: string,
+	connectionStatus: ConnectorConnectionStatus,
+	keywords: readonly string[],
+	capabilities: readonly string[],
+): IConnectorPresentation {
+	return {
+		id,
+		displayName,
+		description,
+		homepage: 'https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/work-iq/',
+		version: '',
+		author: {
+			name: 'GitHub',
+			email: '',
+			url: 'https://github.com',
+		},
+		repository: '',
+		license: '',
+		keywords,
+		logo: `https://static.powerapps.com/resource/ppcr/releases/v1.0.1820/1.0.1820.4806/${id}/icon.png`,
+		tier: 'Premium',
+		releaseTag: 'Preview',
+		capabilities,
+		isExportSupported: true,
+		protectedResourceMetadataUrl: `https://api.github.com/.well-known/oauth-protected-resource/copilot-connectors/api/v1/connectors/${id}/mcp`,
+		scopes: ['write:plugin_gateway_connections'],
+		agents: [],
+		commands: [],
+		skills: [],
+		mcpServers: [{
+			name: id,
+			type: 'http',
+			url: `https://api.github.com/copilot-connectors/api/v1/connectors/${id}/mcp`,
+		}],
+		connectionStatus,
+	};
+}
+
+const fixtureConnectors: readonly IConnectorPresentation[] = [
+	createFixtureConnector(
+		'a365copilotsearchmcp',
+		'Work IQ Copilot',
+		'Search Microsoft 365 Copilot content and bring shared work intelligence into agent workflows.',
+		'connected',
+		['copilot', 'search', 'work-iq'],
+		['search'],
+	),
+	createFixtureConnector(
+		'a365outlookcalendarmcp',
+		'Work IQ Calendar',
+		'Work with Microsoft Outlook Calendar events, schedules, and availability.',
+		'not_connected',
+		['calendar', 'microsoft-outlook', 'work-iq'],
+		['actions', 'search'],
+	),
+	createFixtureConnector(
+		'a365outlookmailmcp',
+		'Work IQ Mail',
+		'Search and act on Microsoft Outlook Mail with shared work context for agents.',
+		'not_connected',
+		['mail', 'microsoft-outlook', 'work-iq'],
+		['actions'],
+	),
+	createFixtureConnector(
+		'a365teamsmcp',
+		'Work IQ Teams',
+		'Find conversations, people, meetings, and collaboration context from Microsoft Teams.',
+		'pending',
+		['collaboration', 'microsoft-teams', 'work-iq'],
+		['search'],
+	),
+	createFixtureConnector(
+		'a365sharepointmcp',
+		'Work IQ SharePoint',
+		'Search sites, pages, and documents across Microsoft SharePoint.',
+		'not_connected',
+		['documents', 'microsoft-sharepoint', 'work-iq'],
+		['search'],
+	),
+	createFixtureConnector(
+		'a365onedrivemcp',
+		'Work IQ OneDrive',
+		'Find and use files stored in Microsoft OneDrive without leaving your agent workflow.',
+		'error',
+		['files', 'microsoft-onedrive', 'work-iq'],
+		['search'],
+	),
+];
+
+const longContentConnectors: readonly IConnectorPresentation[] = [
+	{
+		id: 'enterprise-knowledge-and-collaboration',
+		displayName: 'Enterprise Knowledge and Collaboration Connector',
+		description: 'Search a large organization-wide collection of documents, conversations, meetings, projects, and shared knowledge while preserving the context agents need to complete multi-step work.',
+		connectionStatus: 'connected',
+	},
+];
+
+class FixtureConnectorsManagementService extends Disposable implements IConnectorsManagementService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeConnectors = this._register(new Emitter<void>());
+	readonly onDidChangeConnectors = this._onDidChangeConnectors.event;
+	private connectors: readonly IConnectorPresentation[];
+
+	constructor(connectors: readonly IConnectorPresentation[], private readonly available: boolean) {
+		super();
+		this.connectors = connectors;
+	}
+
+	async getConnectors() {
+		return { available: this.available, connectors: this.connectors };
+	}
+
+	async connect(connectorId: string): Promise<void> {
+		this.updateStatus(connectorId, 'pending');
+	}
+
+	async refresh(connectorId?: string): Promise<void> {
+		if (connectorId) {
+			const connector = this.connectors.find(item => item.id === connectorId);
+			if (connector?.connectionStatus === 'pending') {
+				this.updateStatus(connectorId, 'connected');
+			}
+		}
+	}
+
+	async disconnect(connectorId: string): Promise<void> {
+		this.updateStatus(connectorId, 'not_connected');
+	}
+
+	private updateStatus(connectorId: string, connectionStatus: ConnectorConnectionStatus): void {
+		this.connectors = this.connectors.map(connector => connector.id === connectorId ? { ...connector, connectionStatus } : connector);
+		this._onDidChangeConnectors.fire();
+	}
 }
 
 function renderFixtureMarkdown(markdown: string): HTMLElement {
@@ -767,6 +910,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Connectors,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
@@ -899,6 +1043,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
 			reg.defineInstance(IAgentHostCustomizationService, agentHostCustomizationService);
+			reg.defineInstance(IConnectorsManagementService, ctx.disposableStore.add(new FixtureConnectorsManagementService(
+				options.connectors ?? (options.connectorsAvailable === false ? [] : fixtureConnectors),
+				options.connectorsAvailable ?? true,
+			)));
 			// AICustomizationItemsModel is the single source of truth for items
 			// in the editor. Register the real implementation — it will resolve
 			// items via the mock prompts service / harness service above.
@@ -1116,7 +1264,47 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.layout(new Dimension(width, height));
 
 	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
-	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
+	const setInputPromise = editor.setInput(editorInput, undefined, {}, CancellationToken.None);
+	const connectorInteractionScheduled = options.selectedSection === AICustomizationManagementSection.Connectors && !!(options.connectorsSearchQuery || options.openFirstItem);
+	if (options.selectedSection === AICustomizationManagementSection.Connectors) {
+		editor.selectSectionById(options.selectedSection);
+	}
+	if (connectorInteractionScheduled) {
+		let searchApplied = false;
+		let interactionDispatched = false;
+		ctx.disposableStore.add(DOM.disposableWindowInterval(DOM.getWindow(ctx.container), () => {
+			const detailContainer = ctx.container.querySelector<HTMLElement>('.connector-detail-container');
+			const connectorsContainer = ctx.container.querySelector<HTMLElement>('.connectors-content-container');
+			if (interactionDispatched && detailContainer?.style.display !== 'none' && connectorsContainer?.style.display === 'none') {
+				return true;
+			}
+			if (!searchApplied && options.connectorsSearchQuery) {
+				const input = ctx.container.querySelector('.connectors-content-container input') as HTMLInputElement | null;
+				if (input) {
+					input.value = options.connectorsSearchQuery;
+					input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.connectorsSearchQuery, inputType: 'insertText' }));
+					input.blur();
+					searchApplied = true;
+				}
+				return false;
+			}
+			if (options.openFirstItem) {
+				const row = ctx.container.querySelector<HTMLElement>('.connectors-content-container .monaco-list-row.connector-list-item');
+				const rowMatchesSearch = !options.connectorsSearchQuery || row?.textContent?.toLowerCase().includes(options.connectorsSearchQuery.toLowerCase());
+				if (row && rowMatchesSearch) {
+					row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+					row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+					row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+					row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+					interactionDispatched = true;
+				}
+			} else if (searchApplied) {
+				return true;
+			}
+			return false;
+		}, 50, 200));
+	}
+	await setInputPromise;
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
@@ -1159,6 +1347,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
+	if (options.connectorsSearchQuery && !connectorInteractionScheduled) {
+		await new Promise(resolve => setTimeout(resolve, 100));
+		const input = ctx.container.querySelector('.connectors-content-container input') as HTMLInputElement | null;
+		if (input) {
+			input.value = options.connectorsSearchQuery;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.connectorsSearchQuery, inputType: 'insertText' }));
+			input.blur();
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+	}
+
 	if (options.migrationPartialSelection) {
 		let firstMigrationCheckbox: HTMLElement | null = null;
 		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
@@ -1181,13 +1380,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.showCustomizationMigrationPage(options.migrationCategory);
 	}
 
-	if (options.openFirstItem) {
-		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+	if (options.openFirstItem && !connectorInteractionScheduled) {
+		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container, .connectors-content-container')]
 			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
 		const openItemLabel = options.openItemLabel;
 		const rowToOpen = openItemLabel
 			? [...(visibleContent?.querySelectorAll('.monaco-list-row') ?? [])].find((row): row is HTMLElement => row instanceof HTMLElement && row.textContent?.includes(openItemLabel))
-			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row') as HTMLElement | undefined;
+			: visibleContent?.querySelector('.monaco-list-row.ai-customization-list-item, .monaco-list-row.mcp-server-item, .plugin-home-row, .monaco-list-row.connector-list-item') as HTMLElement | undefined;
 		if (rowToOpen) {
 			rowToOpen.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -2102,6 +2301,95 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: renderPluginHomeMode,
+	}),
+
+	ConnectorsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+		}),
+	}),
+
+	ConnectorsTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	ConnectorDetailAvailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectorsSearchQuery: 'Calendar',
+			openFirstItem: true,
+		}),
+	}),
+
+	ConnectorDetailPending: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectorsSearchQuery: 'Teams',
+			openFirstItem: true,
+		}),
+	}),
+
+	ConnectorDetailError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectorsSearchQuery: 'OneDrive',
+			openFirstItem: true,
+		}),
+	}),
+
+	ConnectorDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectorsSearchQuery: 'Calendar',
+			openFirstItem: true,
+			width: 550,
+			height: 400,
+		}),
+	}),
+
+	ConnectorsEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectors: [],
+		}),
+	}),
+
+	ConnectorsUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectorsAvailable: false,
+		}),
+	}),
+
+	ConnectorsLongContent: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			selectedSection: AICustomizationManagementSection.Connectors,
+			connectors: longContentConnectors,
+			width: 650,
+			height: 400,
+		}),
 	}),
 
 	PluginCatalogSearch: defineComponentFixture({

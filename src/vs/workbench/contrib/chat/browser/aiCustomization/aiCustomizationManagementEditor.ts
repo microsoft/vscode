@@ -45,6 +45,7 @@ import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
+import { ConnectorsListWidget } from './connectorsListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import {
@@ -99,8 +100,10 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { IConnectorPresentation } from '../../common/connectorsManagementService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
@@ -297,11 +300,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
+	private connectorsListWidget: ConnectorsListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
 	private toolsListWidget: ToolsListWidget | undefined;
 	private promptsContentContainer!: HTMLElement;
 	private mcpContentContainer: HTMLElement | undefined;
 	private pluginContentContainer: HTMLElement | undefined;
+	private connectorsContentContainer: HTMLElement | undefined;
 	private modelsContentContainer: HTMLElement | undefined;
 	private toolsContentContainer: HTMLElement | undefined;
 	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
@@ -340,7 +345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingReadOnly = false;
 	private editorReturnViewMode: 'list' | 'migration' = 'list';
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail' = 'list';
+	private viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'connectorDetail' | 'toolsDetail' = 'list';
 	private migrationContentContainer: HTMLElement | undefined;
 	private migrationListContainer: HTMLElement | undefined;
 	private migrationListScrollable: DomScrollableElement | undefined;
@@ -368,6 +373,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
 	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
 	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
+
+	// Embedded connector detail view
+	private connectorDetailContainer: HTMLElement | undefined;
+	private embeddedConnectorDetail: EmbeddedConnectorDetail | undefined;
+	private connectorDetailBackButton: HTMLButtonElement | undefined;
+	private readonly connectorDetailDisposables = this._register(new DisposableStore());
 
 	// Embedded tool-contributing extension detail view
 	private toolsDetailContainer: HTMLElement | undefined;
@@ -466,6 +477,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			[AICustomizationManagementSection.Hooks]: { label: localize('hooks', "Hooks"), icon: hookIcon, description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks.") },
 			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
 			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
+			[AICustomizationManagementSection.Connectors]: { label: localize('connectors', "Connectors"), icon: Codicon.debugConnected, description: localize('connectorsDesc', "Connect services to give agents secure access to your work and data.") },
 			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
 			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
@@ -540,6 +552,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.listWidget.layout(height - 16, width - 24);
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					this.pluginListWidget?.layout(height - 16, width - 24);
+					this.connectorsListWidget?.layout(height - 16, width - 24);
 					this.toolsListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
@@ -1027,6 +1040,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
+		if (hasSections.has(AICustomizationManagementSection.Connectors)) {
+			this.connectorsContentContainer = DOM.append(contentInner, $('.connectors-content-container'));
+			this.connectorsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ConnectorsListWidget));
+			this.connectorsContentContainer.appendChild(this.connectorsListWidget.element);
+
+			this.connectorDetailContainer = DOM.append(contentInner, $('.connector-detail-container'));
+			this.createEmbeddedConnectorDetail();
+
+			this.editorDisposables.add(this.connectorsListWidget.onDidSelectConnector(connector => {
+				this.showEmbeddedConnectorDetail(connector);
+			}));
+		}
+
 		// Container for Tools content.
 		if (hasSections.has(AICustomizationManagementSection.Tools)) {
 			this.toolsContentContainer = DOM.append(contentInner, $('.tools-content-container'));
@@ -1077,6 +1103,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
 			}));
 			this.pluginListWidget.fireItemCount();
+		}
+		if (this.connectorsListWidget) {
+			this.editorDisposables.add(this.connectorsListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Connectors, count);
+			}));
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
@@ -1945,6 +1976,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'toolsDetail') {
 			this.goBackFromToolDetail();
 		}
@@ -1982,6 +2016,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
+		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
 		}
 		if (this.viewMode === 'toolsDetail') {
 			this.goBackFromToolDetail();
@@ -2069,13 +2106,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isMigrationMode = this.viewMode === 'migration';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
 		const isPluginDetailMode = this.viewMode === 'pluginDetail';
+		const isConnectorDetailMode = this.viewMode === 'connectorDetail';
 		const isToolsDetailMode = this.viewMode === 'toolsDetail';
-		const isDetailMode = isMcpDetailMode || isPluginDetailMode || isToolsDetailMode;
+		const isDetailMode = isMcpDetailMode || isPluginDetailMode || isConnectorDetailMode || isToolsDetailMode;
 		const isWelcome = this.selectedSection === undefined;
 		const isPromptsSection = this.selectedSection !== undefined && this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
+		const isConnectorsSection = this.selectedSection === AICustomizationManagementSection.Connectors;
 		const isToolsSection = this.selectedSection === AICustomizationManagementSection.Tools;
 
 		if (this.welcomePage) {
@@ -2101,6 +2140,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection ? '' : 'none';
 		}
 		this.pluginListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isPluginsSection);
+		if (this.connectorsContentContainer) {
+			this.connectorsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isConnectorsSection ? '' : 'none';
+		}
+		this.connectorsListWidget?.setVisible(!isEditorMode && !isMigrationMode && !isDetailMode && isConnectorsSection);
+		if (this.connectorDetailContainer) {
+			this.connectorDetailContainer.style.display = isConnectorDetailMode ? '' : 'none';
+		}
 		if (this.pluginDetailContainer) {
 			this.pluginDetailContainer.style.display = isPluginDetailMode ? '' : 'none';
 		}
@@ -2316,6 +2362,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
 		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
+		}
 		if (this.viewMode === 'toolsDetail') {
 			this.goBackFromToolDetail();
 		}
@@ -2367,6 +2416,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
 			this.pluginListWidget?.focusSearch();
+		} else if (this.selectedSection === AICustomizationManagementSection.Connectors) {
+			this.connectorsListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
 			this.modelsWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
@@ -2398,6 +2449,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (this.viewMode === 'pluginDetail') {
 				this.goBackFromPluginDetail();
+			}
+			if (this.viewMode === 'connectorDetail') {
+				this.goBackFromConnectorDetail();
 			}
 			if (this.viewMode === 'toolsDetail') {
 				this.goBackFromToolDetail();
@@ -2440,6 +2494,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		if (this.viewMode === 'pluginDetail') {
 			this.goBackFromPluginDetail();
+		}
+		if (this.viewMode === 'connectorDetail') {
+			this.goBackFromConnectorDetail();
 		}
 		if (this.viewMode === 'toolsDetail') {
 			this.goBackFromToolDetail();
@@ -3483,6 +3540,56 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+	}
+
+	//#endregion
+
+	//#region Embedded Connector Detail
+
+	private createEmbeddedConnectorDetail(): void {
+		if (!this.connectorDetailContainer) {
+			return;
+		}
+
+		const detailBody = DOM.append(this.connectorDetailContainer, $('.connector-detail-editor-container'));
+		this.embeddedConnectorDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedConnectorDetail, detailBody));
+
+		const backButton = DOM.append(this.embeddedConnectorDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
+		this.connectorDetailBackButton = backButton;
+		backButton.type = 'button';
+		backButton.setAttribute('aria-label', localize('backToConnectorsList', "Back to connectors"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToConnectorsListTooltip', "Back to connectors")));
+		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		backIcon.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => this.goBackFromConnectorDetail()));
+	}
+
+	private showEmbeddedConnectorDetail(connector: IConnectorPresentation): void {
+		if (!this.embeddedConnectorDetail) {
+			return;
+		}
+
+		this.viewMode = 'connectorDetail';
+		this.updateContentVisibility();
+		this.connectorDetailDisposables.clear();
+		this.embeddedConnectorDetail.setInput(connector);
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.connectorDetailBackButton?.focus();
+	}
+
+	private goBackFromConnectorDetail(): void {
+		this.connectorDetailDisposables.clear();
+		this.embeddedConnectorDetail?.clearInput();
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.connectorsListWidget?.focusSearch();
 	}
 
 	//#endregion
