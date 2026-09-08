@@ -753,7 +753,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => this._pendingAgentMergeNotices.delete(session)));
-		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes }) => {
+		this._register(this._stateManager.onDidChangeSessionSummary(({ session, changes, previous }) => {
 			const meta = this._stateManager.getSessionSummary(session)?._meta;
 			if (changes.modifiedAt !== undefined) {
 				const modifiedTime = Date.parse(changes.modifiedAt);
@@ -773,7 +773,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._externalReconciliationModifiedAt.set(session, changes.modifiedAt);
 				this._queueSessionListReconciliation();
 			}
-			this._queueCatalogSync(URI.parse(session), {});
+			const catalogFlagsChanged = changes.status !== undefined
+				&& ((changes.status ^ previous.status) & (SessionStatus.IsRead | SessionStatus.IsArchived)) !== 0;
+			if (catalogFlagsChanged || Object.keys(changes).some(key => key !== 'activity' && key !== 'status')) {
+				this._queueCatalogSync(URI.parse(session), {});
+			}
 		}));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		this._register(this._stateManager.onDidChangeSessionConfig(({ session, previous, current }) => this._syncAgentMergeIndex(URI.parse(session), previous, current)));

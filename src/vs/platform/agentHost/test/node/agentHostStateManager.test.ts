@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -1986,6 +1987,23 @@ suite('AgentHostStateManager', () => {
 						notifiedSession: sessionUri,
 					},
 				);
+			});
+		});
+
+		test('SessionSummaryNotifier provides the previous summary to internal observers', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+				const initial = manager.getSessionSummary(sessionUri)!;
+				const previous: SessionSummary[] = [];
+				disposables.add(manager.onDidChangeSessionSummary(event => previous.push(event.previous)));
+
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+				await timeout(150);
+				const read = manager.getSessionSummary(sessionUri)!;
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionActivityChanged, activity: 'Running tool' });
+				await timeout(150);
+
+				assert.deepStrictEqual(previous, [initial, read]);
 			});
 		});
 

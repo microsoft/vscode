@@ -40,7 +40,7 @@ import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionGitState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -1164,6 +1164,81 @@ suite('AgentService (node dispatcher)', () => {
 		await service.whenCatalogReconciliationIdle();
 
 		assert.deepStrictEqual(sessions, []);
+	});
+
+	suite('catalog summary synchronization', () => {
+		test('activity changes and clearing do not open session databases', async () => {
+			const baseSessionDataService = createSessionDataService(new TestSessionDatabase());
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					databaseOpens++;
+					return baseSessionDataService.openDatabase(resource);
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const stateManager = getStateManager(svc);
+			const opens: number[] = [];
+			for (const activity of ['Setting up workspace', 'Running a tool', undefined]) {
+				databaseOpens = 0;
+				const changed = Event.toPromise(stateManager.onDidChangeSessionSummary);
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionActivityChanged, activity });
+				await changed;
+				await svc.whenCatalogReconciliationIdle();
+				opens.push(databaseOpens);
+			}
+			assert.deepStrictEqual(opens, [0, 0, 0]);
+		});
+
+		test('only queues catalog work for projected summary changes', async () => {
+			const baseSessionDataService = createSessionDataService(new TestSessionDatabase());
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					databaseOpens++;
+					return baseSessionDataService.openDatabase(resource);
+				},
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const stateManager = getStateManager(svc);
+			const summary = stateManager.getSessionSummary(session.toString())!;
+			const notifier = stateManager as unknown as {
+				_emitSessionSummaryChanged(session: string, changes: SessionSummaryChanges, previous: SessionSummary): void;
+			};
+			const cases: { name: string; previousStatus?: SessionStatus; changes: SessionSummaryChanges; sync: boolean }[] = [
+				{ name: 'empty delta', changes: {}, sync: false },
+				{ name: 'activity cleared', changes: { activity: null }, sync: false },
+				{ name: 'running', changes: { status: SessionStatus.InProgress }, sync: false },
+				{ name: 'input needed with activity', previousStatus: SessionStatus.InProgress, changes: { status: SessionStatus.InputNeeded, activity: 'Approve tool' }, sync: false },
+				{ name: 'idle while read', previousStatus: SessionStatus.InProgress | SessionStatus.IsRead, changes: { status: SessionStatus.Idle | SessionStatus.IsRead }, sync: false },
+				{ name: 'mark read', changes: { status: SessionStatus.InProgress | SessionStatus.IsRead }, sync: true },
+				{ name: 'mark unread', previousStatus: SessionStatus.IsRead, changes: { status: SessionStatus.Idle }, sync: true },
+				{ name: 'archive', changes: { status: SessionStatus.IsArchived }, sync: true },
+				{ name: 'unarchive', previousStatus: SessionStatus.IsArchived, changes: { status: SessionStatus.Idle }, sync: true },
+				{ name: 'title with transient status', changes: { title: 'Renamed', status: SessionStatus.InProgress }, sync: true },
+				{ name: 'recency', changes: { modifiedAt: summary.modifiedAt }, sync: true },
+				{ name: 'project cleared', changes: { project: undefined }, sync: true },
+				{ name: 'changes cleared', changes: { changes: undefined }, sync: true },
+				{ name: 'working directories cleared', changes: { workingDirectories: undefined }, sync: true },
+				{ name: 'metadata cleared', changes: { _meta: undefined }, sync: true },
+			];
+			const actual: { name: string; sync: boolean }[] = [];
+			for (const testCase of cases) {
+				databaseOpens = 0;
+				notifier._emitSessionSummaryChanged(session.toString(), testCase.changes, { ...summary, status: testCase.previousStatus ?? SessionStatus.Idle });
+				await svc.whenCatalogReconciliationIdle();
+				actual.push({ name: testCase.name, sync: databaseOpens > 0 });
+			}
+			assert.deepStrictEqual(actual, cases.map(({ name, sync }) => ({ name, sync })));
+		});
 	});
 
 	suite('resolveAgentChatContext', () => {
