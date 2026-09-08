@@ -9,13 +9,13 @@ import { UriTemplate } from '../../../../../base/common/uriTemplate.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel, type IOtlpLogRecord, type OtlpLogLevelName } from '../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
-import { AgentHostClientState, type RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, type AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatHostBuildInfo, readHostBuildInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 
 /**
- * Forwarder that bridges a connected {@link RemoteAgentHostProtocolClient}'s
+ * Forwarder that bridges a connected {@link AgentHostProtocolClient}'s
  * OTLP logs channel into the workbench's Output panel.
  *
  * For each {@link AgentHostClientState.Connected} transition (initial
@@ -53,7 +53,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	private _currentLevel: OtlpLogLevelName | undefined;
 
 	constructor(
-		private readonly _client: RemoteAgentHostProtocolClient,
+		private readonly _client: AgentHostProtocolClient,
 		address: string,
 		displayName: string,
 		@IOutputService private readonly _outputService: IOutputService,

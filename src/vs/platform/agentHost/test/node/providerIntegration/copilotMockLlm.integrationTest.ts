@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, SessionStatus, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../common/agentService.js';
+import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
@@ -109,17 +109,14 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 
 /**
  * Idle-session release exercised against the real Copilot SDK and a mock LLM.
- * Uses a dedicated server with a short
- * {@link AgentHostSessionReleaseGraceMsEnvVar} grace so the release fires
- * promptly after the last subscriber drops (production defaults to 30s). Kept
- * in its own suite/server so the short grace can't perturb the timing of the
- * other agent host e2e suites.
+ * The dedicated server uses a zero residency cap and short provider-veto retry
+ * so release is deterministic without changing production policy.
  */
 suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 
 	// Short enough that a post-unsubscribe wait reliably outlasts it, long
 	// enough that the intra-test subscribe calls in createProviderSession don't race it.
-	const RELEASE_GRACE_MS = 500;
+	const RELEASE_RETRY_MS = 500;
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -139,7 +136,10 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 			mockLlm: true,
 			homeDir: suiteHome,
 			userDataDir: join(suiteHome, 'user-data'),
-			env: { [AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS) },
+			env: {
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
+				[AgentHostSessionReleaseRetryMsEnvVar]: String(RELEASE_RETRY_MS),
+			},
 			mockScenarios: [{
 				id: DETACHED_SHELL_SCENARIO_ID,
 				definition: {
@@ -238,7 +238,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
 			client.notify('unsubscribe', { channel });
 		}
-		await timeout(RELEASE_GRACE_MS + 1000);
+		await timeout(RELEASE_RETRY_MS + 1000);
 
 		for (let attempt = 0; attempt < 150 && !existsSync(detachedCompletionMarker); attempt++) {
 			await timeout(100);
@@ -273,17 +273,12 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 		const before = await fetchSessionWithChat(client, sessionUri);
 		assert.match(assistantMarkdown(before.turns, 'turn-release-1'), new RegExp(`\\b${firstProbe}\\b`, 'i'), 'first turn should have completed before release');
 
-		// Drop every subscriber. The parent-session unsubscribe is sent last so it
-		// arms idle-session eviction on the server; after the short release grace
-		// elapses the cached protocol state is dropped AND the provider releases
-		// the live SDK session (session.disconnect), while the on-disk session log
-		// is preserved.
+		// Drop every subscriber. The zero-capacity server drops cached protocol
+		// state and releases the live SDK session while preserving its event log.
 		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
 			client.notify('unsubscribe', { channel });
 		}
-		// Wait comfortably past the release grace so the release actually fires
-		// (and its sequenced SDK disconnect completes) before we re-subscribe.
-		await timeout(RELEASE_GRACE_MS + 2000);
+		await timeout(RELEASE_RETRY_MS + 2000);
 
 		// Re-subscribe: the server restores the session from disk and the provider
 		// resumes the SDK session on demand. The restored transcript must match

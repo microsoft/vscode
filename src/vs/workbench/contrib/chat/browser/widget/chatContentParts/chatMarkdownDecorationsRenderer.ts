@@ -28,6 +28,7 @@ import { IChatMarkdownContent, IChatService } from '../../../common/chatService/
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
@@ -97,9 +98,10 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 	) {
 		super();
-		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService)));
+		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
 	}
 
 	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {

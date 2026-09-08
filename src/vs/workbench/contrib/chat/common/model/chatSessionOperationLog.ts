@@ -67,6 +67,8 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'mcpServersStarting':
 				case 'thinking':
 				case 'planReview':
+				// Flips from routing to routed once the router answers.
+				case 'autoModeResolution':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -90,7 +92,6 @@ const responsePartSchema = Adapt.v<PersistedResponsePart, SerializedChatResponse
 				case 'workspaceEdit':
 				case 'externalEdit':
 				case 'disabledClaudeHooks':
-				case 'autoModeResolution':
 					return a.kind === b.kind;
 
 				default: {
@@ -141,6 +142,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
 	hiddenFromTranscript: Adapt.v(m => m.isHiddenFromTranscript),
+	requestHiddenFromTranscript: Adapt.v(m => m.isRequestHiddenFromTranscript && !m.isHiddenFromTranscript ? true : undefined),
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
 	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is PersistedResponsePart => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow' && p.kind !== 'voiceProgress'), Adapt.array(responsePartSchema)),

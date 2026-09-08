@@ -140,6 +140,7 @@ suite('WebPageLoader', () => {
 		const agentNetworkFilterService: IAgentNetworkFilterService = {
 			_serviceBrand: undefined,
 			onDidChange: Event.None,
+			isEnabled: () => true,
 			isUriAllowed: isDomainAllowed ?? (() => true),
 			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
 		};
@@ -650,10 +651,12 @@ suite('WebPageLoader', () => {
 		const handler = window.webContents.setWindowOpenHandler.firstCall.args[0];
 
 		assert.deepStrictEqual([
+			handler({ url: 'about:blank' }),
 			handler({ url: 'https://allowed.example/popup' }),
 			handler({ url: 'vscode:mcp/install?test' }),
 			handler({ url: 'calculator:' }),
 		], [
+			{ action: 'deny' },
 			{ action: 'deny' },
 			{ action: 'deny' },
 			{ action: 'deny' },

@@ -140,7 +140,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
-		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`);
+		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
 		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
 		tempDirs.push(userHomeDir);
 	});
@@ -507,7 +507,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				type: CustomizationType.Directory,
 				contents: CustomizationType.Rule,
 				uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(),
-				children: discoveryMode === 'scan' ? [URI.file(userInstructionFile).toString()] : [],
+				children: [URI.file(userInstructionFile).toString()],
 			},
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);

@@ -12,6 +12,7 @@ import type { ProtectedResourceMetadata, URI } from './state.js';
  * Reason why authentication is required.
  *
  * @category Protocol Notifications
+ * @nonexhaustive
  */
 export const enum AuthRequiredReason {
 	/** The client has not yet authenticated for the resource */

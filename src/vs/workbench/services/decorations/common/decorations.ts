@@ -23,6 +23,11 @@ export const IDecorationsService = createDecorator<IDecorationsService>('IFileDe
  */
 export const DECORATION_LABEL_COLOR_CLASS = 'monaco-decoration-itemColor';
 
+/**
+ * Stable marker class set on a label with generated badge classes.
+ */
+export const DECORATION_BADGE_CLASS = 'monaco-decoration-badge';
+
 export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;

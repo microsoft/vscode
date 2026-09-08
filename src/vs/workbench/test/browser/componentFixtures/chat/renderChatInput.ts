@@ -4,17 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
+import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
@@ -24,6 +29,12 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/c
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
+import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from './chatPetFixtureUtils.js';
+
+/** Room above the input for the pet, which stands outside it. */
+const PET_HEADROOM = 64;
 
 /**
  * A standalone dictation / Voice Mode control rendered in the execute toolbar,
@@ -61,6 +72,17 @@ const voiceControlRenderings: Record<VoiceControlState, IVoiceControlRendering> 
 	voiceDisconnect: { icon: Codicon.debugDisconnectCompact, containerClasses: ['voice-active'] },
 };
 
+function createFixtureChatViewModel(sessionResource: URI): IChatViewModel {
+	const model = new class extends mock<IChatModel>() {
+		override readonly sessionResource = sessionResource;
+		override readonly lastRequestObs = constObservable(undefined);
+	}();
+	return new class extends mock<IChatViewModel>() {
+		override readonly sessionResource = sessionResource;
+		override readonly model = model;
+	}();
+}
+
 export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
@@ -80,8 +102,12 @@ export interface ChatInputFixtureOptions {
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Sets the fixture width, useful for exercising the compact picker layout. */
 	readonly width?: number;
+	/** Applies additional widths after initial layout to exercise responsive restoration. */
+	readonly resizeWidths?: readonly number[];
 	/** Supplies models so the picker renders provider icons. */
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Renders the production Copilot Agent Host mode and permissions pickers. */
+	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	/**
@@ -90,18 +116,30 @@ export interface ChatInputFixtureOptions {
 	 * rather than staged.
 	 */
 	readonly notification?: IChatInputNotification;
+	/** Stands the pet on the input, wired the way `ChatWidget` wires it. */
+	readonly pet?: boolean;
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl, notification } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, voiceControl, notification, pet = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
+	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
+
+	// Sprite sheets are resolved against the file root.
+	if (pet) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
+	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification });
+			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
+			if (chatPetService) {
+				reg.defineInstance(IChatPetService, chatPetService);
+			}
 			if (models.length > 0) {
 				const modelsById = new Map(models.map(model => [model.identifier, model]));
 				reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
@@ -147,6 +185,10 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
+	// Keeps the pet, which stands above the input, inside the screenshot.
+	if (pet) {
+		container.style.paddingTop = `${PET_HEADROOM}px`;
+	}
 
 	const session = document.createElement('div');
 	session.classList.add('interactive-session');
@@ -164,7 +206,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	}
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
+	if (agentHostSessionConfig) {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostModePickerAction.ID, title: 'Agent Mode' }, group: 'navigation', order: 0.7 });
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostAutoApprovePickerAction.ID, title: 'Auto-Approve' }, group: 'navigation', order: 0.8 });
+	} else {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
+	}
 
 	const options: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -176,7 +223,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		isSessionsWindow,
 		// The sandbox toggle is specific to the local harness, so present the
 		// input as the local session type when exercising the sandboxed state.
-		sessionTypePickerDelegate: sandboxingEnabled ? { getActiveSessionProvider: () => SessionType.Local } : undefined,
+		sessionTypePickerDelegate: agentHostSessionConfig
+			? { getActiveSessionProvider: () => SessionType.AgentHostCopilot }
+			: sandboxingEnabled
+				? { getActiveSessionProvider: () => SessionType.Local }
+				: undefined,
 	};
 	const styles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -187,16 +238,39 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
 	const mockWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
-		override readonly viewModel = undefined;
+		override readonly viewModel = sessionResource ? createFixtureChatViewModel(sessionResource) : undefined;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 	}();
 
 	inputPart.render(session, '', mockWidget);
+
+	if (pet) {
+		// The same host `ChatWidget` registers, so the platform comes from the input part.
+		disposableStore.add(instantiationService.invokeFunction(accessor => accessor.get(IChatPetWidgetService).register(mockWidget, {
+			parent: inputPart.element,
+			dragBounds: inputPart.inputContainerElement ?? inputPart.element,
+			movementBounds: session,
+			model: constObservable(undefined),
+			hasInput: constObservable(false),
+			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
+			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
+		})));
+	}
+
 	inputPart.layout(width);
 	await new Promise(r => setTimeout(r, 100));
 	inputPart.layout(width);
+	if (resizeWidths.length > 0) {
+		await Promise.all(resizeWidths.map((resizeWidth, index) => new Promise<void>(resolve => setTimeout(() => {
+			container.style.width = `${resizeWidth}px`;
+			inputPart.layout(resizeWidth);
+			resolve();
+		}, index * 16))));
+	}
+
 	if (value !== undefined) {
 		inputPart.setValue(value, true);
 		inputPart.layout(width);
@@ -231,5 +305,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			// screenshot is deterministic.
 			(item as HTMLElement | null)?.style.setProperty('--dictation-mic-level', '0.6');
 		}
+	}
+
+	if (pet) {
+		assertChatPetInScreenshot(container);
 	}
 }

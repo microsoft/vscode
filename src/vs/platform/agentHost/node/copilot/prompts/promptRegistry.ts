@@ -7,8 +7,9 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
 import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
-import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from './toolInstructions.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../shared/fileLinkInstructions.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
+import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from './toolInstructions.js';
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
@@ -156,7 +157,7 @@ export class AgentHostPromptRegistry {
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
 		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
-		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
+		return appendSystemMessageContent(withWorkspacelessScratch, AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**
@@ -196,14 +197,18 @@ export class AgentHostPromptRegistry {
 	 * so they are appended after its content instead of being silently lost.
 	 */
 	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+		const lineContext: IToolInstructionContext = {
+			hasTool: name => context.hasClientTool(name),
+			getSetting: key => context.getSetting(key),
+		};
 		if (config.mode === 'replace') {
-			const lines = universalToolInstructions(name => context.hasClientTool(name), toolSearchInstructionLines(context.toolSearchActive));
+			const lines = universalToolInstructions(lineContext, toolSearchInstructionLines(context.toolSearchActive));
 			return lines ? appendSystemMessageContent(config, lines) : config;
 		}
 		if (config.mode !== 'customize') {
 			return config;
 		}
-		const toolInstructions = resolveToolInstructionsOverride(name => context.hasClientTool(name), config.sections?.tool_instructions, toolSearchInstructionLines(context.toolSearchActive));
+		const toolInstructions = resolveToolInstructionsOverride(lineContext, config.sections?.tool_instructions, toolSearchInstructionLines(context.toolSearchActive));
 		if (!toolInstructions) {
 			return config;
 		}

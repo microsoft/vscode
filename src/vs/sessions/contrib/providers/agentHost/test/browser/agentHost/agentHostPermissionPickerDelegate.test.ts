@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
@@ -87,6 +88,7 @@ interface ITestRig {
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	readonly setAssistedPermissionsEnabled: (enabled: boolean) => void;
 	readonly setCustomTerminalToolEnabled: (enabled: boolean) => void;
+	readonly setManagedSandboxEnforced: (enforced: boolean) => void;
 }
 
 function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string): ITestRig {
@@ -104,6 +106,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		}
 	})();
 	const activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 	let assistedPermissionsEnabled = true;
 	let customTerminalToolEnabled = false;
 	const configurationService = new class extends mock<IConfigurationService>() {
@@ -127,6 +130,12 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 	insta.set(IConfigurationService, configurationService);
+	insta.set(IAgentHostEnablementService, {
+		_serviceBrand: undefined,
+		enabled: constObservable(true),
+		managedSandboxEnforced,
+		managedSandboxAllowsBypass: constObservable(false),
+	});
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return {
@@ -135,6 +144,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		activeSessionObs,
 		setAssistedPermissionsEnabled: enabled => assistedPermissionsEnabled = enabled,
 		setCustomTerminalToolEnabled: enabled => customTerminalToolEnabled = enabled,
+		setManagedSandboxEnforced: enforced => managedSandboxEnforced.set(enforced, undefined),
 	};
 }
 
@@ -175,6 +185,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			claudeApplicable: false,
 			claudeSetting: undefined,
 		});
+	});
+
+	test('exposes managed sandbox enforcement to picker surfaces', () => {
+		const { delegate, setManagedSandboxEnforced } = setup(store, makeActiveSession(), 'default');
+		const before = delegate.managedSandboxEnforced.get();
+
+		setManagedSandboxEnforced(true);
+
+		assert.deepStrictEqual({ before, after: delegate.managedSandboxEnforced.get() }, { before: false, after: true });
 	});
 
 	test('returns Default when the active session has no config seeded yet', () => {
@@ -238,16 +257,16 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			current: delegate.currentPermissionLevel.get(),
 			metadata: delegate.availableLevels.map(level => {
 				const baseMeta = getPermissionLevelMeta(level);
-				const { label, detail, hover } = delegate.getPermissionLevelMeta(level, baseMeta);
-				return { label, detail, hover };
+				const { label, detail, hover, icon } = delegate.getPermissionLevelMeta(level, baseMeta);
+				return { label, detail, hover, icon: icon.id };
 			}),
 			available: delegate.availableLevels,
 		}, {
 			current: ChatPermissionLevel.Assisted,
 			metadata: [
-				{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined },
-				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
-				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
+				{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', hover: undefined, icon: 'key' },
+				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.', icon: 'sparkle' },
+				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined, icon: 'warning' },
 			],
 			available: [
 				ChatPermissionLevel.Default,

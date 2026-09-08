@@ -13,10 +13,12 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/stat
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../common/state/sessionActions.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -28,6 +30,7 @@ export class NullAgentHostService implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = '';
+	readonly resourceUris = identityAgentHostResourceUriMapper;
 	readonly onAgentHostExit = Event.None;
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
@@ -46,7 +49,7 @@ export class NullAgentHostService implements IAgentHostService {
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
 	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined { return undefined; }
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
-	dispatch(_channel: string, _action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void { notSupported(); }
+	dispatch(_channel: string, _action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void { notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }
@@ -54,13 +57,21 @@ export class NullAgentHostService implements IAgentHostService {
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(_url: string): Promise<IAgentHostNetworkFetchResult> { return notSupported(); }
 	async getSessionStateFile(_session: URI): Promise<URI | undefined> { return notSupported(); }
-	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
+	async collectDebugLogs(_session: URI | undefined, _kind: AgentHostDebugLogsArtifactKind, _chat?: URI): Promise<IAgentHostDebugLogsArtifact> { return notSupported(); }
 	async readDebugLogsChunk(_resource: URI, _position: number): Promise<IAgentHostDebugLogsChunk> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
+	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }
+	async claimDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
+	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { return notSupported(); }
+	async deleteDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
+	async reconcileDetachedWorktrees(_scope: string, _activeHandles: readonly string[]): Promise<void> { return notSupported(); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return notSupported(); }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return notSupported(); }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return notSupported(); }
+	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { return notSupported(); }
+	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return notSupported(); }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }
 	async getInspectInfo(_tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> { return undefined; }

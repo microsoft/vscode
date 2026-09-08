@@ -23,6 +23,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -32,6 +33,8 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { hasAgentSdkSetupNotification } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -91,12 +94,14 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatSessionsService: IChatSessionsService,
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
+	chatInputNotificationService: IChatInputNotificationService,
 ): SessionTypeAvailability {
 	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 	return getSessionTypePickerAvailability(
 		type,
 		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
 		allowSignedOutWhenUsable,
+		hasAgentSdkSetupNotification(chatInputNotificationService, type),
 	);
 }
 
@@ -126,6 +131,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService protected readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@IChatInputNotificationService protected readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -140,6 +146,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatSessionsService,
 						this.chatEntitlementService,
 						this.languageModelsService,
+						this.chatInputNotificationService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,
@@ -358,7 +365,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
 
 		// TODO: Remove hardcoded providers from core
@@ -369,10 +375,16 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const icon = this._getSessionIcon({ type: currentType, label, hoverDescription: '', commandId: '' });
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
+		if (!compact) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
 
 		dom.reset(element, ...labelElements);
+		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 
 		return null;
 	}

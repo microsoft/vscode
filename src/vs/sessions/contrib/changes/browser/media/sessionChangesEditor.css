@@ -11,6 +11,54 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.session-changes-file-stats {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	margin-left: var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.session-changes-file-stats .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.session-changes-file-stats .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.changeset-review-action {
+	display: flex;
+	align-items: center;
+	height: var(--vscode-spacing-size200);
+	padding: 0 var(--vscode-spacing-size40);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.changeset-review-action.checked {
+	background: var(--vscode-actionBar-toggledBackground);
+}
+
+.changeset-review-action .checkbox-label {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: var(--vscode-spacing-size200);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.changeset-review-action.disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.changeset-review-action.disabled .checkbox-label {
+	cursor: default;
+}
+
 .session-changes-editor-header {
 	display: flex;
 	align-items: center;
@@ -58,7 +106,7 @@
 }
 
 .session-changes-editor-header-left .action-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	align-items: center;
 	min-width: 0;
 	max-width: 100%;
@@ -82,7 +130,7 @@
  * `.editor-group-header-primary-actions`). It remains fully interactive/clickable, so no
  * hover-background override is needed here -- it keeps the normal toolbar hover. */
 .changes-diff-stats-action-rich {
-	flex: 1 1 auto;
+	flex: 1 0 auto;
 	min-width: 0;
 }
 
@@ -95,7 +143,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	padding: 3px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -135,20 +183,33 @@
 /* Branch Changes picker (label + chevron) styling, keyed off the item's own
  * marker class so its chevron stays compact and vertically centered in both the
  * classic internal changes-editor header and the single-pane editor-group header. */
+.changes-picker-action-rich {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.changes-picker-action-rich > .monaco-dropdown,
+.changes-picker-action-rich > .monaco-dropdown > .dropdown-label {
+	min-width: 0;
+	max-width: 100%;
+}
+
 .changes-picker-action-rich .action-label {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	max-width: 100%;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .changes-picker-action-rich .action-label > span:not(.codicon) {
+	flex: 1 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	min-width: 0;
 }
 
 .changes-picker-action-rich .action-label > .codicon {
@@ -181,7 +242,7 @@
 	height: 26px;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	box-sizing: border-box;
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	line-height: 18px;
 	white-space: nowrap;
 }
@@ -289,8 +350,10 @@
  * 16px; height: 16px }` clamps every codicon — including the button elements
  * themselves (which carry the `codicon` class), squashing the secondary icon
  * buttons and detaching the split-button chevron. Un-clamp them (higher
- * specificity than the base rule) so the buttons size to their own content. */
-.monaco-action-bar .action-item.changes-actions-bar .codicon {
+ * specificity than the base rule) so the buttons size to their own content.
+ * A button's leading icon is exempt: it shares its box with the spinner that
+ * replaces it while the action runs, so the button bar owns its sizing. */
+.monaco-action-bar .action-item.changes-actions-bar .codicon:not(.monaco-button-leading-icon) {
 	width: auto;
 	height: 20px;
 	flex-shrink: 0;

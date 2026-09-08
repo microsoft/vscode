@@ -22,27 +22,36 @@ function readClientPluginMcpDefaultCwds(customization: ClientPluginCustomization
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
-export function hasClientPluginMcpDefaultCwds(customization: ClientPluginCustomization): boolean {
-	return readClientPluginMcpDefaultCwds(customization) !== undefined;
-}
+type ClientPluginMcpDefaultCwd = { readonly kind: 'primary' } | { readonly kind: 'uri'; readonly uri: URI };
 
-export function readClientPluginMcpDefaultCwd(customization: ClientPluginCustomization, serverName: string, primaryCwd: URI | undefined): URI | undefined {
+function readClientPluginMcpDefaultCwdEntry(customization: ClientPluginCustomization, serverName: string): ClientPluginMcpDefaultCwd | undefined {
 	const value = readClientPluginMcpDefaultCwds(customization);
 	if (!value || !Object.hasOwn(value, serverName)) {
 		return undefined;
 	}
-
 	const cwd = value[serverName];
 	if (cwd === null) {
-		return primaryCwd;
+		return { kind: 'primary' };
 	}
 	if (typeof cwd !== 'string') {
 		return undefined;
 	}
-
 	try {
-		return URI.parse(cwd, true);
+		return { kind: 'uri', uri: URI.parse(cwd, true) };
 	} catch {
 		return undefined;
 	}
+}
+
+export function hasClientPluginMcpDefaultCwds(customization: ClientPluginCustomization): boolean {
+	return readClientPluginMcpDefaultCwds(customization) !== undefined;
+}
+
+export function hasClientPluginMcpDefaultCwd(customization: ClientPluginCustomization, serverName: string): boolean {
+	return readClientPluginMcpDefaultCwdEntry(customization, serverName) !== undefined;
+}
+
+export function readClientPluginMcpDefaultCwd(customization: ClientPluginCustomization, serverName: string, primaryCwd: URI | undefined): URI | undefined {
+	const value = readClientPluginMcpDefaultCwdEntry(customization, serverName);
+	return value?.kind === 'primary' ? primaryCwd : value?.uri;
 }

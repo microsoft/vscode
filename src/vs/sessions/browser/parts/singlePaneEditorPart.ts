@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../base/browser/window.js';
-import { DisposableMap, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView } from '../../../workbench/browser/parts/editor/editor.js';
+import { IEditorPartUIState } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
+import { GroupIdentifier } from '../../../workbench/common/editor.js';
+import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
@@ -27,10 +30,9 @@ import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
  * the editor part share one instance) and the {@link DockedAuxiliaryBarController}
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
- * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
- * supplied via {@link getGroupViewOptions}) and also hosts breadcrumbs in that row
- * for text file editors. The part only reacts to the header's height to reposition
- * the docked auxiliary bar.
+ * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
+ * that row for text file editors. The part only reacts to the header's height to
+ * reposition the docked auxiliary bar.
  */
 export class SinglePaneMainEditorPart extends MainEditorPart {
 
@@ -42,7 +44,6 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
-				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
@@ -156,6 +157,32 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		return container;
 	}
 
+	override addGroup(location: IEditorGroupView | GroupIdentifier, _direction: GroupDirection, _groupToCopy?: IEditorGroupView): IEditorGroupView {
+		return this.assertGroupView(location);
+	}
+
+	override applyLayout(layout: EditorGroupLayout): void {
+		if (countEditorGroups(layout.groups) > 1) {
+			return;
+		}
+		super.applyLayout(layout);
+	}
+
+	override createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
+		return super.createEditorDropTarget(container, { ...delegate, supportsSplitting: false });
+	}
+
+	override async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
+		await super.applyState(state, options);
+		this._ensureSingleEditorGroup();
+	}
+
+	private _ensureSingleEditorGroup(): void {
+		if (this.count > 1) {
+			this.mergeAllGroups(this.activeGroup);
+		}
+	}
+
 	/**
 	 * Keeps the docked auxiliary bar aligned after group-local relayouts.
 	 */
@@ -187,4 +214,12 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	layoutDockedAuxiliaryBar(): void {
 		this._dockedAuxBar?.layout();
 	}
+}
+
+function countEditorGroups(groups: GroupLayoutArgument[]): number {
+	let count = 0;
+	for (const group of groups) {
+		count += group.groups ? countEditorGroups(group.groups) : 1;
+	}
+	return count;
 }

@@ -129,7 +129,8 @@
 		"welcomePage.tileBackground": "#2B2B2B",
 		"welcomePage.progress.foreground": "#0078D4",
 		"widget.border": "#313131",
-		"modernActivityBar.activeBackground": "#FFFFFF22",
-		"modernActivityBar.hoverBackground": "#FFFFFF11",
+		"modernActivityBarItem.activeBackground": "#FFFFFF22",
+		"modernActivityBarItem.hoverBackground": "#FFFFFF11",
+		"modernActivityBar.border": "#252526"
 	},
 }

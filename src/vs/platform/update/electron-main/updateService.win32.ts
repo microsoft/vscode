@@ -272,11 +272,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				// When connection is metered and this is not an explicit check,
-				// show update is available but don't start downloading
-				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
-					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
-					this.setState(State.AvailableForDownload(update));
+				if (this.deferAutomaticDownload(update, explicit)) {
 					return Promise.resolve(null);
 				}
 
@@ -288,6 +284,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
 								return Promise.resolve(updatePackagePath);
+							}
+
+							if (this.deferAutomaticDownload(update, explicit)) {
+								return undefined;
 							}
 
 							const downloadPath = `${updatePackagePath}.tmp`;
@@ -324,7 +324,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						if (token.isCancellationRequested) {
+						if (!packagePath || token.isCancellationRequested) {
 							return;
 						}
 
@@ -381,6 +381,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
 		this.setState(State.Idle(getUpdateType()));
+	}
+
+	protected override resumeDeferredDownload(): void {
+		this.setState(State.Idle(getUpdateType()));
+		void this.checkForUpdates(false);
 	}
 
 	private async getUpdatePackagePath(version: string): Promise<string> {

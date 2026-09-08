@@ -440,7 +440,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
-	if (!opts.web) { setupChatSandboxTests(logger); }
+	if (!opts.web && !opts.remote) { setupChatSandboxTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }

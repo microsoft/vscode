@@ -6,7 +6,7 @@
 // IPC channel transport for the agent host protocol. Wraps an `IChannel`
 // (typically obtained via `IRemoteAgentConnection.getChannel('agentHost')`)
 // to satisfy the same `IClientTransport` interface as `WebSocketClientTransport`,
-// so the existing `RemoteAgentHostProtocolClient` can be reused unchanged.
+// so the existing `AgentHostProtocolClient` can be reused unchanged.
 //
 // The server-side counterpart (`AgentHostChannel`) opens an AHP WebSocket
 // upstream to the local agent host process and pipes raw JSON frames over

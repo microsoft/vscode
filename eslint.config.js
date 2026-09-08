@@ -30,6 +30,12 @@ const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-bracket-notation-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -142,6 +148,20 @@ export default defineConfig(
 					' *--------------------------------------------------------------------------------------------'
 				]
 			]
+		},
+	},
+	// Disallow bracket notation for property names that can use dot notation.
+	{
+		files: [
+			'**/*.{js,cjs,mjs,ts,tsx,mts,cts}',
+			'.eslint-plugin-local/**/*.ts',
+		],
+		ignores: allowedBracketNotationFiles,
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': 'warn',
 		},
 	},
 	// TS
@@ -2330,9 +2350,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',

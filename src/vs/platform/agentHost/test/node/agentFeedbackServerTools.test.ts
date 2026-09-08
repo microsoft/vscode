@@ -34,7 +34,7 @@ suite('AgentFeedbackServerTools', () => {
 	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
@@ -72,7 +72,7 @@ suite('AgentFeedbackServerTools', () => {
 	test('listComments reports unknown provenance rather than assuming the user', () => {
 		const orphan: Annotation = {
 			id: 'a',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -329,7 +329,7 @@ suite('AgentFeedbackServerTools', () => {
 		// than mutating it.
 		const foreign: Annotation = {
 			id: 'foreign',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,

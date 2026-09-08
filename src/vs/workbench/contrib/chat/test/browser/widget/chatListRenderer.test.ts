@@ -9,21 +9,22 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowPillsSummaryForSettings, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
-import { isChatTurnStatusPillsEnabled } from '../../../browser/widget/chatTurnPills.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -39,9 +40,32 @@ import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recognizes anchors and their nested content as link targets', () => {
+		const anchor = mainWindow.document.createElement('a');
+		const icon = mainWindow.document.createElement('span');
+		const label = mainWindow.document.createElement('span');
+		anchor.append(icon, label);
+
+		assert.deepStrictEqual({
+			anchor: isAnchorTarget(anchor),
+			icon: isAnchorTarget(icon),
+			label: isAnchorTarget(label),
+			plainText: isAnchorTarget(mainWindow.document.createElement('span')),
+			textNode: isAnchorTarget(mainWindow.document.createTextNode('text')),
+		}, {
+			anchor: true,
+			icon: true,
+			label: true,
+			plainText: false,
+			textNode: false,
+		});
+	});
 
 	suite('shouldScheduleInitialHeightChange', () => {
 		test('only schedules first measurement updates when needed to avoid clipping', () => {
@@ -204,6 +228,74 @@ suite('ChatListRenderer', () => {
 					content: [firstStep, finalResponse, tool, generatedImage, trailingAdjunct],
 					finalResponseStartIndex: 1,
 				});
+			});
+
+			test('deduplicates a created-session link echoed in the final response', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const finalResponse = {
+					kind: 'markdownContent',
+					content: new MarkdownString('Done: [Implement issue](agent-host-session://local/session)'),
+				} as const;
+
+				assert.deepStrictEqual(moveResponseOutcomeToolsAfterFinalResponse([tool, finalResponse]), [finalResponse]);
+			});
+
+			test('deduplicates repeated session outcomes by target', () => {
+				const tool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'create-session',
+					toolId: 'create_session',
+					invocationMessage: 'Creating session...',
+					originMessage: undefined,
+					pastTenseMessage: 'Created session',
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/session',
+						label: 'Implement issue',
+					},
+				};
+				const repeatedTarget: IChatToolInvocationSerialized = {
+					...tool,
+					toolCallId: 'send-message',
+					toolId: 'send_message',
+					invocationMessage: 'Sending message...',
+					pastTenseMessage: 'Sent message',
+				};
+				const otherTarget: IChatToolInvocationSerialized = {
+					...repeatedTarget,
+					toolCallId: 'send-other-message',
+					toolSpecificData: {
+						kind: 'sessionCreated',
+						openLink: 'agent-host-session://local/other-session',
+						label: 'Investigate other issue',
+					},
+				};
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Done') } as const;
+
+				assert.deepStrictEqual(
+					moveResponseOutcomeToolsAfterFinalResponse([tool, repeatedTarget, otherTarget, finalResponse]),
+					[finalResponse, tool, otherTarget],
+				);
 			});
 
 			test('leaves created-session tools in place when there is no final response', () => {
@@ -624,9 +716,9 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.editRequests', 'hover');
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -651,6 +743,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -691,9 +786,9 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.editRequests', 'hover');
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -718,6 +813,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -789,41 +887,24 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	suite('turn status pills setting', () => {
-		test('normalizes boolean and legacy object values', () => {
-			assert.deepStrictEqual([
-				isChatTurnStatusPillsEnabled(undefined),
-				isChatTurnStatusPillsEnabled(false),
-				isChatTurnStatusPillsEnabled(true),
-				isChatTurnStatusPillsEnabled({}),
-				isChatTurnStatusPillsEnabled({ changes: false, preview: false, browser: false }),
-				isChatTurnStatusPillsEnabled({ changes: true }),
-				isChatTurnStatusPillsEnabled({ preview: true }),
-				isChatTurnStatusPillsEnabled({ browser: true }),
-			], [false, false, true, false, false, true, true, true]);
-		});
-
+	suite('turn status pills', () => {
 		test('computes pill and legacy file summaries independently', () => {
 			assert.deepStrictEqual({
 				fileSummary: shouldShowFileChangesSummaryForSettings(true, true, true),
 				fileSummaryIncomplete: shouldShowFileChangesSummaryForSettings(false, true, true),
 				fileSummaryNonLocal: shouldShowFileChangesSummaryForSettings(true, false, true),
 				fileSummaryDisabled: shouldShowFileChangesSummaryForSettings(true, true, false),
-				pillsSummary: shouldShowPillsSummaryForSettings(true, true, true),
-				pillsSummaryLegacy: shouldShowPillsSummaryForSettings(true, true, { preview: true }),
-				pillsSummaryIncomplete: shouldShowPillsSummaryForSettings(false, true, true),
-				pillsSummaryNonAgentHost: shouldShowPillsSummaryForSettings(true, false, true),
-				pillsSummaryDisabled: shouldShowPillsSummaryForSettings(true, true, false),
+				pillsSummary: shouldShowTurnPillsSummary(true, true),
+				pillsSummaryIncomplete: shouldShowTurnPillsSummary(false, true),
+				pillsSummaryNonAgentHost: shouldShowTurnPillsSummary(true, false),
 			}, {
 				fileSummary: true,
 				fileSummaryIncomplete: false,
 				fileSummaryNonLocal: false,
 				fileSummaryDisabled: false,
 				pillsSummary: true,
-				pillsSummaryLegacy: true,
 				pillsSummaryIncomplete: false,
 				pillsSummaryNonAgentHost: false,
-				pillsSummaryDisabled: false,
 			});
 		});
 	});
@@ -1067,11 +1148,11 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configurationService.setUserConfiguration('workbench.reduceMotion', 'on');
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1096,6 +1177,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1163,10 +1247,10 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IViewDescriptorService, {
 			onDidChangeLocation: Event.None,
@@ -1212,6 +1296,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1248,19 +1335,30 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('generated image completion does not leave a compact duplicate inside thinking', async () => {
+	test('generated image completion renders one gallery without duplicate hover previews', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const generatedImageHoverContents: HTMLElement[] = [];
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, hoverOptions) => {
+				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				if (target.closest('.chat-generated-image-result') && dom.isHTMLElement(options.content)) {
+					generatedImageHoverContents.push(options.content);
+				}
+				return Disposable.None;
+			},
+		});
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1285,6 +1383,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1342,17 +1443,22 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
+		await timeout(150);
 
 		assert.deepStrictEqual({
 			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
 			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
 			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
 			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
+			generatedImageHovers: generatedImageHoverContents.length,
+			generatedImageHoverPreviews: generatedImageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
 		}, {
 			resourceGroups: 1,
 			largeOutcomes: 1,
 			multipleImageOutcomes: 1,
 			generatedImageInvocations: 1,
+			generatedImageHovers: 2,
+			generatedImageHoverPreviews: 0,
 		});
 
 		disposables.dispose();
@@ -1366,10 +1472,10 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1394,6 +1500,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1441,6 +1550,104 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('keeps a workspace transition outside collapsed completed steps', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'Continue in the requested workspace.';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'workspace-continuation', true, 'Continue in Requested Workspace', undefined, false, undefined, false, undefined, true);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		model.acceptResponseProgress(request, {
+			kind: 'systemNotification',
+			content: new MarkdownString('Now working in vscode'),
+			presentation: 'workspaceTransition',
+			workspaceName: 'vscode',
+			accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+		});
+		for (const callId of ['call-1', 'call-2']) {
+			const toolInvocation = new ChatToolInvocation({
+				invocationMessage: 'Running tool...',
+				pastTenseMessage: 'Tool completed',
+			}, {
+				id: 'my-tool',
+				displayName: 'My Tool',
+				modelDescription: 'Test tool',
+				source: ToolDataSource.Internal,
+			}, callId, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, toolInvocation);
+			await toolInvocation.didExecuteTool(undefined);
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Provider continued work') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		const transition = container.querySelector<HTMLElement>('.chat-workspace-transition');
+		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		const providerOutput = [...container.querySelectorAll<HTMLElement>('.rendered-markdown')]
+			.find(element => element.textContent === 'Provider continued work');
+		assert.deepStrictEqual({
+			requestVisible: viewModel.getItems().some(isRequestVM),
+			transitionVisible: !!transition,
+			transitionParentIsResponse: transition?.parentElement === template.value,
+			transitionInsideDisclosure: !!transition && !!disclosure?.contains(transition),
+			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
+			disclosureOpen: disclosure?.open,
+			transitionBeforeDisclosure: !!transition && !!disclosure && !!(transition.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			disclosureBeforeProviderOutput: !!disclosure && !!providerOutput && !!(disclosure.compareDocumentPosition(providerOutput) & Node.DOCUMENT_POSITION_FOLLOWING),
+		}, {
+			requestVisible: false,
+			transitionVisible: true,
+			transitionParentIsResponse: true,
+			transitionInsideDisclosure: false,
+			disclosureLabel: 'Completed 2 steps',
+			disclosureOpen: false,
+			transitionBeforeDisclosure: true,
+			disclosureBeforeProviderOutput: true,
+		});
+
+		disposables.dispose();
+	});
+
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -1449,9 +1656,9 @@ suite('ChatListRenderer', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1507,6 +1714,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,
@@ -1551,6 +1761,7 @@ suite('ChatListRenderer', () => {
 		const configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
@@ -1575,6 +1786,9 @@ suite('ChatListRenderer', () => {
 				onDidScroll: () => toDisposable(() => { }),
 				container,
 				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
 			},
 			undefined,
 			viewModel,

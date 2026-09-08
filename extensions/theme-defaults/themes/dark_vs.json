@@ -37,9 +37,9 @@
 		"agentsNewSessionButton.border": "#303031",
 		// modern ui
 		"surface.border": "#252526",
-		"modernActivityBar.activeBackground": "#1E1E1E",
-		"modernActivityBar.hoverBackground": "#1E1E1E66",
-		"modernActivityBar.background": "#00000000",
+		"modernActivityBarItem.activeBackground": "#1E1E1E",
+		"modernActivityBarItem.hoverBackground": "#1E1E1E66",
+		"modernActivityBar.border": "#00000000"
 	},
 	"tokenColors": [
 		{

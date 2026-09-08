@@ -59,7 +59,7 @@ suite('External Sessions Filter Menu', () => {
 				{ title: 'Recent', checkedForRecent: true },
 				{ title: 'Last 24 Hours', checkedForRecent: false },
 				{ title: 'Last 7 Days', checkedForRecent: false },
-				{ title: 'All', checkedForRecent: false },
+				{ title: 'Last 30 Days', checkedForRecent: false },
 			],
 		});
 	});
