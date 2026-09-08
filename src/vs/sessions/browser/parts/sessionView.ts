@@ -71,6 +71,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
+	private readonly _scopedInstantiationService: IInstantiationService;
 
 	/** Whether the hosted groups view currently shows a grid (more than one group). */
 	private _isGridLayout = false;
@@ -102,11 +103,10 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService],
 			[ISessionContext, new SessionContext(this._sessionObs)],
 		)));
-
 
 		// Expose the centered-content cap as a CSS variable so styles that need
 		// to align with the centered band (e.g. the chat-view progress bar) can
@@ -121,16 +121,16 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
-		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
+		this._header = this._register(this._scopedInstantiationService.createInstance(SessionHeader));
 		this._centeredContentContainer.appendChild(this._header.element);
 
 		this._contentContainer = $('.session-view-content');
 		this.element.appendChild(this._contentContainer);
 
-		this._groupsView = this._register(scopedInstantiationService.createInstance(ChatGroupsView));
+		this._groupsView = this._register(this._scopedInstantiationService.createInstance(ChatGroupsView));
 		this._contentContainer.appendChild(this._groupsView.element);
 
-		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
+		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._applyActiveSessionStyles();
@@ -179,7 +179,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.value;
 			if (!view || view.kind !== 'newSession') {
-				view = this._chatViewFactory.createNewChatView(false, options);
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
 				this._standaloneView.value = view;
 			}
 			if (view.element.parentElement !== this._contentContainer) {
@@ -196,7 +196,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options);
+			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
 			this._standaloneView.value = view;
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);

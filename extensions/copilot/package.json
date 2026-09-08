@@ -92,6 +92,7 @@
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
+    "envIsConnectionMetered",
     "extensionsAny",
     "newSymbolNamesProvider",
     "interactive",
@@ -4566,15 +4567,6 @@
               "advanced",
               "experimental",
               "onExp"
-            ]
-          },
-          "github.copilot.chat.workspace.prototypeAdoCodeSearchEndpointOverride": {
-            "type": "string",
-            "default": "",
-            "markdownDescription": "%github.copilot.config.workspace.prototypeAdoCodeSearchEndpointOverride%",
-            "tags": [
-              "advanced",
-              "experimental"
             ]
           },
           "github.copilot.chat.feedback.onChange": {

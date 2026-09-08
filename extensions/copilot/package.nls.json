@@ -379,7 +379,6 @@
 	"github.copilot.config.workspace.maxLocalIndexSize": "Maximum size of the local workspace index.",
 	"github.copilot.config.workspace.enableCodeSearch": "Enable code search in workspace context.",
 	"github.copilot.config.workspace.preferredEmbeddingsModel": "Preferred embeddings model for semantic search.",
-	"github.copilot.config.workspace.prototypeAdoCodeSearchEndpointOverride": "Override endpoint for Azure DevOps code search prototype.",
 	"github.copilot.config.feedback.onChange": "Enable feedback collection on configuration changes.",
 	"github.copilot.config.review.intent": "Enable intent detection for code review.",
 	"github.copilot.config.notebook.summaryExperimentEnabled": "Enable the notebook summary experiment.",

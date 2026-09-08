@@ -17,6 +17,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -28,8 +29,10 @@ import type { IChatPillEntry, IChatPillSection } from '../../../../workbench/bro
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { linkKey } from '../../../common/sessionLinks.js';
+import { getGitHubPullRequestRefs, SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { parseGitHubPullRequestUrl } from '../../github/common/utils.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
 
@@ -136,6 +139,18 @@ function isShownInBrowser(link: URI | undefined, browserKeys: ReadonlySet<string
 	return !!key && browserKeys.has(key);
 }
 
+function isShownInGitHub(artifact: ISessionArtifact, surfacedLinks: ReadonlySet<string>): boolean {
+	if (artifact.isGitHub !== true || !artifact.link || surfacedLinks.size === 0) {
+		return false;
+	}
+	const link = artifact.link.toString(true);
+	// URI serialization lowercases hosts, but PR promotion only accepts the canonical host spelling.
+	const isGitHubLink = artifact.kind === SessionArtifactKind.PullRequest
+		? artifact.link.authority === 'github.com' && !!parseGitHubPullRequestUrl(link)
+		: artifact.kind === SessionArtifactKind.Issue && !!parseGitHubIssueUrl(link);
+	return isGitHubLink && surfacedLinks.has(linkKey(link));
+}
+
 function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
@@ -191,9 +206,10 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 
 /**
  * Builds the sections shown in a pill from one group of agent-set entries —
- * the artifacts pill and the references pill each build their own. Websites
- * the browsers pill already lists are left out, so the same page is offered
- * once across the pills.
+ * the artifacts pill and the references pill each build their own. Entries keep
+ * the order they arrive in, which is newest first, so each section opens on
+ * what the session recorded last. Websites the browsers pill already lists are
+ * left out, so the same page is offered once across the pills.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
@@ -290,8 +306,13 @@ export class SessionArtifacts extends Disposable {
 				return [];
 			}
 			locationFormatting.read(reader);
+			const gitHubInfo = current.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const surfacedLinks = new Set([
+				...getGitHubPullRequestRefs(gitHubInfo),
+				...(gitHubInfo?.issues ?? []),
+			].map(ref => linkKey(ref.uri.toString())));
 			return buildSessionArtifactSections(
-				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact),
+				(current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !isShownInGitHub(artifact, surfacedLinks)),
 				this._actions(),
 				this._labelService,
 				imageCarouselEnabled.read(reader),

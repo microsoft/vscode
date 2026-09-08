@@ -13,10 +13,10 @@ exchanges:
           id: toolcall_0
           name: task
           input:
-            name: e2e-display-name-child
+            name: child task
             prompt: Return the custom child sentinel.
             agent_type: e2e-display-name-child
-            description: Run child sentinel task
+            description: Run child sentinel agent
             mode: sync
       stopReason: tool_use
   - request:
@@ -39,10 +39,10 @@ exchanges:
             - type: tool_use
               name: task
               input:
-                name: e2e-display-name-child
+                name: child task
                 prompt: Return the custom child sentinel.
                 agent_type: e2e-display-name-child
-                description: Run child sentinel task
+                description: Run child sentinel agent
                 mode: sync
         - role: user
           content:

@@ -974,7 +974,12 @@
 		"--vscode-window-inactiveBorder",
 		"--vscode-chat-voiceGlowBaseColor",
 		"--vscode-chat-voiceListeningGlow",
-		"--vscode-chat-voiceSpeakingGlow"
+		"--vscode-chat-voiceSpeakingGlow",
+		"--vscode-statusBar-inactiveBackground",
+		"--vscode-modernPanel-border",
+		"--vscode-modernUI-shellBackground",
+		"--vscode-modernUI-inactiveShellBackground",
+		"--vscode-modernSash-gripForeground"
 	],
 	"others": [
 		"--action-widget-close-start-opacity",
@@ -1181,6 +1186,7 @@
 		"--animation-opacity",
 		"--chat-input-anim-angle",
 		"--chat-input-anim-duration",
+		"--chat-input-control-height",
 		"--chat-input-radius",
 		"--chat-input-stack-radius-outer",
 		"--chat-input-stack-radius-top",

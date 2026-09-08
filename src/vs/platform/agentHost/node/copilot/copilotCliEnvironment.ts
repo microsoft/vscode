@@ -32,6 +32,8 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['COPILOT_MCP_APPS'] = 'true';
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	env['AUTO_APPROVAL'] = 'true';
+	// Disable the provider-native Advisor without affecting the separately gated Rubber Duck agent.
+	env['ANTHROPIC_ADVISOR'] = 'false';
 	// Resolve Auto mode through the CLI's single-call `POST /auto` endpoint. The
 	// runtime gates this on an ExP flag whose local override is the flag name
 	// itself, so VS Code opts its whole population in rather than splitting it.

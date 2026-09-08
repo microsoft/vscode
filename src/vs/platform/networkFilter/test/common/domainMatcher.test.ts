@@ -149,6 +149,24 @@ suite('domainMatcher', () => {
 			]);
 		});
 
+		test('canonicalizes alternative IPv4 administrator patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('127.0.0.1', '127.1'),
+				matchesDomainPattern('127.0.0.1', '0177.0.0.1'),
+				matchesDomainPattern('127.0.0.1', '0x7f000001'),
+				matchesDomainPattern('127.0.0.1', '2130706433'),
+				matchesDomainPattern('192.168.1.1', '0300.0250.01.01'),
+				matchesDomainPattern('169.254.169.254', '0xa9fea9fe'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+			]);
+		});
+
 		test('matches bracketed and bare IPv6 patterns', () => {
 			assert.deepStrictEqual([
 				matchesDomainPattern('[::1]', '[::1]'),
@@ -170,6 +188,130 @@ suite('domainMatcher', () => {
 		test('returns false for invalid pattern', () => {
 			assert.strictEqual(matchesDomainPattern('example.com', ''), false);
 		});
+
+		test('matches bare administrator patterns outside well-known public suffixes', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('evil.xyz', 'evil.xyz'),
+				matchesDomainPattern('evil.co.uk', 'evil.co.uk'),
+				matchesDomainPattern('evil.ru', 'evil.ru'),
+				matchesDomainPattern('evil.app', 'evil.app'),
+				matchesDomainPattern('evil.cn', 'evil.cn'),
+				matchesDomainPattern('evil.info', 'evil.info'),
+				matchesDomainPattern('evil.biz', 'evil.biz'),
+				matchesDomainPattern('evil.de', 'evil.de'),
+				matchesDomainPattern('evil.jp', 'evil.jp'),
+				matchesDomainPattern('evil.site', 'evil.site'),
+				matchesDomainPattern('evil.zip', 'evil.zip'),
+				matchesDomainPattern('metadata.internal', 'metadata.internal'),
+				matchesDomainPattern('host.local', 'host.local'),
+				matchesDomainPattern('db.corp', 'db.corp'),
+				matchesDomainPattern('srv.lan', 'srv.lan'),
+				matchesDomainPattern('169.254.169.254', '169.254.169.254'),
+				matchesDomainPattern('10.0.0.5', '10.0.0.5'),
+				matchesDomainPattern('127.0.0.1', '127.0.0.1'),
+				matchesDomainPattern('192.168.1.1', '192.168.1.1'),
+				matchesDomainPattern('localhost', 'localhost'),
+				matchesDomainPattern('metadata', 'metadata'),
+				matchesDomainPattern('metadata.google.internal', 'metadata.google.internal'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+			]);
+		});
+
+		test('matches wildcard administrator patterns outside well-known public suffixes', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('service.internal', '*.internal'),
+				matchesDomainPattern('service.corp', '*.corp'),
+				matchesDomainPattern('service.lan', '*.lan'),
+				matchesDomainPattern('service.corp.local', '*.corp.local'),
+				matchesDomainPattern('service.co.uk', '*.co.uk'),
+				matchesDomainPattern('service.example.co.uk', '*.example.co.uk'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				true,
+			]);
+		});
+
+		test('canonicalizes wildcard IPv4 administrator patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::ffff:7f00:1]', '*.127.0.0.1'),
+				matchesDomainPattern('[::7f00:1]', '*.127.0.0.1'),
+				matchesDomainPattern('127.0.0.1', '*.127.1'),
+				matchesDomainPattern('[::ffff:7f00:1]', '*.0x7f000001'),
+				matchesDomainPattern('[::ffff:7f00:1]', '*.0177.0.0.1'),
+				matchesDomainPattern('[::1]', '*.127.0.0.1'),
+			], [
+				true,
+				true,
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
+
+		test('matches unbracketed IPv6 administrator patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::1]', '::1'),
+				matchesDomainPattern('[::1]', '0:0:0:0:0:0:0:1'),
+				matchesDomainPattern('[::ffff:7f00:1]', '::ffff:127.0.0.1'),
+				matchesDomainPattern('[fe80::1]', 'fe80::1'),
+			], [
+				true,
+				true,
+				true,
+				true,
+			]);
+		});
+
+		test('matches IPv4-mapped IPv6 literals against IPv4 patterns', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('[::ffff:7f00:1]', '127.0.0.1'),
+				matchesDomainPattern('[::ffff:a9fe:a9fe]', '169.254.169.254'),
+			], [
+				true,
+				true,
+			]);
+		});
+
+		test('matches IPv4 literals and embedded IPv4 patterns symmetrically', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('127.0.0.1', '[::ffff:127.0.0.1]'),
+				matchesDomainPattern('[::7f00:1]', '127.0.0.1'),
+				matchesDomainPattern('127.0.0.1', '[::127.0.0.1]'),
+				matchesDomainPattern('[::1]', '0.0.0.1'),
+			], [
+				true,
+				true,
+				true,
+				false,
+			]);
+		});
 	});
 
 	suite('extractDomainFromUri', () => {
@@ -182,8 +324,35 @@ suite('domainMatcher', () => {
 			assert.strictEqual(extractDomainFromUri(URI.parse('https://example.com:443/path')), 'example.com');
 		});
 
+		test('uses the last user information separator', () => {
+			assert.deepStrictEqual([
+				extractDomainFromUri(URI.parse('http://a@b@127.0.0.1:8931/private')),
+				extractDomainFromUri(URI.parse('http://a%40b@127.0.0.1:8931/private')),
+			], [
+				'127.0.0.1',
+				'127.0.0.1',
+			]);
+		});
+
 		test('returns undefined for empty authority', () => {
 			assert.strictEqual(extractDomainFromUri(URI.from({ scheme: 'file', path: '/tmp/test' })), undefined);
+		});
+
+		test('rejects authorities whose percent-decoded representation changes the host', () => {
+			assert.strictEqual(
+				extractDomainFromUri(URI.parse('http://169.254.169.254%40allowed.com/private')),
+				undefined
+			);
+		});
+
+		test('rejects percent-encoded path separators in authorities', () => {
+			assert.deepStrictEqual([
+				extractDomainFromUri(URI.parse('https://evil.com%2fx/')),
+				extractDomainFromUri(URI.parse('https://evil.com%5c/')),
+			], [
+				undefined,
+				undefined,
+			]);
 		});
 
 		test('extracts and canonicalizes IPv6 literals', () => {
