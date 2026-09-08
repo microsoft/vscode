@@ -127,7 +127,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
-
 	private onDidChangeFilter(): void {
 		if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
 			this.hide(); // hide the notification center when we have a error filter enabled
