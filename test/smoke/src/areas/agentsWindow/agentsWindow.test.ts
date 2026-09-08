@@ -62,11 +62,11 @@ function probeLinuxDocker(): { readonly available: boolean; readonly reason?: st
 		timeout: 15_000,
 		windowsHide: true,
 	});
-	const operatingSystem = result.stdout.trim().toLowerCase();
+	const operatingSystem = result.stdout?.trim().toLowerCase() ?? '';
 	if (result.status === 0 && operatingSystem === 'linux') {
 		return { available: true };
 	}
-	const stderr = result.stderr.trim();
+	const stderr = result.stderr?.trim() ?? '';
 	return {
 		available: false,
 		reason: result.error?.message
