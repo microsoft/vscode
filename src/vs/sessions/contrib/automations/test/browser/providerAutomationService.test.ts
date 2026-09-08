@@ -153,6 +153,7 @@ suite('ProviderAutomationService', () => {
 		if (legacyRaw) {
 			storage.store(AUTOMATION_STORAGE_KEY, legacyRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
+
 		if (providerRaw) {
 			storage.store(providerAutomationStorageKey(PROVIDER_ID), providerRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
@@ -389,6 +390,40 @@ suite('ProviderAutomationService', () => {
 			aggregate: ['Provider owned'],
 			provider: ['Provider owned'],
 			legacy: undefined,
+		});
+	});
+
+	test('an unavailable remote catalogue does not block local automation operations', async () => {
+		const { service, providerStore, storage, automationStorage, addProvider } = createService();
+		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		remote.setCatalogueState('unavailable');
+		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', order: 1, automations: remote }));
+
+		const created = await service.createAutomation({
+			name: 'Local review',
+			prompt: 'Review local changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: PROVIDER_ID, sessionTypeId: SESSION_TYPE_ID, isolation: { kind: 'default' } },
+		});
+		await service.updateAutomation(created.id, { name: 'Updated local review' });
+		const claim = await service.recordRunStart(created.id, 'manual', 1);
+
+		assert.deepStrictEqual({
+			catalogueState: service.catalogueState.get(),
+			localNames: providerStore.automations.get().map(automation => automation.name),
+			remoteAutomations: remote.automations.get(),
+			canRun: service.canRunAutomation(created.id),
+			canUpdate: service.canUpdateAutomation(created.id),
+			claimed: claim.claimed,
+			activeRunId: providerStore.getActiveRunFor(created.id)?.id,
+		}, {
+			catalogueState: 'unavailable',
+			localNames: ['Updated local review'],
+			remoteAutomations: [],
+			canRun: true,
+			canUpdate: true,
+			claimed: true,
+			activeRunId: claim.run.id,
 		});
 	});
 

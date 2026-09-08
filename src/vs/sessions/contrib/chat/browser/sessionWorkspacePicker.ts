@@ -1716,7 +1716,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreSelectedWorkspace(): IRestoredWorkspaceSelection | undefined {
-		if (this.isNoWorkspaceSelected()) {
+		if (!this._canRestoreWorkspace()) {
 			return undefined;
 		}
 
