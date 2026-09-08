@@ -22,6 +22,8 @@ export const enum CopilotCliConfigKey {
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
+	/** Enable the provider-native Claude Advisor tool. Off by default. */
+	ClaudeAdvisor = 'claudeAdvisor',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
@@ -54,6 +56,8 @@ export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.custo
 export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
 
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
+
+export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
@@ -170,6 +174,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: DEFAULT_COPILOT_RUBBER_DUCK_ENABLED,
+	}),
+	[CopilotCliConfigKey.ClaudeAdvisor]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeAdvisor.title', "Claude Advisor Tool"),
+		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',

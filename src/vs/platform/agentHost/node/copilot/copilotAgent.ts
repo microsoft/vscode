@@ -1068,6 +1068,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RubberDuck) ?? DEFAULT_COPILOT_RUBBER_DUCK_ENABLED;
 	}
 
+	private _isClaudeAdvisorEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
+	}
+
 	private _isMultiTurnContextRoutingEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MultiTurnContextRouting) === true;
 	}
@@ -1106,6 +1110,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotAgentStartupConfig(
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
+			this._isClaudeAdvisorEnabled(),
 			this._isMultiTurnContextRoutingEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
@@ -5170,7 +5175,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
 			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
 		];
-		const env = createCopilotCliEnvironment(process.env, omittedKeys);
+		const env = createCopilotCliEnvironment(process.env, omittedKeys, this._isClaudeAdvisorEnabled());
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;
