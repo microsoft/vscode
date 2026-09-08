@@ -8,12 +8,20 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { getGitHubPullRequestRefs, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 function getArtifactLinkKey(link: URI): string {
 	return link.toString().replace(/\/+$/, '').toLowerCase();
+}
+
+function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
+	const state = pullRequest.liveState ?? pullRequest.state;
+	if (state !== 'open') {
+		return state;
+	}
+	return pullRequest.liveState !== undefined && getPullRequestStatusFromIcon(pullRequest.icon) === 'draft' ? 'draft' : state;
 }
 
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
@@ -519,7 +527,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _updateArtifactCounts(entry: IStoredSessionStats, session: ISession): void {
-		const artifacts = session.artifacts?.get();
+		const artifacts = session.recordedArtifacts?.get() ?? session.artifacts?.get();
 		if (!artifacts) {
 			return;
 		}
@@ -527,7 +535,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		const pullRequestStatuses = new Map<string, PullRequestStatus>();
 		for (const folder of session.workspace.get()?.folders ?? []) {
 			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
-				const status = getPullRequestStatusFromIcon(pullRequest.icon) ?? pullRequest.liveState ?? pullRequest.state;
+				const status = getResolvedPullRequestStatus(pullRequest);
 				if (status) {
 					pullRequestStatuses.set(getArtifactLinkKey(pullRequest.uri), status);
 				}

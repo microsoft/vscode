@@ -949,6 +949,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _metaObs: ISettableObservable<SessionMeta | undefined>;
 
+	/** Complete artifacts and references recorded by the agent. */
+	readonly recordedArtifacts: IObservable<readonly ISessionArtifact[]>;
+
 	/** Artifacts recorded by the agent, derived from the session's `_meta` bag. */
 	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
 
@@ -1043,6 +1046,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				? session.with({ fragment: parsedChat.chatId === DEFAULT_CHAT_ID ? '' : parsedChat.chatId })
 				: undefined;
 			return { session, chat, turnId: creationReference.turnId };
+		});
+		this.recordedArtifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
+			return partitionSessionArtifacts(this._metaObs.read(reader)).entries.map(entry => entry.artifact);
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);

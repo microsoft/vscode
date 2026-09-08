@@ -7797,12 +7797,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
 			issues: gitHubInfo?.issues?.map(issue => issue.number),
 			artifacts: session.artifacts?.get().map(artifact => artifact.id),
+			recordedArtifacts: session.recordedArtifacts?.get().map(artifact => artifact.id),
 		}, {
 			activePullRequest: 50,
 			pullRequests: [50, 41],
 			// Only issues the session produced are polled; a referenced one stays a reference.
 			issues: [7],
 			artifacts: ['a2', 'a5', 'a6', 'a7'],
+			recordedArtifacts: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'],
 		});
 	}));
 

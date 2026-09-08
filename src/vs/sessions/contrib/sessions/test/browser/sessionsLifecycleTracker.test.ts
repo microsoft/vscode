@@ -24,6 +24,7 @@ interface ICreateSessionOptions {
 	changesSummary?: ISessionChangesSummary;
 	isExternal?: IObservable<boolean>;
 	artifacts?: readonly ISessionArtifact[];
+	recordedArtifacts?: readonly ISessionArtifact[];
 }
 
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
@@ -44,6 +45,7 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		changes: observableValue(`changes-${id}`, opts.changes ?? []),
 		changesSummary: opts.changesSummary !== undefined ? observableValue(`changesSummary-${id}`, opts.changesSummary as ISessionChangesSummary | undefined) : undefined,
 		artifacts: opts.artifacts !== undefined ? observableValue(`artifacts-${id}`, opts.artifacts) : undefined,
+		recordedArtifacts: opts.recordedArtifacts !== undefined ? observableValue(`recordedArtifacts-${id}`, opts.recordedArtifacts) : undefined,
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -87,12 +89,15 @@ function createFolder(uri: URI, opts: { readonly workTreeUri?: URI; readonly wit
 }
 
 function createPullRequestRef(number: number, state: GitHubPullRequestState | 'draft'): IGitHubPullRequestRef {
+	const resolvedState = state === 'draft' ? GitHubPullRequestState.Open : state;
 	return {
 		owner: 'microsoft',
 		repo: 'vscode',
 		number,
 		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
 		icon: computePullRequestIcon(state),
+		state: resolvedState,
+		liveState: resolvedState,
 	};
 }
 
@@ -550,6 +555,13 @@ suite('SessionsLifecycleTracker', () => {
 			createPullRequestRef(2, GitHubPullRequestState.Open),
 			createPullRequestRef(3, 'draft'),
 			createPullRequestRef(4, GitHubPullRequestState.Closed),
+			{
+				owner: 'microsoft',
+				repo: 'vscode',
+				number: 5,
+				uri: URI.parse('https://github.com/microsoft/vscode/pull/5'),
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
 		];
 		const gitHubInfo: IGitHubInfo = {
 			owner: 'microsoft',
@@ -565,7 +577,7 @@ suite('SessionsLifecycleTracker', () => {
 			link: pullRequest.uri,
 			isGitHub: true,
 		}));
-		const artifacts: readonly ISessionArtifact[] = [
+		const recordedArtifacts: readonly ISessionArtifact[] = [
 			...pullRequestArtifacts,
 			{ id: 'issue-1', kind: SessionArtifactKind.Issue, label: 'Issue 1', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/1'), isGitHub: true },
 			{ id: 'issue-2', kind: SessionArtifactKind.Issue, label: 'Issue 2', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/2'), isGitHub: true },
@@ -576,7 +588,8 @@ suite('SessionsLifecycleTracker', () => {
 			{ id: 'issue-reference', kind: SessionArtifactKind.Issue, label: 'Issue reference', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/3'), isGitHub: true },
 			{ id: 'file-reference', kind: SessionArtifactKind.File, label: 'File reference', isArtifact: false, uri: URI.parse('file:///repo/readme.md') },
 		];
-		const session = createSession('s1', { workspace, artifacts });
+		const artifacts = recordedArtifacts.filter(artifact => !artifact.isArtifact || (artifact.kind !== SessionArtifactKind.PullRequest && artifact.kind !== SessionArtifactKind.Issue));
+		const session = createSession('s1', { workspace, artifacts, recordedArtifacts });
 
 		tracker.recordNewChatRequestSent(session);
 		const summary = tracker.finalize(session.sessionId, 'archived', session);
@@ -597,7 +610,7 @@ suite('SessionsLifecycleTracker', () => {
 			pullRequestArtifactClosedCount: 1,
 			issueArtifactCount: 2,
 			otherArtifactCount: 3,
-			artifactCount: 9,
+			artifactCount: 10,
 			referenceCount: 3,
 		});
 	});
