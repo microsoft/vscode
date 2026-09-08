@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
@@ -561,6 +561,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly branchRepoDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly branchRequest = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly repositoryReloadScheduler = this._register(new RunOnceScheduler(() => {
+		void this.reloadRepository(this.isolationModel.folderUri);
+	}, 0));
 	private branchRequestId = 0;
 	private readonly branchPicker: BranchPicker;
 	private branchLoadState: BranchLoadState = 'noFolder';
@@ -600,7 +603,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				this.renderBranchControl();
 			},
 			onRetry: () => {
-				void this.reloadRepository(this.isolationModel.folderUri);
+				this.scheduleRepositoryReload();
 			},
 			isolation: {
 				label: localize('automation.form.isolation.worktree', "New Worktree"),
@@ -616,6 +619,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.renderDisposables.clear();
 		this.branchRepoDisposable.clear();
+		this.repositoryReloadScheduler.cancel();
 		this.cancelBranchRequest();
 		DOM.clearNode(container);
 		container.style.marginLeft = 'auto';
@@ -632,20 +636,21 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.refreshTargetCapability();
 		this.renderBranchControl();
 		this.renderDisposables.add(autorun(reader => {
-			const folderUri = this.workspaceFolder.read(reader);
+			this.workspaceFolder.read(reader);
 			this.refreshTargetAndRender();
-			void this.reloadRepository(folderUri);
+			this.scheduleRepositoryReload();
 		}));
 		this.renderDisposables.add(this.onDidChangeTarget(() => {
 			this.refreshTargetAndRender();
-			void this.reloadRepository(this.isolationModel.folderUri);
+			this.scheduleRepositoryReload();
 		}));
 		this.renderDisposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			this.refreshTargetAndRender();
-			void this.reloadRepository(this.isolationModel.folderUri);
+			this.scheduleRepositoryReload();
 		}));
 		this.renderDisposables.add({
 			dispose: () => {
+				this.repositoryReloadScheduler.cancel();
 				this.cancelBranchRequest();
 			}
 		});
@@ -846,6 +851,14 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private cancelBranchRequest(): void {
 		this.branchRequest.value?.cancel();
 		this.branchRequest.clear();
+	}
+
+	private scheduleRepositoryReload(): void {
+		this.cancelBranchRequest();
+		this.branchRepoDisposable.clear();
+		this.branchLoadState = this.isolationModel.folderUri ? 'loadingRepository' : 'noFolder';
+		this.renderBranchControl();
+		this.repositoryReloadScheduler.schedule();
 	}
 
 	private async reloadRepository(folder: URI | undefined): Promise<void> {
