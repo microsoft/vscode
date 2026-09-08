@@ -91,7 +91,6 @@ import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryC
 const TEST_PRODUCT_SERVICE: IProductService = {
 	_serviceBrand: undefined,
 	...product,
-	applicationName: 'test-application',
 	version: '1.2.3',
 };
 
@@ -1683,7 +1682,7 @@ suite('CopilotAgent', () => {
 				onGitHubTelemetry: typeof clientOptions?.onGitHubTelemetry,
 			}, {
 				clientInfo: {
-					applicationName: 'test-application',
+					applicationName: 'vscode-agent-host',
 					applicationVersion: '1.2.3',
 				},
 				onGitHubTelemetry: 'function',

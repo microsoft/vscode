@@ -2357,7 +2357,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
 				clientInfo: {
-					applicationName: this._productService.applicationName,
+					applicationName: 'vscode-agent-host',
 					applicationVersion: this._productService.version,
 				},
 				telemetry,
