@@ -13196,9 +13196,9 @@ suite('CopilotAgent', () => {
 
 		test('retries resume without a custom agent when the SDK reports the stored agent is missing', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
-			const repo = URI.from({ scheme: Schemas.inMemory, path: '/repo' });
+			const repo = URI.file('/repo');
 			const dataAgent = URI.joinPath(repo, '.github', 'agents', 'data.md');
 			await fileService.writeFile(dataAgent, VSBuffer.fromString('---\nname: Data\ndescription: data queries\n---\nbody'));
 
@@ -13213,6 +13213,12 @@ suite('CopilotAgent', () => {
 			}
 
 			const client = new TestCopilotClient([sdkSession('s1')]);
+			client.getAgentDiscoveryPaths = async () => ({
+				paths: [{ path: URI.joinPath(repo, '.github', 'agents').fsPath, scope: 'project', preferredForCreation: true, projectPath: repo.fsPath }],
+			});
+			client.discoverAgents = async () => ({
+				agents: [{ id: customizationId(dataAgent.toString()), name: 'Data', displayName: 'Data', description: 'data queries', path: dataAgent.fsPath }],
+			});
 			const resumeAgents: (string | undefined)[] = [];
 			client.resumeSession = async (_sessionId, options) => {
 				resumeAgents.push(options?.agent);
