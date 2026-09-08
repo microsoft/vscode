@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -20,7 +20,7 @@ import { isWorktreeUnderRepository } from '../../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot, resolveWorktreesRootHomeDirectory } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
@@ -223,6 +223,31 @@ suite('WorktreeIsolation', () => {
 		const repo = URI.file('/src/vscode');
 		assert.strictEqual(isWorktreeUnderRepository(URI.joinPath(getWorktreesRoot(repo), 'my-branch'), repo), true);
 		assert.strictEqual(isWorktreeUnderRepository(URI.file('/etc/passwd'), repo), false);
+	});
+
+	test('resolveWorktreesRootHomeDirectory declines the .git-nested fallback when .git is a redirect file', () => {
+		// A submodule (or a checkout created by `git worktree add`) has a `.git`
+		// file, not directory, pointing elsewhere. getWorktreesRoot's home-directory
+		// case assumes `.git` is a real directory it can nest under, so this must
+		// return undefined rather than let the caller try to mkdir inside a file.
+		const normalRepo = URI.file(mkdtempSync(join(tmpdir(), 'wt-home-normal-')));
+		mkdirSync(URI.joinPath(normalRepo, '.git').fsPath);
+
+		const submoduleRepo = URI.file(mkdtempSync(join(tmpdir(), 'wt-home-submodule-')));
+		writeFileSync(URI.joinPath(submoduleRepo, '.git').fsPath, 'gitdir: /elsewhere/.git/modules/foo\n');
+
+		return Promise.all([
+			resolveWorktreesRootHomeDirectory(normalRepo, normalRepo).then(result =>
+				assert.strictEqual(result?.fsPath, normalRepo.fsPath)),
+			resolveWorktreesRootHomeDirectory(submoduleRepo, submoduleRepo).then(result =>
+				assert.strictEqual(result, undefined)),
+			// Not the home directory at all: short-circuits without needing `.git` to exist.
+			resolveWorktreesRootHomeDirectory(URI.file('/some/unrelated/repo'), normalRepo).then(result =>
+				assert.strictEqual(result, undefined)),
+		]).finally(() => {
+			rmSync(normalRepo.fsPath, { recursive: true, force: true });
+			rmSync(submoduleRepo.fsPath, { recursive: true, force: true });
+		});
 	});
 
 	test('getWorktreesRoot detects the home directory case-insensitively on Windows/macOS', () => {

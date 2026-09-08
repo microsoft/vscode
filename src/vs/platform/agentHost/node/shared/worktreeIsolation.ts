@@ -11,7 +11,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
-import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -151,6 +151,30 @@ export function getWorktreeName(branchName: string, branchPrefix: string = ''): 
 		name = name.substring(AGENT_BRANCH_PREFIX.length);
 	}
 	return name.replace(/\//g, '-');
+}
+
+/**
+ * The `homeDirectory` argument to pass to {@link getWorktreesRoot}, or
+ * `undefined` to keep its default sibling-directory behavior.
+ *
+ * `getWorktreesRoot`'s home-directory case nests the worktrees root under
+ * `<repositoryRoot>/.git`, which requires `.git` to be a real directory - not
+ * the case for a repository whose `.git` is a redirect file (a submodule, or a
+ * checkout created by `git worktree add`). When `repositoryRoot` is the home
+ * directory but `.git` is not a directory, this returns `undefined` so the
+ * caller falls back to the (already broken for this narrow, compound case)
+ * sibling behavior rather than attempting to create a directory inside what is
+ * actually a file.
+ */
+export async function resolveWorktreesRootHomeDirectory(repositoryRoot: URI, homeDirectory: URI): Promise<URI | undefined> {
+	// Same case-sensitivity handling as getWorktreesRoot's own comparison
+	// (ignored on Windows/macOS, honored on Linux) so this can't disagree with
+	// what getWorktreesRoot itself decides.
+	if (!extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.normalizePath(repositoryRoot), extUriBiasedIgnorePathCase.normalizePath(homeDirectory))) {
+		return undefined;
+	}
+	const gitEntryIsDirectory = await fs.stat(URI.joinPath(repositoryRoot, '.git').fsPath).then(stat => stat.isDirectory(), () => false);
+	return gitEntryIsDirectory ? homeDirectory : undefined;
 }
 
 /**
@@ -875,7 +899,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			: undefined;
 
 		const { worktreePath, branchName, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
-			const worktreesRoot = getWorktreesRoot(repositoryRoot, URI.file(homedir()));
+			const worktreesRoot = getWorktreesRoot(repositoryRoot, await this._resolveHomeDirectoryForWorktreesRoot(repositoryRoot));
 
 			if (worktreeCreateNewBranch) {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
@@ -1308,6 +1332,19 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._logService.warn(`[${this._logLabel}] Failed to resolve primary worktree for '${checkoutRoot.fsPath}': ${errorMessage(error)}`);
 			return fallbackRoot;
 		}
+	}
+
+	/**
+	 * The home directory to pass to {@link getWorktreesRoot}, or `undefined` to
+	 * keep its default sibling-directory behavior.
+	 */
+	private async _resolveHomeDirectoryForWorktreesRoot(repositoryRoot: URI): Promise<URI | undefined> {
+		const home = URI.file(homedir());
+		const resolved = await resolveWorktreesRootHomeDirectory(repositoryRoot, home);
+		if (!resolved && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.normalizePath(repositoryRoot), extUriBiasedIgnorePathCase.normalizePath(home))) {
+			this._logService.warn(`[${this._logLabel}] Repository root '${repositoryRoot.fsPath}' is the home directory but its '.git' entry is not a directory (likely a submodule or linked worktree); worktree creation may fail with a permissions error.`);
+		}
+		return resolved;
 	}
 
 	/**
