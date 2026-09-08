@@ -38,12 +38,12 @@ export async function resolvePullRequestSessionRepository(
 		const workspace = session.workspace.get();
 		for (const folder of workspace?.folders ?? []) {
 			if (folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				folderUri = folder.root;
-				break;
+				folderUri ??= folder.root;
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+				if (gitHubInfo) {
+					return { folderUri: folder.root, owner: gitHubInfo.owner, repo: gitHubInfo.repo };
+				}
 			}
-		}
-		if (folderUri) {
-			break;
 		}
 	}
 	if (!folderUri) {
@@ -185,6 +185,7 @@ export function createPullRequestContextAttachment(context: IGitHubPullRequestCo
 		icon: Codicon.gitPullRequest,
 		uri: URI.parse(context.url),
 		tooltip: localize('pullRequest.context.tooltip', "Pull request #{0} by @{1}", context.number, context.author),
+		readyMessage: localize('pullRequest.sessionReady', "Session ready. Pull request #{0} is checked out and attached.", context.number),
 	};
 }
 

@@ -67,8 +67,8 @@
 		// modern ui
 		"surface.border": "#00000000",
 		"modernActivityBar.background": "#330000",
-		"modernActivityBar.activeBackground": "#770000",
-		"modernActivityBar.hoverBackground": "#58000087",
+		"modernActivityBarItem.activeBackground": "#770000",
+		"modernActivityBarItem.hoverBackground": "#58000087",
 	},
 	"tokenColors": [
 		{

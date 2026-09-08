@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
@@ -25,6 +26,12 @@ export interface ISessionChangeEvent {
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
+
+/** A provider-prepared replacement draft and its rollback operation. */
+export interface IPreparedNewSession {
+	readonly session: ISession;
+	discard?(): Promise<void>;
+}
 
 /**
  * Options for sending a request to a session.
@@ -44,6 +51,16 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Complete Automation state for providers that also own compatibility projections. */
+	readonly automationConfiguration?: IAutomationSessionConfiguration;
+}
+
+/** Provider-owned Automation draft state plus temporary compatibility projections. */
+export interface IAutomationSessionConfiguration {
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly modelId?: string;
+	readonly mode?: string;
+	readonly permissionLevel?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -103,12 +120,29 @@ export type IGuardedAutomationSnapshotRemovalResult =
 	| { readonly kind: 'missing' };
 
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	canRunAutomation?(automationId: string): boolean;
+	canUpdateAutomation?(automationId: string): boolean;
+	canDeleteAutomation?(automationId: string): boolean;
+	/** Whether this provider's authority currently evaluates the given Automation's schedule. */
+	isSchedulingOwnedByHost?(automationId: string): boolean;
+	/** Whether importing a snapshot preserves its historical runs. Defaults to true. */
+	readonly preservesImportedRunHistory?: boolean;
+	/** Whether every persisted source row was understood and can be migrated without loss. */
+	canCompleteMigration?(): boolean;
 	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
 	importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult>;
 	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
 	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
 	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
 	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
+	/**
+	 * Signals that an imported snapshot's source row has been durably removed and the destination
+	 * store may release any staging holds (e.g. the pending-import flag that suppresses scheduling
+	 * authority until the source is gone).
+	 */
+	acknowledgeAutomationSnapshotImported?(snapshot: IAutomation): Promise<void>;
+	/** Finalizes any authority migration after all snapshots have been imported and verified. */
+	completeMigration?(): Promise<void>;
 }
 
 /**
@@ -217,6 +251,11 @@ export interface ISessionsProvider {
 	 */
 	readonly supportsQuickChats?: boolean;
 
+	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
+	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
+	readonly supportsAutomationSessionConfiguration?: boolean;
+
 	/**
 	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
 	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
@@ -247,6 +286,15 @@ export interface ISessionsProvider {
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
+	 * Asynchronously replace a draft before its first chat is created.
+	 * Providers use this to materialize execution environments that can change
+	 * the provider or workspace backing the session. The first query is supplied
+	 * so preparation that depends on it, such as worktree branch naming, does not
+	 * need to delay until the replacement provider sends the request.
+	 */
+	prepareNewSession?(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession>;
+
+	/**
 	 * Mark a new session as preparing its first request before asynchronous
 	 * configuration and request-context resolution begin.
 	 */
@@ -263,7 +311,7 @@ export interface ISessionsProvider {
 	 * support quick chats must throw.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createQuickChat(sessionTypeId: string): ISession;
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
@@ -273,6 +321,12 @@ export interface ISessionsProvider {
 	 * @param sessionId The id of the new session to delete.
 	 */
 	deleteNewSession(sessionId: string): void;
+
+	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
+	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
+
+	/** Model preferences scoped to an Automation draft rather than the ordinary New Session defaults. */
+	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
 
 	/**
 	 * Get the session types supported for a given workspace URI.

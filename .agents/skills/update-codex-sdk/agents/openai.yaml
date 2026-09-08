@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Codex SDK"
+  short_description: "Update and verify VS Code's bundled Codex SDK"
+  default_prompt: "Use $update-codex-sdk to update VS Code to the newest private-feed-available Codex SDK and verify it end to end."

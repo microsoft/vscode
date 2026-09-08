@@ -1078,7 +1078,9 @@ export class Repository implements Disposable {
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
 		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
-		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root, this.logger)));
+		const branchProtectionProvider = new GitBranchProtectionProvider(root, this.logger);
+		this.disposables.push(branchProtectionProvider);
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, branchProtectionProvider));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);

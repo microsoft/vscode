@@ -35,6 +35,7 @@ import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
+import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 
@@ -61,6 +62,11 @@ export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
 	/** Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails. */
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope;
+	/**
+	 * Acquires a shared MCP support scope for a Copilot CLI harness; `undefined` roots mean unknown applicability while an empty array means no workspace.
+	 * Returns `undefined` for harnesses whose MCP delivery is not assessed by the client.
+	 */
+	acquireMcpServerSupportScope(sessionType: string, roots: readonly URI[] | undefined): IAgentHostMcpServerSupportScope | undefined;
 	/** The persisted customization sync provider for `sessionType`. */
 	getSyncProvider(sessionType: string): ICustomizationSyncProvider;
 	/** Recovers provenance for a synced URI produced by any scope. */
@@ -267,6 +273,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 	private readonly _scopes = new Map<string, AgentCustomizationScope>();
+	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
 	private readonly _syncProviders = new Map<string, AgentCustomizationSyncProvider>();
 	private _isDisposed = false;
 
@@ -304,6 +311,27 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			);
 			scope = createdScope;
 			this._scopes.set(serviceScopeKey, scope);
+		}
+		return scope.acquire();
+	}
+
+	acquireMcpServerSupportScope(sessionType: string, roots: readonly URI[] | undefined): IAgentHostMcpServerSupportScope | undefined {
+		if (!isCopilotCliSessionType(sessionType)) {
+			return undefined;
+		}
+		const normalizedRoots = roots === undefined ? undefined : normalizeRoots(roots, this._uriIdentityService.extUri);
+		const rootsKey = normalizedRoots === undefined ? undefined : getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
+		const serviceScopeKey = JSON.stringify([sessionType, rootsKey]);
+		let scope = this._mcpServerSupportScopes.get(serviceScopeKey);
+		if (!scope) {
+			const createdScope = this._instantiationService.createInstance(
+				AgentHostMcpServerSupportScope,
+				sessionType,
+				normalizedRoots,
+				() => this._removeMcpServerSupportScope(serviceScopeKey, createdScope),
+			);
+			scope = createdScope;
+			this._mcpServerSupportScopes.set(serviceScopeKey, scope);
 		}
 		return scope.acquire();
 	}
@@ -388,7 +416,12 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._isDisposed = true;
 		const scopes = [...this._scopes.values()];
 		this._scopes.clear();
+		const mcpServerSupportScopes = [...this._mcpServerSupportScopes.values()];
+		this._mcpServerSupportScopes.clear();
 		for (const scope of scopes) {
+			scope.dispose();
+		}
+		for (const scope of mcpServerSupportScopes) {
 			scope.dispose();
 		}
 		super.dispose();
@@ -397,6 +430,12 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private _removeScope(scopeKey: string, scope: AgentCustomizationScope): void {
 		if (this._scopes.get(scopeKey) === scope) {
 			this._scopes.delete(scopeKey);
+		}
+	}
+
+	private _removeMcpServerSupportScope(scopeKey: string, scope: AgentHostMcpServerSupportScope): void {
+		if (this._mcpServerSupportScopes.get(scopeKey) === scope) {
+			this._mcpServerSupportScopes.delete(scopeKey);
 		}
 	}
 }

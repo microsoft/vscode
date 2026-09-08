@@ -573,8 +573,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Explains what the "Auto" model routed a turn to. Rendered as a collapsible
-	 * row: "Routing task…" while the router is deciding, then "Routed task".
+	 * Explains what the "Auto" model routed a turn to, as a single status line.
 	 * Push a part without a model for the in-flight state, then a resolved one.
 	 * Auto may route several times in a turn; each route gets its own row.
 	 */

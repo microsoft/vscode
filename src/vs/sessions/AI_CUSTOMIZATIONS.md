@@ -32,6 +32,7 @@ This service supplies per-window policy to the shared editor:
 - available management sections;
 - whether the surface is in the Agents Window;
 - the active project root;
+- the active project display label;
 - welcome-page capabilities.
 
 The editor workbench resolves project context from its workspace. The Agents Window resolves it from the scoped active session.
@@ -48,6 +49,10 @@ The service owns:
 - harness-specific item and enablement providers.
 
 Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses when their backing agents are available. The Agents Window exposes harnesses backed by registered session content providers and does not assume a Local fallback.
+
+### `ICustomizationMigrationService`
+
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage; MCP migrations report known servers' binary harness compatibility together with discovery and policy-coverage state. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
 
 ### `IHarnessDescriptor`
 
@@ -88,7 +93,7 @@ Prompt-based items use the prompts service adapter. MCP servers, tools, plugins,
 
 In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
-The management-editor command may select a section, target a session type, and reveal a URI-addressable customization. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
+The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
 
@@ -105,12 +110,6 @@ Changes to that item shape must remain aligned across:
 5. the internal customization item.
 
 New fields should be optional unless the proposal explicitly introduces a breaking version.
-
-## Enabling and disabling built-in skills
-
-Built-in discovery and user enablement are separate stores. Discovery determines which built-in items exist; enablement records the user's disabled set. Item projection combines both and keeps the built-in source distinct from extension and user storage.
-
-Harness filtering must happen before enablement presentation so an item hidden from a harness cannot be reintroduced by its stored enablement state.
 
 ## Feature gating
 

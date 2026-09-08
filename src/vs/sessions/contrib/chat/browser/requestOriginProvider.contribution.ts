@@ -25,7 +25,7 @@ class SessionsChatRequestOriginProviderContribution extends Disposable implement
 				if (origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 					return openerService.open(origin.sourceSessionResource);
 				}
-				await sessionsService.openSession(origin.sourceSessionResource);
+				await sessionsService.openSession(origin.sourceSessionResource, { source: 'chat' });
 				return true;
 			},
 		}));

@@ -475,9 +475,14 @@ suite('codexReplayMapper', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			}],
 		} as never);
-		assert.deepStrictEqual(turns.map(turn => ({ state: turn.state, error: getTurnError(turn) })), [{
+		assert.deepStrictEqual(turns.map(turn => ({
+			state: turn.state,
+			error: getTurnError(turn),
+			errorPartCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+		})), [{
 			state: TurnState.Error,
 			error: { errorType: 'CodexError', message: 'oops' },
+			errorPartCount: 1,
 		}]);
 	});
 

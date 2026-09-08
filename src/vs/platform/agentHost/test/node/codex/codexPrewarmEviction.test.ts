@@ -31,7 +31,7 @@ import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCrea
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
@@ -45,7 +45,8 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
-import type { ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
@@ -57,6 +58,7 @@ import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/genera
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
+import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -65,10 +67,15 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly includeTurns?: boolean;
+		readonly cursor?: string | null;
+		readonly limit?: number;
+		readonly sortDirection?: 'asc' | 'desc';
+		readonly itemsView?: 'notLoaded' | 'summary' | 'full';
 		readonly runtimeWorkspaceRoots?: readonly string[];
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
+		readonly extraRoots?: readonly string[];
 		readonly sandboxPolicy?: SandboxPolicy;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
@@ -193,7 +200,7 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 }
 
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
-	const models = [{ id: 'gpt-test', name: 'GPT Test', supported_endpoints: ['/responses'] }] as CCAModel[];
+	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
 	const logService = new TestCodexLogService();
 	const fileService = disposables.add(new TestCodexFileService(logService));
@@ -215,11 +222,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
-	instantiationService.stub(IAgentSdkDownloader, {
-		_serviceBrand: undefined,
-		isAvailable: () => true,
-		isSdkResolvableWithoutDownload: async () => true,
-	});
+	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
@@ -1089,7 +1092,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual(agent['_sessions'].get('restored-updated-model')?.model, persistedModel);
 	});
 
-	test('cold chat history resumes its backing thread before reading turns', async () => {
+	test('cold chat history resumes its backing thread and pages turns', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'restored-history-thread');
 		const agent = await createAgent(disposables, { database });
@@ -1110,20 +1113,57 @@ suite('CodexAgent prewarm eviction', () => {
 		const inventory = await readNextRequest(peer.outbound);
 		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
+		assert.strictEqual(read.params.includeTurns, false);
 		peer.push({
 			id: read.id,
 			result: {
 				thread: {
 					id: 'restored-history',
-					turns: [{
-						id: 'turn-1',
-						items: [
-							{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'hello', text_elements: [] }] },
-							{ type: 'agentMessage', id: 'agent-1', text: 'restored', phase: null, memoryCitation: null },
-						],
-						status: 'completed',
-					}],
+					historyMode: 'paginated',
+					turns: [],
 				},
+			},
+		});
+		const firstPage = await readNextRequest(peer.outbound);
+		assert.deepStrictEqual(firstPage.params, {
+			threadId: 'restored-history-thread',
+			cursor: null,
+			limit: 100,
+			sortDirection: 'asc',
+			itemsView: 'full',
+		});
+		peer.push({
+			id: firstPage.id,
+			result: {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'hello', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'agent-1', text: 'restored one', phase: null, memoryCitation: null },
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: 'page-2',
+				backwardsCursor: null,
+			},
+		});
+		const secondPage = await readNextRequest(peer.outbound);
+		assert.strictEqual(secondPage.params.cursor, 'page-2');
+		peer.push({
+			id: secondPage.id,
+			result: {
+				data: [{
+					id: 'turn-2',
+					items: [
+						{ type: 'userMessage', id: 'user-2', content: [{ type: 'text', text: 'again', text_elements: [] }] },
+						{ type: 'agentMessage', id: 'agent-2', text: 'restored two', phase: null, memoryCitation: null },
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
 			},
 		});
 
@@ -1137,6 +1177,8 @@ suite('CodexAgent prewarm eviction', () => {
 				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
+				{ method: firstPage.method, threadId: firstPage.params.threadId },
+				{ method: secondPage.method, threadId: secondPage.params.threadId },
 				{ method: turn.method, threadId: turn.params.threadId },
 			],
 			turns: turns.map(turn => ({
@@ -1149,12 +1191,18 @@ suite('CodexAgent prewarm eviction', () => {
 				{ method: 'thread/resume', threadId: 'restored-history-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'restored-history-thread' },
 				{ method: 'thread/read', threadId: 'restored-history-thread' },
+				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
+				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
 				{ method: 'turn/start', threadId: 'restored-history-thread' },
 			],
 			turns: [{
 				id: 'turn-1',
 				prompt: 'hello',
-				response: ['restored'],
+				response: ['restored one'],
+			}, {
+				id: 'turn-2',
+				prompt: 'again',
+				response: ['restored two'],
 			}],
 		});
 		peer.exit();
@@ -1214,7 +1262,9 @@ suite('CodexAgent prewarm eviction', () => {
 		const followUpInventory = await readNextRequest(peer.outbound);
 		peer.push({ id: followUpInventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
-		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', turns: [] } } });
+		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', historyMode: 'paginated', turns: [] } } });
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [], nextCursor: null, backwardsCursor: null } });
 		await reading;
 
 		assert.deepStrictEqual({
@@ -1315,6 +1365,125 @@ suite('CodexAgent prewarm eviction', () => {
 			needsResume: true,
 			unsubscribeBeforeResume: true,
 		});
+	});
+
+	test('workspace skills retain invocation metadata when the native catalog repeats them', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillUri = URI.joinPath(workspace, '.github', 'skills', 'website', 'SKILL.md');
+		const nativeSkillUri = URI.joinPath(workspace, '.agents', 'skills', 'website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: website\ndescription: Workspace website\nuser-invocable: false\ndisable-model-invocation: true\n---\nInclude a footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace] });
+		const chat = defaultChatOf(session);
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const nativeSkill = { name: 'website', description: 'Native website', path: skillUri.fsPath, scope: 'repo' as const, enabled: true };
+		let catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [nativeSkill, { ...nativeSkill, path: nativeSkillUri.fsPath }], errors: [] }] });
+		const nativeContainerId = catalog[0].id;
+		agent['_fetchSkillHookContainers'] = async () => catalog;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const summarize = (customizations: readonly Customization[]) => customizations
+			.flatMap(customization => customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+			.filter(child => child.type === CustomizationType.Skill)
+			.map(skill => ({
+				uri: skill.uri,
+				description: skill.description,
+				disableUserInvocation: skill.disableUserInvocation,
+				disableModelInvocation: skill.disableModelInvocation,
+			}));
+		const refreshed = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated ? [signal.action.customization] : []);
+		const workspaceSkill = { uri: skillUri.toString(), description: 'Workspace website', disableUserInvocation: true, disableModelInvocation: true };
+		const expected = [workspaceSkill, { uri: nativeSkillUri.toString(), description: 'Native website', disableUserInvocation: undefined, disableModelInvocation: undefined }];
+
+		const snapshot = await agent.getChatCustomizations(chat, chatContext(session, chat));
+		await agent['_refreshSkillHookCustomizations'](entry);
+		const firstRefresh = summarize(refreshed());
+		signals.length = 0;
+		catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [nativeSkill], errors: [] }] });
+		await agent['_refreshSkillHookCustomizations'](entry);
+		const finalSnapshot = await agent.getChatCustomizations(chat, chatContext(session, chat));
+
+		assert.deepStrictEqual({
+			snapshot: summarize(snapshot),
+			firstRefresh,
+			finalRefresh: summarize(refreshed()),
+			finalSnapshot: summarize(finalSnapshot),
+			removedIds: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved ? [signal.action.id] : []),
+			publishedDirectoryIds: [...entry.publishedDirectoryCustomizationIds],
+		}, {
+			snapshot: expected,
+			firstRefresh: expected,
+			finalRefresh: [workspaceSkill],
+			finalSnapshot: [workspaceSkill],
+			removedIds: [nativeContainerId],
+			publishedDirectoryIds: [snapshot[0].id],
+		});
+	});
+
+	test('workspace skill catalog refresh removes deleted skills', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillUri = URI.joinPath(workspace, '.github', 'skills', 'website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: website\ndescription: Builds websites\n---\nInclude a footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace] });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		await agent['_refreshSkillHookCustomizations'](entry);
+		await agent['_fileService'].del(skillUri);
+		await agent['_refreshSkillHookCustomizations'](entry);
+
+		assert.deepStrictEqual({
+			actions: signals.flatMap(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.SessionCustomizationUpdated || signal.action.type === ActionType.SessionCustomizationRemoved)
+				? [signal.action.type] : []),
+			publishedDirectoryIds: [...entry.publishedDirectoryCustomizationIds],
+		}, {
+			actions: [ActionType.SessionCustomizationUpdated, ActionType.SessionCustomizationRemoved],
+			publishedDirectoryIds: [],
+		});
+	});
+
+	test('workspace skill roots stay session-scoped rather than process-global', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillRoot = URI.joinPath(workspace, '.github', 'skills');
+		await agent['_fileService'].writeFile(URI.joinPath(skillRoot, 'website', 'SKILL.md'), VSBuffer.fromString('---\nname: website\ndescription: Builds websites\n---\nInclude a footer.'));
+		const owner = await createSession(agent, { workingDirectories: [workspace] });
+		const unrelated = await createSession(agent, { workingDirectories: [URI.file('/other')] });
+		const ownerLaunch = await agent['_buildCustomizationLaunch'](agent['_sessions'].get(AgentSession.id(owner.session))!);
+		const unrelatedLaunch = await agent['_buildCustomizationLaunch'](agent['_sessions'].get(AgentSession.id(unrelated.session))!);
+		const unrelatedChat = defaultChatOf(unrelated.session);
+		const unrelatedCustomizations = await agent.getChatCustomizations(unrelatedChat, chatContext(unrelated.session, unrelatedChat));
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+
+		try {
+			const applying = agent['_applySkillExtraRoots'](client);
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			await applying;
+
+			assert.deepStrictEqual({
+				ownerRoots: ownerLaunch.selectedCapabilityRoots.map(root => root.location.path),
+				unrelatedRoots: unrelatedLaunch.selectedCapabilityRoots,
+				unrelatedCustomizations,
+				method: request.method,
+				processGlobalRoots: request.params.extraRoots,
+			}, {
+				ownerRoots: [skillRoot.fsPath],
+				unrelatedRoots: [],
+				unrelatedCustomizations: [],
+				method: 'skills/extraRoots/set',
+				processGlobalRoots: [],
+			});
+		} finally {
+			peer.exit();
+		}
 	});
 
 	test('skill catalog refresh removes directory customizations that disappeared', async () => {
@@ -1756,6 +1925,51 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('thread start discovers workspace skills without client plugins', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const skillsDirectory = URI.joinPath(workspace, '.github', 'skills');
+		const skillUri = URI.joinPath(skillsDirectory, 'standalone-html-website', 'SKILL.md');
+		await agent['_fileService'].writeFile(skillUri, VSBuffer.fromString('---\nname: standalone-html-website\ndescription: Builds a self-contained website\n---\nAlways include a sticky Made with Copilot footer.'));
+		const { session } = await createSession(agent, { workingDirectories: [workspace], model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const customizations = await agent.getChatCustomizations(chat, chatContext(session, chat));
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+
+		try {
+			const send = agent.chats.sendMessage(chat, 'Create a Hello World website.', [workspace], undefined, 'turn-1');
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-skill' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				startMethod: start.method,
+				selectedPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
+				skills: customizations
+					.flatMap(customization => customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+					.filter(customization => customization.type === CustomizationType.Skill)
+					.map(skill => ({ name: skill.name, uri: skill.uri })),
+			}, {
+				startMethod: 'thread/start',
+				selectedPaths: [skillsDirectory.fsPath],
+				skills: [{ name: 'standalone-html-website', uri: skillUri.toString() }],
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('thread start receives custom agents, instructions, skills, and MCP from client plugins', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -1818,8 +2032,8 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
-			developerInstructions: 'Run focused tests.\n\nReview carefully.',
-			turnDeveloperInstructions: 'Run focused tests.\n\nReview carefully.',
+			developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
@@ -1880,11 +2094,11 @@ suite('CodexAgent prewarm eviction', () => {
 			resumedRoleFile,
 			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
 		}, {
-			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
-			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			start: { method: 'thread/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+			firstTurn: { method: 'turn/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
 			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
-			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
-			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
+			resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+			secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
 			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
 			needsResume: false,
 		});
@@ -2386,10 +2600,13 @@ suite('CodexAgent prewarm eviction', () => {
 					thread: {
 						id: 'source-thread',
 						cwd: repoA.fsPath,
-						turns: [{ id: 'turn-1' }],
+						historyMode: 'paginated',
+						turns: [],
 					},
 				},
 			});
+			const historyPage = await readNextRequest(peer.outbound);
+			peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
 			const fork = await readNextRequest(peer.outbound);
 			peer.push({
 				id: fork.id,
@@ -2471,10 +2688,13 @@ suite('CodexAgent prewarm eviction', () => {
 				thread: {
 					id: 'managed-source',
 					cwd: sourceDirectory.fsPath,
-					turns: [{ id: 'turn-1' }],
+					historyMode: 'paginated',
+					turns: [],
 				},
 			},
 		});
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
 		const fork = await readNextRequest(peer.outbound);
 		const forkDirectory = fork.params.cwd;
 		assert.ok(forkDirectory);
@@ -2724,20 +2944,23 @@ suite('CodexAgent prewarm eviction', () => {
 		const resumeInventory = await readNextRequest(peer.outbound);
 		peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 		const historyRead = await readNextRequest(peer.outbound);
-		assert.strictEqual(historyRead.params.includeTurns, true);
+		assert.strictEqual(historyRead.params.includeTurns, false);
 		peer.push({
 			id: historyRead.id,
 			result: {
 				thread: {
 					id: historyRead.params.threadId,
 					cwd: workingDirectory.fsPath,
+					historyMode: 'paginated',
 					modelProvider: 'openai',
 					path: rollout.fsPath,
 					source: 'vscode',
-					turns: [persistedTurn],
+					turns: [],
 				},
 			},
 		});
+		const historyPage = await readNextRequest(peer.outbound);
+		peer.push({ id: historyPage.id, result: { data: [persistedTurn], nextCursor: null, backwardsCursor: null } });
 		const history = await historyPromise;
 
 		const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);

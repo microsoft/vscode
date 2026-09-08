@@ -26,6 +26,12 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
+export const enum CustomizationMigrationHintMode {
+	Never = 'never',
+	Once = 'once',
+	Always = 'always',
+}
+
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -47,6 +53,7 @@ export enum ChatConfiguration {
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
+	CustomizationEntryPoints = 'chat.agentSessions.customizationEntryPoints',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -81,9 +88,12 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
+	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
+	SubagentsDefaultToAuto = 'chat.subagents.defaultToAuto',
 	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
+	SubagentsShowCreditUsage = 'chat.subagents.showCreditUsage',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
@@ -93,10 +103,13 @@ export enum ChatConfiguration {
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
+	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
+	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
+	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
@@ -116,7 +129,6 @@ export enum ChatConfiguration {
 	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
-	TurnStatusPills = 'chat.turnStatusPills',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -371,8 +383,14 @@ export type SessionTypeSelectionReason =
 	| 'currentSession'
 	/** The Copilot harness preference replaced a local current session. */
 	| 'copilotPreference'
+	/** An intended Agent Host session could not be acquired, so Local was used. */
+	| 'agentHostUnavailable'
 	/** Settings and available capabilities determined the default type. */
 	| 'computedDefault';
+
+export function getLocalFallbackSessionTypeSelectionReason(sessionType: string, didAcquireSession: boolean, inheritedReason?: SessionTypeSelectionReason): SessionTypeSelectionReason | undefined {
+	return !didAcquireSession && isAgentHostTarget(sessionType) ? 'agentHostUnavailable' : inheritedReason;
+}
 
 export interface IDefaultNewChatSessionTypeOptions {
 	readonly explicitOverride?: string;

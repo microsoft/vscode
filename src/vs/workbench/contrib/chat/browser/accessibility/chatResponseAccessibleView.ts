@@ -17,7 +17,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
-import { autoModeRoutingDetail, autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -158,6 +158,8 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return toolSpecificData.operation === 'created'
 				? localize('automationConfigured.created', "Created an automation: {0}", toolSpecificData.automationName)
 				: localize('automationConfigured.updated', "Edited an automation: {0}", toolSpecificData.automationName);
+		case 'sessionCreated':
+			return toolSpecificData.fullTitle ?? toolSpecificData.label;
 		default:
 			return '';
 	}
@@ -382,6 +384,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'systemNotification': {
+				const text = part.accessibilityLabel ?? renderChatMessageAsPlaintext(part.content);
+				if (text.trim()) {
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
@@ -479,7 +488,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				if (!part.resolved && item.isComplete) {
 					break;
 				}
-				contentParts.push({ partIndex, text: autoModeRoutingDetail(part) ?? autoModeRoutingTitle(part) });
+				contentParts.push({ partIndex, text: autoModeRoutingTitle(part) });
 				break;
 			}
 		}

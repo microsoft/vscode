@@ -7,11 +7,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatAutoModeResolutionContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatAutoModeResolutionContentPart.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatAutoModeResolutionPart } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -41,31 +38,17 @@ function createRenderContext(isComplete: boolean): IChatContentPartRenderContext
 	};
 }
 
-function renderRoutingPart(
-	context: ComponentFixtureContext,
-	content: IChatAutoModeResolutionPart,
-	opts: { expanded: boolean },
-): void {
+function renderRoutingPart(context: ComponentFixtureContext, content: IChatAutoModeResolutionPart): void {
 	const { container, disposableStore } = context;
-
-	const mockAnchorService = new class extends mock<IChatMarkdownAnchorService>() {
-		override register() { return { dispose() { } }; }
-	}();
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
-		additionalServices: (reg) => {
-			reg.define(IMarkdownRendererService, MarkdownRendererService);
-			reg.defineInstance(IChatMarkdownAnchorService, mockAnchorService);
-		},
 	});
 
-	const markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 	const part = disposableStore.add(instantiationService.createInstance(
 		ChatAutoModeResolutionContentPart,
 		content,
 		createRenderContext(!!content.resolved),
-		markdownRenderer,
 	));
 
 	container.style.width = '400px';
@@ -79,10 +62,6 @@ function renderRoutingPart(
 	value.appendChild(part.domNode);
 	response.appendChild(value);
 	container.appendChild(response);
-
-	if (opts.expanded) {
-		part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
-	}
 }
 
 const routing: IChatAutoModeResolutionPart = { kind: 'autoModeResolution' };
@@ -91,16 +70,11 @@ const routed: IChatAutoModeResolutionPart = { kind: 'autoModeResolution', resolv
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Routing: defineComponentFixture({
 		labels: { kind: 'animated' },
-		render: (ctx) => renderRoutingPart(ctx, routing, { expanded: false }),
+		render: (ctx) => renderRoutingPart(ctx, routing),
 	}),
 
 	Routed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderRoutingPart(ctx, routed, { expanded: false }),
-	}),
-
-	RoutedExpanded: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: (ctx) => renderRoutingPart(ctx, routed, { expanded: true }),
+		render: (ctx) => renderRoutingPart(ctx, routed),
 	}),
 });

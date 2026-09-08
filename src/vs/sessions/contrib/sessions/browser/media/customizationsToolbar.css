@@ -190,3 +190,19 @@
 	overflow: hidden;
 	padding-bottom: 2px;
 }
+
+.chat-composite-bar-toolbar .sessions-customize-toolbar-action .action-label {
+	width: auto;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size40);
+	font-family: inherit;
+}
+
+.sessions-customize-toolbar-action .action-label::before {
+	font-family: codicon;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.sessions-customize-toolbar-label {
+	font-size: var(--vscode-fontSize-body1);
+}

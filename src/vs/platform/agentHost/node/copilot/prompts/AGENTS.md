@@ -25,7 +25,9 @@ data the SDK accepts directly.
 
 ## How the system message is built
 
-`resolveSystemMessageConfig(model, context)` layers, in order:
+Unless the matching `chat.agentHost.copilot.modelCapabilityOverrides` entry
+provides a YAML `promptOverrideString` or `promptOverrideFile` containing
+`systemPrompt`, `resolveSystemMessageConfig(model, context)` layers, in order:
 
 1. **Base** — **`_resolveModelConfig`** picks the per-model (or default)
    config. Falls back to `COPILOT_AGENT_HOST_SYSTEM_MESSAGE` when there's no
@@ -41,6 +43,13 @@ data the SDK accepts directly.
 3. **Workspaceless scratch + file-link contract** — appended as trailing
    `content` for every mode, including `replace`, so a full replacement owns the
    prompt body but not the host's response-format plumbing.
+
+The per-model prompt override supports the same fields and precedence as the
+Copilot Chat debug prompt override: inline YAML takes precedence over a YAML
+file, `systemPrompt` bypasses this registry and is sent directly as the Copilot
+SDK's `systemMessage` in `replace` mode, and `toolDescriptions` replaces
+descriptions on tools registered by Agent Host. This internal debugging setting
+assumes those values use the documented string shape.
 
 > **Launch-time freeze.** The SDK accepts a system message only at session
 > create/resume; there is no mid-session update. The prompt is resolved once per
@@ -159,7 +168,7 @@ layering is a known follow-up.
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 
 `chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'`
-matches every model, a specific entry wins field-by-field) carry the non-prompt
+matches every model, a specific entry wins field-by-field) carry the
 experimentation knobs the launcher applies: `family` (prompt and tool-profile
 alias, so a preview model resolves through another family's contributor),
 `reasoningEffort` (wins over the model picker's thinking level; set it on the
@@ -169,9 +178,10 @@ model change),
 resume, but not on a mid-session model change — and enforced against every
 SDK-registered tool, including the host's shell and server tools, not just the
 forwarded client tools),
-and `modelCapabilities` (per-property overrides passed through to the SDK's
+`modelCapabilities` (per-property overrides passed through to the SDK's
 `modelCapabilities` field — e.g. vision support, token limits — applied on
-every launch and resume).
+every launch and resume), and `promptOverrideString`/`promptOverrideFile` (YAML
+system-prompt and tool-description overrides, applied on launch and resume).
 
 `family` is host-side only: it selects the prompt contributor and the
 tool-search capability gate, and the model id sent to the runtime is unchanged,
@@ -187,11 +197,12 @@ layered on top. Aliasing the runtime's half too would need
 session in the window.
 
 > **Security note.** The setting is application-scoped (not workspace-
-> configurable) and forwarded to the agent host; entries must still never carry
-> content that reaches the prompt or the host filesystem directly (e.g. a
-> prompt-file path). Prompt experiments are code-managed: add a contributor
-> (Lever 2) gated on its own opt-in setting, like `anthropicPrompt.ts` with
-> `chat.agentHost.opus48Prompt.enabled`.
+> configurable) and forwarded to the agent host. `promptOverrideString` and
+> `promptOverrideFile` deliberately carry prompt content and a host-local file
+> path for debugging and evaluation; do not add other prompt or filesystem
+> inputs to this setting without an explicit security review. Code-managed
+> prompt experiments should still use a contributor (Lever 2) gated on its own
+> opt-in setting.
 
 ## Reference
 

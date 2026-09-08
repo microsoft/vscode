@@ -203,6 +203,12 @@ suite('Sessions list context menus', () => {
 				override readonly visibleSessions = constObservable([]);
 				override async canOpenSession(): Promise<boolean> { return true; }
 				override showSession(): void { }
+				override async openChatToSide(_session: ISession, chatResource: URI): Promise<void> {
+					const chat = session.chats.get().find(candidate => candidate.resource.toString() === chatResource.toString());
+					if (chat) {
+						openedToSide.push(chat);
+					}
+				}
 			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView(): SessionView {
@@ -220,13 +226,14 @@ suite('Sessions list context menus', () => {
 		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem);
 		assert.deepStrictEqual(menuItems.map(item => ({
 			id: item.command.id,
+			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
 			when: item.when?.serialize(),
 		})), [
-			{ id: 'sessions.list.renameChat', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
-			{ id: 'sessions.list.openChatToSide', group: '1_chat', order: 2, when: undefined },
-			{ id: 'sessions.list.deleteChat', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+			{ id: 'sessions.list.renameChat', title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
+			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
 		const chatContext = { session, chat: peer };
 		for (const actionId of ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
@@ -241,11 +248,13 @@ suite('Sessions list context menus', () => {
 			renamedChats: harness.managementService.renamedChats,
 			openedToSide,
 			deletedChats: harness.managementService.deletedChats,
+			deleteChatOptions: harness.managementService.deleteChatOptions,
 		}, {
 			renameInputs: ['Peer'],
 			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
 			openedToSide: [peer],
 			deletedChats: [{ session, chatResource: peer.resource }],
+			deleteChatOptions: [undefined],
 		});
 	});
 });

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 
@@ -43,18 +46,22 @@ export function getSessionDiffStats(session: ISession): { files: number; inserti
 export function getSessionSummaryHoverData(
 	session: ISession,
 	sessionsProvidersService: ISessionsProvidersService,
+	openerService: IOpenerService,
+	labelService: ILabelService,
+	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 ): ISessionSummaryHoverData {
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
-		location: getLocation(session),
-		pullRequests: getPullRequests(session),
+		location: getLocation(session, labelService),
+		pullRequests: getPullRequests(session, openerService),
 		createdBy,
-		providerLabels: getProviderLabels(session, sessionsProvidersService),
+		externalSession: getExternalSession(session, preferencesService),
+		providerLabel: getProviderLabel(session, sessionsProvidersService),
 	};
 }
 
-function getLocation(session: ISession): ISessionSummaryHoverLocation | undefined {
+function getLocation(session: ISession, labelService: ILabelService): ISessionSummaryHoverLocation | undefined {
 	const workspace = session.workspace.get();
 	const folder = workspace?.folders[0];
 	if (!workspace || !folder) {
@@ -67,12 +74,14 @@ function getLocation(session: ISession): ISessionSummaryHoverLocation | undefine
 	const isVirtual = getSessionWorkspaceKind(workspace, worktreePending) === SessionWorkspaceKind.Virtual;
 	const worktreeUri = worktreePending ? undefined : folder.gitRepository?.workTreeUri;
 
+	// Paths go through the label service, so a path under the user's home reads
+	// as `~/projects/vscode` and a remote or virtual one gets its own formatting.
 	return {
 		// A virtual workspace has no path a user could act on, so it is named by
 		// its repository label instead.
-		workspace: isVirtual ? workspace.label : locationLabel(folder.root),
+		workspace: isVirtual ? workspace.label : labelService.getUriLabel(folder.root),
 		workspaceIcon: workspace.typeIcon ?? (isVirtual ? Codicon.cloud : Codicon.folder),
-		worktree: worktreeUri ? locationLabel(worktreeUri) : undefined,
+		worktree: worktreeUri ? labelService.getUriLabel(worktreeUri) : undefined,
 		worktreePending,
 		branch: worktreePending ? undefined : folder.gitRepository?.branchName?.trim() || undefined,
 		changes: worktreePending ? undefined : getSessionDiffStats(session),
@@ -84,7 +93,7 @@ function getLocation(session: ISession): ISessionSummaryHoverLocation | undefine
  * checkout it started from, or merely referenced by the agent, are left out —
  * they are not this session's work.
  */
-function getPullRequests(session: ISession): readonly ISessionSummaryHoverPullRequest[] | undefined {
+function getPullRequests(session: ISession, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
 	const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 	if (!gitHubInfo) {
 		return undefined;
@@ -99,23 +108,40 @@ function getPullRequests(session: ISession): readonly ISessionSummaryHoverPullRe
 			: [];
 
 	return refs.length
-		? refs.map(ref => ({ title: ref.title ?? `#${ref.number}`, icon: ref.icon }))
+		? refs.map(ref => ({
+			title: ref.title ?? `#${ref.number}`,
+			icon: ref.icon,
+			uri: ref.uri,
+			onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+		}))
 		: undefined;
 }
 
-/** The session type and the provider serving it, e.g. "Claude · Local Agent Host". */
-function getProviderLabels(session: ISession, sessionsProvidersService: ISessionsProvidersService): readonly string[] | undefined {
+/**
+ * A session created in another application is listed only because
+ * {@link ChatConfiguration.ShowExternalAgentSessions} says such sessions are
+ * shown, so the row both names that origin and leads to the setting behind it.
+ */
+function getExternalSession(session: ISession, preferencesService: IPreferencesService): ISessionSummaryHoverData['externalSession'] {
+	if (session.isExternal?.get() !== true) {
+		return undefined;
+	}
+
+	return {
+		onOpen: () => {
+			preferencesService.openSettings({
+				jsonEditor: false,
+				query: `@id:${ChatConfiguration.ShowExternalAgentSessions}`,
+			}).catch(onUnexpectedError);
+		},
+	};
+}
+
+/** The kind of agent serving the session, e.g. "Claude". */
+function getProviderLabel(session: ISession, sessionsProvidersService: ISessionsProvidersService): string | undefined {
 	const provider = sessionsProvidersService.getProvider(session.providerId);
 	if (!provider) {
 		return undefined;
 	}
-	const sessionType = provider.sessionTypes.find(type => type.id === session.sessionType);
-	return sessionType && sessionType.label !== provider.label
-		? [sessionType.label, provider.label]
-		: [provider.label];
-}
-
-/** A readable label for a location: a filesystem path where there is one. */
-function locationLabel(uri: URI): string {
-	return uri.scheme === Schemas.file ? uri.fsPath : uri.toString(true);
+	return provider.sessionTypes.find(type => type.id === session.sessionType)?.label ?? provider.label;
 }

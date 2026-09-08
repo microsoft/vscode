@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputQuestionKind, ChatInputResponseKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -357,7 +357,7 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: persisted.project,
+			project: provisional.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
@@ -585,7 +585,7 @@ suite('AgentHostStateManager', () => {
 			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			duration: 1000,
-			part: { kind: ResponsePartKind.Error, error: { errorType: 'failed', message: 'boom' } },
+			part: createErrorResponsePart({ errorType: 'failed', message: 'boom' }),
 		});
 
 		assert.deepStrictEqual(events, [
@@ -1986,6 +1986,34 @@ suite('AgentHostStateManager', () => {
 						notifiedSession: sessionUri,
 					},
 				);
+			});
+		});
+
+		test('SessionSummaryNotifier serializes activity clearing as null', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+
+				const notifications: INotification[] = [];
+				disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: 'Setting up workspace',
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+				manager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActivityChanged,
+					activity: undefined,
+				});
+				await new Promise(resolve => setTimeout(resolve, 150));
+
+				const summaryChanges = notifications
+					.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+					.map(notification => JSON.parse(JSON.stringify(notification)) as SessionSummaryChangedParams);
+				assert.deepStrictEqual(summaryChanges.map(notification => notification.changes.activity), [
+					'Setting up workspace',
+					null,
+				]);
 			});
 		});
 	});
