@@ -18,6 +18,7 @@ import { ICodeReviewService } from '../../../codeReview/browser/codeReviewServic
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
 import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackCommentsArbitrationService } from '../../browser/agentFeedbackCommentsArbitration.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 
@@ -35,6 +36,12 @@ suite('AgentFeedbackEditorOverlay', () => {
 			override readonly onDidChangeFeedbackScope = Event.None;
 		});
 		instantiationService.stub(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
+		instantiationService.stub(IAgentFeedbackCommentsArbitrationService, new class extends mock<IAgentFeedbackCommentsArbitrationService>() {
+			override readonly onDidChange = Event.None;
+			override resolve(): Promise<boolean> {
+				return Promise.resolve(false);
+			}
+		});
 
 		const group = editorPart.activeGroup;
 		assert.ok(group instanceof EditorGroupView);

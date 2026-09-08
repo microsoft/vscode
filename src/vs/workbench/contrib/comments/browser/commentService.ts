@@ -77,6 +77,8 @@ export interface ICommentController {
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo<IRange>>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
+	readonly submitCommentThreadLabel?: string;
+	submitCommentThread?(thread: CommentThread, text: string): Promise<void>;
 }
 
 export interface IContinueOnCommentProvider {

@@ -109,6 +109,7 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 class CommentingRangeDecorator {
 	public static description = 'commenting-range-decorator';
 	private decorationOptions: ModelDecorationOptions;
+	private hiddenDecorationOptions: ModelDecorationOptions;
 	private hoverDecorationOptions: ModelDecorationOptions;
 	private multilineDecorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
@@ -129,6 +130,11 @@ class CommentingRangeDecorator {
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+
+		this.hiddenDecorationOptions = ModelDecorationOptions.createDynamic({
+			description: CommentingRangeDecorator.description,
+			isWholeLine: true,
+		});
 
 		const hoverDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
@@ -188,6 +194,8 @@ class CommentingRangeDecorator {
 
 		const commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
+			const decorationOptions = info.commentingRanges.showRangeBar === false ? this.hiddenDecorationOptions : this.decorationOptions;
+			const multilineDecorationOptions = info.commentingRanges.showRangeBar === false ? this.hiddenDecorationOptions : this.multilineDecorationOptions;
 			info.commentingRanges.ranges.forEach(range => {
 				const rangeObject = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 				let intersectingSelectionRange = selectionRange ? rangeObject.intersectRanges(selectionRange) : undefined;
@@ -206,7 +214,7 @@ class CommentingRangeDecorator {
 						intersectingEmphasisRange = new Range(intersectingSelectionRange.endLineNumber, 1, intersectingSelectionRange.endLineNumber, 1);
 						intersectingSelectionRange = new Range(intersectingSelectionRange.startLineNumber, 1, intersectingSelectionRange.endLineNumber - 1, 1);
 					}
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, intersectingSelectionRange, this.multilineDecorationOptions, info.commentingRanges, true));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, intersectingSelectionRange, multilineDecorationOptions, info.commentingRanges, true));
 
 					if (!this._lineHasThread(editor, intersectingEmphasisRange)) {
 						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
@@ -218,16 +226,16 @@ class CommentingRangeDecorator {
 					const hasAfterRange = rangeObject.endLineNumber >= afterRangeStartLine;
 					if (hasBeforeRange) {
 						const beforeRange = new Range(range.startLineNumber, 1, beforeRangeEndLine, 1);
-						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, beforeRange, decorationOptions, info.commentingRanges, true));
 					}
 					if (hasAfterRange) {
 						const afterRange = new Range(afterRangeStartLine, 1, range.endLineNumber, 1);
-						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, afterRange, decorationOptions, info.commentingRanges, true));
 					}
 				} else if ((rangeObject.startLineNumber <= emphasisLine) && (emphasisLine <= rangeObject.endLineNumber)) {
 					if (rangeObject.startLineNumber < emphasisLine) {
 						const beforeRange = new Range(range.startLineNumber, 1, emphasisLine - 1, 1);
-						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, beforeRange, decorationOptions, info.commentingRanges, true));
 					}
 					const emphasisRange = new Range(emphasisLine, 1, emphasisLine, 1);
 					if (!this._lineHasThread(editor, emphasisRange)) {
@@ -235,10 +243,10 @@ class CommentingRangeDecorator {
 					}
 					if (emphasisLine < rangeObject.endLineNumber) {
 						const afterRange = new Range(emphasisLine + 1, 1, range.endLineNumber, 1);
-						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, afterRange, decorationOptions, info.commentingRanges, true));
 					}
 				} else {
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.uniqueOwner, info.extensionId, info.label, range, decorationOptions, info.commentingRanges));
 				}
 			});
 		}

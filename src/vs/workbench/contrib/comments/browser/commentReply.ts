@@ -6,7 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
@@ -34,6 +34,15 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { Position } from '../../../../editor/common/core/position.js';
 
 let INMEM_MODEL_ID = 0;
+
+function isCommentThreadReplyContext(context: unknown): context is { thread: languages.CommentThread; text: string } {
+	return typeof context === 'object'
+		&& context !== null
+		&& 'thread' in context
+		&& 'text' in context
+		&& typeof context.text === 'string';
+}
+
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
 export class CommentReply<T extends IRange | ICellRange> extends Disposable {
@@ -286,11 +295,22 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	 */
 	private createCommentWidgetFormActions(container: HTMLElement, model: ITextModel) {
 		const menu = this._commentMenus.getCommentThreadActions(this._contextKeyService);
+		const controller = this.commentService.getCommentController(this.owner);
+		const submitAction = controller?.submitCommentThread && controller.submitCommentThreadLabel
+			? this._register(new Action(
+				`${controller.id}.submitCommentThread`,
+				controller.submitCommentThreadLabel,
+				undefined,
+				model.getValueLength() > 0,
+				context => isCommentThreadReplyContext(context)
+					? controller.submitCommentThread!(context.thread, context.text)
+					: undefined,
+			))
+			: undefined;
+		const setActions = () => this._commentFormActions.setActions(menu, false, submitAction ? [submitAction] : []);
 
 		this._register(menu);
-		this._register(menu.onDidChange(() => {
-			this._commentFormActions.setActions(menu);
-		}));
+		this._register(menu.onDidChange(setActions));
 
 		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
 			await this._actionRunDelegate?.();
@@ -305,7 +325,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		this._register(this._commentFormActions);
-		this._commentFormActions.setActions(menu);
+		setActions();
+		if (submitAction) {
+			this._register(model.onDidChangeContent(() => {
+				submitAction.enabled = model.getValueLength() > 0;
+				this._commentFormActions.updateAction(submitAction);
+			}));
+		}
 	}
 
 	private createCommentWidgetEditorActions(container: HTMLElement, model: ITextModel) {

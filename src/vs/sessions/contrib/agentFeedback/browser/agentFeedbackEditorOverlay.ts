@@ -97,10 +97,9 @@ export class AgentFeedbackOverlayController {
 			for (const candidate of candidates) {
 				void commentsArbitrationService.resolve(candidate);
 			}
-			const nativeCandidates = candidates.filter(candidate => commentsArbitrationService.usesNativeComments(candidate));
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
-			for (const { sessionResource } of getFeedbackSessionCandidates(nativeCandidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate))) {
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate))) {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),

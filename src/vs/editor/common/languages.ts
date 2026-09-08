@@ -2306,6 +2306,8 @@ export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
 	fileComments: boolean;
+	/** Whether commenting ranges render persistent gutter bars. Defaults to true. */
+	showRangeBar?: boolean;
 }
 
 export interface CommentAuthorInformation {

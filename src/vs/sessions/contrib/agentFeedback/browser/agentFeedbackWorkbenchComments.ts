@@ -8,8 +8,9 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { Comment, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../editor/common/languages.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { AgentFeedbackAuthorValue, authorForFeedbackKind } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -23,16 +24,16 @@ class AgentFeedbackCommentThread implements CommentThread<IRange> {
 	readonly commentThreadHandle: number;
 	readonly controllerHandle = 0;
 	readonly resource: string;
-	readonly range: IRange;
+	range: IRange;
 	readonly comments: readonly Comment[];
 	readonly threadId: string;
 	readonly label = localize('agentFeedback.commentThreadLabel', "Agent Feedback");
 	readonly contextValue = 'agentFeedback';
-	readonly canReply = false;
+	readonly canReply: boolean;
 	readonly isDisposed = false;
-	readonly isTemplate = false;
+	readonly isTemplate: boolean;
 	readonly state: CommentThreadState;
-	readonly collapsibleState = CommentThreadCollapsibleState.Collapsed;
+	readonly collapsibleState: CommentThreadCollapsibleState;
 	readonly onDidChangeComments = Event.None;
 	readonly onDidChangeInput = Event.None;
 	readonly onDidChangeLabel = Event.None;
@@ -41,16 +42,35 @@ class AgentFeedbackCommentThread implements CommentThread<IRange> {
 	readonly onDidChangeState = Event.None;
 	readonly onDidChangeCanReply = Event.None;
 
-	constructor(handle: number, feedback: IAgentFeedback) {
+	constructor(handle: number, feedback: IAgentFeedback);
+	constructor(handle: number, threadId: string, resource: URI, range: IRange);
+	constructor(handle: number, feedbackOrThreadId: IAgentFeedback | string, resource?: URI, range?: IRange) {
 		this.commentThreadHandle = handle;
-		this.threadId = feedback.id;
-		this.resource = feedback.resourceUri.toString();
-		this.range = feedback.range;
-		this.state = feedback.state === AgentFeedbackState.Resolved ? CommentThreadState.Resolved : CommentThreadState.Unresolved;
-		this.comments = [
-			AgentFeedbackCommentThread._toComment(1, feedback.text, authorForFeedbackKind(feedback.kind)),
-			...(feedback.replies ?? []).map((reply, index) => AgentFeedbackCommentThread._toComment(index + 2, reply.text, reply.author)),
-		];
+		if (typeof feedbackOrThreadId === 'string') {
+			if (!resource || !range) {
+				throw new Error('Agent feedback comment templates require a resource and range');
+			}
+			this.threadId = feedbackOrThreadId;
+			this.resource = resource.toString();
+			this.range = range;
+			this.state = CommentThreadState.Unresolved;
+			this.comments = [];
+			this.canReply = true;
+			this.isTemplate = true;
+			this.collapsibleState = CommentThreadCollapsibleState.Expanded;
+		} else {
+			this.threadId = feedbackOrThreadId.id;
+			this.resource = feedbackOrThreadId.resourceUri.toString();
+			this.range = feedbackOrThreadId.range;
+			this.state = feedbackOrThreadId.state === AgentFeedbackState.Resolved ? CommentThreadState.Resolved : CommentThreadState.Unresolved;
+			this.comments = [
+				AgentFeedbackCommentThread._toComment(1, feedbackOrThreadId.text, authorForFeedbackKind(feedbackOrThreadId.kind)),
+				...(feedbackOrThreadId.replies ?? []).map((reply, index) => AgentFeedbackCommentThread._toComment(index + 2, reply.text, reply.author)),
+			];
+			this.canReply = false;
+			this.isTemplate = false;
+			this.collapsibleState = CommentThreadCollapsibleState.Collapsed;
+		}
 	}
 
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -88,21 +108,31 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 	readonly owner = AGENT_FEEDBACK_COMMENT_CONTROLLER_ID;
 	readonly features = {};
 	readonly activeComment = undefined;
+	readonly contextValue = AGENT_FEEDBACK_COMMENT_CONTROLLER_ID;
+	readonly submitCommentThreadLabel = localize('agentFeedback.commentThread.submit', "Add Feedback");
 
 	private readonly _threadHandles = new Map<string, number>();
+	private readonly _templates = new Map<string, AgentFeedbackCommentThread>();
 	private _nextThreadHandle = 1;
+	private _nextTemplateId = 1;
 
 	constructor(
 		@ICommentService private readonly _commentService: ICommentService,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IAgentFeedbackCommentsArbitrationService private readonly _arbitrationService: IAgentFeedbackCommentsArbitrationService,
+		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 
-		this._commentService.registerCommentController(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, this);
+		this._registerController();
 		this._register({
 			dispose: () => this._commentService.unregisterCommentController(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID)
 		});
+		this._register(this._commentService.onDidDeleteDataProvider(owner => {
+			if (owner === undefined) {
+				this._registerController();
+			}
+		}));
 		this._register(Event.any(
 			this._agentFeedbackService.onDidChangeFeedback,
 			this._agentFeedbackService.onDidChangeFeedbackVisibility,
@@ -114,20 +144,25 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		const usesWorkbenchComments = this._arbitrationService.usesWorkbenchComments(resource);
 		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
 		const visibleResolvedFeedbackIds = sessionResource ? this._agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource) : undefined;
-		const threads = usesWorkbenchComments && sessionResource
+		const feedbackThreads = usesWorkbenchComments && sessionResource
 			? this._agentFeedbackService.getFeedback(sessionResource)
 				.filter(feedback => (feedback.state !== AgentFeedbackState.Resolved || visibleResolvedFeedbackIds?.has(feedback.id)) && isEqual(feedback.resourceUri, resource))
 				.map(feedback => new AgentFeedbackCommentThread(this._getThreadHandle(feedback.id), feedback))
 			: [];
+		const templateThreads = usesWorkbenchComments
+			? [...this._templates.values()].filter(thread => isEqual(URI.parse(thread.resource), resource))
+			: [];
+		const model = this._modelService.getModel(resource);
 
 		return Promise.resolve({
 			uniqueOwner: AGENT_FEEDBACK_COMMENT_CONTROLLER_ID,
 			label: this.label,
-			threads,
+			threads: [...feedbackThreads, ...templateThreads],
 			commentingRanges: {
 				resource,
-				ranges: [],
+				ranges: usesWorkbenchComments && sessionResource && model ? [model.getFullModelRange()] : [],
 				fileComments: false,
+				showRangeBar: false,
 			},
 		});
 	}
@@ -140,15 +175,50 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 		};
 	}
 
-	createCommentThreadTemplate(_resource: UriComponents, _range: IRange | undefined): Promise<void> {
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
+		if (!range) {
+			return Promise.resolve();
+		}
+		const revivedResource = URI.revive(resource);
+		const threadId = `agentFeedback-template-${this._nextTemplateId++}`;
+		const thread = new AgentFeedbackCommentThread(this._getThreadHandle(threadId), threadId, revivedResource, range);
+		this._templates.set(threadId, thread);
+		this._commentService.updateComments(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, {
+			added: [thread],
+			removed: [],
+			changed: [],
+			pending: [],
+		});
 		return Promise.resolve();
 	}
 
-	updateCommentThreadTemplate(_threadHandle: number, _range: IRange): Promise<void> {
+	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void> {
+		const thread = [...this._templates.values()].find(thread => thread.commentThreadHandle === threadHandle);
+		if (thread) {
+			thread.range = range;
+			this._commentService.updateComments(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, {
+				added: [],
+				removed: [],
+				changed: [thread],
+				pending: [],
+			});
+		}
 		return Promise.resolve();
 	}
 
-	deleteCommentThreadMain(_commentThreadId: string): void { }
+	deleteCommentThreadMain(commentThreadId: string): void {
+		const thread = this._templates.get(commentThreadId);
+		if (!thread) {
+			return;
+		}
+		this._templates.delete(commentThreadId);
+		this._commentService.updateComments(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, {
+			added: [],
+			removed: [thread],
+			changed: [],
+			pending: [],
+		});
+	}
 
 	toggleReaction(_uri: URI, _thread: CommentThread, _comment: Comment, _reaction: CommentReaction, _token: CancellationToken): Promise<void> {
 		return Promise.resolve();
@@ -156,6 +226,30 @@ export class AgentFeedbackWorkbenchCommentsContribution extends Disposable imple
 
 	setActiveCommentAndThread(_commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void> {
 		return Promise.resolve();
+	}
+
+	submitCommentThread(thread: CommentThread, body: string): Promise<void> {
+		const template = this._templates.get(thread.threadId);
+		const text = body.trim();
+		if (!template || !text || !template.resource || !Range.isIRange(template.range)) {
+			return Promise.resolve();
+		}
+
+		const resource = URI.parse(template.resource);
+		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(resource);
+		if (!sessionResource) {
+			return Promise.resolve();
+		}
+
+		this._agentFeedbackService.addFeedback(sessionResource, resource, template.range, text);
+		this.deleteCommentThreadMain(template.threadId);
+		return Promise.resolve();
+	}
+
+	private _registerController(): void {
+		if (this._commentService.getCommentController(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID) !== this) {
+			this._commentService.registerCommentController(AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, this);
+		}
 	}
 
 	private _getThreadHandle(feedbackId: string): number {
