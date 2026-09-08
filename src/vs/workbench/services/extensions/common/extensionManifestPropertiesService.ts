@@ -23,6 +23,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
 export const EXTENSIONS_SUPPORT_AGENTS_WINDOW = 'extensions.supportAgentsWindow';
+export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
 const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionContributions> = new Set([
 	'themes',
@@ -100,7 +101,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return configuredSessionsWindowSupport;
 		}
 
-		if (manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
+		if (this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY) && manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
 			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
 			if (declaredSessionsWindowSupport !== undefined) {
 				return declaredSessionsWindowSupport;

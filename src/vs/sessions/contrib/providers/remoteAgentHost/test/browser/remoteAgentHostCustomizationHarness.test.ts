@@ -163,10 +163,14 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
 		},
 		getFolderPickerDecision: () => undefined,
+		whenCustomizationsReady: () => Promise.resolve(),
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
 		getWorkingDirectories(_sessionResource: URI): readonly string[] {
+			return [];
+		},
+		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
 			return [];
 		},
 		getMcpServers(_sessionResource: URI) {
