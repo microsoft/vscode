@@ -15,8 +15,19 @@ import { URI } from '../../../base/common/uri.js';
  * browser workspace-trust gates use it as a structural provenance guard (only a
  * working directory under this root is treated as a VS Code-created worktree
  * eligible to inherit trust from its base repository).
+ *
+ * When `repositoryRoot` *is* the user's home directory, the sibling location
+ * would land under the home directory's parent (e.g. `/home/alice` →
+ * `/home/alice.worktrees`), which on a standard Linux/FHS layout the user has
+ * no permission to create. Callers that know the home directory (currently
+ * only the node agent host; the browser trust gate has no such notion and
+ * keeps the sibling behavior) pass it as `homeDirectory` so this falls back to
+ * a writable location nested inside the home directory instead.
  */
-export function getWorktreesRoot(repositoryRoot: URI): URI {
+export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI {
+	if (homeDirectory && isEqual(normalizePath(repositoryRoot), normalizePath(homeDirectory))) {
+		return URI.joinPath(repositoryRoot, '.worktrees');
+	}
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
 }
 

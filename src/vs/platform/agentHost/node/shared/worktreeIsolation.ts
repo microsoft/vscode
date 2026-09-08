@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
+import { homedir } from 'os';
 import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
@@ -874,7 +875,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			: undefined;
 
 		const { worktreePath, branchName, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
-			const worktreesRoot = getWorktreesRoot(repositoryRoot);
+			const worktreesRoot = getWorktreesRoot(repositoryRoot, URI.file(homedir()));
 
 			if (worktreeCreateNewBranch) {
 				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));

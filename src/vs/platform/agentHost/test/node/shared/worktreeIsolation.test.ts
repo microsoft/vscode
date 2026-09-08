@@ -188,6 +188,22 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('getWorktreesRoot nests inside the repository when it is the home directory', () => {
+		const home = URI.file('/home/alice');
+
+		// Repository root *is* the home directory: a sibling directory would be
+		// `/home/alice.worktrees`, which requires write access to `/home` that a
+		// non-root user does not have on a standard FHS layout. Nest inside the
+		// home directory instead.
+		assert.strictEqual(getWorktreesRoot(home, home).fsPath, URI.file('/home/alice/.worktrees').fsPath);
+
+		// Any other repository root keeps deriving a sibling, home directory or not.
+		assert.strictEqual(getWorktreesRoot(URI.file('/home/alice/src/vscode'), home).fsPath, URI.file('/home/alice/src/vscode.worktrees').fsPath);
+
+		// No home directory supplied (e.g. the browser trust gate): unchanged sibling behavior.
+		assert.strictEqual(getWorktreesRoot(home).fsPath, URI.file('/home/alice.worktrees').fsPath);
+	});
+
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {
 		const isolation = createIsolation(disposables);
 
