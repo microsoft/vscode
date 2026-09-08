@@ -5987,14 +5987,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables the rubber duck CLI feature by default', async () => {
+		test('enables Rubber Duck and disables Advisor by default', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
 
-				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], 'true');
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+				assert.deepStrictEqual({
+					rubberDuck: env?.['RUBBER_DUCK_AGENT'],
+					advisor: env?.['ANTHROPIC_ADVISOR'],
+				}, {
+					rubberDuck: 'true',
+					advisor: 'false',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
