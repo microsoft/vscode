@@ -51,7 +51,7 @@ import { INotebookEditorService } from '../../notebook/browser/services/notebook
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from '../../notebook/common/notebookCommon.js';
 import { InteractiveWindowOpen, IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
-import { INotebookService } from '../../notebook/common/notebookService.js';
+import { registerBuiltinNotebookType } from '../../notebook/common/notebookTypeRegistry.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -76,29 +76,23 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
+registerBuiltinNotebookType('interactive', {
+	providerDisplayName: 'Interactive Notebook',
+	displayName: 'Interactive',
+	filenamePattern: ['*.interactive'],
+	priority: RegisteredEditorPriority.builtin
+});
+
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.interactiveDocument';
 
 	constructor(
-		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		const info = notebookService.getContributedNotebookType('interactive');
-
-		// We need to contribute a notebook type for the Interactive Window to provide notebook models.
-		if (!info) {
-			this._register(notebookService.registerContributedNotebookType('interactive', {
-				providerDisplayName: 'Interactive Notebook',
-				displayName: 'Interactive',
-				filenamePattern: ['*.interactive'],
-				priority: RegisteredEditorPriority.builtin
-			}));
-		}
 
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,

@@ -249,6 +249,26 @@ suite('AgentHostSessionChangesets', () => {
 				selectDefault(['uncommitted'], ChangesetKind.Session),
 				['uncommitted*']);
 		});
+
+		test('rejects operation invocation while disconnected', async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const options: IAgentHostAdapterOptions = {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => undefined,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			};
+			const [changeset] = createChangesets(sessionUri, options, constObservable(false), [entry(ChangesetKind.Uncommitted)]);
+
+			await assert.rejects(
+				() => changeset.invokeOperation('checkout'),
+				/agent host connection is unavailable/,
+			);
+		});
 	});
 
 	test('binds Agent Merge changes to completed repair turns after the last default-chat user turn', () => {

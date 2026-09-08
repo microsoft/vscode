@@ -44,6 +44,14 @@ suite('browserToolHelpers', () => {
 		assert.ok(result.toolResultMessage);
 	});
 
+	test('errorResult with an empty message still reports a failure', () => {
+		// `throw ''` and `new Error()` both reach here as an empty string.
+		const result = errorResult('');
+
+		assert.ok(result.toolResultError, 'an empty error message is still a failure');
+		assert.ok(result.content.some(part => part.kind === 'text' && part.value), 'the model needs a non-empty reason');
+	});
+
 	test('browser context explains active network filtering', () => {
 		const editorService = upcastPartial<IEditorService>({
 			activeEditor: undefined,

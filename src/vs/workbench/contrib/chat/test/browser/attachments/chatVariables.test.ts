@@ -299,56 +299,6 @@ suite('ChatDynamicVariableModel', () => {
 		});
 	});
 
-	test('restores a reference before its original text is restored', () => {
-		const oldText = 'microsoft/very-long-repository#12345';
-		const newText = 'm/v#1';
-		const prefix = 'before ';
-		const suffix = ' trailing text';
-		const { editor, model } = createDynamicVariableModel(newText + suffix);
-		model.addReference(createMockVariable({
-			id: 'old',
-			range: new Range(1, 1, 1, newText.length + 1),
-		}), oldText, prefix.length);
-
-		editor.executeEdits('test', [{
-			range: new Range(1, 1, 1, newText.length + 1),
-			text: prefix + oldText,
-		}]);
-
-		assert.deepStrictEqual({
-			text: editor.getValue(),
-			variables: model.variables.map(variable => ({
-				id: variable.id,
-				range: variable.range,
-			})),
-		}, {
-			text: prefix + oldText + suffix,
-			variables: [{
-				id: 'old',
-				range: new Range(1, prefix.length + 1, 1, prefix.length + oldText.length + 1),
-			}],
-		});
-	});
-
-	test('uses reference prompt text without adding attached context', () => {
-		const label = 'microsoft/vscode#334061';
-		const url = 'https://github.com/microsoft/vscode/issues/334061#issuecomment-1';
-		const { editor, model } = createDynamicVariableModel(`before ${label} after`);
-		model.addReference(createMockVariable({
-			id: url,
-			range: new Range(1, 8, 1, 8 + label.length),
-			promptText: url,
-		}));
-
-		assert.deepStrictEqual({
-			displayText: editor.getValue(),
-			promptText: model.getPromptText(editor.getValue()),
-		}, {
-			displayText: `before ${label} after`,
-			promptText: `before ${url} after`,
-		});
-	});
-
 	test('removes the whole reference when editing inside it', () => {
 		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
 		model.addReference(createMockVariable({

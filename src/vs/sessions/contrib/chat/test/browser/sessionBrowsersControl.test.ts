@@ -144,7 +144,7 @@ suite('SessionBrowsersControl', () => {
 			enabled: [
 				[{ title: 'Browsers', entries: [{ label: 'Visual Studio Code', icon: 'globe' }] }],
 				[{ title: 'Browsers', entries: [{ label: 'Browser', icon: 'globe' }] }],
-				[{ title: 'Browsers', entries: [{ label: 'Docs', icon: 'globe' }, { label: 'Preview', icon: 'globe' }] }],
+				[{ title: 'Browsers', entries: [{ label: 'Preview', icon: 'globe' }, { label: 'Docs', icon: 'globe' }] }],
 			],
 			disabled: [],
 		});
@@ -190,7 +190,7 @@ suite('SessionBrowsersControl', () => {
 		}, {
 			sections: [{
 				title: 'Browsers',
-				entries: [{ label: 'Docs', icon: 'globe' }, { label: 'Subagent Preview', icon: 'globe' }],
+				entries: [{ label: 'Subagent Preview', icon: 'globe' }, { label: 'Docs', icon: 'globe' }],
 			}],
 			openedBrowser: 'browser-1',
 		});
@@ -271,11 +271,24 @@ suite('SessionBrowsersControl', () => {
 
 		assert.deepStrictEqual({
 			visible: [...createControl({ browsers }, store).control.urls.get()],
-			hidden: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+			hidden: {
+				urls: [...createControl({ browsers, visible: false }, store).control.urls.get()],
+				sections: sections(createControl({ browsers, visible: false }, store).control),
+			},
 			disabled: [...createControl({ browsers, enabled: false }, store).control.urls.get()],
 		}, {
-			visible: ['https://example.com/docs', 'https://preview.test/'],
-			hidden: [],
+			visible: ['https://preview.test/', 'https://example.com/docs'],
+			hidden: {
+				urls: [],
+				sections: [{
+					title: 'Browsers',
+					entries: [
+						{ label: 'Blank', icon: 'globe' },
+						{ label: 'Subagent Preview', icon: 'globe' },
+						{ label: 'Docs', icon: 'globe' },
+					],
+				}],
+			},
 			disabled: [],
 		});
 	});

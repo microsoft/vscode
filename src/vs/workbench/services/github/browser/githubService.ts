@@ -35,13 +35,14 @@ class WorkbenchGitHubEndpointProvider implements IGitHubEndpointProvider {
 	}
 }
 
-class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
+export class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
 
 	readonly onDidChangeToken: Event<void>;
 
 	constructor(
 		private readonly _authenticationService: IAuthenticationService,
 		private readonly _defaultAccountService: IDefaultAccountService,
+		private readonly _logService: ILogService,
 	) {
 		this.onDidChangeToken = Event.any(
 			Event.map(Event.filter(
@@ -60,17 +61,31 @@ class WorkbenchGitHubTokenProvider implements IGitHubTokenProvider {
 			? sessions.find(session => session.id === defaultAccount.sessionId)
 			: undefined;
 		if (defaultAccount && !defaultSession) {
+			this._logService.warn(`[WorkbenchGitHubTokenProvider] Default account session was not found for provider '${provider.id}' among ${sessions.length} session(s)`);
 			return undefined;
 		}
-		if (defaultSession?.scopes.includes('repo')) {
-			return defaultSession.accessToken;
+		const repositorySession = sessions.find(session =>
+			session.scopes.includes('repo')
+			&& (!defaultSession || session.account.id === defaultSession.account.id)
+		);
+		if (repositorySession) {
+			this._logService.trace(`[WorkbenchGitHubTokenProvider] Reusing a repository-capable session for provider '${provider.id}' with scopes [${repositorySession.scopes.join(', ')}]`);
+			return repositorySession.accessToken;
 		}
 		const repositorySessions = await this._authenticationService.getSessions(provider.id, ['repo'], {
 			createIfNone: true,
 			...(defaultSession ? { account: defaultSession.account } : {}),
 		}, true);
-		return repositorySessions.find(session => !defaultSession || session.account.id === defaultSession.account.id)?.accessToken;
+		const resolvedSession = repositorySessions.find(session => !defaultSession || session.account.id === defaultSession.account.id);
+		if (!resolvedSession) {
+			this._logService.warn(`[WorkbenchGitHubTokenProvider] No repository-capable session resolved for provider '${provider.id}'; initial session scopes: ${formatSessionScopes(sessions)}; repository query scopes: ${formatSessionScopes(repositorySessions)}`);
+		}
+		return resolvedSession?.accessToken;
 	}
+}
+
+function formatSessionScopes(sessions: readonly { readonly scopes: readonly string[] }[]): string {
+	return sessions.length ? sessions.map(session => `[${session.scopes.join(', ')}]`).join(', ') : 'none';
 }
 
 export class WorkbenchGitHubService extends GitHubService {
@@ -82,7 +97,7 @@ export class WorkbenchGitHubService extends GitHubService {
 	) {
 		super({
 			endpoint: new WorkbenchGitHubEndpointProvider(defaultAccountService),
-			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService),
+			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService, logService),
 		}, logService);
 	}
 }

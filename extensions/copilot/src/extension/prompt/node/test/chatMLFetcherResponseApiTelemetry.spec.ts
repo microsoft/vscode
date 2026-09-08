@@ -18,7 +18,7 @@ import { ICAPIClientService } from '../../../../platform/endpoint/common/capiCli
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, getCopilotServiceRequestId } from '../../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
@@ -257,6 +257,28 @@ describe('ChatMLFetcherImpl request.options.tools telemetry', () => {
 		expect(toolsEvents.length).toBe(0);
 	});
 
+	it('reports the CAPI service request id on response.success regardless of header casing', async () => {
+		const endpointWithoutTools = createChatCompletionEndpointWithoutTools();
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!', new Map([
+			['X-Copilot-Service-Request-Id', 'svc-req-abc'],
+		])));
+
+		const opts: IFetchMLOptions = {
+			debugName: 'test-service-request-id',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] }],
+			endpoint: endpointWithoutTools,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+		};
+
+		await fetcher.fetchMany(opts, cancellationTokenSource.token);
+
+		const successEvent = spyingTelemetryService.getEvents().telemetryServiceEvents
+			.find(e => e.eventName === 'response.success');
+		expect((successEvent?.properties as Record<string, string>)?.copilotServiceRequestId).toBe('svc-req-abc');
+	});
+
 	it('multiplexes messagesJson when tool schemas exceed 8KB', async () => {
 		const endpointWithLargeTools = createEndpointWithLargeTools();
 		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
@@ -345,6 +367,7 @@ function createEndpointWithTools(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -406,6 +429,7 @@ function createChatCompletionEndpointWithoutTools(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -482,6 +506,7 @@ function createEndpointWithLargeTools(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -556,6 +581,7 @@ function createResponseApiEndpoint(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -619,6 +645,7 @@ function createChatCompletionEndpointWithEmptyMessages(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							copilotServiceRequestId: getCopilotServiceRequestId(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -758,7 +785,7 @@ class FakeHeaders implements IHeaders {
 	}
 }
 
-function createSuccessResponse(content: string): Response {
+function createSuccessResponse(content: string, extraHeaders?: ReadonlyMap<string, string>): Response {
 	const streamContent = `data: {"choices":[{"delta":{"content":"${content}"},"index":0}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop","index":0}]}\n\ndata: [DONE]\n\n`;
 	return Response.fromText(
 		200,
@@ -766,6 +793,7 @@ function createSuccessResponse(content: string): Response {
 		new FakeHeaders(new Map([
 			['content-type', 'text/event-stream'],
 			['x-request-id', 'test-request-id'],
+			...(extraHeaders ?? []),
 		])),
 		streamContent,
 		'node-fetch' as FetcherId

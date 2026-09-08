@@ -12,6 +12,7 @@ import { autorun, type IObservable } from '../../../../../../base/common/observa
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -191,7 +192,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	async provideSourceFolders(sessionResource: URI, type: PromptsType, _token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+	async provideSourceFolders(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[]> {
+		// One-shot callers (the migration hint) must not read the empty
+		// placeholder a still-loading session reports, or they conclude there is
+		// nothing to migrate.
+		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];
@@ -319,7 +324,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
+				? AICustomizationSources.builtin
+				: isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
 			const isRemote = sessionCustomization.clientId !== undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, isRemote, workingDirectories)) {
 				items.set(child.itemKey ?? child.uri.toString(), {

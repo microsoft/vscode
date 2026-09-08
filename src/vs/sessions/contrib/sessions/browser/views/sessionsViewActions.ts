@@ -44,6 +44,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -491,7 +492,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 
 		const newSession = sessionsService.activeSession.get();
 		if (folderUri) {
-			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, providerId);
+			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId });
 		}
 
 		// On mobile web, the sidebar drawer covers the viewport; close it so
@@ -542,18 +543,26 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		});
 	}
 	override run(accessor: ServicesAccessor): void {
-		// Opens the composer with the default (last-used or first) quick-chat
-		// session type; the user changes it via the inline composer picker.
 		const sessionsService = accessor.get(ISessionsService);
-		const activeQuickChat = sessionsService.openQuickChat();
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		let activeSession;
+		if (accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
+				sessionsService.unsetNewSession();
+				sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
+			}
+			activeSession = sessionsService.activeSession.get();
+		} else {
+			activeSession = sessionsService.openQuickChat();
+		}
 
 		// On mobile web, the sidebar drawer covers the viewport; close it so the
-		// new quick chat composer becomes visible after creation.
+		// new session composer becomes visible after creation.
 		if (isWeb && isMobile) {
 			accessor.get(ICommandService).executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
 
-		accessor.get(ISessionsPartService).focusSession(activeQuickChat);
+		sessionsPartService.focusSession(activeSession);
 	}
 });
 

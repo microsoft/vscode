@@ -47,6 +47,7 @@ export interface IChatPetWidgetHost {
 
 /** The layer the pet is positioned in, spanning its host. */
 export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
+const CHAT_PET_RUN_LAYER_CLASS = 'chat-pet-run-layer';
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
@@ -515,8 +516,8 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
-export function shouldReserveChatPetSpace(enabled: boolean, activeHost: boolean): boolean {
-	return enabled && activeHost;
+export function shouldReserveChatPetSpace(enabled: boolean, visible: boolean): boolean {
+	return enabled && visible;
 }
 
 export function isChatPetVisible(enabled: boolean, windowActive = true): boolean {
@@ -1429,6 +1430,7 @@ export class ChatPetWidget extends Disposable {
 				this._finishFall();
 			} else if (event.target === this._button.element && event.propertyName === 'transform') {
 				this._button.element.classList.remove('returning-from-run');
+				this._updateRunLayer();
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1584,6 +1586,7 @@ export class ChatPetWidget extends Disposable {
 				this._button.element.classList.add('returning-from-run');
 			}
 			this._button.element.classList.toggle('on-the-run', onTheRun);
+			this._updateRunLayer();
 			const currentHost = this._host.read(reader);
 			const chatModel = currentHost.model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
@@ -2451,6 +2454,13 @@ export class ChatPetWidget extends Disposable {
 		};
 	}
 
+	private _updateRunLayer(): void {
+		this._overlay.classList.toggle(
+			CHAT_PET_RUN_LAYER_CLASS,
+			this._button.element.classList.contains('on-the-run') || this._button.element.classList.contains('returning-from-run')
+		);
+	}
+
 	private _updateVerticalPosition(): void {
 		const overlayBounds = this._overlay.getBoundingClientRect();
 		const platformTop = this._getPlatformBounds().top;
@@ -2867,6 +2877,7 @@ export class ChatPetWidget extends Disposable {
 		this._resetBounceCount();
 		this._button.element.style.transform = '';
 		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
+		this._updateRunLayer();
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();

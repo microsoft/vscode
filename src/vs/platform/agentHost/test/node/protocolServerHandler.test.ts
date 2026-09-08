@@ -17,6 +17,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -349,6 +350,25 @@ function findResponse(sent: ProtocolMessage[], id: number): ProtocolMessage | un
 	return sent.find(message => isJsonRpcResponse(message) && message.id === id);
 }
 
+function findRequest(sent: ProtocolMessage[], method: string): { readonly jsonrpc: '2.0'; readonly id: number; readonly method: string; readonly params?: unknown } | undefined {
+	for (const message of sent) {
+		if (
+			hasKey(message, { id: true, method: true })
+			&& typeof message.id === 'number'
+			&& typeof message.method === 'string'
+			&& message.method === method
+		) {
+			return {
+				jsonrpc: '2.0',
+				id: message.id,
+				method: message.method,
+				...(hasKey(message, { params: true }) ? { params: message.params } : {}),
+			};
+		}
+	}
+	return undefined;
+}
+
 function waitForResponse(transport: MockProtocolTransport, id: number): Promise<ProtocolMessage> {
 	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
@@ -451,6 +471,53 @@ suite('ProtocolServerHandler', () => {
 				'vscode.getAgentHostSessionStateFile.chat': true,
 			},
 		});
+	});
+
+	test('routes a workspace trust request to the initiating client', async () => {
+		const transport = connectClient('client-1');
+		while (!findResponse(transport.sent, 1)) {
+			await Promise.resolve();
+		}
+
+		const trustPromise = clientConnections.requestWorkspaceTrust('client-1', {
+			workspace: 'file:///workspace/project',
+		});
+		const reverseRequest = findRequest(transport.sent, RequestAgentHostWorkspaceTrustExtensionMethod);
+		if (!reverseRequest) {
+			assert.fail('Expected a reverse workspace trust request.');
+		}
+		transport.simulateMessage({
+			jsonrpc: '2.0',
+			id: reverseRequest.id,
+			result: { trusted: true },
+		});
+
+		assert.deepStrictEqual({
+			request: reverseRequest,
+			trusted: await trustPromise,
+		}, {
+			request: {
+				jsonrpc: '2.0',
+				id: reverseRequest.id,
+				method: RequestAgentHostWorkspaceTrustExtensionMethod,
+				params: { workspace: 'file:///workspace/project' },
+			},
+			trusted: true,
+		});
+	});
+
+	test('rejects a pending workspace trust request when the client disconnects', async () => {
+		const transport = connectClient('client-1');
+		while (!findResponse(transport.sent, 1)) {
+			await Promise.resolve();
+		}
+
+		const trustPromise = clientConnections.requestWorkspaceTrust('client-1', {
+			workspace: 'file:///workspace/project',
+		});
+		transport.simulateClose();
+
+		await assert.rejects(trustPromise, /disconnected/);
 	});
 
 	test('handshake advertises only implemented automation capabilities', () => {
