@@ -143,7 +143,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 	private async _evaluateCandidate(candidate: IAgentHostSessionLifecycleCandidate): Promise<void> {
 		const { session } = candidate;
 		const sessionKey = session.toString();
-		if (!await this._areAllPullRequestsMerged(sessionKey, candidate.pullRequestUrls)) {
+		if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 			return;
 		}
 
@@ -241,15 +241,18 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 	}
 
-	private async _areAllPullRequestsMerged(sessionKey: string, pullRequestUrls: readonly string[]): Promise<boolean> {
+	private async _arePullRequestsComplete(sessionKey: string, pullRequestUrls: readonly string[]): Promise<boolean> {
+		let hasMergedPullRequest = false;
 		for (const pullRequestUrl of pullRequestUrls) {
 			const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey, pullRequestUrl);
-			if (pullRequest?.state !== 'merged'
-				|| pullRequest.url.toLowerCase() !== pullRequestUrl.toLowerCase()) {
+			if (!pullRequest
+				|| pullRequest.url.toLowerCase() !== pullRequestUrl.toLowerCase()
+				|| pullRequest.state === 'open') {
 				return false;
 			}
+			hasMergedPullRequest ||= pullRequest.state === 'merged';
 		}
-		return pullRequestUrls.length > 0;
+		return hasMergedPullRequest;
 	}
 
 	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean): Promise<IAgentHostSessionLifecycleCandidate | undefined> {

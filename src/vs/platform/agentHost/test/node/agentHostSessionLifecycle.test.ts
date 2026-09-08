@@ -565,7 +565,7 @@ suite('AgentHostSessionLifecycle', () => {
 		assert.strictEqual(isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status), false);
 	});
 
-	test('does not archive, delete, or clean the worktree while any related pull request is unmerged', async () => {
+	test('does not archive, delete, or clean the worktree while any related pull request is open', async () => {
 		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
 		const resolveStatus = (pullRequestUrl: string) => pullRequestUrl === PULL_REQUEST_URL
 			? mergedPullRequestStatus()
@@ -596,6 +596,32 @@ suite('AgentHostSessionLifecycle', () => {
 		]);
 	});
 
+	test('does not archive, delete, or clean the worktree without a related pull request', async () => {
+		const harnesses = [
+			createHarness({ pullRequestUrls: [] }),
+			createHarness({ enabled: false, pullRequestUrls: [] }),
+			createHarness({
+				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+				autoArchivedAt: NOW - 2 * DAY_MS,
+				pullRequestUrls: [],
+			}),
+		];
+
+		await Promise.all(harnesses.map(harness => harness.lifecycle.run()));
+
+		assert.deepStrictEqual(harnesses.map(harness => ({
+			restored: harness.restored,
+			resolved: harness.resolved,
+			cleanedWorktrees: harness.cleanedWorktrees,
+			deleted: harness.deleted,
+			archived: isSessionStatusArchived(harness.stateManager.getSessionSummary(harness.session.toString())?.status),
+		})), [
+			{ restored: [], resolved: [], cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolved: [], cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolved: [], cleanedWorktrees: [], deleted: [], archived: true },
+		]);
+	});
+
 	test('archives when all related pull requests are merged', async () => {
 		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
 		const { lifecycle, stateManager, session, resolvedPullRequestUrls } = createHarness({
@@ -613,6 +639,47 @@ suite('AgentHostSessionLifecycle', () => {
 		}, {
 			resolvedPullRequestUrls: pullRequestUrls,
 			archived: true,
+		});
+	});
+
+	test('archives when one related pull request is merged and the others are closed', async () => {
+		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
+		const { lifecycle, stateManager, session, resolvedPullRequestUrls } = createHarness({
+			pullRequestUrls,
+			resolveStatus: pullRequestUrl => pullRequestUrl === PULL_REQUEST_URL
+				? mergedPullRequestStatus()
+				: { ...mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2), state: 'closed' },
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			resolvedPullRequestUrls,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			resolvedPullRequestUrls: pullRequestUrls,
+			archived: true,
+		});
+	});
+
+	test('does not archive when every related pull request is closed without merging', async () => {
+		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
+		const { lifecycle, stateManager, session, resolvedPullRequestUrls } = createHarness({
+			pullRequestUrls,
+			resolveStatus: pullRequestUrl => ({
+				...mergedPullRequestStatus(pullRequestUrl, pullRequestUrl === PULL_REQUEST_URL ? 1 : 2),
+				state: 'closed',
+			}),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			resolvedPullRequestUrls,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			resolvedPullRequestUrls: pullRequestUrls,
+			archived: false,
 		});
 	});
 
