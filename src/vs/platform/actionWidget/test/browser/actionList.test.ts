@@ -866,6 +866,42 @@ suite('ActionListWidget', () => {
 		}, { typed: [], prevented: [] });
 	});
 
+	test('restarts a cancelled dynamic filter when IME composition leaves the query unchanged', async () => {
+		const first = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const second = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
+		const filters: string[] = [];
+		const tokens: CancellationToken[] = [];
+		const widget = createActionListWidget(disposables, {
+			onFilter: (filter, token) => {
+				filters.push(filter);
+				tokens.push(token);
+				return filters.length === 1 ? first.p : second.p;
+			},
+		});
+
+		typeFilter(widget, 'release');
+		widget.filterInput!.dispatchEvent(new Event('compositionstart'));
+		typeFilter(widget, 'releases');
+		widget.filterInput!.value = 'release';
+		widget.filterInput!.dispatchEvent(new Event('compositionend'));
+		typeFilter(widget, 'release');
+		await first.complete([action('release-stale-result')]);
+		await second.complete([action('release-fresh-result')]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			filters,
+			cancelled: tokens.map(token => token.isCancellationRequested),
+			staleVisible: widget.domNode.textContent?.includes('release-stale-result'),
+			freshVisible: widget.domNode.textContent?.includes('release-fresh-result'),
+		}, {
+			filters: ['release', 'release'],
+			cancelled: [true, false],
+			staleVisible: false,
+			freshVisible: true,
+		});
+	});
+
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
