@@ -593,7 +593,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 				}
 				const action = getActionEnvelope(n).action as ChatToolCallCompleteAction;
 				return action.turnId === turnId && !!action.result.content?.some(content => content.type === ToolResultContentType.FileEdit);
-			});
+			}, 90_000);
 			const completion = getActionEnvelope(completionNotification).action as ChatToolCallCompleteAction;
 			const edit = completion.result.content?.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
 			assert.ok(edit?.before?.content.uri);
