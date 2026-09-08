@@ -7032,7 +7032,7 @@
     "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "3.6.0",
     "copyfiles": "^2.4.1",
-    "csv-parse": "^6.0.0",
+    "csv-parse": "^7.0.2",
     "dotenv": "^17.2.0",
     "electron": "^42.5.0",
     "esbuild": "0.28.1",
