@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -202,6 +203,20 @@ suite('WorktreeIsolation', () => {
 
 		// No home directory supplied (e.g. the browser trust gate): unchanged sibling behavior.
 		assert.strictEqual(getWorktreesRoot(home).fsPath, URI.file('/home/alice.worktrees').fsPath);
+	});
+
+	test('getWorktreesRoot detects the home directory case-insensitively on Windows/macOS', () => {
+		// os.homedir() and the repository root URI can report the same directory
+		// with different casing. On case-insensitive filesystems (Windows/macOS)
+		// this must still be recognized as the home directory; on Linux, differing
+		// case is genuinely a different directory.
+		const home = URI.file('/home/alice');
+		const repoRootDifferentCase = URI.file('/home/Alice');
+
+		const expected = (isWindows || isMacintosh)
+			? URI.file('/home/Alice/.worktrees').fsPath
+			: URI.file('/home/Alice.worktrees').fsPath;
+		assert.strictEqual(getWorktreesRoot(repoRootDifferentCase, home).fsPath, expected);
 	});
 
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {

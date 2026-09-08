@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename } from '../../../base/common/path.js';
-import { isEqual, isEqualOrParent, normalizePath } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
@@ -25,7 +25,11 @@ import { URI } from '../../../base/common/uri.js';
  * a writable location nested inside the home directory instead.
  */
 export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI {
-	if (homeDirectory && isEqual(normalizePath(repositoryRoot), normalizePath(homeDirectory))) {
+	// Local file-scheme paths from the OS: compare with the platform's own case
+	// sensitivity (ignored on Windows/macOS, honored on Linux) so a casing
+	// difference between the repository root and `os.homedir()` doesn't cause
+	// the home-directory case below to be missed.
+	if (homeDirectory && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.normalizePath(repositoryRoot), extUriBiasedIgnorePathCase.normalizePath(homeDirectory))) {
 		return URI.joinPath(repositoryRoot, '.worktrees');
 	}
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
