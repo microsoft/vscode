@@ -106,6 +106,7 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsFeaturedEnabled = 'chat.customizations.featured.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',

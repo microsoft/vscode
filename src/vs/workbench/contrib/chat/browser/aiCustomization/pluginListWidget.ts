@@ -38,6 +38,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
@@ -783,6 +784,7 @@ export class PluginListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -797,6 +799,9 @@ export class PluginListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsFeaturedEnabled)) {
+				this.renderPluginHome();
 			}
 		}));
 		this._register({
@@ -1573,7 +1578,9 @@ export class PluginListWidget extends Disposable {
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
-		this.renderDiscoverySnapshot(content);
+		if (this.productService.quality !== 'stable' && this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsFeaturedEnabled) === true) {
+			this.renderDiscoverySnapshot(content);
+		}
 
 		const installedList = this.renderCardSection(
 			content,
