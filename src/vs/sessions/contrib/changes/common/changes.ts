@@ -25,6 +25,12 @@ export const VIEW_SESSION_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.v
  */
 export const SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING = 'sessions.changes.openSingleFileDiff';
 
+/**
+ * Setting key that enables the experimental card presentation in the session
+ * Changes editor.
+ */
+export const SESSIONS_CHANGES_CARD_VIEW_SETTING = 'sessions.changes.cardView';
+
 export function getSessionChangesFileCountLabel(changeCount: number): string {
 	return changeCount === 1
 		? localize('sessionChangesEditor.oneChangedFile', "1 file")

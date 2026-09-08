@@ -13,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorOptions } from '../../../../../editor/common/multiDiffEditor.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITextDiffEditorPane, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
@@ -25,6 +26,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
+import { SESSIONS_CHANGES_CARD_VIEW_SETTING } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('SessionChangesService', () => {
@@ -58,6 +60,7 @@ suite('SessionChangesService', () => {
 		const plainInput = Object.create(MultiDiffEditorInput.prototype) as MultiDiffEditorInput;
 		plainInput.getViewModel = async () => viewModel;
 		const group = new class extends mock<IEditorGroup>() { }();
+		const openedInputKinds: string[] = [];
 		const options: IMultiDiffEditorOptions = {
 			viewState: {
 				revealData: {
@@ -66,7 +69,11 @@ suite('SessionChangesService', () => {
 			},
 		};
 
-		for (const isSinglePaneLayoutEnabled of [true, false]) {
+		for (const { isSinglePaneLayoutEnabled, cardView } of [
+			{ isSinglePaneLayoutEnabled: true, cardView: false },
+			{ isSinglePaneLayoutEnabled: false, cardView: false },
+			{ isSinglePaneLayoutEnabled: false, cardView: true },
+		]) {
 			const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 				override readonly isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
 				override readonly onDidChangePartVisibility = Event.None;
@@ -82,6 +89,7 @@ suite('SessionChangesService', () => {
 			const editorService = new class extends mock<IEditorService>() {
 				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 					const requestedInput = args[0];
+					openedInputKinds.push(requestedInput instanceof SessionChangesEditorInput ? 'session' : 'plain');
 					const input = requestedInput instanceof SessionChangesEditorInput
 						? disposables.add(requestedInput)
 						: plainInput;
@@ -101,6 +109,7 @@ suite('SessionChangesService', () => {
 				editorService,
 				instantiationService,
 				layoutService,
+				new TestConfigurationService({ [SESSIONS_CHANGES_CARD_VIEW_SETTING]: cardView }),
 				changesViewService,
 				emptyDecorationsService,
 			));
@@ -109,7 +118,13 @@ suite('SessionChangesService', () => {
 			await service.openChangesEditor(URI.parse('test-session:/session'), options);
 		}
 
-		assert.deepStrictEqual(expandedItems.map(item => item === targetItem ? 'target' : 'other'), ['target', 'target']);
+		assert.deepStrictEqual({
+			expandedItems: expandedItems.map(item => item === targetItem ? 'target' : 'other'),
+			openedInputKinds,
+		}, {
+			expandedItems: ['target', 'target', 'target'],
+			openedInputKinds: ['session', 'plain', 'session'],
+		});
 	});
 
 	test('selects the requested changeset before opening the editor', async () => {
@@ -144,6 +159,7 @@ suite('SessionChangesService', () => {
 			editorService,
 			disposables.add(new TestInstantiationService()),
 			layoutService,
+			new TestConfigurationService(),
 			changesViewService,
 			emptyDecorationsService,
 		));
@@ -216,7 +232,14 @@ suite('SessionChangesService', () => {
 		}();
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, emptyDecorationsService));
+		const service = disposables.add(new SessionChangesService(
+			editorService,
+			instantiationService,
+			layoutService,
+			new TestConfigurationService(),
+			changesViewService,
+			emptyDecorationsService,
+		));
 		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {
@@ -268,6 +291,7 @@ suite('SessionChangesService', () => {
 			editorService,
 			instantiationService,
 			layoutService,
+			new TestConfigurationService(),
 			changesViewService,
 			decorationsService,
 		));

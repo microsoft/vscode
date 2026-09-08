@@ -201,7 +201,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
 		});
-		this._elements = h(`div.monaco-component.multiDiffEditor.${this._variantConfiguration.className}`, {}, [
+		const variantClassNames = this._variantConfiguration.classNames.map(className => `.${className}`).join('');
+		this._elements = h(`div.monaco-component.multiDiffEditor${variantClassNames}`, {}, [
 			this._scrollView.domNode,
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);

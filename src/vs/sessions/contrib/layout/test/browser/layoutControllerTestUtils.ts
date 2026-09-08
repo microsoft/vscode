@@ -359,7 +359,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		openChangesEditorCalls: [],
 		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
-		}, new class extends mock<IChangesViewService>() {
+		}, configService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);

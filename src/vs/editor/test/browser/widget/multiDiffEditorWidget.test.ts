@@ -45,19 +45,27 @@ suite('MultiDiffEditorWidget', () => {
 		assert.deepStrictEqual({
 			standard: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Standard),
 			compact: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Compact),
+			card: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Card),
 		}, {
 			standard: {
-				className: 'multiDiffEditor-standard',
+				classNames: ['multiDiffEditor-standard'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
 			},
 			compact: {
-				className: 'multiDiffEditor-compact',
+				classNames: ['multiDiffEditor-compact'],
 				horizontalInsets: { left: 0, right: 0 },
 				headerHeight: 32,
 				contentBottomPadding: 8,
+				headerClickToCollapse: true,
+			},
+			card: {
+				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
+				horizontalInsets: { left: 9, right: 9 },
+				headerHeight: 40,
+				contentBottomPadding: 0,
 				headerClickToCollapse: true,
 			},
 		});

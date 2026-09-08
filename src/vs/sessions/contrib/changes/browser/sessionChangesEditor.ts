@@ -14,6 +14,7 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -39,7 +40,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ActiveSessionContextKeys } from '../common/changes.js';
+import { ActiveSessionContextKeys, SESSIONS_CHANGES_CARD_VIEW_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
@@ -219,6 +220,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		super(
@@ -273,7 +275,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.bodyContainer,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			{
-				variant: MultiDiffEditorVariant.Compact,
+				variant: this.configurationService.getValue<boolean>(SESSIONS_CHANGES_CARD_VIEW_SETTING)
+					? MultiDiffEditorVariant.Card
+					: MultiDiffEditorVariant.Compact,
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));

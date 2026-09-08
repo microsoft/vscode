@@ -197,6 +197,7 @@ function createContextKeyService(): IContextKeyService {
 
 interface IAgentsDiffFixtureOptions {
 	readonly showSubmitOverlay?: boolean;
+	readonly variant?: MultiDiffEditorVariant;
 }
 
 async function renderAgentsDiffEditor({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext, options: IAgentsDiffFixtureOptions = {}): Promise<void> {
@@ -276,7 +277,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			variant: MultiDiffEditorVariant.Compact,
+			variant: options.variant ?? MultiDiffEditorVariant.Compact,
 			diffEditorOptions: {
 				hideOriginalLineNumbers: true,
 				folding: false,
@@ -351,6 +352,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	CompactDiffWithFeedback: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderAgentsDiffEditor,
+	}),
+	CardDiffWithFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAgentsDiffEditor(context, { variant: MultiDiffEditorVariant.Card }),
 	}),
 	CompactDiffWithSubmitOverlay: defineComponentFixture({
 		labels: { kind: 'screenshot' },

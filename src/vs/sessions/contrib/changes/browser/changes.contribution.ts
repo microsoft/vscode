@@ -14,7 +14,7 @@ import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensi
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_CARD_VIEW_SETTING, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { ChangesViewPane, SinglePaneChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
@@ -35,21 +35,22 @@ import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibility
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
 /**
- * Registers the custom single-pane Changes editor (multi-diff pane with the header
- * toolbar) and its serializer, only when the single-pane layout is enabled. In the
- * standard layout, changes open as a plain multi-diff editor instead. Registered at
- * startup (before editor restore) so persisted Changes tabs can be deserialized.
+ * Registers the custom Changes editor (multi-diff pane with the header toolbar)
+ * when it is needed by the single-pane layout or the experimental card presentation.
+ * Registered at startup (before editor restore) so persisted Changes tabs can be
+ * deserialized.
  */
-class SinglePaneChangesEditorContribution extends Disposable implements IWorkbenchContribution {
+class SessionChangesEditorContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.sessions.singlePaneChangesEditor';
+	static readonly ID = 'workbench.contrib.sessions.sessionChangesEditor';
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (!layoutService.isSinglePaneLayoutEnabled && !configurationService.getValue<boolean>(SESSIONS_CHANGES_CARD_VIEW_SETTING)) {
 			return;
 		}
 
@@ -65,7 +66,7 @@ class SinglePaneChangesEditorContribution extends Disposable implements IWorkben
 	}
 }
 
-registerWorkbenchContribution2(SinglePaneChangesEditorContribution.ID, SinglePaneChangesEditorContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(SessionChangesEditorContribution.ID, SessionChangesEditorContribution, WorkbenchPhase.BlockStartup);
 
 AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 
@@ -141,6 +142,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['preview'],
 			description: localize('sessions.changes.openSingleFileDiff', "Controls whether clicking a file in the Changes view opens a single file diff editor instead of the multi file diff editor."),
 			default: false,
+		},
+		[SESSIONS_CHANGES_CARD_VIEW_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			markdownDescription: localize('sessions.changes.cardView', "Controls whether files in the Agents window Changes editor use an experimental card presentation. Requires a window reload to take effect."),
+			default: false,
+			experiment: { mode: 'startup' },
 		},
 	},
 });

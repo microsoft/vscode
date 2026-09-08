@@ -413,4 +413,86 @@
 			border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 		}
 	}
+
+	&.multiDiffEditor-card {
+		.multiDiffEntry {
+			padding: 0 var(--vscode-spacing-size80);
+
+			&::before,
+			&::after {
+				content: none;
+			}
+
+			.header {
+				.header-content {
+					margin: var(--vscode-spacing-size40) 0 0;
+					border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+					border-bottom: none;
+					border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+					background: var(--vscode-sideBarSectionHeader-background);
+				}
+
+				&[aria-expanded='false'] .header-content {
+					border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+					border-radius: var(--vscode-cornerRadius-medium);
+				}
+
+				&:hover .header-content {
+					background:
+						linear-gradient(var(--vscode-toolbar-hoverBackground, transparent), var(--vscode-toolbar-hoverBackground, transparent)),
+						var(--vscode-sideBarSectionHeader-background);
+				}
+
+				&:active .header-content {
+					background:
+						linear-gradient(var(--vscode-toolbar-activeBackground, transparent), var(--vscode-toolbar-activeBackground, transparent)),
+						var(--vscode-sideBarSectionHeader-background);
+				}
+			}
+
+			.editorParent {
+				overflow: hidden;
+				border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+				border-top: none;
+				border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
+			}
+
+			&:focus-within .header .header-content {
+				border-color: var(--vscode-focusBorder) var(--vscode-focusBorder) transparent var(--vscode-focusBorder);
+				background:
+					linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent)),
+					var(--vscode-sideBarSectionHeader-background);
+			}
+
+			&:focus-within .header[aria-expanded='false'] .header-content {
+				border-bottom-color: var(--vscode-focusBorder);
+			}
+
+			&:focus-within .editorParent {
+				border-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent)) var(--vscode-focusBorder) var(--vscode-focusBorder) var(--vscode-focusBorder);
+			}
+		}
+
+		&:focus-within .multiDiffEntry.active .header .header-content,
+		&:focus-within .multiDiffEntry.active .header:hover .header-content,
+		&:focus-within .multiDiffEntry.active .header:active .header-content {
+			background:
+				linear-gradient(var(--vscode-list-focusBackground, transparent), var(--vscode-list-focusBackground, transparent)),
+				var(--vscode-sideBarSectionHeader-background);
+		}
+	}
+}
+
+:is(.hc-black, .hc-light) .monaco-component.multiDiffEditor.multiDiffEditor-card .multiDiffEntry:focus-within {
+	.header .header-content {
+		border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder)) var(--vscode-contrastActiveBorder, var(--vscode-focusBorder)) transparent var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	}
+
+	.header[aria-expanded='false'] .header-content {
+		border-bottom-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	}
+
+	.editorParent {
+		border-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent)) var(--vscode-contrastActiveBorder, var(--vscode-focusBorder)) var(--vscode-contrastActiveBorder, var(--vscode-focusBorder)) var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	}
 }
