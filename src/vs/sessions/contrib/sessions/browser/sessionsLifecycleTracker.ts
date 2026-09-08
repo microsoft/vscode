@@ -12,8 +12,6 @@ import { ISession } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
-/** Storage key for the cumulative number of times this client has been launched. */
-const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
 /** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
@@ -238,13 +236,13 @@ export class SessionsLifecycleTracker extends Disposable {
 	private readonly _appLaunchCount: number;
 	private readonly _stats: Map<string, IStoredSessionStats>;
 
-	constructor(private readonly _storageService: IStorageService) {
+	constructor(
+		private readonly _storageService: IStorageService,
+		appLaunchCount: number,
+	) {
 		super();
 
-		const previousAppLaunches = this._storageService.getNumber(APP_LAUNCH_COUNT_KEY, StorageScope.APPLICATION, 0);
-		this._appLaunchCount = previousAppLaunches + 1;
-		this._storageService.store(APP_LAUNCH_COUNT_KEY, this._appLaunchCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
+		this._appLaunchCount = appLaunchCount;
 		this._stats = this._load();
 	}
 

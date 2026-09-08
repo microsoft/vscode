@@ -298,6 +298,11 @@ export class SessionView extends Disposable implements ISerializableView {
 		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
 	}
 
+	selectNoWorkspace(): void {
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
+	}
+
 	/** Opens the given chat in a group beside the active one ("open to the side"). */
 	openChatToSide(resource: URI): Promise<void> {
 		return this._groupsView.openChatInNewGroup(resource);

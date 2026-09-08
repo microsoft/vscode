@@ -809,6 +809,10 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.selectWorkspace(folderUri, options);
 	}
 
+	selectNoWorkspace(): void {
+		this._activeGroup?.view.selectNoWorkspace();
+	}
+
 	prefillInput(text: string): void {
 		this._activeGroup?.view.prefillInput(text);
 	}
