@@ -99,6 +99,10 @@ export interface IOpenSessionOptions {
 	readonly source?: SessionOpenSource;
 }
 
+export interface IOpenChatOptions extends IOpenSessionOptions {
+	readonly token?: CancellationToken;
+}
+
 /**
  * Persisted state for a session.
  * Extend this interface to store additional per-session state that should be
@@ -210,7 +214,7 @@ export interface ISessionsService {
 	 * When `options.preserveFocus` is set, the chat is shown without moving
 	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
@@ -722,9 +726,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/**
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
-	private _startOpenSession(): CancellationToken {
+	private _startOpenSession(parentToken?: CancellationToken): CancellationToken {
 		this._openSessionCts.value?.cancel();
-		const cts = new CancellationTokenSource();
+		const cts = new CancellationTokenSource(parentToken);
 		this._openSessionCts.value = cts;
 		return cts.token;
 	}
@@ -758,15 +762,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		return this._openChatSession(session, chatUri, options, 'explicit');
 	}
 
-	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenChatOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+		if (options?.token?.isCancellationRequested) {
+			return;
+		}
 		const t0 = Date.now();
 		this._cancelRestore();
 		this._dismissCustomViewForNavigation(intent);
-		const token = this._startOpenSession();
+		const token = this._startOpenSession(options?.token);
 		// Redirect a superseded resource (e.g. a legacy session adopted into another
 		// provider) before activating, the same way `openSession` does for a URI, so
 		// opening by object migrates rather than activating the old facade as-is.
@@ -797,7 +804,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this._activate(session, preserveFocus);
-		if (!await this._waitForSessionToLoad(session, token)) {
+		if (!await this._waitForSessionToLoad(session, token) || token.isCancellationRequested) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
 		}
