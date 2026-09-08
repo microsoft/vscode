@@ -68,6 +68,7 @@ suite('SessionServerTools', () => {
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
+			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
@@ -707,7 +708,7 @@ suite('SessionServerTools', () => {
 
 	for (const scheme of ['file', 'vscode-remote']) {
 		for (const worktree of [false, true, undefined]) {
-			test(`create_session resolves ${scheme} worktree folders to the project only with worktree=false (value=${worktree})`, async () => {
+			test(`create_session resolves ${scheme} linked worktree roots only with worktree=false (value=${worktree})`, async () => {
 				const project = URI.from({ scheme, authority: scheme === 'file' ? '' : 'ssh-remote+example', path: '/workspace/repo' });
 				const existingWorktree = project.with({ path: '/worktrees/existing' });
 				let created: IAgentCreateSessionConfig | undefined;
@@ -717,6 +718,11 @@ suite('SessionServerTools', () => {
 						project: { uri: project, displayName: 'Repo' },
 					}],
 					getCreationDefaults: () => ({ provider: 'copilot', project, isolation: 'worktree' }),
+					getWorktreeRoots: async directory => {
+						assert.strictEqual(directory.toString(), existingWorktree.toString());
+						assert.strictEqual(worktree, false);
+						return [project, existingWorktree];
+					},
 					onCreate: config => { created = config; },
 				});
 
@@ -738,6 +744,84 @@ suite('SessionServerTools', () => {
 			});
 		}
 	}
+
+	test('create_session with worktree=false preserves nested and additional workspace folders', async () => {
+		const project = URI.file('/repo');
+		const linkedRoot = URI.file('/worktrees/linked');
+		const nestedFolder = URI.file('/repo/packages/foo');
+		const linkedNestedFolder = URI.file('/worktrees/linked/packages/foo');
+		const additionalRoot = URI.file('/other');
+		const plainFolder = URI.file('/plain');
+		const created: (string[] | undefined)[] = [];
+		const accessor = createAccessor({
+			listSessions: async () => [{
+				...sessionMeta('source', SessionStatus.Idle, nestedFolder),
+				workingDirectories: [nestedFolder, additionalRoot, linkedNestedFolder, plainFolder],
+				project: { uri: project, displayName: 'Repo' },
+			}],
+			getWorktreeRoots: async directory => {
+				if (directory.toString() === additionalRoot.toString()) {
+					return [additionalRoot];
+				}
+				if (directory.toString() === plainFolder.toString()) {
+					return [];
+				}
+				return [project, linkedRoot];
+			},
+			onCreate: config => created.push(config.workingDirectories?.map(directory => directory.toString())),
+		});
+
+		for (const directory of [project, nestedFolder, linkedNestedFolder, additionalRoot, plainFolder]) {
+			await applyCreateSessionTool(accessor, {
+				relationship: 'independent',
+				workspace: directory.toString(),
+				worktree: false,
+				prompt: 'do it',
+				title: 'Task',
+			});
+		}
+
+		assert.deepStrictEqual(created, [project, nestedFolder, linkedNestedFolder, additionalRoot, plainFolder].map(directory => [directory.toString()]));
+	});
+
+	test('create_session with worktree=false resolves linked roots without session metadata', async () => {
+		const project = URI.file('/repo');
+		const linkedRoot = URI.file('/worktrees/linked');
+		let created: IAgentCreateSessionConfig | undefined;
+		const accessor = createAccessor({
+			listSessions: async () => [],
+			getWorktreeRoots: async () => [project, linkedRoot],
+			onCreate: config => { created = config; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'independent',
+			workspace: linkedRoot.toString(),
+			worktree: false,
+			prompt: 'do it',
+			title: 'Task',
+		});
+
+		assert.deepStrictEqual(created?.workingDirectories?.map(directory => directory.toString()), [project.toString()]);
+	});
+
+	test('create_session propagates worktree lookup failures before creating a session', async () => {
+		const operations: string[] = [];
+		const accessor = createAccessor({
+			getWorktreeRoots: async () => { throw new Error('Worktree lookup failed'); },
+			onCreate: () => operations.push('create'),
+			onPrompt: () => operations.push('prompt'),
+		});
+
+		await assert.rejects(applyCreateSessionTool(accessor, {
+			relationship: 'independent',
+			workspace: workspace.toString(),
+			worktree: false,
+			prompt: 'do it',
+			title: 'Task',
+		}), /Worktree lookup failed/);
+		assert.deepStrictEqual(operations, []);
+	});
 
 	test('getCreateSessionArgs preserves folders without a known project when worktree=false', () => {
 		for (const sessions of [[], [sessionMeta('folder', SessionStatus.Idle, workspace)]]) {

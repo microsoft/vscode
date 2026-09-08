@@ -266,8 +266,9 @@ selection independently of provider-owned configuration;
 otherwise it uses worktree isolation. The optional `worktree` argument overrides
 that selection. Agents must set it only when the user explicitly asks to create a
 worktree (`true`) or work without one (`false`); otherwise they must omit it.
-With `false`, a supplied worktree folder resolves to its known project root
-before session creation; folders without a known project are used directly.
+With `false`, an exact linked-worktree root reported by Git resolves to its
+primary checkout before session creation. Nested and ordinary additional
+workspace folders are preserved.
 The option is invalid with `currentSession`, whose chats share the existing
 workspace. The target workspace still constrains the effective selection, so a
 folder that cannot support Git worktrees resolves to folder isolation.

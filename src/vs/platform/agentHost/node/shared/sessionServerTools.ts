@@ -243,6 +243,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
+	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
@@ -432,12 +433,12 @@ export function getSetWorkspaceArgs(rawArgs: unknown): { readonly workspaceFolde
 	};
 }
 
-function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[], preferProject = false): URI {
+function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
 	const parsed = parseWorkspaceUri(workspace);
 	for (const session of sessions) {
 		for (const candidate of [session.project?.uri, ...(session.workingDirectories ?? [])]) {
 			if (candidate && parsed && isEqual(candidate, parsed)) {
-				return preferProject ? session.project?.uri ?? candidate : candidate;
+				return candidate;
 			}
 		}
 	}
@@ -536,7 +537,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	}
 	return {
 		relationship,
-		workspace: resolveWorkspace(getRequiredString(workspace, 'workspace', SessionServerToolName.CreateSession), sessions, worktree === false),
+		workspace: resolveWorkspace(getRequiredString(workspace, 'workspace', SessionServerToolName.CreateSession), sessions),
 		...(worktree !== undefined ? { worktree } : {}),
 		prompt,
 		title,
@@ -825,6 +826,13 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	if (parentDepth >= maxSessionSpawnDepth) {
 		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
+	let workspace = args.workspace;
+	if (args.worktree === false) {
+		const [primaryRoot, ...linkedRoots] = await accessor.getWorktreeRoots(workspace);
+		if (primaryRoot && linkedRoots.some(root => isEqual(root, workspace))) {
+			workspace = primaryRoot;
+		}
+	}
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
@@ -832,7 +840,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	let isolation: 'folder' | 'worktree' | undefined = 'worktree';
 	if (args.worktree !== undefined) {
 		isolation = args.worktree ? 'worktree' : 'folder';
-	} else if (defaults?.project !== undefined && isEqual(defaults.project, args.workspace)) {
+	} else if (defaults?.project !== undefined && isEqual(defaults.project, workspace)) {
 		isolation = defaults.isolation;
 	}
 	const configValues = inheritedProviderConfig === undefined && isolation === undefined
@@ -842,7 +850,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
 		};
 	const config: IAgentCreateSessionConfig = {
-		workingDirectories: args.workspace ? [args.workspace] : undefined,
+		workingDirectories: [workspace],
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
