@@ -100,6 +100,42 @@ function createWidget(disposables: DisposableStore, motionReduced = true): { wid
 	return { widget, contextView };
 }
 
+function createSearchableWidget(disposables: DisposableStore, itemIds: readonly string[]) {
+	const { widget, contextView } = createWidget(disposables);
+	const anchor = document.createElement('div');
+	document.body.appendChild(anchor);
+	disposables.add({ dispose: () => anchor.remove() });
+	const selected: string[] = [];
+	const tabChanges: string[] = [];
+	disposables.add(widget.onDidChangeTab(tab => tabChanges.push(tab)));
+	widget.show<ITestItem>({
+		user: 'test',
+		anchor,
+		tabs: [{ id: 'Local' }, { id: 'Remote' }],
+		initialTab: 'Local',
+		filterInTabBar: true,
+		createActionList: () => ({
+			items: itemIds.map(action),
+			listOptions: {
+				showFilter: true,
+				focusFilterOnOpen: true,
+				filterAsCombobox: true,
+				initialFilterValue: 'match',
+			},
+		}),
+		delegate: {
+			onSelect: item => {
+				selected.push(item.id);
+				widget.hide();
+			},
+			onHide: () => { },
+		},
+	});
+	const input = contextView.getContextViewElement().querySelector<HTMLInputElement>('input');
+	assert.ok(input);
+	return { widget, input, selected, tabChanges };
+}
+
 suite('TabbedActionListWidget', () => {
 
 	const disposables = new DisposableStore();
@@ -129,6 +165,73 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	for (const matches of [['first match'], ['first match', 'second match']]) {
+		test(`tab-bar search accepts after ArrowDown with ${matches.length} matching results`, () => {
+			const { widget, input, selected } = createSearchableWidget(disposables, [...matches, 'other']);
+			const down = new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true, cancelable: true });
+			input.dispatchEvent(down);
+			const inputFocusedAfterNavigation = document.activeElement === input;
+			const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			input.dispatchEvent(enter);
+
+			assert.deepStrictEqual({
+				inputFocusedAfterNavigation,
+				downPrevented: down.defaultPrevented,
+				enterPrevented: enter.defaultPrevented,
+				selected,
+				visible: widget.isVisible,
+			}, {
+				inputFocusedAfterNavigation: true,
+				downPrevented: true,
+				enterPrevented: true,
+				selected: [matches[matches.length - 1]],
+				visible: false,
+			});
+		});
+	}
+
+	test('tab-bar search keeps text editing and IME keys out of popup navigation', () => {
+		const { widget, input, selected, tabChanges } = createSearchableWidget(disposables, ['first match', 'second match']);
+		const events = [
+			{ key: 'ArrowLeft', keyCode: 37 },
+			{ key: 'ArrowRight', keyCode: 39 },
+			{ key: 'Home', keyCode: 36 },
+			{ key: 'End', keyCode: 35 },
+			{ key: 'ArrowLeft', keyCode: 37, shiftKey: true },
+			{ key: 'ArrowDown', keyCode: 40, shiftKey: true },
+			{ key: 'a', keyCode: 65, metaKey: true },
+			{ key: 'Enter', keyCode: 13, isComposing: true },
+			{ key: 'Enter', keyCode: 229 },
+		].map(init => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			input.dispatchEvent(event);
+			return event;
+		});
+		input.dispatchEvent(new Event('compositionstart'));
+		for (const init of [{ key: 'Enter', keyCode: 13 }, { key: 'Escape', keyCode: 27 }]) {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			input.dispatchEvent(event);
+			events.push(event);
+		}
+		input.dispatchEvent(new Event('compositionend'));
+		const visibleBeforeEscape = widget.isVisible;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+			tabChanges,
+			selected,
+			visibleBeforeEscape,
+			visibleAfterEscape: widget.isVisible,
+		}, {
+			prevented: [],
+			tabChanges: [],
+			selected: [],
+			visibleBeforeEscape: true,
+			visibleAfterEscape: false,
+		});
 	});
 
 	for (const scenario of [
