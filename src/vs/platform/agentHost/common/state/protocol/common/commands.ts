@@ -10,7 +10,7 @@ import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationCatalogState, AutomationState } from '../channels-automation/state.js';
+import type { AutomationSchedule, AutomationScheduleTrigger, AutomationEntry, AutomationState } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ export interface InitializeResult {
 	telemetry?: TelemetryCapabilities;
 	/**
 	 * Host-owned automation support. Presence means clients may subscribe to
-	 * `ahp-automations://catalog` for {@link AutomationCatalogState}; absence means the
+	 * `ahp-automations://` for {@link AutomationState}; absence means the
 	 * host does not expose an automation catalogue or automation commands.
 	 *
 	 * @see {@link /guide/automations | Automations Guide}
@@ -292,12 +292,12 @@ export interface InitializeResult {
 /**
  * Automation features supported by this host authority.
  *
- * The presence of this object advertises the baseline `ahp-automations://catalog`
+ * The presence of this object advertises the baseline `ahp-automations://`
  * catalogue. Optional fields describe additional host features and
  * restrictions.
  *
  * Capabilities describe implementation support.
- * {@link AutomationState.operations} remains authoritative for which
+ * {@link AutomationEntry.operations} remains authoritative for which
  * definition mutations are currently allowed on a particular automation.
  *
  * @category Commands
@@ -313,7 +313,7 @@ export interface AutomationCapabilities {
 	 */
 	runCancellation?: AutomationRunCancellationCapability;
 	/**
-	 * Maximum terminal entries retained in {@link AutomationState.runs}. Active
+	 * Maximum terminal entries retained in {@link AutomationEntry.runs}. Active
 	 * runs are not counted toward the limit. Absence means the retention limit is
 	 * implementation-defined.
 	 */

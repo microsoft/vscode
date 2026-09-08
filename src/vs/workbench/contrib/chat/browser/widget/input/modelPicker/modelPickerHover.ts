@@ -18,9 +18,11 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelContextWindowTotal, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
+import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
 
-const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
+const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
 
 export interface IModelPickerHoverContent {
 	readonly element: HTMLElement;
@@ -84,15 +86,10 @@ export function getModelHoverContent(
 	let costInfoRendered = false;
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
-			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
-			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
-			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
-			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), def: model.metadata.cacheWriteCost, long: model.metadata.longContextCacheWriteCost },
-		].filter(metric => metric.def !== undefined || metric.long !== undefined);
+		const metrics = getModelCostMetrics(model.metadata);
 
 		if (metrics.length > 0) {
-			const hasLongContext = metrics.some(metric => metric.long !== undefined);
+			const hasLongContext = metrics.some(metric => metric.extended !== undefined);
 			const table = dom.$('.chat-model-hover-cost-table');
 			if (hasLongContext) {
 				container.classList.add('has-long-context');
@@ -105,13 +102,12 @@ export function getModelHoverContent(
 					return;
 				}
 				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
-					dom.$('span.chat-model-hover-cost-number', undefined,
-						typeof cost === 'number' ? String(cost) : localize('models.cost.unknown', "Unknown")),
+					dom.$('span.chat-model-hover-cost-number', undefined, formatModelCost(cost)),
 				));
 			};
 
 			const headerRow = dom.$('.chat-model-hover-cost-row.header');
-			headerRow.appendChild(dom.$('span.chat-model-hover-cost-heading', undefined, localize('models.creditsPerMillionTokens', "Credits Per 1M Tokens")));
+			headerRow.appendChild(dom.$('span.chat-model-hover-cost-heading', undefined, getCreditsPerMillionTokensLabel()));
 			if (hasLongContext) {
 				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.defaultContext', "Default")));
 				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.longContext', "Long Context")));
@@ -125,9 +121,9 @@ export function getModelHoverContent(
 				const labelCell = dom.$('.chat-model-hover-cost-label');
 				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
 				row.appendChild(labelCell);
-				appendValueCell(row, metric.def);
+				appendValueCell(row, metric.standard);
 				if (hasLongContext) {
-					appendValueCell(row, metric.long);
+					appendValueCell(row, metric.extended);
 				}
 				table.appendChild(row);
 			}
@@ -145,18 +141,15 @@ export function getModelHoverContent(
 	}
 
 	if (!costInfoRendered && model.metadata.tooltip) {
-		const descriptionMd = new MarkdownString(model.metadata.tooltip, { supportThemeIcons: true });
-		const rendered = disposables.add(renderMarkdown(descriptionMd, {
-			actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
-		}));
-		rendered.element.classList.add('chat-model-hover-description');
-		container.appendChild(rendered.element);
+		const element = renderModelDescription(model.metadata.tooltip, openerService, disposables);
+		element.classList.add('chat-model-hover-description');
+		container.appendChild(element);
 	}
 
 	if (!isAuto && !costTableRendered && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
-		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
+		const totalTokens = getModelContextWindowTotal(model.metadata);
 		const contextSection = dom.$('.chat-model-hover-context');
-		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, localize('models.contextSize', "Max context")));
+		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, getMaxContextLabel()));
 		contextSection.appendChild(dom.$('.chat-model-hover-context-value', undefined, formatTokenCount(totalTokens)));
 		container.appendChild(contextSection);
 	}
@@ -169,7 +162,7 @@ export function getModelHoverContent(
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
 				// Auto's navigation option is its routing tier; the menu keeps the producer's "Optimize for…" title.
-				const label = isAuto && propSchema.group === 'navigation' ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
+				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });
@@ -201,7 +194,7 @@ export function getModelHoverContent(
  * Builds one bordered message banner (an icon plus a rendered markdown message)
  * for the warning, info and promo notices shown at the top of the hover.
  */
-function createMessageBanner(message: string, className: string, icon: ThemeIcon, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
+export function createMessageBanner(message: string, className: string, icon: ThemeIcon, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
 	const banner = dom.$(`.${className}`);
 	banner.appendChild(renderIcon(icon));
 	const markdown = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
@@ -216,26 +209,4 @@ function appendCostSection(container: HTMLElement, pricing: string): void {
 	const costSection = dom.$('.chat-model-hover-cost');
 	costSection.appendChild(dom.$('span', undefined, localize('models.cost', "Cost: {0}", pricing)));
 	container.appendChild(costSection);
-}
-
-function isHighCostCategory(priceCategory: string | undefined): boolean {
-	return priceCategory === 'high' || priceCategory === 'very_high';
-}
-
-function getCategoryLabel(category: string | undefined): string | undefined {
-	switch (category) {
-		case undefined:
-		case '':
-			return undefined;
-		case 'lightweight':
-			return localize('chat.category.lightweight', "Lightweight");
-		case 'versatile':
-			return localize('chat.category.versatile', "Versatile");
-		case 'powerful':
-			return localize('chat.category.powerful', "Powerful");
-		default:
-			return typeof category === 'string'
-				? category.charAt(0).toUpperCase() + category.slice(1)
-				: undefined;
-	}
 }

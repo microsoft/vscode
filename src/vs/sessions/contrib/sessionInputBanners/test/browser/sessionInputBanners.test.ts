@@ -14,6 +14,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -73,12 +75,10 @@ suite('SessionInputBanners', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		}();
-		let agentMergeEnabled = false;
-		const onDidChangeSessionConfig = store.add(new Emitter<string>());
+		const agentMergeState = observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false });
 		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-			override readonly onDidChangeSessionConfig = onDidChangeSessionConfig.event;
-			override getAgentMergeSessionState() { return { enabled: agentMergeEnabled }; }
+			override getAgentMergeClientStateObservable() { return agentMergeState; }
 		}();
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
@@ -141,6 +141,7 @@ suite('SessionInputBanners', () => {
 		const banners = store.add(new SessionInputBanners(
 			sessionsService,
 			sessionsProvidersService,
+			new TestConfigurationService(),
 			gitHubService,
 			feedbackService,
 			new class extends mock<ICommandService>() { }(),
@@ -159,8 +160,7 @@ suite('SessionInputBanners', () => {
 			actions: ['Fix Checks & Address Comments'],
 		});
 
-		agentMergeEnabled = true;
-		onDidChangeSessionConfig.fire(session.sessionId);
+		agentMergeState.set({ enabled: true }, undefined);
 		assert.deepStrictEqual(currentBanner(banners), {
 			position: undefined,
 			reference: undefined,
@@ -168,10 +168,17 @@ suite('SessionInputBanners', () => {
 			splitButtons: 0,
 			actions: ['Address Comments', 'Reveal'],
 		});
-		agentMergeEnabled = false;
-		onDidChangeSessionConfig.fire(session.sessionId);
+		agentMergeState.set({ enabled: true, overrides: { fixCI: false } }, undefined);
+		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.previous')?.click();
+		assert.deepStrictEqual(currentBanner(banners), {
+			position: '1/2',
+			reference: '#42',
+			text: '2 Checks Failing',
+			splitButtons: 0,
+			actions: ['Fix Checks', 'Reveal'],
+		});
+		agentMergeState.set({ enabled: false }, undefined);
 
-		banners.domNode.querySelector<HTMLElement>('.session-input-banner-navigation-button.next')?.click();
 		assert.deepStrictEqual(currentBanner(banners), {
 			position: '1/3',
 			reference: '#42',

@@ -147,7 +147,7 @@ suite('PromptTimelineModel', () => {
 
 		assert.deepStrictEqual(model.promptTicks.get().map(tick => tick.text), [
 			'First prompt',
-			'Agent Merge, 1 comment, 1 check failing',
+			'1 Review Comment and 1 Failing Check, Agent Merge',
 		]);
 	});
 });

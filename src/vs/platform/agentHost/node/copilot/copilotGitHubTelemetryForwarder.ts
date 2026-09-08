@@ -21,6 +21,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"os_arch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Operating system architecture of the Copilot CLI runtime." },
 		"node_version": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Node.js version of the Copilot CLI runtime." },
 		"copilot_plan": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Copilot subscription plan reported by the runtime." },
+		"copilotSku": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU for the authenticated GitHub account." },
 		"client_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of client that produced the event." },
 		"client_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Name of the client that produced the event." },
 		"dev_device_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous device identifier supplied by the runtime." },
@@ -225,6 +226,7 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 		};
+		delete data.secondary_assignment_context;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;

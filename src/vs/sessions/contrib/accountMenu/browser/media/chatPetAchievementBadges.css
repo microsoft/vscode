@@ -49,20 +49,14 @@
 	gap: var(--vscode-spacing-size40);
 	margin: 0;
 	padding: 0;
-	border-radius: var(--vscode-cornerRadius-small);
 	list-style: none;
 }
 
-.sessions-chat-pet-achievement-badges-list:focus {
-	outline: none;
+.sessions-chat-pet-achievement-badges-list-item {
+	display: flex;
 }
 
-.sessions-chat-pet-achievement-badges-list:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.sessions-chat-pet-achievement-badge {
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge {
 	box-sizing: border-box;
 	display: flex;
 	flex: 0 0 28px;
@@ -74,6 +68,25 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-editor-background);
+	color: inherit;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button {
+	cursor: pointer;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:hover,
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button.wearing {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:focus {
+	outline: none;
+}
+
+.sessions-account-titlebar-panel .sessions-chat-pet-achievement-badge.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .sessions-chat-pet-achievement-badge-preview {
@@ -84,6 +97,7 @@
 }
 
 .sessions-chat-pet-achievement-badge.locked {
+	cursor: default;
 	filter: grayscale(1);
 	opacity: 0.5;
 }

@@ -15,24 +15,29 @@ Only managed settings is mocked by default. Use the switch beside each endpoint
 tab to choose mock or passthrough. Presets apply immediately; response edits
 auto-save.
 
+Valid endpoint state persists atomically in
+`~/.mock-policy-server/state.json` and response-body drafts are also retained in
+browser storage. On the first restart after upgrading from an in-memory-only
+server, the GUI restores valid browser drafts into the server-side state file.
+Use `--state-file` or `MOCK_POLICY_STATE_FILE` for isolated test instances.
+
 Agents should use the JSON control API: start with `GET /api` for discovery and
 `GET /api/state` for endpoint IDs and presets, then use `POST /api/state` for a
 single update or an atomic endpoint array. Prefer known preset IDs over copying
-preset bodies.
+preset bodies. Use `GET /api/file-deployment` to generate platform-specific
+install and removal commands from the current Managed Settings response.
 
 Choose the client setup in the GUI:
 
-- **Code OSS from sources:** apply `product.overrides.json`, reload, sign in, and
-  run **Developer: Sync Account Policy**.
-- **Stable, Insiders, CLI, or other clients:** configure the displayed system
-  proxy mapping and enable Proxyman's platform proxy toggle (**Tools > macOS
-  Proxy** or **Tools > Override Windows Proxy**). VS Code clients must also add
-  the displayed `http.proxy` property to `settings.json`.
-- **File-based settings (no proxy):** expand **Deploy as a file** under the
-  Managed Settings response body and run the copied per-platform command to write
-  the current body to `managed-settings.json` on the device. Restart the client to
-  load it. Use it to skip proxying or to test precedence against a server-managed
-  response. See [Deploying file-based settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings).
+- **Code OSS, Stable, Insiders, CLI, or other clients:** configure the displayed
+  system proxy mapping and enable Proxyman's platform proxy toggle (**Tools >
+  macOS Proxy** or **Tools > Override Windows Proxy**). VS Code clients must
+  also add the displayed `http.proxy` property to `settings.json`.
+- **File-based settings (no proxy):** use **File Deployment** in the right
+  sidebar and run the copied per-platform command to write the current body to
+  `managed-settings.json` on the device. Restart the client to load it. Use it
+  to skip proxying or to test precedence against a server-managed response. See
+  [Deploying file-based settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/manage-agents/configure-enterprise-managed-settings#deploying-file-based-settings).
 
 Use **Clear SDK Policy Cache**, expand the macOS or Windows section, and run the
 copied command when the runtime's fresh managed-settings cache prevents a network
@@ -53,7 +58,9 @@ both Code OSS and the mock server with the same isolated `COPILOT_CACHE_HOME`.
 The managed-settings schema is auto-detected from a sibling
 `copilot-agent-runtime` checkout, including when VS Code runs from a Git
 worktree. Use `--schema` or `MANAGED_SETTINGS_SCHEMA` at server startup to
-override it; the GUI does not reload schema sources.
+override it. The GUI's **Schema source** field can load a different path, file
+URI, or HTTP(S) URL for the current server process; restart the server to return
+to its startup source.
 
 See the [mock policy server README](../../../scripts/mock-policy-server/README.md)
 for proxy setup, cache locations, schema loading, and server options.

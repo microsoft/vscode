@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -115,6 +116,28 @@ suite('ChangesetSessionCoordinator', () => {
 		// Removing the second root -> back to single-root: operations refresh again (restore).
 		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
 		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes the session operations');
+	});
+
+	test('refreshes the changeset catalogue when Agent Merge enablement changes', () => {
+		const { stateManager, changesets } = createEnvironment();
+		const session = AgentSession.uri('mock', 'agent-merge-catalog').toString();
+		createSession(stateManager, session);
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
+
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { mode: 'interactive' },
+		});
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: true } },
+		});
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.AgentMerge]: { enabled: false } },
+		});
+
+		assert.deepStrictEqual(changesets.catalogRefreshes, [session, session]);
 	});
 
 	test('refreshes changeset operations when GitHub state changes', () => {
@@ -943,6 +966,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly branchRefreshes: string[] = [];
+	readonly catalogRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
@@ -957,7 +981,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
-	refreshChangesetCatalog(_session: string): void { }
+	refreshChangesetCatalog(session: string): void {
+		this.catalogRefreshes.push(session);
+	}
 	refreshBranchChangeset(session: string): void {
 		this.branchRefreshes.push(session);
 	}

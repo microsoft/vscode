@@ -171,7 +171,6 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
-		assert.strictEqual(MenuRegistry.getMenuItems(Menus.SessionChatItemContext).length, 3);
 		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			title: constObservable(title),
@@ -223,16 +222,20 @@ suite('Sessions list context menus', () => {
 				}
 			});
 		});
-		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem);
+		const coreActionIds = new Set(['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']);
+		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
+			.filter(isIMenuItem)
+			.filter(item => coreActionIds.has(item.command.id));
 		assert.deepStrictEqual(menuItems.map(item => ({
 			id: item.command.id,
+			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
 			when: item.when?.serialize(),
 		})), [
-			{ id: 'sessions.list.renameChat', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
-			{ id: 'sessions.list.openChatToSide', group: '1_chat', order: 2, when: undefined },
-			{ id: 'sessions.list.deleteChat', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
+			{ id: 'sessions.list.renameChat', title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
+			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
 		const chatContext = { session, chat: peer };
 		for (const actionId of ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
@@ -247,11 +250,13 @@ suite('Sessions list context menus', () => {
 			renamedChats: harness.managementService.renamedChats,
 			openedToSide,
 			deletedChats: harness.managementService.deletedChats,
+			deleteChatOptions: harness.managementService.deleteChatOptions,
 		}, {
 			renameInputs: ['Peer'],
 			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
 			openedToSide: [peer],
 			deletedChats: [{ session, chatResource: peer.resource }],
+			deleteChatOptions: [undefined],
 		});
 	});
 });

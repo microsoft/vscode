@@ -92,8 +92,8 @@
 	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
-		padding: 8px 10px;
-		min-height: 40px;
+		padding: 0 var(--vscode-spacing-size100);
+		height: var(--vscode-spacing-size320);
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
@@ -179,6 +179,16 @@
 		min-height: 0;
 	}
 }
+
+.agent-sessions-workbench:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
+	position: relative;
+	top: var(--vscode-strokeThickness);
+}
+
+.agent-sessions-workbench.editor-tabs-compact-height:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
+	height: var(--vscode-spacing-size280);
+}
+
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }

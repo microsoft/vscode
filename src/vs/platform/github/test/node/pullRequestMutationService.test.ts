@@ -608,13 +608,20 @@ suite('PullRequestMutationService', () => {
 				gitHubRestStep({
 					method: 'GET',
 					path: '/repos/octo/repo/actions/jobs/20/logs',
+					assert: request => assert.strictEqual(request.headers.accept, 'application/vnd.github+json'),
 					response: gitHubRedirectResponse(`${download.apiBaseUrl}/signed/log`),
 				}),
 			);
 			download.enqueue(gitHubRestStep({
 				method: 'GET',
 				path: '/signed/log',
-				assert: request => assert.strictEqual(request.headers.authorization, undefined),
+				assert: request => assert.deepStrictEqual({
+					accept: request.headers.accept,
+					authorization: request.headers.authorization,
+				}, {
+					accept: 'text/plain, application/octet-stream',
+					authorization: undefined,
+				}),
 				response: gitHubRawResponse('::add-mask::supersecret\nsupersecret\ntoken=visible\nghp_1234567890123456'),
 			}));
 			const { ref, service } = setup(server);

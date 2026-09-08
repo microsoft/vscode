@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import type { IChatDropdownPillOptions } from '../../../../workbench/browser/chatDropdownPill.js';
 import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
@@ -16,15 +15,6 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 
 const SUBAGENT_LABEL_MAX_LENGTH = 30;
-
-/** Presentation of the subagents pill. */
-export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
-	widgetId: 'sessionBackgroundActivities',
-	icon: Codicon.agent,
-	title: localize('backgroundActivities.ariaLabel', "Background Activities"),
-	summaryLabel: count => localize('backgroundActivities.subagentsSummary', "{0} Subagents", count),
-	summaryAriaLabel: count => localize('backgroundActivities.showSubagents', "Show {0} subagents", count),
-};
 
 /**
  * Supplies the background activities of the viewed chat to its pill. Today
@@ -72,14 +62,16 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		this._debugData.set(data, undefined);
 	}
 
-	/** Returns direct subagents of `parentChat` in every status. */
+	/** Returns direct subagents of `parentChat` in every status, most recent first. */
 	private _collectSubagents(session: IActiveSession, parentChat: IChat, reader: IReader): IChatPillEntry[] {
 		return session.chats.read(reader)
 			.filter(chat =>
 				chat.origin?.kind === ChatOriginKind.Tool &&
 				!!chat.origin.parentChat &&
 				isEqual(chat.origin.parentChat, parentChat.resource))
-			.map(chat => this._entry(chat.title.read(reader), chat, session));
+			.map(chat => this._entry(chat.title.read(reader), chat, session))
+			// Chats are appended as subagents start, so the newest is listed first.
+			.reverse();
 	}
 
 	private _entry(title: string, chat: IChat | undefined, session: IActiveSession | undefined): IChatPillEntry {

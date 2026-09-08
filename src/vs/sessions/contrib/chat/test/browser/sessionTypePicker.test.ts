@@ -287,6 +287,7 @@ suite('SessionTypePicker', () => {
 
 		assert.deepStrictEqual({
 			singleType,
+			petPlatforms: picker.getChatPetPlatformElements().map(element => element.getAttribute('aria-label')),
 			multipleTypes: {
 				hidden: trigger?.classList.contains('hidden'),
 				disabled: trigger?.getAttribute('aria-disabled'),
@@ -300,6 +301,7 @@ suite('SessionTypePicker', () => {
 				tabIndex: -1,
 				label: 'Session Type, Cloud',
 			},
+			petPlatforms: ['Pick Session Type, Cloud'],
 			multipleTypes: {
 				hidden: false,
 				disabled: 'false',

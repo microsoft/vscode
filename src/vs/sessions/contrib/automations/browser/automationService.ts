@@ -9,17 +9,21 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
 	AutomationTarget,
 	AutomationWorkspaceIsolation,
+	assertAutomationSessionTemplate,
 	IAutomationDescriptor,
 	IAutomationRun,
+	IAutomationSessionTemplate,
+	isAutomationModelConfiguration,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
+	AutomationCatalogueState,
 	type AutomationMutationGuard,
+	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
 	IAutomationService,
 	ICreateAutomationOptions,
@@ -29,13 +33,13 @@ import {
 	IAutomationStore,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
 
-const LEGACY_SCHEMA_VERSIONS = new Set([1, 2]);
-const CURRENT_SCHEMA_VERSION = 3;
+const LEGACY_TARGET_SCHEMA_VERSIONS = new Set([1, 2]);
+const CURRENT_TARGET_SCHEMA_VERSIONS = new Set([3, 4]);
+const CURRENT_SCHEMA_VERSION = 4;
 
 const MAX_RUNS_PER_AUTOMATION = 50;
 
@@ -44,6 +48,7 @@ interface ISerializedAutomationBase {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationDescriptor['schedule'];
+	readonly sessionTemplate?: IAutomationSessionTemplate;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
@@ -82,7 +87,7 @@ interface ILegacySerializedAutomation extends ISerializedAutomationBase {
 }
 
 interface ISerializedLedger {
-	readonly schemaVersion: 3;
+	readonly schemaVersion: 4;
 	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
@@ -116,20 +121,20 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _catalogueState: ISettableObservable<AutomationCatalogueState>;
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
-	private _canCompleteMigration = true;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly storageKey: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
 	) {
 		super();
@@ -138,14 +143,15 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		const initial = result.kind === 'unsupportedSchema' ? EMPTY_LEDGER : result.ledger;
-		this._canCompleteMigration = result.kind === 'ledger';
 		if (result.kind !== 'unsupportedSchema') {
 			this._lastSeenRevision = result.revision;
 		}
 		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
+		this._catalogueState = observableValue(this, result.kind === 'ledger' ? 'ready' : 'error');
 		this.automations = this._automations;
 		this.runs = this._runs;
+		this.catalogueState = this._catalogueState;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();
@@ -162,7 +168,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	}
 
 	canCompleteMigration(): boolean {
-		return this._canCompleteMigration;
+		return this._catalogueState.get() === 'ready';
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -184,9 +190,13 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: normalizeAutomationTarget(options.target),
-			modelId: options.modelId,
-			mode: options.mode,
-			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+			...(options.sessionTemplate
+				? { sessionTemplate: options.sessionTemplate }
+				: {
+					modelId: options.modelId,
+					mode: options.mode,
+					permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+				}),
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -198,7 +208,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
 			result: undefined,
 		}), mutationGuard);
-		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
 
@@ -216,16 +225,14 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
 					runs: ledger.runs,
 				},
-				result: { current, updated },
+				result: updated,
 			};
 		});
-		publishAutomationUpdated(this.telemetryService, result.current, result.updated);
-		return result.updated;
+		return result;
 	}
 
 	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const now = this._now();
-		let previous: IAutomationDescriptor | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
 			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
@@ -236,7 +243,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			}
 
 			const updated = updateAutomation(current, patch, now);
-			previous = current;
 			return {
 				kind: 'commit',
 				ledger: {
@@ -246,11 +252,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				result: { kind: 'updated', automation: updated } as const,
 			};
 		}, mutationGuard);
-		if (result.kind === 'conflict' || !previous) {
-			return result;
-		}
-
-		publishAutomationUpdated(this.telemetryService, previous, result.automation);
 		return result;
 	}
 
@@ -274,7 +275,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 
 		this._runsForCache.delete(id);
-		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
 	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
@@ -465,9 +465,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		while (true) {
 			const readResult = this.readLedger(raw);
 			if (readResult.kind === 'unsupportedSchema') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: storage was written by a newer version');
 			}
 			if (readResult.kind === 'invalid') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: persisted storage contains data this version cannot safely interpret');
 			}
 
@@ -502,30 +504,33 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 	}
 
-	private acceptLedger(ledger: ILedger, revision: number): void {
+	private acceptLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		if (revision < this._lastSeenRevision) {
+			if (catalogueState === 'error') {
+				this._catalogueState.set(catalogueState, undefined);
+			}
 			return;
 		}
-		this.setLedger(ledger, revision);
+		this.setLedger(ledger, revision, catalogueState);
 	}
 
-	private setLedger(ledger: ILedger, revision: number): void {
+	private setLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
 			this._runs.set(ledger.runs, tx);
+			this._catalogueState.set(catalogueState, tx);
 		});
 	}
 
 	private refreshFromStorage(): void {
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
-			this._canCompleteMigration = false;
+			this._catalogueState.set('error', undefined);
 			return;
 		}
 
-		this._canCompleteMigration = result.kind === 'ledger';
-		this.acceptLedger(result.ledger, result.revision);
+		this.acceptLedger(result.ledger, result.revision, result.kind === 'ledger' ? 'ready' : 'error');
 	}
 
 	private readLedger(raw: string | undefined): ReadLedgerResult {
@@ -533,19 +538,19 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 		try {
-			const parsed = JSON.parse(raw) as ISerializedLedger | ILegacySerializedLedger;
+			const parsed = JSON.parse(raw) as ISerializedLedger | (Omit<ISerializedLedger, 'schemaVersion'> & { readonly schemaVersion: 3 }) | ILegacySerializedLedger;
 			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
 				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
 				return { kind: 'unsupportedSchema' };
 			}
-			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
+			if (!CURRENT_TARGET_SCHEMA_VERSIONS.has(parsed?.schemaVersion) && !LEGACY_TARGET_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
 				return { kind: 'invalid', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomationDescriptor[] = [];
 			// Malformed rows are dropped individually; only structurally invalid ledgers remain read-only.
 			const invalid = !Array.isArray(parsed.automations) || !Array.isArray(parsed.runs);
-			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
+			if (CURRENT_TARGET_SCHEMA_VERSIONS.has(parsed.schemaVersion)) {
 				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
 				for (const entry of entries) {
 					try {
@@ -597,10 +602,9 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IAutomationStorageService automationStorageService: IAutomationStorageService,
 	) {
-		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
+		super(AUTOMATION_STORAGE_KEY, storageService, logService, automationStorageService);
 	}
 
 	startStaleRunRecovery(reason: string): Promise<void> {
@@ -611,12 +615,14 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 }
 
 function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
+	assertAutomationSessionTemplate(a.sessionTemplate);
 	return {
 		id: a.id,
 		name: a.name,
 		prompt: a.prompt,
 		schedule: a.schedule,
 		target: serializeAutomationTarget(a.target),
+		sessionTemplate: a.sessionTemplate,
 		modelId: a.modelId,
 		mode: a.mode,
 		permissionLevel: a.permissionLevel,
@@ -679,10 +685,11 @@ function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomatio
 }
 
 function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomationDescriptor {
+	const sessionTemplate = deserializeAutomationSessionTemplate(s.sessionTemplate);
 	// Default to most restrictive if the persisted value is invalid.
-	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
+	const permissionLevel = !sessionTemplate && isChatPermissionLevel(s.permissionLevel)
 		? s.permissionLevel
-		: ChatPermissionLevel.Default;
+		: sessionTemplate ? undefined : ChatPermissionLevel.Default;
 
 	return Object.freeze({
 		id: s.id,
@@ -690,8 +697,9 @@ function createAutomationFromSerialized(s: ISerializedAutomationBase, target: Au
 		prompt: s.prompt,
 		schedule: s.schedule,
 		target,
-		modelId: s.modelId,
-		mode: s.mode,
+		...(sessionTemplate ? { sessionTemplate } : {}),
+		modelId: sessionTemplate ? undefined : s.modelId,
+		mode: sessionTemplate ? undefined : s.mode,
 		permissionLevel,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
@@ -715,15 +723,37 @@ function updateAutomation(current: IAutomationDescriptor, patch: IUpdateAutomati
 }
 
 function mergeAutomation(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
+	assertAutomationSessionTemplateAuthority(current, patch);
+	const target = patch.target ? normalizeAutomationTarget(patch.target) : current.target;
+	const targetAuthorityChanged = patch.target !== undefined
+		&& (target.providerId !== current.target.providerId || target.sessionTypeId !== current.target.sessionTypeId);
+	const templatePatched = patch.sessionTemplate !== undefined;
+	const legacyConfigurationPatched = patch.modelId !== undefined || patch.mode !== undefined || patch.permissionLevel !== undefined;
+	const currentModelId = current.sessionTemplate ? undefined : current.modelId;
+	const currentMode = current.sessionTemplate ? undefined : current.mode;
+	const currentPermissionLevel = current.sessionTemplate ? undefined : current.permissionLevel;
+	const modelId = templatePatched ? undefined : patch.modelId === null ? undefined : (patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId));
+	const mode = templatePatched ? undefined : patch.mode === null ? undefined : (patch.mode ?? (targetAuthorityChanged ? undefined : currentMode));
+	const permissionLevel = templatePatched || patch.permissionLevel === null
+		? undefined
+		: patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel)
+			? patch.permissionLevel
+			: targetAuthorityChanged ? ChatPermissionLevel.Default : currentPermissionLevel;
+	const sessionTemplate = patch.sessionTemplate === null
+		? undefined
+		: patch.sessionTemplate ?? (targetAuthorityChanged || legacyConfigurationPatched
+			? undefined
+			: current.sessionTemplate);
 	return {
 		...current,
 		name: patch.name ?? current.name,
 		prompt: patch.prompt ?? current.prompt,
 		schedule: patch.schedule ?? current.schedule,
-		target: patch.target ? normalizeAutomationTarget(patch.target) : current.target,
-		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
-		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
-		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
+		target,
+		sessionTemplate,
+		modelId,
+		mode,
+		permissionLevel,
 		enabled: patch.enabled ?? current.enabled,
 	};
 }
@@ -744,6 +774,47 @@ function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {
 		target.sessionTypeId,
 		target.isolation,
 	);
+}
+
+function deserializeAutomationSessionTemplate(value: unknown): IAutomationSessionTemplate | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!isRecord(value)) {
+		throw new Error('Automation session template must be an object.');
+	}
+	const modelId = value['modelId'];
+	if (modelId !== undefined && typeof modelId !== 'string') {
+		throw new Error('Automation session template model must be a string.');
+	}
+	const modelConfiguration = value['modelConfiguration'];
+	if (modelConfiguration !== undefined && !isAutomationModelConfiguration(modelConfiguration)) {
+		throw new Error('Automation model configuration must contain only JSON primitive values.');
+	}
+	const rawAgent = value['agent'];
+	let agent: IAutomationSessionTemplate['agent'];
+	if (rawAgent !== undefined) {
+		if (!isRecord(rawAgent) || typeof rawAgent['uri'] !== 'string') {
+			throw new Error('Automation session template agent must contain a URI.');
+		}
+		agent = { uri: rawAgent['uri'] };
+	}
+	const config = value['config'];
+	if (config !== undefined && !isRecord(config)) {
+		throw new Error('Automation session template config must be an object.');
+	}
+	const template: IAutomationSessionTemplate = {
+		...(modelId !== undefined ? { modelId } : {}),
+		...(modelConfiguration !== undefined ? { modelConfiguration: { ...modelConfiguration } } : {}),
+		...(agent ? { agent } : {}),
+		...(config !== undefined ? { config: { ...config } } : {}),
+	};
+	assertAutomationSessionTemplate(template);
+	return template;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomationTarget {

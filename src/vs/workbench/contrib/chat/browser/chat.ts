@@ -326,6 +326,9 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/** Whether this host supports the experimental session state indicator. Defaults to false. */
+	enableSessionStateIndicator?: boolean;
+
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
 
@@ -447,6 +450,8 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	refreshParsedInput(): void;
+	/** Floats persistent input content and reserves matching space below the transcript. */
+	setPersistentContentHeight(height: number | undefined): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;

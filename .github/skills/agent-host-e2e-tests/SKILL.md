@@ -1,6 +1,6 @@
 ---
 name: agent-host-e2e-tests
-description: Use when writing, recording, updating, or troubleshooting the agent host end-to-end tests under src/vs/platform/agentHost/test/node/e2e (black-box tests that drive the whole agent host over the AHP protocol, using a CapiReplayProxy record/replay system for Claude/Copilot/Codex). Covers adding a cross-provider test, re-recording fixtures after an SDK bump, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
+description: Use when writing, recording, updating, validating, or troubleshooting the agent host end-to-end tests under src/vs/platform/agentHost/test/node/e2e (black-box tests that drive the whole agent host over the AHP protocol, using a CapiReplayProxy record/replay system for Claude/Copilot/Codex). Covers adding a cross-provider test, re-recording fixtures after an SDK bump, cross-platform Azure validation, gating non-deterministic or platform-specific tests, and diagnosing replay cache misses.
 ---
 
 # Agent host end-to-end tests
@@ -27,6 +27,8 @@ It documents the mental model, the fixture format, every config flag, and a symp
 2. Keep the prompt minimal and deterministic (fewer model turns → smaller, more robust fixtures).
 3. Record fixtures for every enabled provider (Workflow B). Host-only tests need no per-test recording: the shared empty fixture remains strict and fails on any model request.
 4. **Review the diff** (Workflow B step 3), then run the test in plain replay mode to confirm it's green, then commit the test + fixtures together.
+5. Run the full deterministic suite and coverage workflow described in the E2E README.
+6. Open or update a draft PR, then complete the cross-platform Azure validation in Workflow D before considering the tests ready to merge.
 
 Provider-specific assertions go in that provider's `*.integrationTest.ts` after the `defineAgentHostE2ETests(config)` call.
 
@@ -56,6 +58,19 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 - **Provider/OS-specific replay**: add a targeted config gate that still permits recording and unaffected platforms. See the Codex shell-tool Linux gate.
 
 Always add a comment explaining *why* the gate exists. Also add or update the corresponding entry in `e2e/KNOWN_ISSUES.md`. When the variant is enabled again, remove or update the entry in the same change.
+
+## Workflow D — Cross-platform Azure validation
+
+New Agent Host E2E tests are not ready to merge after local replay alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
+
+1. Queue VS Code pipeline definition `111` with `VSCODE_BUILD_TYPE=CI`; enable Windows, Linux, and macOS x64 while disabling publishing, release, Web, ARM, Alpine, and Snap artifacts. The `azure-pipelines` skill contains the canonical command.
+2. Monitor jobs as they finish. Inspect a failed platform's Electron integration-test task immediately rather than waiting for unrelated stages to complete.
+3. Treat the Agent Host E2E result as accepted only when the Electron integration tests succeed on Windows, Linux, and macOS.
+4. Rerun an apparently unrelated or pre-existing failure in isolation before attributing it to the PR.
+5. After a platform-specific fix, rerun at least that platform. Rerun all three platforms when the fix can affect shared behavior, provider fixtures, process lifecycle, or cross-platform paths.
+6. Cancel obsolete builds after pushing a replacement commit.
+
+For additions involving timing, filesystem watching, process lifecycle, worktrees, reconnect/restart, or other known flake surfaces, require **two clean executions of every new test on each supported platform** before merge. A full three-platform build plus a targeted second build is sufficient when the second build runs the relevant tests on all affected platforms.
 
 ## Verifying & troubleshooting
 

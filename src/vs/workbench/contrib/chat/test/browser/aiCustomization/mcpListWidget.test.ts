@@ -23,12 +23,13 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpService, McpConnectionState } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, McpConnectionState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
 	createBuiltinActiveSessionMcpEntries,
+	createInstalledMcpServerDetailInput,
 	getActiveSessionServerLifecycleAction,
 	getActiveSessionServerPresentation,
 	getBuiltinMcpServerEnablementActions,
@@ -94,6 +95,29 @@ function createMcpService(enablement: ContributionEnablementState): { service: I
 		},
 	} as unknown as IMcpService;
 	return { service, calls };
+}
+
+function createMcpDetailTestServer(definitionOrigin?: URI, collectionOrigin?: URI): IMcpServer {
+	const definitions = observableValue('definitions', {
+		server: {
+			id: 'server-1',
+			label: 'Server One',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'server',
+				args: [],
+				env: {},
+			},
+			cacheNonce: 'server-1',
+			presentation: definitionOrigin ? { origin: { uri: definitionOrigin } } : undefined,
+		},
+		collection: {
+			presentation: collectionOrigin ? { origin: collectionOrigin } : undefined,
+		},
+	});
+	return {
+		readDefinitions: () => definitions,
+	} as unknown as IMcpServer;
 }
 
 function runAction(action: IAction | undefined): void {
@@ -190,6 +214,33 @@ suite('mcpListWidget', () => {
 			defaultVisible: true,
 			visible: true,
 			hidden: false,
+		});
+	});
+
+	test('uses collection origin as the installed MCP detail fallback', () => {
+		const definitionOrigin = URI.file('/definition/mcp.json');
+		const collectionOrigin = URI.file('/collection/mcp-config.json');
+		const collectionFallback = createInstalledMcpServerDetailInput({
+			type: 'builtin-item',
+			id: 'collection-origin',
+			label: 'Collection Origin',
+			description: '',
+			localServer: createMcpDetailTestServer(undefined, collectionOrigin),
+		});
+		const definitionPrecedence = createInstalledMcpServerDetailInput({
+			type: 'builtin-item',
+			id: 'definition-origin',
+			label: 'Definition Origin',
+			description: '',
+			localServer: createMcpDetailTestServer(definitionOrigin, collectionOrigin),
+		});
+
+		assert.deepStrictEqual({
+			collectionFallback: collectionFallback.source,
+			definitionPrecedence: definitionPrecedence.source,
+		}, {
+			collectionFallback: { uri: collectionOrigin },
+			definitionPrecedence: { uri: definitionOrigin },
 		});
 	});
 
@@ -842,6 +893,7 @@ suite('mcpListWidget', () => {
 			} as unknown as ICustomizationHarnessService;
 			const renderer = new McpServerItemRenderer(
 				async () => { },
+				() => { },
 				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
 				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
@@ -874,6 +926,13 @@ suite('mcpListWidget', () => {
 
 			const button = ctx.actionNode();
 			assert.ok(button, 'expected an action for an erroring server');
+			assert.deepStrictEqual({
+				text: ctx.templateData.statusBadge.textContent,
+				className: ctx.templateData.statusBadge.className,
+			}, {
+				text: 'Error',
+				className: 'plugin-list-item-status mcp-runtime-status-badge error',
+			});
 
 			// What the autorun does in production while a server sits in error.
 			for (let i = 0; i < 10; i++) {
