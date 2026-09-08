@@ -196,6 +196,43 @@ suite('Sessions - SessionHeader', () => {
 		}
 	});
 
+	test('lets configured chat backgrounds show through without fading the header content', () => {
+		const { header } = createHarness(disposables);
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('monaco-workbench', 'agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		const part = mainWindow.document.createElement('div');
+		part.classList.add('part', 'sessionspart', 'has-chat-background');
+		part.appendChild(header.element.parentElement!);
+		workbench.appendChild(part);
+		mainWindow.document.body.appendChild(workbench);
+
+		try {
+			const backgroundStyle = mainWindow.getComputedStyle(header.element);
+			const backgroundColor = backgroundStyle.backgroundColor;
+			const opacity = backgroundStyle.opacity;
+			part.classList.remove('has-chat-background');
+			const plainBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+			part.classList.add('has-chat-background');
+			workbench.classList.add('hc-black');
+			const highContrastBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+
+			assert.deepStrictEqual({
+				backgroundColor,
+				opacity,
+				plainBackgroundColor,
+				highContrastBackgroundColor,
+			}, {
+				backgroundColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.85)',
+				opacity: '1',
+				plainBackgroundColor: 'rgb(32, 32, 32)',
+				highContrastBackgroundColor: 'rgb(32, 32, 32)',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
+
 	test('reports whether the inline rename could be started', () => {
 		const renameable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
 		const notRenameable = createHarness(disposables);
