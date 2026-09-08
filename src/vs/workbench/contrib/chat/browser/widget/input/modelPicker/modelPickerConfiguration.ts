@@ -12,38 +12,10 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
-
-type ChatThinkingEffortChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when the thinking effort is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
-};
-
-type ChatThinkingEffortChangeEvent = {
-	model: string | TelemetryTrustedValue<string>;
-	fromValue: string;
-	toValue: string;
-};
-
-type ChatContextSizeChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when the context window size is changed';
-	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
-	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous context size value' };
-	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new context size value' };
-};
-
-type ChatContextSizeChangeEvent = {
-	model: string | TelemetryTrustedValue<string>;
-	fromValue: string;
-	toValue: string;
-};
+import { getModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { logModelConfigurationChange } from './modelPickerTelemetry.js';
 
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
@@ -64,8 +36,8 @@ export class ModelPickerConfiguration {
 
 	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean): void {
 		const model = this._host.getSelectedModel();
-		const effortConfig = this._getConfigProperty('navigation');
-		const tokensConfig = this._getConfigProperty('tokens');
+		const effortConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT);
+		const tokensConfig = this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT);
 		if (compact || !model || noModelsAvailable || (!effortConfig && !tokensConfig)) {
 			button.style.display = 'none';
 			return;
@@ -79,7 +51,11 @@ export class ModelPickerConfiguration {
 				? effortConfig.schema.enumItemLabels[enumIndex]
 				: String(effortConfig.value);
 			labelParts.push(effortLabel);
-			ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
+			// The group is generic, so producers name it: Copilot's Auto model uses it
+			// for "Optimize for" while regular models use it for thinking effort.
+			ariaParts.push(effortConfig.schema.title
+				? localize('chat.modelPicker.navigationAriaLabel', "{0}: {1}", effortConfig.schema.title, effortLabel)
+				: localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
 		}
 		if (tokensConfig && tokensConfig.value !== undefined) {
 			const enumIndex = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
@@ -162,23 +138,7 @@ export class ModelPickerConfiguration {
 	}
 
 	private _getConfigProperty(group: string) {
-		const model = this._host.getSelectedModel();
-		if (!model) {
-			return undefined;
-		}
-		const schema = model.metadata.configurationSchema;
-		if (!schema?.properties) {
-			return undefined;
-		}
-		const configurationAccess = this._host.getConfigurationAccess();
-		const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (propSchema.group !== group || !propSchema.enum?.length) {
-				continue;
-			}
-			return { key, value: currentConfig[key] ?? propSchema.default, schema: propSchema };
-		}
-		return undefined;
+		return getModelConfigProperty(this._host.getSelectedModel(), this._host.getConfigurationAccess(), group);
 	}
 
 	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -193,9 +153,8 @@ export class ModelPickerConfiguration {
 		const defaultLabel = localize('models.configDefault', "Default");
 		const appendConfigSection = (
 			group: string,
-			headerLabel: string,
+			fallbackHeaderLabel: string,
 			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
-			logChange: (value: unknown, previousValue: string) => void,
 		): void => {
 			const config = this._getConfigProperty(group);
 			if (!config) {
@@ -206,7 +165,7 @@ export class ModelPickerConfiguration {
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator });
 			}
-			items.push({ kind: ActionListItemKind.Header, label: headerLabel });
+			items.push({ kind: ActionListItemKind.Header, label: config.schema.title ?? fallbackHeaderLabel });
 			for (let index = 0; index < enumValues.length; index++) {
 				const value = enumValues[index];
 				const isDefault = value === config.schema.default;
@@ -223,7 +182,7 @@ export class ModelPickerConfiguration {
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
 						run: () => {
-							logChange(value, previousValue);
+							logModelConfigurationChange(this._telemetryService, model, group, config.key, previousValue, value);
 							return configurationAccess.setModelConfiguration(modelIdentifier, { [config.key]: value });
 						}
 					},
@@ -240,24 +199,14 @@ export class ModelPickerConfiguration {
 		};
 
 		appendConfigSection(
-			'navigation',
+			MODEL_CONFIG_GROUP_EFFORT,
 			localize('chat.effort.header', "Thinking Effort"),
 			(value, enumLabel) => enumLabel ?? String(value),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
-				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				fromValue: previousValue,
-				toValue: String(value),
-			}),
 		);
 		appendConfigSection(
-			'tokens',
+			MODEL_CONFIG_GROUP_CONTEXT,
 			localize('chat.tokens.header', "Context Size"),
 			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				fromValue: previousValue,
-				toValue: String(value),
-			}),
 		);
 
 		return items;

@@ -24,9 +24,10 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { AgentsVoiceSettingId } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceSettingId, AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
@@ -56,6 +57,10 @@ export interface INewChatVoiceComposer {
 	prefillInput(text: string): void;
 	/** Focus the composer input. */
 	focus(): void;
+	/** Models currently offered by the composer. */
+	getVoiceModels(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Select a model by its exact frontend identifier. */
+	selectVoiceModel(identifier: string): boolean;
 }
 
 export const INewChatVoiceTargetService = createDecorator<INewChatVoiceTargetService>('newChatVoiceTargetService');
@@ -73,6 +78,10 @@ export interface INewChatVoiceTargetService {
 	registerComposer(composer: INewChatVoiceComposer): IDisposable;
 	/** Promote `composer` to the active voice target. */
 	setActive(composer: INewChatVoiceComposer): void;
+	/** Allow the next composer replacement initiated by a voice request. */
+	beginVoiceTransition(): IDisposable;
+	/** Consume a pending voice-initiated composer replacement. */
+	consumeVoiceTransition(): boolean;
 }
 
 export class NewChatVoiceTargetService extends Disposable implements INewChatVoiceTargetService {
@@ -81,6 +90,8 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	private readonly _composers = new Set<INewChatVoiceComposer>();
 	private readonly _activeComposer = observableValue<INewChatVoiceComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewChatVoiceComposer | undefined> = this._activeComposer;
+	private _voiceTransitionVersion = 0;
+	private _pendingVoiceTransition: number | undefined;
 
 	/** Session resource of the last-focused chat widget (the last-focused input). */
 	private readonly _focusedSessionResource: IObservable<URI | undefined>;
@@ -131,6 +142,24 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 			this._activeComposer.set(composer, undefined);
 		}
 	}
+
+	beginVoiceTransition(): IDisposable {
+		const version = ++this._voiceTransitionVersion;
+		this._pendingVoiceTransition = version;
+		return toDisposable(() => {
+			if (this._pendingVoiceTransition === version) {
+				this._pendingVoiceTransition = undefined;
+			}
+		});
+	}
+
+	consumeVoiceTransition(): boolean {
+		if (this._pendingVoiceTransition === undefined) {
+			return false;
+		}
+		this._pendingVoiceTransition = undefined;
+		return true;
+	}
 }
 
 registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
@@ -141,7 +170,7 @@ registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, Instant
 
 export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
 
-const WHEN_VOICE_ENABLED = ContextKeyExpr.equals('config.agents.voice.enabled', true);
+const WHEN_VOICE_ENABLED = AGENTS_VOICE_ENABLED;
 const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
 const WHEN_CONNECTING = ContextKeyExpr.equals('agentsVoiceConnecting', true);
 const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
@@ -201,6 +230,8 @@ export interface INewChatVoiceControllerOptions {
 	readonly inputContainer: HTMLElement;
 	/** Composer driven by voice. */
 	readonly composer: INewChatVoiceComposer;
+	/** Called with the number of rendered voice actions when they change. */
+	readonly onDidChangeActions?: (actionCount: number) => void;
 }
 
 /**
@@ -236,7 +267,7 @@ export class NewChatVoiceController extends Disposable {
 		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
+		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, itemOptions) => {
 				// While listening the menu swaps the start action for the
@@ -248,6 +279,17 @@ export class NewChatVoiceController extends Disposable {
 				return undefined;
 			},
 		}));
+		if (options.onDidChangeActions) {
+			const onDidChangeActions = () => {
+				let actionCount = 0;
+				while (toolbar.getItemAction(actionCount)) {
+					actionCount++;
+				}
+				options.onDidChangeActions?.(actionCount);
+			};
+			this._register(toolbar.onDidChangeMenuItems(onDidChangeActions));
+			onDidChangeActions();
+		}
 
 		// Target the active composer before a session exists, or when it opts in
 		// while a session is active. Gate on `isCreated` to exclude drafts.

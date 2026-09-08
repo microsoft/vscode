@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
@@ -247,17 +248,8 @@ export class Chat {
 	}
 
 	/**
-	 * Opens the model picker (in the panel chat input) and selects the model
-	 * whose displayed name contains `modelName`. Clicks the model-picker name
-	 * button to open the popup, waits for the matching row to appear (models may
-	 * still be registering), clicks it, then confirms the selection committed.
-	 *
-	 * The row click can occasionally fail to commit — e.g. absorbed by the
-	 * action-widget's animating `context-view-pointerBlock` overlay — silently
-	 * leaving the previous model (often "Auto") selected. That model advertises
-	 * no configurable options, so the config button never appears and a later
-	 * `openModelConfig` wedges. To absorb this, re-open the picker and retry until
-	 * the name button reflects the chosen model or `timeoutMs` elapses.
+	 * Selects the model whose displayed name contains `modelName` in the panel chat input.
+	 * Reopens the picker and retries until the selection is confirmed or `timeoutMs` elapses.
 	 */
 	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
 		const page = this.code.driver.currentPage;
@@ -275,9 +267,7 @@ export class Chat {
 				// "Other Models" section.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 10_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
+				await row.click();
 				// Confirm the selection actually committed: the picker name button must
 				// now reflect the chosen model. (A non-committing click leaves the old
 				// model selected and the picker dismissed, so waiting only for the
@@ -367,7 +357,9 @@ export class Chat {
 		// There can be a hidden duplicate of the config button (e.g. an overflow
 		// copy); target the visible one.
 		const configButton = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
-		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
+		const configWidget = page.locator(`${ACTION_WIDGET}:visible`, {
+			has: page.locator('.monaco-list-row.group-header')
+		}).first();
 		const deadline = Date.now() + timeoutMs;
 		let lastError: unknown;
 
@@ -388,10 +380,7 @@ export class Chat {
 			try {
 				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
 				await configButton.click({ force: true });
-				await this.code.waitForElement(ACTION_WIDGET);
-				// Wait for the option rows to actually render, not just the popup
-				// container, so callers don't race a half-open / tearing-down popup.
-				await anyRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await configWidget.locator('.monaco-list-row.action').first().waitFor({ state: 'visible', timeout: 5_000 });
 				return;
 			} catch (error) {
 				lastError = error;
@@ -463,12 +452,36 @@ export class Chat {
 	/**
 	 * Returns the visible model-configuration button label (the combined
 	 * "Effort Context" summary, e.g. "High 200K", shown in UBB mode).
+	 *
+	 * The button only renders in the model picker's full (non-compact) layout, so
+	 * this widens the panel first — callers may read the label before ever opening
+	 * the dropdown. The label is (re-)rendered when the selected model and its
+	 * configuration resolve, so this polls until it carries text rather than
+	 * returning an empty intermediate state.
 	 */
-	async getModelConfigLabel(): Promise<string> {
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
 		const page = this.code.driver.currentPage;
+		await this.ensureModelPickerExpanded();
 		const button = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
-		await button.waitFor({ state: 'visible', timeout: 15_000 });
-		return ((await button.textContent()) ?? '').trim();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Returns the section headers and option rows of the open model configuration
+	 * dropdown. Call after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
 	}
 
 	/**

@@ -23,6 +23,14 @@ import { McpResourceScannerService } from '../../common/mcpResourceScannerServic
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
 	override onInstallMcpServer = Event.None;
@@ -928,6 +936,21 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}, /No server package found/);
 		});
 
+		test('unsupported package registry type should throw error', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: 'unsupported' as RegistryType,
+					transport: { type: TransportType.STDIO },
+					identifier: 'test-package',
+					version: '1.0.0'
+				}]
+			};
+
+			assert.throws(() => {
+				service.getMcpServerConfigurationFromManifest(manifest, manifest.packages![0].registryType);
+			}, /Unsupported MCP server package registry type: unsupported/);
+		});
+
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
@@ -1248,6 +1271,41 @@ suite('McpResourceManagementService', () => {
 		const result = await updatePromise;
 
 		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('missing gallery metadata cache is not logged as an error', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/missing-gallery-metadata-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const logService = new TestLogService();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			logService,
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		const installed = await galleryService.getInstalled();
+
+		assert.deepStrictEqual({
+			installed: installed.map(server => ({ name: server.name, version: server.version, location: server.location })),
+			errors: logService.errors,
+		}, {
+			installed: [{ name: 'test', version: '1.0.0', location: undefined }],
+			errors: [],
+		});
 	});
 });
 

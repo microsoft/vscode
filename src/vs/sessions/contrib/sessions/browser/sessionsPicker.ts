@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IReader } from '../../../../base/common/observable.js';
+import { isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 
 export interface ISessionsPickerGroups {
 	readonly needsInput: readonly ISession[];
@@ -13,18 +14,19 @@ export interface ISessionsPickerGroups {
 }
 
 /** Groups sessions by picker priority while preserving their existing order. */
-export function groupSessionsForPicker(recentSessions: readonly ISession[], otherSessions: readonly ISession[]): ISessionsPickerGroups {
+export function groupSessionsForPicker(recentSessions: readonly ISession[], otherSessions: readonly ISession[], reader?: IReader): ISessionsPickerGroups {
 	const needsInput: ISession[] = [];
 	const unread: ISession[] = [];
 	const recent: ISession[] = [];
 	const other: ISession[] = [];
 
 	const groupSession = (session: ISession, remaining: ISession[]): void => {
-		if (session.isArchived.get()) {
+		const status = session.status.read(reader);
+		if (session.isArchived.read(reader)) {
 			return;
-		} else if (session.status.get() === SessionStatus.NeedsInput) {
+		} else if (status === SessionStatus.NeedsInput) {
 			needsInput.push(session);
-		} else if (!session.isRead.get()) {
+		} else if (!isActiveSessionStatus(status) && !session.isRead.read(reader)) {
 			unread.push(session);
 		} else {
 			remaining.push(session);

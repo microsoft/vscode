@@ -124,6 +124,9 @@ export interface IOnboardingScenario<TPayload = unknown> {
 	 */
 	readonly experiment?: IOnboardingExperiment;
 
+	/** Variations exposed through the onboarding developer-mode variation override. */
+	readonly developerModeVariations?: readonly string[];
+
 	/** When `true`, the scenario runs on every eligible session instead of once per user. */
 	readonly repeatable?: boolean;
 }

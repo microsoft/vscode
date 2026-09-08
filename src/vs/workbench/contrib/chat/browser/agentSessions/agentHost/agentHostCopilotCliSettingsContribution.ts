@@ -6,9 +6,9 @@
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAutoModeTiersEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -16,7 +16,7 @@ import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './ag
 /**
  * Forwards Copilot-CLI settings into the **local** agent host's root config so
  * `CopilotAgent` and `CopilotSessionLauncher` can read them. Gated on
- * `chat.agentHost.enabled`. The schema-gate / hydration-retry / loop-guard
+ * Agent Host runtime availability. The schema-gate / hydration-retry / loop-guard
  * machinery lives in the shared
  * {@link AgentHostRootConfigForwarder}; this contribution only declares the keys.
  */
@@ -54,21 +54,40 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostToolSearchDeferThresholdSettingId),
 			},
 			{
-				key: CopilotCliConfigKey.ReasoningEffortOverride,
-				computeValue: () => {
-					const value = this._configurationService.getValue<string>(AgentHostReasoningEffortOverrideSettingId);
-					// '' is the schema's unset marker, so clearing the setting clears the override.
-					return typeof value === 'string' ? value : '';
-				},
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostReasoningEffortOverrideSettingId),
+				key: CopilotCliConfigKey.ReasoningSummary,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostReasoningSummaryEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostReasoningSummaryEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.MultiTurnContextRouting,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostMultiTurnContextRoutingEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostMultiTurnContextRoutingEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.AutoModeTiers,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostAutoModeTiersEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostAutoModeTiersEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.SubagentModelGuidance,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotSubagentModelGuidanceEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSubagentModelGuidanceEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ModelCapabilityOverrides,
 				computeValue: () => {
-					const value = this._configurationService.getValue<CopilotCliModelCapabilityOverrides>(AgentHostModelCapabilityOverridesSettingId);
+					const value = this._configurationService.getValue<CopilotCliModelCapabilityOverrides>(AgentHostCopilotModelCapabilityOverridesSettingId);
 					return isObject(value) ? value : {};
 				},
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostModelCapabilityOverridesSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotModelCapabilityOverridesSettingId),
+			},
+			{
+				// The host applies a published shell init script only while this is
+				// true. Like every forwarded key it is client-writable root config,
+				// so it is the user's opt-in mirrored to the host, not authorization.
+				key: CopilotCliConfigKey.EnableShellInitScript,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
@@ -76,6 +95,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			if (this._agentHostEnablementService.enabled.read(reader)) {
 				this._forwarder.start();
+			} else {
+				this._forwarder.stop();
 			}
 		}));
 	}

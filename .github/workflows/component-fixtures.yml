@@ -26,15 +26,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need enough history for the merge-base lookup below to succeed even
           # when the target branch has advanced since the PR was opened. Full
-          # clone would be wasteful for this large repo, so cap at 50.
-          fetch-depth: 50
+          # clone would be wasteful for this large repo, so cap at 150.
+          fetch-depth: 150
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -78,7 +78,7 @@ jobs:
           COMPONENT_EXPLORER_STATIC_BUILD: 1
 
       - name: Upload component explorer
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: component-explorer
           path: .build/rspack-serve-out/
@@ -100,7 +100,7 @@ jobs:
 
       - name: Upload Playwright test results
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-test-results
           path: test/componentFixtures/playwright/test-results/
@@ -169,7 +169,7 @@ jobs:
             }
 
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: screenshots
@@ -184,8 +184,11 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
             TARGET_REF="origin/$BASE_REF"
-            git fetch --no-tags --depth=50 origin "$BASE_REF"
-            BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF")
+            git fetch --no-tags --depth=150 origin "$BASE_REF"
+            if ! BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF"); then
+              echo "::warning::Unable to find a merge base between $EVENT_SHA and $TARGET_REF. The depth-150 shallow history may not contain their common ancestor; skipping screenshot comparison."
+              exit 0
+            fi
           else
             # For push events, diff against the parent commit.
             BASE_SHA=$(git rev-parse "$EVENT_SHA^")
@@ -229,6 +232,7 @@ jobs:
 
       - name: Fetch base commit manifest
         id: base_manifest
+        if: steps.base.outputs.base_sha != ''
         env:
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
         run: |
@@ -250,7 +254,7 @@ jobs:
 
       - name: Diff screenshots
         id: diff
-        if: always()
+        if: always() && steps.base.outputs.base_sha != ''
         run: |
           node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
@@ -309,7 +313,7 @@ jobs:
 
       - name: Post PR comment (non-fork PR only)
         if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');

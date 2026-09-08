@@ -5,7 +5,7 @@
 
 import type { CopilotClient } from '@github/copilot-sdk';
 import { appendFile, mkdir } from 'fs/promises';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -14,13 +14,16 @@ import { joinPath, dirname as uriDirname, extUriBiasedIgnorePathCase } from '../
 import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
-import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { AgentsDiscoverRequest, InstructionSource } from './copilotRCP.js';
+import { parseSkillFile, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
+
+type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
+type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -697,16 +700,25 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
-		const skills: SkillCustomization[] = [];
-
 		const skillDiscovery = await raceCancellationError(client.rpc.skills.discover(discoveryRequest), token);
-		for (const skill of skillDiscovery.skills) {
-			if (skill.path) {
-				const uri = this._pathToUri(skill.path);
-				skills.push({ type: CustomizationType.Skill, uri: uri.toString(), id: skill.path, name: skill.name, description: skill.description });
+		const skills = await Promise.all(skillDiscovery.skills.map(async skill => {
+			if (!skill.path) {
+				return undefined;
 			}
-		}
-		return skills;
+			const uri = this._pathToUri(skill.path);
+			const parsed = await parseSkillFile(uri, this._fileService);
+			return {
+				type: CustomizationType.Skill,
+				uri: uri.toString(),
+				id: skill.path,
+				name: skill.name,
+				description: skill.description,
+				enabled: skill.enabled,
+				...toSkillInvocationFlags(skill.userInvocable, parsed.disableModelInvocation),
+			} satisfies SkillCustomization;
+		}));
+		throwIfCancelled(token);
+		return skills.filter(skill => skill !== undefined);
 	}
 
 	private async discoverHooks(token: CancellationToken): Promise<HookCustomization[]> {
@@ -1209,7 +1221,62 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 }
 
-
+/**
+ * Resolves `true` if a hook file (`*.json`) exists anywhere under
+ * `<workingDirectory>/.github/hooks/`, else `false`; a missing directory is a
+ * definitive `false`, but any other IO failure is rethrown so the caller can fail
+ * open, and the optional {@link token} aborts the scan.
+ */
+export async function workspaceDirectoryHasHooks(fileService: IFileService, workingDirectory: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+	// Linked to the caller's token so external cancellation aborts the scan, and
+	// cancelled internally the moment a hook is found so the remaining parallel
+	// branches stop launching further reads.
+	const scanCts = new CancellationTokenSource(token);
+	let found = false;
+	const containsHook = async (directory: URI, depth: number): Promise<void> => {
+		if (scanCts.token.isCancellationRequested) {
+			return;
+		}
+		let stat: IFileStat;
+		try {
+			stat = await fileService.resolve(directory, { resolveMetadata: false });
+		} catch (err) {
+			// Ignore failures once we're winding down (a sibling already found a
+			// hook, or the caller cancelled). Otherwise treat a missing directory
+			// as "no hooks" and surface every other error so the caller fails open.
+			if (!scanCts.token.isCancellationRequested && toFileOperationResult(err as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw err;
+			}
+			return;
+		}
+		const children = stat.children ?? [];
+		if (children.some(child => child.isFile && child.name.toLowerCase().endsWith(HOOK_FILE_SUFFIX))) {
+			found = true;
+			scanCts.cancel();
+			return;
+		}
+		if (depth >= MAX_HOOKS_RECURSION_DEPTH) {
+			return;
+		}
+		await Promise.all(children
+			.filter(child => child.isDirectory)
+			.map(child => containsHook(child.resource, depth + 1)));
+	};
+	try {
+		await containsHook(joinPath(workingDirectory, '.github', 'hooks'), 0);
+	} finally {
+		// Cancel (not merely dispose) so that if a branch threw, sibling scans
+		// still in flight wind down instead of leaking outstanding recursive IO
+		// on the fail-open error path.
+		scanCts.dispose(true);
+	}
+	// A caller-cancelled scan has an unreliable result; signal it rather than
+	// reporting a (possibly premature) `false`.
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	return found;
+}
 
 // Test-only helpers — exported as `_internal` to discourage production use.
 export const _internal = {

@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
-	color: var(--vscode-descriptionForeground);
-	padding-top: 0;
-}
-
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
 	position: relative;
@@ -24,56 +19,99 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label {
+		position: relative;
+	}
+
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		line-height: 1.5em;
-		font-size: 13px;
+		font-size: var(--vscode-chat-font-size-body-m);
+
+		&.chat-thinking-title-with-diff {
+			padding-right: var(--vscode-spacing-size20);
+		}
 
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);
 		}
 
 		.codicon {
-			font-size: 12px;
-		}
-
-		.rendered-markdown.collapsible-title-content {
-			line-height: unset;
-		}
-
-		.rendered-markdown.chat-thinking-title-detail {
-			display: inline;
-			font-size: inherit;
-			line-height: inherit;
-
-			> p {
-				display: inline;
-				margin: 0;
-			}
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		.chat-thinking-title-detail-text {
 			opacity: 0.7;
 		}
+	}
 
-		.chat-thinking-title-diff {
-			padding-left: 6px;
+	> .chat-used-context-label .rendered-markdown.collapsible-title-content {
+		line-height: unset;
+	}
 
-			> .label-added {
-				color: var(--vscode-chat-linesAddedForeground);
-			}
+	> .chat-used-context-label .rendered-markdown.chat-thinking-title-detail {
+		display: inline;
+		font-size: inherit;
+		line-height: inherit;
 
-			> .label-removed {
-				padding-left: 4px;
-				color: var(--vscode-chat-linesRemovedForeground);
-			}
+		> p {
+			display: inline;
+			margin: 0;
 		}
+	}
+
+	> .chat-used-context-label > .rendered-markdown.chat-thinking-title-detail {
+		cursor: pointer;
+	}
+
+	> .chat-used-context-label > .chat-thinking-title-diff.monaco-button {
+		display: inline-flex;
+		align-items: center;
+		padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+		margin-left: var(--vscode-spacing-sizeNone);
+		border-radius: var(--vscode-cornerRadius-small);
+		gap: var(--vscode-spacing-size40);
+		background: transparent;
+		color: inherit;
+		line-height: 1.5em;
+		cursor: pointer;
+
+		> .label-added {
+			color: var(--vscode-chat-linesAddedForeground);
+		}
+
+		> .label-removed {
+			color: var(--vscode-chat-linesRemovedForeground);
+		}
+
+		&:hover,
+		&.hovered {
+			background-color: var(--vscode-toolbar-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+
+		&:focus {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+
+	> .chat-used-context-label > .chat-collapsible-hover-chevron {
+		vertical-align: middle;
+	}
+
+	> .chat-used-context-label:hover > .chat-collapsible-hover-chevron {
+		opacity: 1;
 	}
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
 
-		.codicon.codicon-circle-filled {
+		.codicon.codicon-circle-filled-compact {
 			display: none;
 		}
 	}
@@ -118,11 +156,11 @@
 	}
 
 	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed)::after {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		content: '';
 		position: absolute;
 		left: 3px;
-		top: 22px;
+		top: 100%;
 		height: 16px;
 		width: 5px;
 		border-left: 1px solid var(--vscode-chat-requestBorder);
@@ -184,8 +222,8 @@
 			}
 
 			/* todo: ideally not !important, but the competing css has 14 specificity */
-			.codicon.codicon-check,
-			.codicon.codicon-loading {
+			.codicon.codicon-check-compact,
+			.codicon.codicon-loading-compact {
 				display: none !important;
 			}
 
@@ -197,7 +235,7 @@
 				display: inline-block;
 			}
 
-			.show-checkmarks .progress-container > .codicon.codicon-check {
+			.show-checkmarks .progress-container > .codicon.codicon-check-compact {
 				display: inline-flex;
 			}
 
@@ -230,11 +268,11 @@
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
 			padding: 5px 12px 4px 24px;
 
-			.status-icon.codicon-check {
+			.status-icon.codicon-check-compact {
 				display: none;
 			}
 
-			.show-checkmarks .status-icon.codicon-check {
+			.show-checkmarks .status-icon.codicon-check-compact {
 				display: inline-flex;
 			}
 
@@ -256,11 +294,11 @@
 		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
 			padding: 5px 12px 4px 24px;
 
-			.status-icon.codicon-check {
+			.status-icon.codicon-check-compact {
 				display: none;
 			}
 
-			.show-checkmarks .status-icon.codicon-check {
+			.show-checkmarks .status-icon.codicon-check-compact {
 				display: inline-flex;
 			}
 		}
@@ -310,7 +348,7 @@
 				top: 9px;
 				width: 12px;
 				height: 12px;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact);
 				line-height: 12px;
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
@@ -373,7 +411,7 @@
 		margin-bottom: 2px;
 		overflow: hidden;
 
-		.codicon:not(.codicon-check, .codicon-loading) {
+		.codicon:not(.codicon-check-compact, .codicon-loading-compact) {
 			display: inline-flex;
 		}
 

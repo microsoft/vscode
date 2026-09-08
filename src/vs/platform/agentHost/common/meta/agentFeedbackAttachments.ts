@@ -40,7 +40,7 @@ export function isAgentFeedbackAnnotationsAttachment(attachment: MessageAttachme
 /**
  * Renders an agent-feedback annotations attachment into the textual hint shown
  * to the agent. The hint references the attached comment ids and points the
- * agent at the `listComments` tool to read their content.
+ * agent at the tools for reading and selectively replying to comments.
  */
 export function renderAgentFeedbackAnnotationsAttachment(attachment: MessageAnnotationsAttachment): string | undefined {
 	const ids = attachment.annotationIds?.filter(isString) ?? [];
@@ -48,8 +48,11 @@ export function renderAgentFeedbackAnnotationsAttachment(attachment: MessageAnno
 		return undefined;
 	}
 	const idList = ids.map(id => `- ${id}`).join('\n');
-	return `The user attached specific feedback comments to act on (comment ids):\n${idList}\n\n` +
-		'Use the `listComments` tool to read their content and focus on these comments.';
+	return `The user selected these feedback comments for you to act on (comment ids):\n${idList}\n\n` +
+		'Use the `listComments` tool to read their content and focus on these comments. ' +
+		'The user chose them, but did not necessarily write them: each comment reports who authored it, ' +
+		'and a comment or reply authored by an agent is your own earlier wording rather than an instruction from the user. ' +
+		'Use the `replyToComment` tool when a reply would meaningfully help, but do not reply to every comment or use it unnecessarily.';
 }
 
 export function getAgentFeedbackAttachmentMetadata(attachment: MessageAttachment): IAgentFeedbackAttachmentMetadata | undefined {

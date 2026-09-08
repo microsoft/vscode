@@ -176,7 +176,7 @@ function init() {
 			}
 			contextMenuTarget = {
 				ref: new WeakRef(findCommonVisibleAncestor(els) ?? target),
-				anchor: { x: event.clientX, y: event.clientY }
+				anchor: { x: event.clientX, y: event.clientY },
 			};
 		} else {
 			contextMenuTarget = undefined;
@@ -212,8 +212,8 @@ function init() {
 	});
 	ipcRenderer.on('vscode:browserView:showElementComment', (_event: unknown, { elementId }: { elementId: string }) => {
 		const element = getElement(elementId);
-		if (element) {
-			elementPicker.comment(element, elementId === 'context-menu-target' ? contextMenuTarget?.anchor : undefined);
+		if (element && contextMenuTarget) {
+			elementPicker.comment(element, contextMenuTarget.anchor);
 		}
 	});
 	ipcRenderer.on('vscode:browserView:hideHighlight', (_event: unknown) => {
@@ -331,6 +331,34 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
 	return findVisible(common[common.length - 1]);
 }
 
+type ElementComment = {
+	target: Element;
+	pin: HTMLDivElement;
+	numberElement: HTMLSpanElement;
+	body: string;
+	ordinal: number;
+	offset: { x: number; y: number };
+};
+
+type PendingElementComment = {
+	target: Element;
+	anchor: { x: number; y: number };
+	body: string;
+	pointerInteraction: boolean;
+};
+
+type ScheduledCommentPin = {
+	body: string;
+	ordinal: number;
+	animationFrame: number;
+	timeout: number;
+};
+
+type CommentAnimation = {
+	surface: Animation;
+	supporting: Animation[];
+};
+
 /**
  * Element-pick controller used by the "Add Element to Chat" flow.
  *
@@ -343,6 +371,13 @@ function findCommonVisibleAncestor(candidates: readonly (Node | null | undefined
  */
 class ElementPicker {
 	private static readonly _DRAG_THRESHOLD_PX = 4;
+	private static readonly _COMMENT_PIN_SIZE = 22;
+	private static readonly _COMMENT_PIN_RESTORE_FRAMES = 5;
+	private static readonly _COMMENT_PIN_RESTORE_TIMEOUT = 100;
+	private static readonly _COMMENT_PREVIEW_HIT_PADDING = ElementPicker._COMMENT_PIN_SIZE / 2;
+	private static readonly _COMMENT_PREVIEW_HIDE_DELAY = 80;
+	private static readonly _COMMENT_SURFACE_ANIMATION_DURATION = 140;
+	private static readonly _COMMENT_SUPPORTING_FADE_DURATION = 120;
 	private static readonly _CURSOR_DEFAULT = '/* VS Code injected style */ * { cursor: default !important; }';
 	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
 
@@ -362,6 +397,7 @@ class ElementPicker {
 	private readonly _labelSelector: HTMLSpanElement;
 	private readonly _labelClasses: HTMLSpanElement;
 	private readonly _labelDims: HTMLSpanElement;
+	private readonly _commentPreviewHitArea: HTMLDivElement;
 	private readonly _commentPreview: HTMLDivElement;
 	private readonly _commentPreviewBody: HTMLSpanElement;
 	private readonly _dragbox: HTMLDivElement;
@@ -369,8 +405,9 @@ class ElementPicker {
 	private readonly _commentComposer: HTMLDivElement;
 	private readonly _commentInput: HTMLTextAreaElement;
 	private readonly _commentSendButton: HTMLButtonElement;
-	private readonly _comments = new Map<string, { target: Element; pin: HTMLDivElement; numberElement: HTMLSpanElement; body: string; ordinal: number; offset: { x: number; y: number } }>();
-	private readonly _pendingComments = new Map<string, { target: Element; anchor: { x: number; y: number }; body: string }>();
+	private readonly _comments = new Map<string, ElementComment>();
+	private readonly _pendingComments = new Map<string, PendingElementComment>();
+	private readonly _scheduledCommentPins = new Map<string, ScheduledCommentPin>();
 
 	// Interaction state (reset on stop)
 	private _dragStart: { x: number; y: number } | undefined;
@@ -382,11 +419,13 @@ class ElementPicker {
 	private _dismissedCommentOnPointerDown = false;
 	private _commentTarget: Element | undefined;
 	private _commentAnchor: { x: number; y: number } | undefined;
+	private _commentPointerInteraction = false;
+	private _pendingCommentInteractionId: string | undefined;
 	private _commentBackdropTarget: Element | undefined;
 	private _commentBackdropRequest = 0;
 	private _commentPreviewElementId: string | undefined;
 	private _commentPreviewHideTimeout: number | undefined;
-	private _commentPreviewAnimations: Animation[] = [];
+	private _commentAnimation: CommentAnimation | undefined;
 	private _commentPreviewCollapsing = false;
 	private _reducedMotion = false;
 
@@ -494,6 +533,12 @@ class ElementPicker {
 		label.appendChild(labelDims);
 		this._labelDims = labelDims;
 
+		const commentPreviewHitArea = document.createElement('div');
+		commentPreviewHitArea.className = 'comment-preview-hit-area';
+		commentPreviewHitArea.style.display = 'none';
+		root.appendChild(commentPreviewHitArea);
+		this._commentPreviewHitArea = commentPreviewHitArea;
+
 		const commentPreview = document.createElement('div');
 		commentPreview.className = 'comment-surface comment-preview';
 		commentPreview.style.display = 'none';
@@ -502,16 +547,14 @@ class ElementPicker {
 		commentPreviewBody.className = 'comment-preview-body';
 		commentPreview.appendChild(commentPreviewBody);
 		commentPreview.appendChild(commentPreviewRemoveButton);
-		root.appendChild(commentPreview);
+		commentPreviewHitArea.appendChild(commentPreview);
 		this._commentPreview = commentPreview;
 		this._commentPreviewBody = commentPreviewBody;
 
-		for (const element of [highlight, label, commentPreview]) {
-			element.addEventListener('mouseenter', () => this._cancelCommentPreviewHide());
-			element.addEventListener('mouseleave', () => this._scheduleCommentPreviewHide());
-			element.addEventListener('focusin', () => this._cancelCommentPreviewHide());
-			element.addEventListener('focusout', () => this._scheduleCommentPreviewHide());
-		}
+		commentPreviewHitArea.addEventListener('mouseenter', () => this._cancelCommentPreviewHide());
+		commentPreviewHitArea.addEventListener('mouseleave', () => this._scheduleCommentPreviewHide());
+		commentPreviewHitArea.addEventListener('focusin', () => this._cancelCommentPreviewHide());
+		commentPreviewHitArea.addEventListener('focusout', () => this._scheduleCommentPreviewHide());
 
 		const dragbox = document.createElement('div');
 		dragbox.className = 'dragbox';
@@ -540,11 +583,14 @@ class ElementPicker {
 		commentInput.setAttribute('aria-label', localizedStrings.commentOnSelectedElement);
 		commentInput.addEventListener('input', () => this._layoutCommentInput());
 		commentInput.addEventListener('keydown', event => {
+			event.stopPropagation();
 			if (event.key === 'Enter' && !event.isComposing) {
 				event.preventDefault();
 				this._submitComment();
 			}
 		});
+		commentInput.addEventListener('keypress', event => event.stopPropagation());
+		commentInput.addEventListener('keyup', event => event.stopPropagation());
 		commentComposer.appendChild(commentInput);
 		this._commentInput = commentInput;
 
@@ -719,17 +765,13 @@ class ElementPicker {
 		this._unmountWhenIdle();
 	}
 
-	comment(element: Element, anchor?: { x: number; y: number }): void {
+	comment(element: Element, anchor: { x: number; y: number }): void {
 		this._externalHighlightTarget = undefined;
 		if (this._selectionActive) {
 			this.stop();
 		}
 		this.start({ mode: commentElementSelectionMode });
-		const bounds = element.getBoundingClientRect();
-		this._showCommentComposer(element, anchor ?? {
-			x: bounds.left + bounds.width / 2,
-			y: bounds.top + bounds.height / 2
-		});
+		this._showCommentComposer(element, anchor, true);
 	}
 
 	updateComments(update: IBrowserElementCommentsUpdate): void {
@@ -738,7 +780,9 @@ class ElementPicker {
 			for (const [elementId, comment] of this._comments) {
 				const incomingComment = incoming.get(elementId);
 				if (!incomingComment) {
-					this._clearCommentPreview(comment.target);
+					if (this._commentPreviewElementId === elementId) {
+						this._hideActiveCommentPreview();
+					}
 					comment.pin.remove();
 					this._comments.delete(elementId);
 				} else {
@@ -759,12 +803,17 @@ class ElementPicker {
 				}
 				const pending = this._pendingComments.get(elementId);
 				if (pending) {
-					this._createCommentPin(elementId, pending.target, pending.anchor, comment.body, comment.ordinal);
+					this._scheduleCommentPin(elementId, comment.body, comment.ordinal);
+				}
+			}
+			for (const elementId of this._scheduledCommentPins.keys()) {
+				if (!incoming.has(elementId)) {
+					this._discardPendingComment(elementId);
 				}
 			}
 		}
 		for (const elementId of update.pendingCommentIdsToDiscard ?? []) {
-			this._pendingComments.delete(elementId);
+			this._discardPendingComment(elementId);
 		}
 		this._updateCommentPinNumbers();
 		this._unmountWhenIdle();
@@ -776,7 +825,21 @@ class ElementPicker {
 		if (!this._selectionActive) {
 			return;
 		}
-		if (this._commentTarget || this._commentPreviewElementId || this._externalHighlightTarget || e.composedPath().includes(this._shadowHost)) {
+		const isOverPicker = e.composedPath().includes(this._shadowHost);
+		if (this._commentTarget) {
+			if (!isOverPicker) {
+				this._commentPointerInteraction = true;
+			}
+			return;
+		}
+		const pendingComment = this._pendingCommentInteractionId ? this._pendingComments.get(this._pendingCommentInteractionId) : undefined;
+		if (pendingComment) {
+			if (!isOverPicker) {
+				pendingComment.pointerInteraction = true;
+			}
+			return;
+		}
+		if (this._commentPreviewElementId || this._externalHighlightTarget || isOverPicker) {
 			return;
 		}
 		e.preventDefault();
@@ -792,13 +855,11 @@ class ElementPicker {
 		}
 		const left = Math.min(this._dragStart.x, e.clientX);
 		const top = Math.min(this._dragStart.y, e.clientY);
-		if (this._dragbox) {
-			this._dragbox.style.display = 'block';
-			this._dragbox.style.left = `${left}px`;
-			this._dragbox.style.top = `${top}px`;
-			this._dragbox.style.width = `${dx}px`;
-			this._dragbox.style.height = `${dy}px`;
-		}
+		this._dragbox.style.display = 'block';
+		this._dragbox.style.left = `${left}px`;
+		this._dragbox.style.top = `${top}px`;
+		this._dragbox.style.width = `${dx}px`;
+		this._dragbox.style.height = `${dy}px`;
 		// Live preview of the deepest common ancestor that the region
 		// currently resolves to, so the user sees exactly what will be
 		// selected if they release the drag now.
@@ -806,7 +867,19 @@ class ElementPicker {
 	};
 
 	private _onPointerLeave = (): void => {
-		if (!this._selectionActive || this._commentTarget || this._commentPreviewElementId || this._externalHighlightTarget) {
+		if (!this._selectionActive) {
+			return;
+		}
+		if (this._commentTarget) {
+			this._commentPointerInteraction = true;
+			return;
+		}
+		const pendingComment = this._pendingCommentInteractionId ? this._pendingComments.get(this._pendingCommentInteractionId) : undefined;
+		if (pendingComment) {
+			pendingComment.pointerInteraction = true;
+			return;
+		}
+		if (this._commentPreviewElementId || this._externalHighlightTarget) {
 			return;
 		}
 		if (!this._dragStart) {
@@ -822,9 +895,13 @@ class ElementPicker {
 		if (e.composedPath().includes(this._shadowHost)) {
 			return;
 		}
+		if (this._pendingCommentInteractionId) {
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
 		if (this._commentTarget) {
 			this._dismissedCommentOnPointerDown = true;
-			this._finishCommentInteraction();
 			e.preventDefault();
 			e.stopPropagation();
 			return;
@@ -845,6 +922,14 @@ class ElementPicker {
 		if (this._dismissedCommentOnPointerDown) {
 			e.preventDefault();
 			e.stopPropagation();
+			const commentTarget = this._commentTarget;
+			if (commentTarget) {
+				window.setTimeout(() => {
+					if (this._commentTarget === commentTarget) {
+						this._finishCommentInteraction();
+					}
+				});
+			}
 			return;
 		}
 		if (e.composedPath().includes(this._shadowHost)) {
@@ -871,9 +956,7 @@ class ElementPicker {
 		} else {
 			// Drag → pick the deepest common ancestor of the region.
 			this._dragStartTarget = undefined;
-			if (this._dragbox) {
-				this._dragbox.style.display = 'none';
-			}
+			this._dragbox.style.display = 'none';
 			this._updateHighlight(undefined);
 			const left = Math.min(start.x, e.clientX);
 			const top = Math.min(start.y, e.clientY);
@@ -894,6 +977,7 @@ class ElementPicker {
 			this._dismissedCommentOnPointerDown = false;
 			e.preventDefault();
 			e.stopPropagation();
+			this._finishCommentInteraction();
 			return;
 		}
 		if (e.composedPath().includes(this._shadowHost)) {
@@ -904,7 +988,7 @@ class ElementPicker {
 	};
 
 	private _onFocusIn = (event: FocusEvent): void => {
-		if (!this._selectionActive || this._commentTarget || this._externalHighlightTarget) {
+		if (!this._selectionActive || this._commentTarget || this._pendingCommentInteractionId || this._externalHighlightTarget) {
 			return;
 		}
 		if (event.composedPath().includes(this._shadowHost)) {
@@ -930,8 +1014,8 @@ class ElementPicker {
 		if (e.key === 'Escape') {
 			if (this._commentTarget) {
 				const target = this._commentTarget;
-				this._finishCommentInteraction();
 				this._focusCommentTarget(target);
+				this._finishCommentInteraction();
 				e.preventDefault();
 				e.stopPropagation();
 				return;
@@ -940,6 +1024,11 @@ class ElementPicker {
 			e.preventDefault();
 			e.stopPropagation();
 		} else if (e.key === 'Enter' && !e.isComposing) {
+			if (this._pendingCommentInteractionId) {
+				e.preventDefault();
+				e.stopPropagation();
+				return;
+			}
 			const focusedElement = this._getFocusedElement();
 			if (focusedElement) {
 				e.preventDefault();
@@ -953,7 +1042,7 @@ class ElementPicker {
 		if (this._commentPreviewCollapsing) {
 			this._hideActiveCommentPreview();
 		}
-		this._cancelCommentPreviewAnimations();
+		this._cancelCommentAnimations();
 		if (this._highlightTarget) {
 			this._renderHighlight(this._highlightTarget);
 		}
@@ -1045,7 +1134,6 @@ class ElementPicker {
 		this._highlightShape.setAttribute('width', `${visibleRect.width}`);
 		this._highlightShape.setAttribute('height', `${visibleRect.height}`);
 		this._highlightShape.setAttribute('rx', '2');
-
 		// Label is in *viewport* coordinates and sticky-clamped to the viewport.
 		const tagName = String(target.tagName || '').toLowerCase();
 		const idPart = target.id ? `#${target.id}` : '';
@@ -1069,15 +1157,24 @@ class ElementPicker {
 		label.style.left = `${labelLeft}px`;
 		label.style.top = `${labelTop}px`;
 
-		let commentSurfaceAbove = false;
-		for (const surface of [this._commentPreview, this._commentComposer]) {
-			if (surface.style.display !== 'none') {
-				commentSurfaceAbove = this._layoutCommentSurface(surface, visibleRect, viewportWidth, viewportHeight) === 'above' || commentSurfaceAbove;
+		if (this._commentPreview.style.display !== 'none') {
+			const previewPlacement = this._layoutCommentSurface(this._commentPreview, visibleRect, viewportWidth, viewportHeight);
+			if (this._commentPreviewElementId && previewPlacement === 'above' && this._elementsOverlap(label, this._commentPreview)) {
+				label.style.top = `${Math.max(0, Math.min(viewportHeight - labelHeight, visibleRect.bottom + 2))}px`;
 			}
 		}
-		if (commentSurfaceAbove) {
-			label.style.top = `${Math.max(0, Math.min(viewportHeight - labelHeight, visibleRect.bottom + 2))}px`;
+		if (this._commentComposer.style.display !== 'none') {
+			this._layoutCommentSurface(this._commentComposer, visibleRect, viewportWidth, viewportHeight);
 		}
+	}
+
+	private _elementsOverlap(first: HTMLElement, second: HTMLElement): boolean {
+		const firstBounds = first.getBoundingClientRect();
+		const secondBounds = second.getBoundingClientRect();
+		return firstBounds.left < secondBounds.right
+			&& firstBounds.right > secondBounds.left
+			&& firstBounds.top < secondBounds.bottom
+			&& firstBounds.bottom > secondBounds.top;
 	}
 
 	private _getVisibleTargetBounds(rect: DOMRect): DOMRect {
@@ -1090,11 +1187,27 @@ class ElementPicker {
 
 	private _layoutCommentSurface(surface: HTMLElement, targetBounds: DOMRect, viewportWidth: number, viewportHeight: number): 'above' | 'below' {
 		if (surface === this._commentPreview) {
-			const availableWidth = Math.min(320, viewportWidth - 16);
-			const maximumWidth = Math.min(Math.max(320, targetBounds.width), availableWidth);
 			surface.style.width = 'max-content';
 			surface.style.minWidth = '0';
-			surface.style.maxWidth = `${maximumWidth}px`;
+			surface.style.maxWidth = `${Math.min(320, viewportWidth - 16)}px`;
+			const comment = this._commentPreviewElementId ? this._comments.get(this._commentPreviewElementId) : undefined;
+			if (comment) {
+				const pinBounds = comment.pin.getBoundingClientRect();
+				return this._layoutCommentSurfaceAtAnchor(
+					surface,
+					{ x: pinBounds.left + pinBounds.width / 2, y: pinBounds.top + pinBounds.height / 2 },
+					viewportWidth,
+					viewportHeight
+				);
+			}
+		} else if (surface === this._commentComposer && this._commentAnchor) {
+			surface.style.maxWidth = `${Math.min(320, viewportWidth - 16)}px`;
+			return this._layoutCommentSurfaceAtAnchor(
+				surface,
+				{ x: this._commentAnchor.x - window.scrollX, y: this._commentAnchor.y - window.scrollY },
+				viewportWidth,
+				viewportHeight
+			);
 		}
 		const surfaceHeight = surface.offsetHeight;
 		const belowTop = targetBounds.bottom;
@@ -1109,9 +1222,50 @@ class ElementPicker {
 			? Math.max(0, targetBounds.left)
 			: Math.max(0, targetBounds.right - surfaceWidth);
 		surface.dataset.attachmentCorner = `${placement === 'below' ? 'top' : 'bottom'}-${alignment}`;
-		surface.style.left = `${surfaceLeft}px`;
-		surface.style.top = `${surfaceTop}px`;
+		this._setCommentSurfacePosition(surface, surfaceLeft, surfaceTop);
 		return placement;
+	}
+
+	private _layoutCommentSurfaceAtAnchor(surface: HTMLElement, anchor: { x: number; y: number }, viewportWidth: number, viewportHeight: number): 'above' | 'below' {
+		const viewportInset = 8;
+		let surfaceWidth = surface.offsetWidth;
+		const availableRight = Math.max(0, viewportWidth - viewportInset - anchor.x);
+		const availableLeft = Math.max(0, anchor.x - viewportInset);
+		const opensRight = surfaceWidth <= availableRight || (surfaceWidth > availableLeft && availableRight >= availableLeft);
+		const availableWidth = opensRight ? availableRight : availableLeft;
+		if (surfaceWidth > availableWidth) {
+			surface.style.maxWidth = `${availableWidth}px`;
+			surfaceWidth = surface.offsetWidth;
+		}
+
+		const surfaceHeight = surface.offsetHeight;
+		const availableBelow = Math.max(0, viewportHeight - viewportInset - anchor.y);
+		const availableAbove = Math.max(0, anchor.y - viewportInset);
+		const opensAbove = surfaceHeight <= availableAbove || (surfaceHeight > availableBelow && availableAbove >= availableBelow);
+		const opensBelow = !opensAbove;
+		const placement = opensBelow ? 'below' : 'above';
+		const alignment = opensRight ? 'left' : 'right';
+		surface.dataset.attachmentCorner = `${opensBelow ? 'top' : 'bottom'}-${alignment}`;
+		const surfaceLeft = opensRight ? anchor.x : anchor.x - surfaceWidth;
+		const surfaceTop = opensBelow ? anchor.y : Math.max(viewportInset, anchor.y - surfaceHeight);
+		this._setCommentSurfacePosition(surface, surfaceLeft, surfaceTop);
+		return placement;
+	}
+
+	private _setCommentSurfacePosition(surface: HTMLElement, left: number, top: number): void {
+		if (surface !== this._commentPreview) {
+			surface.style.left = `${left}px`;
+			surface.style.top = `${top}px`;
+			return;
+		}
+
+		const padding = ElementPicker._COMMENT_PREVIEW_HIT_PADDING;
+		this._commentPreviewHitArea.style.left = `${left - padding}px`;
+		this._commentPreviewHitArea.style.top = `${top - padding}px`;
+		this._commentPreviewHitArea.style.width = `${surface.offsetWidth + padding * 2}px`;
+		this._commentPreviewHitArea.style.height = `${surface.offsetHeight + padding * 2}px`;
+		surface.style.left = `${padding}px`;
+		surface.style.top = `${padding}px`;
 	}
 
 	private _updateHighlight(target: Element | undefined): void {
@@ -1120,7 +1274,6 @@ class ElementPicker {
 			this._highlight.style.display = 'none';
 			this._highlightShape.style.display = 'none';
 			this._label.style.display = 'none';
-			this._commentPreview.style.display = 'none';
 			return;
 		}
 		this._renderHighlight(target);
@@ -1133,11 +1286,7 @@ class ElementPicker {
 			return;
 		}
 		if (this._commentMode) {
-			const bounds = target.getBoundingClientRect();
-			this._showCommentComposer(target, anchor ?? {
-				x: bounds.left + bounds.width / 2,
-				y: bounds.top + bounds.height / 2,
-			});
+			this._showCommentComposer(target, anchor ?? this._getDefaultCommentAnchor(target), anchor !== undefined);
 			return;
 		}
 		// Wait a frame so any pending event handlers can be completed in the selecting active state.
@@ -1153,32 +1302,49 @@ class ElementPicker {
 		});
 	}
 
-	private _showCommentComposer(target: Element, anchor: { x: number; y: number }): void {
+	private _getDefaultCommentAnchor(target: Element): { x: number; y: number } {
+		const bounds = target.getBoundingClientRect();
+		return { x: bounds.left, y: bounds.bottom };
+	}
+
+	private _showCommentComposer(target: Element, anchor: { x: number; y: number }, pointerInteraction = false): void {
 		this._externalHighlightTarget = undefined;
 		this._hideActiveCommentPreview();
 		this._commentTarget = target;
+		this._commentPointerInteraction = pointerInteraction;
 		this._commentAnchor = {
 			x: anchor.x + window.scrollX,
 			y: anchor.y + window.scrollY
 		};
-		this._updateHighlight(target);
 		this._showCommentBackdrop(target);
 		this._commentLayer.classList.add('composing');
 		this._commentInput.value = '';
 		this._commentComposer.style.display = 'flex';
-		this._layoutCommentComposer();
-		this._layoutCommentInput();
-		this._animateCommentHighlight(
-			new DOMRect(anchor.x - 3, anchor.y - 3, 6, 6),
-			target,
-			[this._label, this._commentComposer]
-		);
+		this._resizeCommentInput();
+		this._updateHighlight(target);
+		this._animateCommentComposer();
 		this._commentInput.focus({ preventScroll: true });
 		requestAnimationFrame(() => {
 			if (this._commentTarget === target) {
 				this._commentInput.focus({ preventScroll: true });
 			}
 		});
+	}
+
+	private _animateCommentComposer(): void {
+		if (this._reducedMotion) {
+			return;
+		}
+		this._cancelCommentAnimations();
+		this._commentAnimation = {
+			surface: this._animateCommentSurface(this._commentComposer),
+			supporting: []
+		};
+	}
+
+	private _setCommentSurfaceTransformOrigin(surface: HTMLElement): void {
+		const [verticalOrigin, horizontalOrigin] = (surface.dataset.attachmentCorner ?? 'top-left').split('-');
+		surface.style.transformOrigin = `${horizontalOrigin} ${verticalOrigin}`;
 	}
 
 	private _closeCommentComposer(): void {
@@ -1188,7 +1354,7 @@ class ElementPicker {
 		this._commentLayer.classList.remove('composing');
 		this._commentComposer.style.display = 'none';
 		this._commentInput.value = '';
-		this._cancelCommentPreviewAnimations();
+		this._cancelCommentAnimations();
 		this._updateHighlight(undefined);
 	}
 
@@ -1207,10 +1373,30 @@ class ElementPicker {
 			return;
 		}
 		const body = this._commentInput.value.replace(/\r?\n/g, ' ');
-		const elementId = this._onPicked(target, body);
-		this._pendingComments.set(elementId, { target, anchor, body });
+		const pendingComment = {
+			target,
+			anchor,
+			body,
+			pointerInteraction: this._commentPointerInteraction
+		};
+		this._commentLayer.classList.add('comment-capture-pending');
 		this._finishCommentInteraction();
-		this._focusCommentTarget(target);
+		const elementId = this._onPicked(target, body);
+		this._pendingComments.set(elementId, pendingComment);
+		this._pendingCommentInteractionId = elementId;
+	}
+
+	private _restoreInteractionAfterComment(elementId: string, pending: PendingElementComment): void {
+		if (this._pendingCommentInteractionId === elementId) {
+			this._pendingCommentInteractionId = undefined;
+			this._commentLayer.classList.remove('comment-capture-pending');
+		}
+		if (this._commentTarget) {
+			return;
+		}
+		if (!pending.pointerInteraction) {
+			this._focusCommentTarget(pending.target);
+		}
 	}
 
 	private _focusCommentTarget(target: Element): void {
@@ -1228,13 +1414,69 @@ class ElementPicker {
 		}
 	}
 
+	private _discardPendingComment(elementId: string): void {
+		const pending = this._pendingComments.get(elementId);
+		this._pendingComments.delete(elementId);
+		this._cancelScheduledCommentPin(elementId);
+		if (pending) {
+			this._restoreInteractionAfterComment(elementId, pending);
+		}
+	}
+
+	private _cancelScheduledCommentPin(elementId: string): void {
+		const scheduled = this._scheduledCommentPins.get(elementId);
+		if (!scheduled) {
+			return;
+		}
+		window.clearTimeout(scheduled.timeout);
+		cancelAnimationFrame(scheduled.animationFrame);
+		this._scheduledCommentPins.delete(elementId);
+	}
+
+	private _scheduleCommentPin(elementId: string, body: string, ordinal: number): void {
+		const existing = this._scheduledCommentPins.get(elementId);
+		if (existing) {
+			existing.body = body;
+			existing.ordinal = ordinal;
+			return;
+		}
+
+		const scheduled: ScheduledCommentPin = { body, ordinal, animationFrame: 0, timeout: 0 };
+		this._scheduledCommentPins.set(elementId, scheduled);
+		let frameCount = 0;
+		const finish = () => {
+			if (this._scheduledCommentPins.get(elementId) !== scheduled) {
+				return;
+			}
+			this._cancelScheduledCommentPin(elementId);
+			const pending = this._pendingComments.get(elementId);
+			if (pending) {
+				this._createCommentPin(elementId, pending.target, pending.anchor, scheduled.body, scheduled.ordinal);
+			}
+		};
+		const waitForFrame = () => {
+			if (this._scheduledCommentPins.get(elementId) !== scheduled) {
+				return;
+			}
+			frameCount++;
+			if (frameCount >= ElementPicker._COMMENT_PIN_RESTORE_FRAMES) {
+				finish();
+			} else {
+				scheduled.animationFrame = requestAnimationFrame(waitForFrame);
+			}
+		};
+		scheduled.timeout = window.setTimeout(finish, ElementPicker._COMMENT_PIN_RESTORE_TIMEOUT);
+		scheduled.animationFrame = requestAnimationFrame(waitForFrame);
+	}
+
 	private _createCommentPin(elementId: string, target: Element, anchor: { x: number; y: number }, body: string, ordinal: number): void {
 		this._ensureMounted();
 		const existing = this._comments.get(elementId);
-		if (existing) {
-			this._clearCommentPreview(existing.target);
+		if (existing && this._commentPreviewElementId === elementId) {
+			this._hideActiveCommentPreview();
 		}
 		existing?.pin.remove();
+		const pending = this._pendingComments.get(elementId);
 		this._pendingComments.delete(elementId);
 		const rect = target.getBoundingClientRect();
 		const offset = {
@@ -1254,13 +1496,12 @@ class ElementPicker {
 		pin.appendChild(bubble);
 
 		const show = () => {
-			if (this._commentTarget || this._externalHighlightTarget) {
+			if (this._commentTarget || this._pendingCommentInteractionId || this._externalHighlightTarget) {
 				return;
 			}
 			this._showCommentPreview(elementId, target, body);
 		};
-		pin.addEventListener('mouseenter', show);
-		pin.addEventListener('mouseleave', () => this._scheduleCommentPreviewHide());
+		pin.addEventListener('pointermove', show);
 		pin.addEventListener('focusin', show);
 		pin.addEventListener('focusout', () => this._scheduleCommentPreviewHide());
 		this._commentLayer.appendChild(pin);
@@ -1268,6 +1509,9 @@ class ElementPicker {
 		this._comments.set(elementId, comment);
 		this._updateCommentPinNumbers();
 		this._layoutCommentPin(comment);
+		if (pending) {
+			this._restoreInteractionAfterComment(elementId, pending);
+		}
 	}
 
 	private _updateCommentPinNumbers(): void {
@@ -1313,7 +1557,7 @@ class ElementPicker {
 	}
 
 	private _showCommentPreview(elementId: string, target: Element, fallbackBody: string): void {
-		if (this._commentPreviewCollapsing) {
+		if (this._pendingCommentInteractionId || this._commentPreviewCollapsing) {
 			return;
 		}
 		if (this._commentPreviewElementId === elementId) {
@@ -1323,22 +1567,17 @@ class ElementPicker {
 		this._hideActiveCommentPreview();
 		this._commentPreviewElementId = elementId;
 		const comment = this._comments.get(elementId);
-		const pinBounds = comment ? this._getCommentPinPointBounds(comment.pin) : undefined;
 		if (comment) {
 			comment.pin.classList.add('previewing');
-			comment.pin.after(this._commentPreview);
+			comment.pin.after(this._commentPreviewHitArea);
 		}
 		const body = comment?.body ?? fallbackBody;
 		this._setCommentPreviewBody(body);
 		this._shadowHost.classList.add('comment-preview-active');
 		this._updateHighlight(target);
 		this._showCommentBackdrop(target);
-		if (pinBounds) {
-			this._animateCommentHighlight(
-				pinBounds,
-				target,
-				[this._label, this._commentPreview]
-			);
+		if (comment) {
+			this._animateCommentPreview();
 		}
 	}
 
@@ -1346,74 +1585,51 @@ class ElementPicker {
 		this._commentPreviewBody.textContent = body;
 		this._commentPreview.title = body;
 		this._commentPreview.classList.toggle('empty', !body);
+		this._commentPreviewHitArea.style.display = 'block';
 		this._commentPreview.style.display = 'flex';
 	}
 
-	private _getCommentPinPointBounds(pin: HTMLElement): DOMRect {
-		const pinBounds = pin.getBoundingClientRect();
-		return new DOMRect(pinBounds.left + 8, pinBounds.top + 8, 6, 6);
-	}
-
-	private _animateCommentHighlight(pinBounds: DOMRect, target: Element, supportingElements: readonly HTMLElement[], collapsing = false): Animation | undefined {
+	private _animateCommentPreview(collapsing = false): Animation | undefined {
 		if (this._reducedMotion) {
 			return undefined;
 		}
-		const targetBounds = this._getVisibleTargetBounds(target.getBoundingClientRect());
-		const duration = 180;
-		const easing = 'cubic-bezier(0.2, 0, 0, 1)';
-		const pinKeyframe: Keyframe = {
-			x: `${pinBounds.left}px`,
-			y: `${pinBounds.top}px`,
-			width: `${pinBounds.width}px`,
-			height: `${pinBounds.height}px`,
-			rx: `${pinBounds.width / 2}px`
-		};
-		const targetKeyframe: Keyframe = {
-			x: `${targetBounds.left}px`,
-			y: `${targetBounds.top}px`,
-			width: `${targetBounds.width}px`,
-			height: `${targetBounds.height}px`,
-			rx: '2px'
-		};
-		const highlightAnimation = this._highlightShape.animate(
-			collapsing ? [targetKeyframe, pinKeyframe] : [pinKeyframe, targetKeyframe],
-			{ duration, easing, fill: 'forwards' }
-		);
-		this._commentPreviewAnimations.push(highlightAnimation);
-		this._commentPreviewAnimations.push(this._commentBackdropCutout.animate(
-			collapsing ? [targetKeyframe, pinKeyframe] : [pinKeyframe, targetKeyframe],
-			{ duration, easing, fill: 'forwards' }
-		));
-
-		for (const element of supportingElements) {
+		const previewAnimation = this._animateCommentSurface(this._commentPreview, collapsing);
+		const supportingKeyframes: Keyframe[] = collapsing ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }];
+		const supportingAnimations: Animation[] = [];
+		for (const element of [this._highlightShape, this._label]) {
 			if (element.style.display === 'none') {
 				continue;
 			}
-			const hiddenKeyframe: Keyframe = { opacity: 0, transform: 'translateY(-4px)' };
-			const keyframes = collapsing
-				? [{ opacity: 1, transform: 'translateY(0)' }, { ...hiddenKeyframe, offset: 0.55 }, hiddenKeyframe]
-				: [hiddenKeyframe, { ...hiddenKeyframe, offset: 0.45 }, { opacity: 1, transform: 'translateY(0)' }];
-			this._commentPreviewAnimations.push(element.animate(keyframes, { duration, easing, fill: 'forwards' }));
+			const animation = element.animate(supportingKeyframes, { duration: ElementPicker._COMMENT_SUPPORTING_FADE_DURATION, easing: 'linear', fill: 'both' });
+			supportingAnimations.push(animation);
 		}
-		return highlightAnimation;
+		this._commentAnimation = { surface: previewAnimation, supporting: supportingAnimations };
+		return previewAnimation;
+	}
+
+	private _animateCommentSurface(surface: HTMLElement, collapsing = false): Animation {
+		this._setCommentSurfaceTransformOrigin(surface);
+		return surface.animate(
+			collapsing ? [{ transform: 'scale(1)' }, { transform: 'scale(0)' }] : [{ transform: 'scale(0)' }, { transform: 'scale(1)' }],
+			{ duration: ElementPicker._COMMENT_SURFACE_ANIMATION_DURATION, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' }
+		);
 	}
 
 	private _scheduleCommentPreviewHide(): void {
+		if (this._commentPreviewCollapsing) {
+			return;
+		}
 		this._cancelCommentPreviewHide();
 		this._commentPreviewHideTimeout = window.setTimeout(() => {
 			this._commentPreviewHideTimeout = undefined;
 			const comment = this._commentPreviewElementId ? this._comments.get(this._commentPreviewElementId) : undefined;
-			if (
-				comment?.pin.matches(':hover, :focus-within') ||
-				this._highlight.matches(':hover, :focus-within') ||
-				this._label.matches(':hover, :focus-within') ||
-				this._commentPreview.matches(':hover, :focus-within') ||
-				this._commentPreviewRemoveButton.matches(':hover, :focus-within')
-			) {
+			const pinFocused = comment?.pin.matches(':focus-within') ?? false;
+			const hitAreaActive = this._commentPreviewHitArea.matches(':hover, :focus-within');
+			if (pinFocused || hitAreaActive) {
 				return;
 			}
 			this._collapseActiveCommentPreview();
-		}, 80);
+		}, ElementPicker._COMMENT_PREVIEW_HIDE_DELAY);
 	}
 
 	private _cancelCommentPreviewHide(): void {
@@ -1424,6 +1640,9 @@ class ElementPicker {
 	}
 
 	private _collapseActiveCommentPreview(): void {
+		if (this._commentPreviewCollapsing) {
+			return;
+		}
 		const elementId = this._commentPreviewElementId;
 		const comment = elementId ? this._comments.get(elementId) : undefined;
 		if (!elementId || !comment || this._reducedMotion) {
@@ -1433,25 +1652,23 @@ class ElementPicker {
 
 		this._commentPreviewCollapsing = true;
 		this._shadowHost.classList.add('comment-preview-collapsing');
-		this._fadeOutCommentBackdrop();
-		let highlightAnimation: Animation | undefined = this._commentPreviewAnimations[0];
-		if (highlightAnimation) {
-			for (const animation of this._commentPreviewAnimations) {
+		this._hideCommentBackdrop();
+		const commentAnimation = this._commentAnimation;
+		let surfaceAnimation: Animation | undefined;
+		if (commentAnimation) {
+			surfaceAnimation = commentAnimation.surface;
+			surfaceAnimation.reverse();
+			for (const animation of commentAnimation.supporting) {
 				animation.reverse();
 			}
 		} else {
-			highlightAnimation = this._animateCommentHighlight(
-				this._getCommentPinPointBounds(comment.pin),
-				comment.target,
-				[this._label, this._commentPreview],
-				true
-			);
+			surfaceAnimation = this._animateCommentPreview(true);
 		}
-		if (!highlightAnimation) {
+		if (!surfaceAnimation) {
 			this._hideActiveCommentPreview();
 			return;
 		}
-		highlightAnimation.onfinish = () => {
+		surfaceAnimation.onfinish = () => {
 			if (this._commentPreviewCollapsing && this._commentPreviewElementId === elementId) {
 				this._commentPreviewCollapsing = false;
 				this._hideActiveCommentPreview();
@@ -1459,28 +1676,33 @@ class ElementPicker {
 		};
 	}
 
-	private _cancelCommentPreviewAnimations(): void {
-		for (const animation of this._commentPreviewAnimations) {
+	private _cancelCommentAnimations(): void {
+		if (!this._commentAnimation) {
+			return;
+		}
+		this._commentAnimation.surface.cancel();
+		for (const animation of this._commentAnimation.supporting) {
 			animation.cancel();
 		}
-		this._commentPreviewAnimations = [];
+		this._commentAnimation = undefined;
 	}
 
 	private _hideActiveCommentPreview(): void {
 		this._cancelCommentPreviewHide();
 		this._commentPreviewCollapsing = false;
 		this._shadowHost.classList.remove('comment-preview-collapsing');
-		this._cancelCommentPreviewAnimations();
 		if (this._commentPreviewElementId) {
 			this._comments.get(this._commentPreviewElementId)?.pin.classList.remove('previewing');
 		}
 		this._commentPreviewElementId = undefined;
 		this._shadowHost.classList.remove('comment-preview-active');
+		this._commentPreviewHitArea.style.display = 'none';
 		this._commentPreview.style.display = 'none';
 		this._hideCommentBackdrop();
 		if (!this._commentTarget) {
 			this._updateHighlight(this._externalHighlightTarget);
 		}
+		this._cancelCommentAnimations();
 	}
 
 	private _removeComment(elementId: string): void {
@@ -1497,9 +1719,13 @@ class ElementPicker {
 	}
 
 	private _layoutCommentInput(): void {
+		this._resizeCommentInput();
+		this._layoutCommentComposer();
+	}
+
+	private _resizeCommentInput(): void {
 		this._commentInput.style.height = 'auto';
 		this._commentInput.style.height = `${Math.min(this._commentInput.scrollHeight, 96)}px`;
-		this._layoutCommentComposer();
 	}
 
 	private _layoutCommentBackdrop(target: Element): void {
@@ -1527,18 +1753,6 @@ class ElementPicker {
 		this._commentBackdropRequest++;
 		this._commentBackdropTarget = undefined;
 		this._commentBackdrop.classList.remove('visible');
-	}
-
-	private _fadeOutCommentBackdrop(): void {
-		this._commentBackdropRequest++;
-		this._commentBackdrop.classList.remove('visible');
-	}
-
-	private _clearCommentPreview(target: Element): void {
-		if (this._commentTarget || this._commentBackdropTarget !== target) {
-			return;
-		}
-		this._hideActiveCommentPreview();
 	}
 
 	private _layoutCommentComposer(): void {
@@ -1606,7 +1820,7 @@ class ElementPicker {
 			.overlay {
 				position: fixed; inset: 0;
 				background: transparent; box-sizing: border-box;
-				z-index: 1;
+				z-index: 2;
 			}
 			.comment-layer {
 				position: absolute; inset: 0; pointer-events: none;
@@ -1622,7 +1836,7 @@ class ElementPicker {
 				box-shadow: 0 2px 6px var(--vscode-widget-shadow, transparent);
 				font-size: 13px;
 				font-weight: 400;
-				z-index: 3;
+				z-index: 4;
 			}
 			.comment-surface[data-attachment-corner='top-left'] {
 				border-top-left-radius: 0;
@@ -1636,7 +1850,13 @@ class ElementPicker {
 			.comment-surface[data-attachment-corner='bottom-right'] {
 				border-bottom-right-radius: 0;
 			}
+			.comment-preview-hit-area {
+				position: fixed;
+				pointer-events: none;
+				z-index: 4;
+			}
 			.comment-preview {
+				position: absolute;
 				align-items: flex-start;
 				gap: 8px;
 				max-height: 96px;
@@ -1665,13 +1885,11 @@ class ElementPicker {
 				scrollbar-width: thin;
 				white-space: pre-wrap;
 			}
-			:host(.comment-preview-active) .highlight,
-			:host(.comment-preview-active) .label,
+			:host(.comment-preview-active) .comment-preview-hit-area,
 			:host(.comment-preview-active) .comment-preview {
 				pointer-events: auto;
 			}
-			:host(.comment-preview-collapsing) .highlight,
-			:host(.comment-preview-collapsing) .label,
+			:host(.comment-preview-collapsing) .comment-preview-hit-area,
 			:host(.comment-preview-collapsing) .comment-preview {
 				pointer-events: none;
 			}
@@ -1702,7 +1920,6 @@ class ElementPicker {
 			.comment-composer {
 				align-items: flex-end; gap: 6px; padding: 6px;
 				pointer-events: auto;
-				z-index: 4;
 			}
 			.comment-input {
 				flex: 1; min-width: 0; resize: none; overflow: auto;
@@ -1750,17 +1967,33 @@ class ElementPicker {
 				height: 22px;
 				transform: translate(-11px, -11px);
 				pointer-events: auto;
-				z-index: 4;
+				z-index: 0;
+				transition: opacity 120ms linear;
 			}
 			.comment-layer.composing .comment-pin {
+				opacity: 0;
 				pointer-events: none;
 				z-index: auto;
 			}
-			.comment-pin:hover, .comment-pin:focus-within {
-				z-index: 5;
-			}
-			.comment-pin.previewing:not(:focus-within) .comment-pin-bubble {
+			.comment-layer.comment-capture-pending .comment-pin {
 				visibility: hidden;
+			}
+			.comment-pin:hover, .comment-pin:focus-within {
+				z-index: 1;
+			}
+			.comment-pin.previewing {
+				z-index: 0;
+			}
+			:host(.comment-preview-active) .comment-pin:not(.previewing) {
+				opacity: 0.35;
+			}
+			.comment-pin.previewing .comment-pin-bubble {
+				width: 6px;
+				height: 6px;
+				border-width: 0;
+			}
+			.comment-pin.previewing .comment-pin-number {
+				opacity: 0;
 			}
 			.comment-pin-bubble {
 				box-sizing: border-box;
@@ -1774,6 +2007,7 @@ class ElementPicker {
 				background: var(--vscode-button-background, #0078d4);
 				color: var(--vscode-button-foreground, white);
 				box-shadow: 0 2px 6px var(--vscode-widget-shadow, transparent);
+				transition: width 140ms cubic-bezier(0.2, 0, 0, 1), height 140ms cubic-bezier(0.2, 0, 0, 1), border-width 140ms cubic-bezier(0.2, 0, 0, 1);
 			}
 			.comment-pin-number {
 				display: block;
@@ -1782,12 +2016,16 @@ class ElementPicker {
 				font-weight: 600;
 				line-height: 12px;
 				text-align: center;
+				transition: opacity 80ms linear;
 			}
 			.comment-send:focus-visible, .comment-preview-remove:focus-visible, .comment-pin:focus-visible, .comment-input:focus-visible {
 				outline: 2px solid var(--vscode-focusBorder, #0078d4);
 				outline-offset: 2px;
 			}
-			:host(.reduce-motion) .comment-backdrop-fill {
+			:host(.reduce-motion) .comment-backdrop-fill,
+			:host(.reduce-motion) .comment-pin,
+			:host(.reduce-motion) .comment-pin-bubble,
+			:host(.reduce-motion) .comment-pin-number {
 				transition: none;
 			}
 			.label {

@@ -22,6 +22,7 @@ export type AgentHostE2ETier = 'conformance' | 'parity';
 
 export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
+	readonly targetId: string;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
 	readonly createdSessions: string[];
@@ -38,8 +39,13 @@ export interface IAgentHostE2ETestContext {
 	 * reason is visible at the call site.
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
+	readonly isLinux: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	/** Whether explicitly requested known-issue reproductions should run against live recording. */
+	readonly runKnownIssueTests: boolean;
+	/** Whether explicitly requested model-free known-issue reproductions should run in strict replay. */
+	readonly runHostOnlyKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
 	/**

@@ -23,6 +23,7 @@ const enum CharCode {
 let outputChannel: vscode.OutputChannel;
 
 const SLOWED_DOWN_CONNECTION_DELAY = 800;
+const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
 
 function isExpectedSocketCloseError(error: NodeJS.ErrnoException): boolean {
 	return error.code === 'ECONNRESET' || error.code === 'EPIPE' || error.code === 'ECONNABORTED';
@@ -190,7 +191,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			const agentHostBridgeToken = getConfiguration('agentHostBridgeConnectionToken');
 			if (typeof agentHostBridgeToken === 'string' && agentHostBridgeToken) {
-				commandArgs.push('--agent-host-bridge-connection-token', agentHostBridgeToken);
+				env[agentHostBridgeConnectionTokenEnvironmentVariable] = agentHostBridgeToken;
 			}
 
 			if (!commit) { // dev mode

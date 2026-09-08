@@ -33,6 +33,8 @@ export interface IAgentHostSessionWorkspaceOptions {
 	 * `baseBranchProtected` on the resulting repository.
 	 */
 	readonly branchProtectionPatterns?: readonly string[];
+	/** Overrides the inferred folder/worktree type icon. See {@link ISessionWorkspace.typeIcon}. */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -136,6 +138,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			}, ...additionalFolders],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 			isVirtualWorkspace: false,
+			typeIcon: options.typeIcon,
 		};
 	}
 
@@ -160,5 +163,6 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 		}, ...additionalFolders],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		isVirtualWorkspace: false,
+		typeIcon: options.typeIcon,
 	};
 }

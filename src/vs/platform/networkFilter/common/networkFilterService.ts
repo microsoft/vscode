@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { matchesScheme, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -35,6 +36,11 @@ export interface IAgentNetworkFilterService {
 	 * @returns `true` if the URI's domain is allowed, `false` if blocked.
 	 */
 	isUriAllowed(uri: URI): boolean;
+
+	/**
+	 * Returns whether network filtering is currently enabled.
+	 */
+	isEnabled(): boolean;
 
 	/**
 	 * Formats an error message for a blocked URI based on the current filter configuration.
@@ -89,18 +95,18 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	isUriAllowed(uri: URI): boolean {
 		// When domain filtering is inactive, allow all requests.
-		if (!this.shouldFilter()) {
+		if (!this.isEnabled()) {
 			return true;
 		}
 
 		// File URIs and URIs without authority always pass
-		if (uri.scheme === 'file' || !uri.authority) {
+		if (matchesScheme(uri, Schemas.file) || !uri.authority) {
 			return true;
 		}
 
 		const domain = extractDomainFromUri(uri);
 		if (!domain) {
-			return true;
+			return !matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https);
 		}
 
 		let result = this.domainCache.get(domain);
@@ -111,9 +117,8 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 		return result;
 	}
-	// Determines whether network filtering should be applied for a given request
-	// based on the global network filter setting.
-	private shouldFilter(): boolean {
+
+	isEnabled(): boolean {
 		return this.networkFilterEnabled;
 	}
 

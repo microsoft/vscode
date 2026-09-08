@@ -257,10 +257,9 @@ vocabulary that lets an agreed design be built consistently**, not as the openin
 move in a review. Reach for them *after* you've named the feeling and the
 principle, never instead of it.
 
-The size tokens live in
-[`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts) and the
-font ramp in [`sizes.ts`](../../../src/vs/sessions/common/sizes.ts); the full
-reference is in
+The size and font tokens live in
+[`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts); the
+full reference is in
 [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
 
 <a id="design-tokens"></a>

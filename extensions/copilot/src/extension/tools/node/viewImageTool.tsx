@@ -18,7 +18,7 @@ import { ToolName } from '../common/toolNames';
 import { ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType, MAX_IMAGE_FILE_SIZE } from './imageToolUtils';
-import { assertFileNotContentExcluded, assertFileOkForTool, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
+import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 
 export interface IViewImageParams {
 	filePath: string;
@@ -63,19 +63,28 @@ export class ViewImageTool implements ICopilotTool<IViewImageParams> {
 		const uri = resolveToolInputPath(options.input.filePath, this.promptPathRepresentationService);
 		this.assertImageFile(uri);
 
-		const isExternal = await this.instantiationService.invokeFunction(
-			accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
+		await this.instantiationService.invokeFunction(
+			accessor => assertFileNotContentExcluded(accessor, uri)
 		);
 
-		if (isExternal) {
+		const { needsConfirmation, realPath } = await this.instantiationService.invokeFunction(
+			accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
+		);
+		if (realPath) {
 			await this.instantiationService.invokeFunction(
-				accessor => assertFileNotContentExcluded(accessor, uri)
+				accessor => assertFileNotContentExcluded(accessor, realPath)
 			);
+		}
 
+		if (needsConfirmation) {
 			const folderUri = dirname(uri);
-			const message = this.workspaceService.getWorkspaceFolders().length === 1
-				? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`)
-				: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
+			const message = realPath
+				? this.workspaceService.getWorkspaceFolders().length === 1
+					? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current folder.`)
+					: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} links to ${formatUriForFileWidget(realPath)}, which is outside the current workspace.`)
+				: this.workspaceService.getWorkspaceFolders().length === 1
+					? new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current folder in ${formatUriForFileWidget(folderUri)}.`)
+					: new MarkdownString(l10n.t`${formatUriForFileWidget(uri)} is outside of the current workspace in ${formatUriForFileWidget(folderUri)}.`);
 
 			return {
 				invocationMessage: new MarkdownString(l10n.t`Viewing image ${formatUriForFileWidget(uri)}`),
@@ -86,8 +95,6 @@ export class ViewImageTool implements ICopilotTool<IViewImageParams> {
 				}
 			};
 		}
-
-		await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 		return {
 			invocationMessage: new MarkdownString(l10n.t`Viewing image ${formatUriForFileWidget(uri)}`),

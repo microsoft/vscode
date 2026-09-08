@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 
@@ -110,6 +111,7 @@ export class MessagePortProtocolServer<TContext> extends Disposable implements I
 }
 
 class MessagePortProtocolTransport extends Disposable implements IProtocolTransport {
+	readonly transportKind = AgentHostTransportKind.MessagePort;
 
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame = this._onFrame.event;

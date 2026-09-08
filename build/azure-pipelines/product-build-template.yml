@@ -373,6 +373,7 @@ stages:
                   displayName: Windows arm64
                   poolName: 1es-windows-2022-arm64
                   os: windows
+                  arch: arm64
 
             # Alpine 3.22
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:

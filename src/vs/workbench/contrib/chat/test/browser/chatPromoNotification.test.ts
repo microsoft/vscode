@@ -9,8 +9,37 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from '../../browser/widget/input/chatInputNotificationService.js';
+
+function inputContext(overrides: Partial<IChatInputNotificationContext> = {}): IChatInputNotificationContext {
+	return {
+		sessionType: undefined,
+		sessionResource: undefined,
+		deferredNotificationsEnabled: true,
+		isTransientChat: false,
+		sessionStarted: false,
+		modelState: { currentModel: undefined, models: [] },
+		...overrides,
+	};
+}
+
+function assertPromoAction(notification: IChatInputNotification, identifier: string, label: string): void {
+	const action = notification.actions[0];
+	const model = { identifier, metadata: { id: identifier, vendor: 'test', family: identifier } as ILanguageModelChatMetadata } satisfies ILanguageModelChatMetadataAndIdentifier;
+	const otherModel = { ...model, identifier: 'other/model' };
+	assert.deepStrictEqual({
+		label: action?.label,
+		kind: action?.kind,
+		matches: action?.kind === ChatInputNotificationActionKind.SwitchToModel && action.matchesModel(model),
+		matchesOther: action?.kind === ChatInputNotificationActionKind.SwitchToModel && action.matchesModel(otherModel),
+	}, {
+		label,
+		kind: ChatInputNotificationActionKind.SwitchToModel,
+		matches: true,
+		matchesOther: false,
+	});
+}
 
 function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>) {
 	const notifications = new Map<string, IChatInputNotification>();
@@ -52,6 +81,7 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 			}
 			return active;
 		},
+		refresh() { },
 		handleMessageSent() { },
 		announceRendered() { },
 	};
@@ -117,24 +147,64 @@ suite('ChatPromoNotificationContribution', () => {
 		const notification = notifService.getNotification();
 		assert.ok(notification, 'Expected a notification to be shown');
 		assert.ok(notification.message.toString().includes('20% off'));
-		assert.deepStrictEqual(notification.actions, [{
-			label: 'Try GPT-5.5',
-			kind: ChatInputNotificationActionKind.SwitchToModel,
-			modelIdentifier: 'copilot:gpt-5.5',
-		}]);
+		assert.ok(notification.description?.toString().includes('2026'), 'Expected the end date to be rendered');
+		assertPromoAction(notification, 'copilot:gpt-5.5', 'Try GPT-5.5');
 	});
 
-	test('does not show notification for non-positive promo discounts', () => {
+	test('scopes promos to unstarted persistent chats', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, message: 'Get 20% off' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		const notification = notifService.getNotification();
+		assert.deepStrictEqual({
+			newUser: notification?.when?.(inputContext({ deferredNotificationsEnabled: false })),
+			transient: notification?.when?.(inputContext({ isTransientChat: true })),
+			started: notification?.when?.(inputContext({ sessionStarted: true })),
+			eligible: notification?.when?.(inputContext()),
+			autoDismissOnMessage: notification?.autoDismissOnMessage,
+		}, {
+			newUser: false,
+			transient: false,
+			started: false,
+			eligible: true,
+			autoDismissOnMessage: false,
+		});
+	});
+
+	test('renders the server message for a 0% promo', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:zero-discount',
+			metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		const notification = notifService.getNotification();
+		assert.ok(notification, 'Expected a notification for the 0% promo');
+		assert.strictEqual(notification.message, 'Featured model');
+	});
+
+	test('prefers a discounted promo over a 0% one in the same harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
-			{
-				identifier: 'copilot:zero-discount',
-				metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
-			{
-				identifier: 'copilot:negative-discount',
-				metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
-			},
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-zero', discountPercent: 0, message: 'Featured model' } } },
+			{ identifier: 'copilot:discounted', metadata: { name: 'Discounted', id: 'discounted', promo: { id: 'promo-discount', discountPercent: 20, message: 'Get 20% off' } } },
 		], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 
@@ -144,7 +214,67 @@ suite('ChatPromoNotificationContribution', () => {
 			storageService,
 		));
 
+		const notification = notifService.getNotification();
+		assert.ok(notification);
+		assert.strictEqual(notification.message, 'Get 20% off');
+	});
+
+	test('does not show notification for negative promo discounts', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:negative-discount',
+			metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
 		assert.strictEqual(notifService.getNotification(), undefined);
+	});
+
+	test('skips a promo that opts out of the banner', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'copilot:picker-only', metadata: { name: 'Picker Only', id: 'picker-only', promo: { id: 'promo-picker-only', discountPercent: 20, message: 'Get 20% off', showBanner: false } } },
+			{ identifier: 'copilot:featured', metadata: { name: 'Featured', id: 'featured', promo: { id: 'promo-featured', discountPercent: 0, message: 'Featured model' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		// The opt-out promo is skipped even though its discount would otherwise win the harness.
+		assert.strictEqual(notifService.getNotification()?.message, 'Featured model');
+	});
+
+	test('omits the end date when the promo has none', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'local:no-end-date', metadata: { name: 'Open Ended', id: 'no-end-date', promo: { id: 'promo-open', discountPercent: 20, message: 'Get 20% off' } } },
+			{ identifier: 'copilot:bad-end-date', metadata: { name: 'Bad Date', id: 'bad-end-date', targetChatSessionType: 'copilotcli', promo: { id: 'promo-bad-date', discountPercent: 20, endsAt: 'not a date', message: 'Get 20% off' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.deepStrictEqual(
+			notifService.getAllNotifications().map(n => ({ message: n.message, description: n.description })),
+			[
+				{ message: 'Get 20% off', description: undefined },
+				{ message: 'Get 20% off', description: undefined },
+			],
+		);
 	});
 
 	test('does not show notification for already-dismissed promo', () => {
@@ -302,17 +432,17 @@ suite('ChatPromoNotificationContribution', () => {
 		const local = notifService.getNotificationForSession('local');
 		assert.ok(local, 'Expected a local promo');
 		assert.ok(local.message.toString().includes('Local promo'));
-		assert.deepStrictEqual(local.actions, [{ label: 'Try GPT-5.5', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'local:gpt-5.5' }]);
+		assertPromoAction(local, 'local:gpt-5.5', 'Try GPT-5.5');
 
 		const copilot = notifService.getNotificationForSession('copilotcli');
 		assert.ok(copilot, 'Expected a Copilot promo');
 		assert.ok(copilot.message.toString().includes('Copilot promo'));
-		assert.deepStrictEqual(copilot.actions, [{ label: 'Try Claude', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'copilot:claude' }]);
+		assertPromoAction(copilot, 'copilot:claude', 'Try Claude');
 
 		const codex = notifService.getNotificationForSession('openai-codex');
 		assert.ok(codex, 'Expected a Codex promo');
 		assert.ok(codex.message.toString().includes('Codex promo'));
-		assert.deepStrictEqual(codex.actions, [{ label: 'Try o4', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'codex:o4' }]);
+		assertPromoAction(codex, 'codex:o4', 'Try o4');
 	});
 
 	test('does not leak a harness promo into a different session type', () => {
@@ -360,5 +490,25 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(notifService.getAllNotifications().length, 0);
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
 		assert.deepStrictEqual(stored, ['promo-shared']);
+	});
+
+	test('dismissing a promo in one window hides it in other windows', () => {
+		const promo = { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off' };
+		const models = [{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo } }];
+		// Both windows of the same app share application-scoped storage.
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const windowA = createMockNotificationService(disposables);
+		const windowB = createMockNotificationService(disposables);
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowA.service, storageService));
+		disposables.add(new ChatPromoNotificationContribution(createMockLanguageModelsService(models, disposables).service, windowB.service, storageService));
+
+		assert.ok(windowA.getNotification());
+		assert.ok(windowB.getNotification());
+
+		windowA.dismiss();
+
+		assert.strictEqual(windowA.getNotification(), undefined, 'Dismissing window should hide the promo');
+		assert.strictEqual(windowB.getNotification(), undefined, 'Other windows should hide the promo too');
 	});
 });

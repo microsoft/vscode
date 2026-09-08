@@ -515,7 +515,7 @@ class InlineChatToolCalling {
 
 							if (result.hasError) {
 								failedEdits.push([toolCall, result]);
-								stream.progress(l10n.t('Looking not yet good, trying again...'));
+								stream.progress(l10n.t('An error occurred, trying again...'));
 							}
 
 							this._logService.trace(`Tool ${toolCall.name} invocation result: ${JSON.stringify(result)}`);
