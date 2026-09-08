@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, McpServersLoadedServer, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -5207,7 +5207,8 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
-		this._register(wrapper.onToolComplete(async e => {
+		const pendingToolCompletions = new Set<Promise<void>>();
+		const handleToolComplete = async (e: SessionEventPayload<'tool.execution_complete'>) => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
@@ -5296,9 +5297,11 @@ export class CopilotAgentSession extends Disposable {
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
+			const turn = this._currentTurn.value;
+			const turnId = this._turnId;
 			for (const filePath of filePaths) {
 				try {
-					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId, this._currentTurn.value?.clientContext);
+					const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId, turn?.clientContext);
 					if (fileEdit) {
 						content.push(fileEdit);
 					}
@@ -5309,7 +5312,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._emitAction({
 				type: ActionType.ChatToolCallComplete,
-				turnId: this._turnId,
+				turnId,
 				toolCallId: e.data.toolCallId,
 				result: {
 					success: e.data.success,
@@ -5324,9 +5327,23 @@ export class CopilotAgentSession extends Disposable {
 				// now-redundant live output resource from the host.
 				this._nonPtyShellTerminals.retire(e.data.toolCallId);
 			}
+		};
+		this._register(wrapper.onToolComplete(e => {
+			const completion = handleToolComplete(e);
+			pendingToolCompletions.add(completion);
+			void completion.catch(error => this._logService.error(error, `[Copilot:${sessionId}] Failed to complete tool call`))
+				.finally(() => pendingToolCompletions.delete(completion));
 		}));
 
-		this._register(wrapper.onIdle(e => {
+		this._register(wrapper.onIdle(async e => {
+			if (!e.data.aborted && pendingToolCompletions.size > 0) {
+				const pendingTurn = this._currentTurn.value;
+				// File-edit persistence must finish before idle clears the turn and its tool results.
+				await Promise.allSettled(pendingToolCompletions);
+				if (this._currentTurn.value !== pendingTurn) {
+					return;
+				}
+			}
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;

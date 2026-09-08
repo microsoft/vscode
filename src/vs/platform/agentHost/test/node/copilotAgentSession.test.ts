@@ -8294,6 +8294,117 @@ Use the attached image as context.
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
 
+		suite('pending file-edit completion', () => {
+			async function createPendingFileEdit() {
+				const context = await createAgentSession(disposables);
+				const editCompletion = new DeferredPromise<ToolResultFileEditContent | undefined>();
+				const fileUri = URI.file('/repo/file.ts').toString();
+				const edit: ToolResultFileEditContent = {
+					type: ToolResultContentType.FileEdit,
+					before: { uri: fileUri, content: { uri: `${fileUri}?before` } },
+					after: { uri: fileUri, content: { uri: `${fileUri}?after` } },
+				};
+				const sessionInternals = context.session as unknown as ISessionInternalsForTest;
+				sessionInternals._editTracker.takeCompletedEdit = () => editCompletion.p;
+				context.session.resetTurnState('turn-edit');
+				context.mockSession.fire('assistant.turn_start', {
+					turnId: 'sdk-edit',
+				} as SessionEventPayload<'assistant.turn_start'>['data']);
+				context.mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-edit',
+					toolName: 'edit',
+					arguments: { path: URI.file('/repo/file.ts').fsPath, old_str: 'before', new_str: 'after' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				context.mockSession.fire('tool.execution_complete', {
+					toolCallId: 'tc-edit',
+					success: true,
+				} as SessionEventPayload<'tool.execution_complete'>['data']);
+				return { ...context, editCompletion, edit };
+			}
+
+			test('normal idle waits for the file-edit result and preserves completion order and turn id', async () => {
+				const { session, mockSession, signals, waitForSignal, editCompletion, edit } = await createPendingFileEdit();
+				mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+				const beforeRelease = {
+					turnId: session.currentTurnId,
+					completedActions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+				};
+
+				await editCompletion.complete(edit);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+
+				assert.deepStrictEqual({
+					beforeRelease,
+					completedActions: getActions(signals)
+						.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => action.type === ActionType.ChatToolCallComplete
+							? { type: action.type, turnId: action.turnId, toolCallId: action.toolCallId, content: action.result.content }
+							: { type: action.type, turnId: action.turnId }),
+				}, {
+					beforeRelease: { turnId: 'turn-edit', completedActions: [] },
+					completedActions: [
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: 'tc-edit', content: [edit] },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+				});
+			});
+
+			test('aborted idle remains immediate while a file-edit result is pending', async () => {
+				const { session, mockSession, signals, editCompletion, edit } = await createPendingFileEdit();
+				mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+				const activeImmediatelyAfterAbort = session.hasActiveTurn;
+
+				await editCompletion.complete(edit);
+				await new Promise<void>(resolve => setImmediate(resolve));
+
+				assert.deepStrictEqual({
+					activeImmediatelyAfterAbort,
+					activeAfterEditCompletion: session.hasActiveTurn,
+					completedToolCalls: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+				}, {
+					activeImmediatelyAfterAbort: false,
+					activeAfterEditCompletion: false,
+					completedToolCalls: [],
+					completedTurns: [],
+				});
+			});
+
+			test('file-edit completion retains its original turn id and stale idle does not complete a replacement turn', async () => {
+				const { session, mockSession, signals, waitForSignal, editCompletion, edit } = await createPendingFileEdit();
+				mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+				session.resetTurnState('turn-replacement');
+				mockSession.fire('assistant.turn_start', {
+					turnId: 'sdk-replacement',
+				} as SessionEventPayload<'assistant.turn_start'>['data']);
+
+				await editCompletion.complete(edit);
+				await new Promise<void>(resolve => setImmediate(resolve));
+				const afterStaleIdle = {
+					turnId: session.currentTurnId,
+					completedToolCalls: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete)
+						.map(action => ({ turnId: action.turnId, toolCallId: action.toolCallId })),
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete),
+				};
+
+				mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+
+				assert.deepStrictEqual({
+					afterStaleIdle,
+					completedTurnIds: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				}, {
+					afterStaleIdle: {
+						turnId: 'turn-replacement',
+						completedToolCalls: [{ turnId: 'turn-edit', toolCallId: 'tc-edit' }],
+						completedTurns: [],
+					},
+					completedTurnIds: ['turn-replacement'],
+				});
+			});
+		});
+
 		test('hidden tools are not emitted as tool_start', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('tool.execution_start', {
