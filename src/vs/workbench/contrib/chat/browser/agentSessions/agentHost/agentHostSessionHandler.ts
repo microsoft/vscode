@@ -33,7 +33,7 @@ import { findDeepestContainingWorkingDirectory } from '../../../../../../platfor
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
-import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, withoutToolSearchCandidates } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -501,19 +501,6 @@ function getClientToolPreApproval(toolCall: ToolCallState): ConfirmedReason | un
 	}
 
 	return undefined;
-}
-
-/**
- * Returns the tool call's `_meta` with the transient
- * {@link IToolCallMeta.toolSearchCandidates} corpus removed. Always returns an
- * object (never `undefined`) so a completion action can force-replace the prior
- * `_meta` — the reducer keeps the existing bag when an action omits one, so an
- * explicit empty replacement is what actually drops the candidates.
- */
-function metaWithoutToolSearchCandidates(source: { readonly _meta?: Record<string, unknown> }): Record<string, unknown> {
-	const meta = { ...source._meta };
-	delete meta['toolSearchCandidates'];
-	return meta;
 }
 
 async function resolveToolInput(connection: IAgentConnection, toolInput: ToolInput | undefined): Promise<string> {
@@ -2726,7 +2713,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// A tool-search completion (success or failure) must drop the transient
 		// candidate corpus from `_meta` while preserving any other metadata.
-		const completionMeta = isToolSearch ? { _meta: metaWithoutToolSearchCandidates(toolCall) } : {};
+		const completionMeta = isToolSearch ? { _meta: withoutToolSearchCandidates(toolCall) } : {};
 
 		const invocation = toolData
 			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, undefined)

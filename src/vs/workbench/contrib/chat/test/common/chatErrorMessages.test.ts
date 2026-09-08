@@ -65,11 +65,7 @@ suite('ChatErrorMessages', () => {
 			assert.strictEqual(details?.message, 'You\'ve reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.');
 		});
 
-		// Drift guard: the node layer (platform/agentHost/node/shared/forwardedChatError.ts)
-		// encodes IForwardedChatError independently of this consumer (the layers cannot
-		// share types). This pins the exact payload shape the node side emits — including
-		// every fetchError.type its classifiers can produce — so a shape change on either
-		// side is caught here instead of silently failing to render.
+		// Pin every fetchError.type currently emitted by the node classifiers.
 		test('accepts the payload shape and every type the node layer emits', () => {
 			const nodeTypes = ['quotaExceeded', 'rateLimited', 'canceled', 'badRequest', 'agent_unauthorized', 'notFound', 'failed', 'length'];
 			const resolved = nodeTypes.map(type => getChatErrorDetailsFromMeta(errorInfo({

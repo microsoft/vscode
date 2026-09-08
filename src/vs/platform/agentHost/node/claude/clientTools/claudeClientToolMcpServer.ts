@@ -7,7 +7,10 @@ import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
 import type { IClaudeAgentSdkService } from '../claudeAgentSdkService.js';
+import { extractToolUseId, TOOL_USE_ID_META_KEY } from '../claudeSdkMeta.js';
 import { jsonSchemaToZodRawShape } from './claudeJsonSchemaToZod.js';
+
+export { extractToolUseId } from '../claudeSdkMeta.js';
 
 /**
  * Anthropic SDK contract: the in-process MCP `tool()` handler receives a
@@ -17,8 +20,6 @@ import { jsonSchemaToZodRawShape } from './claudeJsonSchemaToZod.js';
  * or renames this field, the handler returns an error result instead of
  * silently deadlocking — see {@link extractToolUseId}.
  */
-const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
-
 /**
  * Build the per-session in-process MCP server that surfaces the workbench
  * client's {@link ToolDefinition}s to the Claude SDK via
@@ -57,24 +58,6 @@ export async function buildClientToolMcpServer(
 		}
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_CLIENT_MCP_SERVER_NAME, tools });
-}
-
-/**
- * Recover the SDK-supplied `tool_use_id` from the MCP `tool()` handler's
- * `extra` argument. Returns `undefined` (and the handler degrades to an
- * error result) if the SDK ever drops the meta field — preferable to
- * deadlocking the call.
- */
-export function extractToolUseId(extra: unknown): string | undefined {
-	if (!extra || typeof extra !== 'object') {
-		return undefined;
-	}
-	const meta = (extra as { _meta?: unknown })._meta;
-	if (!meta || typeof meta !== 'object') {
-		return undefined;
-	}
-	const value = (meta as Record<string, unknown>)[TOOL_USE_ID_META_KEY];
-	return typeof value === 'string' ? value : undefined;
 }
 
 /**

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { readForwardedChatError, type IForwardedChatError, type IForwardedChatFetchError } from '../../../../platform/agentHost/common/meta/agentErrorMeta.js';
 import type { ErrorInfo } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatEntitlement } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel, IChatResponseErrorDetails } from './chatService/chatService.js';
+
+export type { IForwardedChatError } from '../../../../platform/agentHost/common/meta/agentErrorMeta.js';
 
 /**
  * Mirror of the Copilot extension's `ChatFetchResponseType` (see
@@ -54,30 +57,7 @@ export const enum FilterReason {
  * the extension/core boundary as untyped JSON inside `_meta`, every field is
  * optional and consumers type-cast based on `type`.
  */
-export interface IChatFetchErrorPayload {
-	readonly type: ChatFetchResponseType | string;
-	readonly reason?: string;
-	readonly reasonDetail?: string;
-	readonly requestId?: string;
-	readonly serverRequestId?: string | undefined;
-	readonly category?: FilterReason | string;
-	readonly retryAfter?: number;
-	readonly rateLimitKey?: string;
-	readonly isAuto?: boolean;
-	readonly capiError?: { code?: string; message?: string };
-}
-
-/**
- * The full forwarded chat error payload, including the user-context fields that
- * the extension would normally read from the Copilot token. This is the value
- * placed at `_meta.chatError` by the harnesses.
- */
-export interface IForwardedChatError {
-	readonly fetchError: IChatFetchErrorPayload;
-	readonly copilotPlan?: string;
-	readonly isUsageBasedBilling?: boolean;
-	readonly quotaResetDate?: string;
-}
+export type IChatFetchErrorPayload = IForwardedChatFetchError;
 
 const RATE_LIMIT_LEARN_MORE_URL = 'https://aka.ms/github-copilot-rate-limit-error';
 const FILTERED_DOCS_URL = 'https://aka.ms/copilot-chat-filtered-docs';
@@ -330,19 +310,6 @@ function getChatErrorDetailsInner(fetchError: IChatFetchErrorPayload, copilotPla
 }
 
 /**
- * Type guard for the forwarded chat error payload placed at `_meta.chatError`
- * by the agent host harnesses.
- */
-function isForwardedChatError(value: unknown): value is IForwardedChatError {
-	return !!value
-		&& typeof value === 'object'
-		&& 'fetchError' in value
-		&& !!(value as IForwardedChatError).fetchError
-		&& typeof (value as IForwardedChatError).fetchError === 'object'
-		&& typeof (value as IForwardedChatError).fetchError.type === 'string';
-}
-
-/**
  * Extracts and formats {@link IChatResponseErrorDetails} from the `_meta`
  * forwarded by an agent host harness, if present. Returns `undefined` when no
  * forwarded chat error is found so callers can fall back to their existing
@@ -353,9 +320,8 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  * whose fields take precedence over the values forwarded in `_meta`.
  */
 export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
-	const meta = error?._meta;
-	const chatError = meta?.chatError;
-	if (!isForwardedChatError(chatError)) {
+	const chatError: IForwardedChatError | undefined = readForwardedChatError(error);
+	if (!chatError) {
 		return undefined;
 	}
 	return getChatErrorDetailsFromFetchError(

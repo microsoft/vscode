@@ -29,12 +29,13 @@ disposal ownership.
 
 ## Protocol Metadata
 
-Put new readers for namespaced protocol `_meta` slots under `common/meta`.
-Readers must validate every value they return and expose typed data; callers
-should pass the parent protocol object rather than inspecting `_meta` fields
-directly. Existing unnamespaced and legacy readers live elsewhere and should be
-migrated separately when touched. Use type guards for dynamic properties; do
-not bypass type narrowing or lint rules with `Reflect.get`.
+Put protocol `_meta` readers under `common/meta`. Readers must take the parent
+protocol object, validate every value they return, and expose typed data.
+Outside that boundary, `_meta` may be forwarded or merged opaquely but must not
+be inspected directly, through a local alias, or through a cast. A type guard is
+part of a reader's validation implementation, not an exemption from this
+boundary. Keep non-AHP SDK metadata access in a dedicated adapter, and do not
+bypass type narrowing or lint rules with `Reflect.get`.
 
 ## End to End Testing
 

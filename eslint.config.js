@@ -362,6 +362,7 @@ export default defineConfig(
 		files: [
 			'src/vs/platform/agentHost/**/*.ts',
 			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
+			'src/vs/workbench/contrib/chat/common/chatErrorMessages.ts',
 			'src/vs/workbench/services/agentHost/**/*.ts',
 			'src/vs/sessions/**/*.ts',
 		],
@@ -377,6 +378,9 @@ export default defineConfig(
 			// Copilot SDK metadata is already typed and is not an AHP `_meta`
 			// bag. Keep its access isolated in one adapter.
 			'src/vs/platform/agentHost/node/copilot/copilotSdkMeta.ts',
+			// Claude SDK callback metadata is not an AHP `_meta` bag. Keep its
+			// validation isolated in one adapter.
+			'src/vs/platform/agentHost/node/claude/claudeSdkMeta.ts',
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],

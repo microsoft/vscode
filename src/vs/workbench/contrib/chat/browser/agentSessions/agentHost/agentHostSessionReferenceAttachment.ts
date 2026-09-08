@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { createSessionReferenceAttachmentMeta, readSessionReferenceAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/sessionReferenceAttachmentMeta.js';
 import { type SimpleMessageAttachment } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatRequestSessionReferenceVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { chatSessionResourceToId } from '../../../common/model/chatUri.js';
 
+export { AgentHostSessionReferenceAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/sessionReferenceAttachmentMeta.js';
+
 export const AgentHostSessionReferenceAttachmentDisplayKind = 'sessionReference';
 export const AgentHostSessionReferenceTrajectoryAttachmentDisplayKind = 'sessionReferenceTrajectory';
-export const AgentHostSessionReferenceAttachmentMetadataKey = 'vscode.agentHost.sessionReference';
-
-interface IAgentHostSessionReferenceAttachmentMetadata {
-	readonly sessionResource: string;
-	readonly sessionID: string;
-}
 
 export function toSessionReferenceModelRepresentation(label: string, sessionResource: URI, trajectoryPath?: string): string {
 	const sessionID = chatSessionResourceToId(sessionResource);
@@ -31,12 +28,7 @@ export function toSessionReferenceModelRepresentation(label: string, sessionReso
 }
 
 export function toSessionReferenceAttachmentMeta(sessionResource: URI): NonNullable<SimpleMessageAttachment['_meta']> {
-	return {
-		[AgentHostSessionReferenceAttachmentMetadataKey]: {
-			sessionResource: sessionResource.toString(),
-			sessionID: chatSessionResourceToId(sessionResource),
-		} satisfies IAgentHostSessionReferenceAttachmentMetadata,
-	};
+	return createSessionReferenceAttachmentMeta(sessionResource.toString(), chatSessionResourceToId(sessionResource));
 }
 
 export function restoreSessionReferenceVariableEntryFromAttachment(attachment: SimpleMessageAttachment): IChatRequestSessionReferenceVariableEntry | undefined {
@@ -44,7 +36,7 @@ export function restoreSessionReferenceVariableEntryFromAttachment(attachment: S
 		return undefined;
 	}
 
-	const metadata = getSessionReferenceAttachmentMetadata(attachment);
+	const metadata = readSessionReferenceAttachmentMeta(attachment);
 	if (!metadata) {
 		return undefined;
 	}
@@ -61,30 +53,6 @@ export function restoreSessionReferenceVariableEntryFromAttachment(attachment: S
 	} catch {
 		return undefined;
 	}
-}
-
-function getSessionReferenceAttachmentMetadata(attachment: SimpleMessageAttachment): IAgentHostSessionReferenceAttachmentMetadata | undefined {
-	const meta = attachment._meta;
-	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
-		return undefined;
-	}
-	const metadata = meta[AgentHostSessionReferenceAttachmentMetadataKey];
-	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-		return undefined;
-	}
-	const typedMetadata = metadata as Partial<IAgentHostSessionReferenceAttachmentMetadata>;
-	const sessionResource = typedMetadata.sessionResource;
-	if (typeof sessionResource !== 'string') {
-		return undefined;
-	}
-	const sessionID = typedMetadata.sessionID;
-	if (typeof sessionID !== 'string') {
-		return undefined;
-	}
-	return {
-		sessionResource,
-		sessionID,
-	};
 }
 
 export function isSessionReferenceTrajectoryAttachment(attachment: { readonly displayKind?: string }): boolean {

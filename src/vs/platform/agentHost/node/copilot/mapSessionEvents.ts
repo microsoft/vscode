@@ -22,6 +22,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
+import { readCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 
@@ -220,25 +221,6 @@ function readStringProperty(source: unknown, key: string): string | undefined {
 	return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function readMcpUiResourceUri(source: unknown): string | undefined {
-	if (!source || typeof source !== 'object' || Array.isArray(source)) {
-		return undefined;
-	}
-	const toolDescription = (source as Record<string, unknown>)['toolDescription'];
-	if (!toolDescription || typeof toolDescription !== 'object' || Array.isArray(toolDescription)) {
-		return undefined;
-	}
-	const meta = (toolDescription as Record<string, unknown>)['_meta'];
-	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
-		return undefined;
-	}
-	const ui = (meta as Record<string, unknown>)['ui'];
-	if (!ui || typeof ui !== 'object' || Array.isArray(ui)) {
-		return undefined;
-	}
-	return readStringProperty(ui, 'resourceUri');
-}
-
 function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, workingDirectory: URI | undefined, source: unknown): IToolStartInfo | undefined {
 	if (isHiddenTool(toolName)) {
 		return undefined;
@@ -270,7 +252,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 		parentToolCallId,
 		mcpServerName: readStringProperty(source, 'mcpServerName'),
 		mcpToolName: readStringProperty(source, 'mcpToolName'),
-		mcpUiResourceUri: readMcpUiResourceUri(source),
+		mcpUiResourceUri: readCopilotSdkToolResourceUri(source),
 	};
 }
 
@@ -971,7 +953,7 @@ function makeCompletedToolCallPart(
 
 	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
 	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
-	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
+	const mcpUiResourceUri = info.mcpUiResourceUri ?? readCopilotSdkToolResourceUri(d);
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,

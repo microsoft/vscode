@@ -156,3 +156,10 @@ export function toToolCallMeta(meta: IToolCallMeta): Record<string, unknown> | u
 	}
 	return Object.keys(result).length > 0 ? result : undefined;
 }
+
+/** Removes the transient tool-search candidates while preserving other metadata. */
+export function withoutToolSearchCandidates(source: IHasToolCallMeta): Record<string, unknown> {
+	const meta = { ...source._meta };
+	delete meta['toolSearchCandidates'];
+	return meta;
+}

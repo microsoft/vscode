@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotApiService.js';
+import type { IForwardedChatError } from '../../common/meta/agentErrorMeta.js';
+
+export type { IForwardedChatError, IForwardedChatFetchError } from '../../common/meta/agentErrorMeta.js';
 
 /**
  * Marker prefix used to smuggle a structured, serialized chat fetch error
@@ -23,36 +26,6 @@ const MAX_FORWARDED_MARKER_B64_LENGTH = 8 * 1024;
 
 /** Standard base64 alphabet with optional padding. */
 const FORWARDED_MARKER_B64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
-
-/**
- * Serialized chat fetch error payload. This is the JSON shape forwarded over
- * the protocol's `ErrorInfo._meta.chatError`. The core consumer
- * (`src/vs/workbench/contrib/chat/common/chatErrorMessages.ts`) reads the same
- * JSON shape to render localized, user-facing messages. The two definitions
- * are intentionally decoupled (the platform/node layer cannot import workbench
- * code), so any field change must be mirrored on both sides.
- */
-export interface IForwardedChatFetchError {
-	/** Mirrors the extension's `ChatFetchResponseType` string value. */
-	readonly type: string;
-	readonly reason?: string;
-	readonly requestId?: string;
-	readonly serverRequestId?: string;
-	readonly category?: string;
-	readonly retryAfter?: number;
-	readonly isAuto?: boolean;
-	readonly capiError?: { readonly code?: string; readonly message?: string };
-}
-
-/**
- * The full forwarded chat error placed at `ErrorInfo._meta.chatError`.
- */
-export interface IForwardedChatError {
-	readonly fetchError: IForwardedChatFetchError;
-	readonly copilotPlan?: string;
-	readonly isUsageBasedBilling?: boolean;
-	readonly quotaResetDate?: string;
-}
 
 /**
  * Maps a {@link CopilotApiError} HTTP status (or the mid-stream streaming
