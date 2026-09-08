@@ -692,7 +692,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
 		const isolationState: 'enabled' | 'disabled' | 'hidden' =
-			worktreeUnavailableReason === undefined ? 'enabled' : 'disabled';
+			worktreeUnavailableReason === undefined || this.isolationModel.isolationMode === 'worktree' ? 'enabled' : 'disabled';
 
 		this.branchPicker.update({
 			label: presentation.label,
