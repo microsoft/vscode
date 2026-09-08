@@ -294,6 +294,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses a tab per model provider and configures thinking effort and context from a detail card next to each model, instead of a separate configuration button."),
 			default: false,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		'chat.fontSize': {
 			type: 'number',
