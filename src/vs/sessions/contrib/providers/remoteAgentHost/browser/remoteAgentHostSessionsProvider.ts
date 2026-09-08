@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -42,7 +42,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
-import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../../automations/browser/automationService.js';
 import { providerAutomationStorageKey } from '../../../automations/common/automationStorageService.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -231,12 +231,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
-		if (this._sessionSchemeAlias || this._defaultChangesetKind) {
-			this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
-				sessionSchemeAlias: this._sessionSchemeAlias,
-				defaultChangesetKind: this._defaultChangesetKind,
-			}));
-		}
+		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+			sessionSchemeAlias: this._sessionSchemeAlias,
+			defaultChangesetKind: this._defaultChangesetKind,
+		}));
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;
@@ -438,6 +436,17 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	override getSessions(): ISession[] {
 		return this._unpublished ? [] : super.getSessions();
+	}
+
+	async resolveSessionResource(resource: URI, _reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		const ownsResource = [...this._sessionCache.values()].some(session => isEqual(session.resource, resource));
+		return ownsResource ? resource : undefined;
+	}
+
+	async prepareSessionForOpen(_session: ISession, _reason: SessionResourceResolveReason): Promise<void> {
+		if (!this._connection && this._connectOnDemand) {
+			await this._connectOnDemand();
+		}
 	}
 
 	protected override mapWorkingDirectoryUri(uri: URI): URI {

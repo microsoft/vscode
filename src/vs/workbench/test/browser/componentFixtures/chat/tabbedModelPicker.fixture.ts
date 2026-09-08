@@ -413,6 +413,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 			throw new Error(`Model row not found: ${options.openCardFor}`);
 		}
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
 		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 }

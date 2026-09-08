@@ -18,7 +18,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import { isAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -100,12 +100,6 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
-
-/**
- * The SDK's CAPI options widened with `autoTier`. The published SDK types still declare only
- * `enableWebSocketResponses`; drop the widening once they catch up.
- */
-type CapiSessionOptionsWithAutoTier = NonNullable<SessionConfig['capi']> & { autoTier?: AutoModeTier };
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -274,11 +268,6 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly model: ModelSelection | undefined;
 	readonly longContextWindow?: number;
 	readonly freeLongContext?: boolean;
-	/**
-	 * The Auto routing profile to send, already resolved against the gate. Frozen here so the profile
-	 * the runtime receives always matches the one the caller persists.
-	 */
-	readonly autoTier?: AutoModeTier;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -288,7 +277,6 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 		readonly model: ModelSelection | undefined;
 		readonly longContextWindow?: number;
 		readonly freeLongContext?: boolean;
-		readonly autoTier?: AutoModeTier;
 	};
 }
 
@@ -466,31 +454,49 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
- * The Auto routing profile ("Optimize for") a session should launch with. Only the Auto model routes
- * per turn, so a profile left on another model by an earlier selection is ignored.
+ * The Auto routing preference ("Optimize for"). Profiles left on concrete models are ignored.
  */
 export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeTier | undefined {
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
-	const tier = model?.config?.[AutoTierConfigKey];
+	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey]);
 	return isAutoModeTier(tier) ? tier : undefined;
 }
 
-/**
- * {@link getCopilotAutoTier} behind the `autoModeTiers` gate. Re-read here rather than trusted from
- * the picker schema, since the runtime rejects unknown `capi` fields and would fail the session.
- */
+/** Resolves the shared Auto override independently of the picker gate, leaving concrete models unchanged. */
+function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+	if (model && !isAutoModel(model.id)) {
+		return undefined;
+	}
+	const override = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTierOverride);
+	if (!override) {
+		return undefined;
+	}
+	const tier = normalizeAutoModeTier(override);
+	if (!isAutoModeTier(tier)) {
+		logService.warn(`[Copilot:${sessionId}] Ignoring unsupported Auto "Optimize for" override '${override}'; expected one of [${autoModeTiers.join(', ')}]`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
+	return tier;
+}
+
+/** Resolves the shared override first, then the picker preference while "Optimize for" is enabled. */
 export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
+	if (override !== undefined) {
+		return override;
+	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
 		return undefined;
 	}
 	if (configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) !== true) {
-		logService.trace(`[Copilot:${sessionId}] Auto routing profiles are disabled; ignoring '${tier}'`);
+		logService.trace(`[Copilot:${sessionId}] Auto "Optimize for" is disabled; ignoring '${tier}'`);
 		return undefined;
 	}
-	logService.info(`[Copilot:${sessionId}] Launching Auto session with the '${tier}' routing profile`);
+	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
 	return tier;
 }
 
@@ -498,12 +504,11 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
  * The CAPI session options for a routing profile. Omitting `capi` entirely, rather than sending an
  * empty profile, is what leaves the runtime on its default routing.
  */
-export function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
+function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
 	if (autoTier === undefined) {
 		return {};
 	}
-	const capi: CapiSessionOptionsWithAutoTier = { autoTier };
-	return { capi };
+	return { capi: { autoTier } };
 }
 
 /**
@@ -655,7 +660,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
-				autoTier: fallbackPlan.fallback.autoTier,
 			}, fallbackConfig, sandboxConfig);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
@@ -683,9 +687,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
-			// Create-time only. Taken from the plan rather than resolved again, so the profile sent
-			// always matches the one the caller persists.
-			...toSdkCapiSessionOptions(plan.autoTier),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
@@ -985,6 +987,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured.
 			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
+			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId)) : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

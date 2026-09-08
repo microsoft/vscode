@@ -222,6 +222,11 @@ export interface ISessionsProvider {
 	 */
 	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
+	 * Optional. Prepares a known session before it is opened or restored.
+	 * Startup restoration invokes this only for the active session.
+	 */
+	prepareSessionForOpen?(session: ISession, reason: SessionResourceResolveReason): Promise<void>;
+	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
 	 *

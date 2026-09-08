@@ -128,7 +128,7 @@ suite('SessionBackgroundActivitiesControl', () => {
 			sections: [
 				[{ title: 'Subagents', entries: [{ label: 'Research', icon: 'agent' }] }],
 				[{ title: 'Subagents', entries: [{ label: 'Investigate the authentication...', icon: 'agent' }] }],
-				[{ title: 'Subagents', entries: [{ label: 'Research', icon: 'agent' }, { label: 'Review', icon: 'agent' }] }],
+				[{ title: 'Subagents', entries: [{ label: 'Review', icon: 'agent' }, { label: 'Research', icon: 'agent' }] }],
 			],
 			disabled: [],
 		});
@@ -147,10 +147,10 @@ suite('SessionBackgroundActivitiesControl', () => {
 		assert.deepStrictEqual(sections(harness.control), [
 			{
 				title: 'Subagents', entries: [
-					{ label: 'Running', icon: 'agent' },
-					{ label: 'Waiting', icon: 'agent' },
-					{ label: 'Completed', icon: 'agent' },
 					{ label: 'Failed', icon: 'agent' },
+					{ label: 'Completed', icon: 'agent' },
+					{ label: 'Waiting', icon: 'agent' },
+					{ label: 'Running', icon: 'agent' },
 				],
 			},
 		]);

@@ -4,26 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ActionRunner } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperationScope, ChangesetOperationStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createChatState, ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState, type SessionState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionFileChange, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { Menus } from '../../../../../browser/menus.js';
+import { SessionIdContext } from '../../../../../common/contextkeys.js';
+import { ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
+import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { createChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
@@ -462,4 +480,133 @@ suite('AgentHostSessionChangesets', () => {
 			afterCompletion: [{ id: operationId, status: SessionChangesetOperationStatus.Idle }],
 		});
 	});
+
+	for (const outcome of ['success', 'error'] as const) {
+		test(`sync button invokes an unlisted draft's operation and spins until ${outcome}`, async () => {
+			const commandId = 'workbench.action.sessions.syncChanges';
+			const sessionUri = URI.parse('ahp-session:/draft');
+			const channel = buildUncommittedChangesetUri(sessionUri.toString());
+			const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const changesetState: ChangesetState = {
+				status: ChangesetStatus.Ready,
+				files: [],
+				operations: [{
+					id: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID,
+					label: 'Sync Changes',
+					scopes: [ChangesetOperationScope.Changeset],
+					status: ChangesetOperationStatus.Idle,
+				}],
+			};
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return {
+						object: {
+							value: changesetState as ComponentToState[T],
+							verifiedValue: changesetState as ComponentToState[T],
+							onDidChange: Event.None,
+							onWillApplyAction: Event.None,
+							onDidApplyAction: Event.None,
+						},
+						dispose: () => { },
+					};
+				}
+				override invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+					invocations.push(params);
+					return operationResult.p;
+				}
+			}();
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			const changesets = createChangesets(sessionUri, {
+				icon: Codicon.copilot,
+				loading: constObservable(false),
+				buildWorkspace: () => undefined,
+				instantiationService,
+				getConnection: () => connection,
+				agentCapabilities: constObservable(undefined),
+				mapBackendSessionResource: resource => resource,
+			}, constObservable(true), [{ label: 'Uncommitted Changes', changeKind: ChangesetKind.Uncommitted, uriTemplate: channel }]);
+			const session = upcastPartial<IActiveSession>({
+				sessionId: 'draft',
+				resource: sessionUri,
+				changesets: constObservable(changesets),
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({
+					folders: [upcastPartial<ISessionFolder>({
+						gitRepository: upcastPartial<ISessionGitRepository>({ incomingChanges: 1 }),
+					})],
+				})),
+			});
+			const sessionsService = new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(session);
+				override readonly visibleSessions = constObservable([session]);
+			}();
+			instantiationService.stub(ISessionsService, sessionsService);
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override getSession(): undefined { return undefined; }
+			}());
+			disposables.add(new SessionSyncChangesContribution(sessionsService, new NullActionViewItemService()));
+			const commandService = new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					await instantiationService.invokeFunction(CommandsRegistry.getCommand(id)!.handler, ...args);
+					return undefined;
+				}
+			}();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			SessionIdContext.bindTo(contextKeyService).set(session.sessionId);
+			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const menuService = disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new TestStorageService())));
+			const menu = disposables.add(menuService.createMenu(Menus.NewSessionRepositoryConfig, contextKeyService, { eventDebounceDelay: 0 }));
+			const item = disposables.add(new MutableDisposable<SessionSyncChangesActionViewItem>());
+			const actionRunner = disposables.add(new ActionRunner());
+			const container = document.createElement('div');
+			const renderMenu = () => {
+				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }());
+				item.value = viewItem;
+				viewItem.actionRunner = actionRunner;
+				container.replaceChildren();
+				viewItem.render(container);
+			};
+			disposables.add(menu.onDidChange(renderMenu));
+			renderMenu();
+			const label = () => container.querySelector<HTMLElement>('.action-label')!;
+			const presentation = () => ({
+				spinning: !!label().querySelector('.codicon-modifier-spin'),
+				enabled: item.value!.action.enabled,
+				busy: label().getAttribute('aria-busy'),
+			});
+			const completed = Event.toPromise(actionRunner.onDidRun);
+			const runningMenuChanged = Event.toPromise(menu.onDidChange);
+			label().click();
+			await runningMenuChanged;
+			const whileRunning = presentation();
+			label().click();
+			const invocationCountWhileRunning = invocations.length;
+			const failure = new Error('Sync failed');
+			const idleMenuChanged = Event.toPromise(menu.onDidChange);
+			if (outcome === 'error' && invocations.length > 0) {
+				operationResult.error(failure);
+			} else {
+				operationResult.complete({});
+			}
+			const result = await completed;
+			await idleMenuChanged;
+
+			assert.deepStrictEqual({
+				invocations,
+				invocationCountWhileRunning,
+				whileRunning,
+				afterCompletion: presentation(),
+				error: result.error,
+			}, {
+				invocations: [{ operationId: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, channel, target: undefined, _meta: undefined }],
+				invocationCountWhileRunning: 1,
+				whileRunning: { spinning: true, enabled: false, busy: 'true' },
+				afterCompletion: { spinning: false, enabled: true, busy: 'false' },
+				error: outcome === 'error' ? failure : undefined,
+			});
+		});
+	}
 });

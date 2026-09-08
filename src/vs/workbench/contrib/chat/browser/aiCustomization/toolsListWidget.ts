@@ -31,7 +31,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
+import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
@@ -1061,7 +1061,7 @@ export class ToolsListWidget extends Disposable {
 		const heights = layoutVirtualizedSections(this._treeContainer, this._sectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.entries.reduce((sum, entry) => sum + computeToolsRowHeight(entry), 0),
-			minimumHeight: section.entries.length > 0 ? computeToolsRowHeight(section.entries[0]) : 0,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.entries, computeToolsRowHeight),
 		})));
 		for (let index = 0; index < this._sectionLists.length; index++) {
 			this._layoutSection(this._sectionLists[index], heights[index]);

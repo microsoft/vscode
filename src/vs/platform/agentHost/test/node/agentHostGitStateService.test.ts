@@ -10,18 +10,34 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
 import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { getSessionRelatedPullRequestUrls, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
+
+type PullRequestArtifact = ISessionArtifact & { readonly link: string };
+
+function pullRequestArtifact(number: number, isArtifact = true): PullRequestArtifact {
+	return {
+		id: `pr-${number}`,
+		type: SessionArtifactType.PullRequest,
+		label: `Pull request ${number}`,
+		isArtifact,
+		link: `https://github.com/microsoft/vscode/pull/${number}`,
+		isGitHub: true,
+	};
+}
 
 suite('AgentHostGitStateService', () => {
 
@@ -161,10 +177,14 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string }) {
+	function createHarness(options?: { octoKitService?: IAgentHostOctoKitService; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
+		if (options?.autoAttachPullRequests !== undefined) {
+			configurationService.updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: options.autoAttachPullRequests });
+		}
 
 		const gitCalls: string[] = [];
 		const gitBaseBranches: Array<string | undefined> = [];
@@ -186,12 +206,14 @@ suite('AgentHostGitStateService', () => {
 
 		const pullRequestCalls: string[] = [];
 		const pullRequestShaCalls: string[] = [];
+		const pullRequestCandidateCalls: Array<readonly string[] | undefined> = [];
 		const pullRequestsByBranch = new Map<string, CreatedPullRequest>();
 		const pullRequestsBySha = new Map<string, CreatedPullRequest>();
 		let onPullRequestLookup: ((branch: string) => Promise<void>) | undefined;
 		const octoKitService = {
-			findPullRequestByHeadBranch: async (_owner: string, _repo: string, branch: string) => {
+			findPullRequestByHeadBranch: async (_owner: string, _repo: string, branch: string, _token: string, _signal: AbortSignal, _headOwner?: string, allowedPullRequestUrls?: readonly string[]) => {
 				pullRequestCalls.push(branch);
+				pullRequestCandidateCalls.push(allowedPullRequestUrls ? [...allowedPullRequestUrls] : undefined);
 				await onPullRequestLookup?.(branch);
 				return pullRequestsByBranch.get(branch);
 			},
@@ -214,6 +236,7 @@ suite('AgentHostGitStateService', () => {
 			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
 			sessionDataService,
+			configurationService,
 		));
 
 		const runEvents: string[] = [];
@@ -225,12 +248,14 @@ suite('AgentHostGitStateService', () => {
 			stateManager,
 			db,
 			service,
+			configurationService,
 			gitCalls,
 			gitBaseBranches,
 			runEvents,
 			gitHubStateEvents,
 			pullRequestCalls,
 			pullRequestShaCalls,
+			pullRequestCandidateCalls,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitError: (error: Error) => { gitError = error; },
 			setHeadSha: (sha: string | undefined) => { headSha = sha; },
@@ -240,7 +265,7 @@ suite('AgentHostGitStateService', () => {
 		};
 	}
 
-	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; isolation?: 'folder' | 'worktree'; baseBranch?: string; createNewBranch?: boolean; createdAt?: number }): void {
+	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; artifacts?: readonly ISessionArtifact[]; isolation?: 'folder' | 'worktree'; baseBranch?: string; createNewBranch?: boolean; createdAt?: number }): void {
 		const summary: SessionSummary = {
 			resource: SESSION,
 			provider: 'mock',
@@ -269,6 +294,9 @@ suite('AgentHostGitStateService', () => {
 		}
 		if (options?.gitHubState) {
 			stateManager.setSessionMeta(SESSION, withSessionGitHubState(stateManager.getSessionState(SESSION)?._meta, options.gitHubState));
+		}
+		if (options?.artifacts) {
+			stateManager.setSessionMeta(SESSION, withSessionArtifacts(stateManager.getSessionState(SESSION)?._meta, options.artifacts));
 		}
 	}
 
@@ -592,6 +620,91 @@ suite('AgentHostGitStateService', () => {
 				pullRequestShaCalls: [],
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'], pullRequestBranchName: 'local-name' },
 			});
+		});
+	});
+
+	test('uses a PR artifact as the only GitHub lookup candidate when automatic attachment is disabled', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+			const h = createHarness({ autoAttachPullRequests: false });
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: { owner: 'microsoft', repo: 'vscode' },
+				artifacts: [pullRequestArtifact(2)],
+			});
+			h.setGitResult(gitState);
+			h.setPullRequest('feature', { url: 'https://github.com/microsoft/vscode/pull/2', number: 2, state: 'open' });
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual({
+				pullRequestCandidateCalls: h.pullRequestCandidateCalls,
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+			}, {
+				pullRequestCandidateCalls: [['https://github.com/microsoft/vscode/pull/2']],
+				github: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'],
+					pullRequestBranchName: 'feature',
+				},
+			});
+		});
+	});
+
+	test('applies restricted PR state when candidate lookup fails', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+			const h = createHarness({
+				autoAttachPullRequests: false,
+				octoKitService: {
+					findPullRequestByHeadBranch: async () => { throw new Error('GitHub unavailable'); },
+				} as unknown as IAgentHostOctoKitService,
+			});
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				gitState,
+				gitHubState: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
+					pullRequestBranchName: 'feature',
+				},
+				artifacts: [pullRequestArtifact(2)],
+			});
+			h.setGitResult(gitState);
+
+			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
+
+			assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+				owner: 'microsoft',
+				repo: 'vscode',
+			});
+		});
+	});
+
+	test('reconciles an existing automatically discovered PR when the setting is disabled', async () => {
+		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState,
+			gitHubState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
+				pullRequestBranchName: 'feature',
+			},
+		});
+		const reconciled = Event.toPromise(h.service.onDidChangeSessionGitHubState);
+
+		h.configurationService.updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: false });
+		await reconciled;
+
+		assert.deepStrictEqual(readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta), {
+			owner: 'microsoft',
+			repo: 'vscode',
 		});
 	});
 

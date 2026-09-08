@@ -21,6 +21,7 @@ import { autorun, constObservable, derived, disposableObservableValue, IObservab
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
@@ -36,6 +37,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
@@ -55,7 +57,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
@@ -499,6 +501,23 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
 const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
+
+export function getAutomationTargetHint(target: Pick<IFormState, 'isQuickChat' | 'folderUri' | 'providerId' | 'sessionTypeId'>, sessionTypes: readonly IProviderSessionType[]): string | undefined {
+	if (!target.isQuickChat && !target.folderUri) {
+		return localize('automation.form.targetHint.choose', "Choose a workspace or No workspace to see which agents can run this automation.");
+	}
+	if (sessionTypes.length === 0) {
+		return localize('automation.form.targetHint.unavailable', "No agents are currently available for this target.");
+	}
+	if (sessionTypes.length === 1
+		&& sessionTypes[0].sessionType.id === target.sessionTypeId
+		&& (!target.providerId || sessionTypes[0].providerId === target.providerId)) {
+		return target.isQuickChat
+			? localize('automation.form.targetHint.singleQuickChat', "Only {0} is available without a workspace. Choose a workspace to use a different agent.", sessionTypes[0].sessionType.label)
+			: localize('automation.form.targetHint.singleWorkspace', "Only {0} is available for this workspace. Change the workspace to use a different agent.", sessionTypes[0].sessionType.label);
+	}
+	return undefined;
+}
 
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
 
@@ -950,7 +969,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
-				order: 0,
+				order: -2,
 				when: ChatContextKeys.inAutomationsDialog,
 			}],
 		});
@@ -1079,8 +1098,8 @@ export function renderForm(
 
 	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
-	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false }));
+	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader) !== undefined);
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
@@ -1115,6 +1134,7 @@ export function renderForm(
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
 		restoreFromSessions: false,
+		canRestoreWorkspace: () => false,
 		canSelectWorkspace: (folderUri, preferredProviderId) =>
 			canSelectAutomationWorkspace(folderUri, preferredProviderId, sessionsManagementService, workspaceTrustRequestService),
 	}));
@@ -1188,10 +1208,6 @@ export function renderForm(
 		}
 	}));
 
-	if (!state.isQuickChat && !state.folderUri && workspacePicker.selectedFolderUri) {
-		isolationModel.setWorkspace(workspacePicker.selectedFolderUri);
-	}
-
 	disposables.add(autorun(reader => {
 		isolationModel.isQuickChatObs.read(reader);
 		updateAutomationSessionTarget();
@@ -1255,6 +1271,7 @@ export function renderForm(
 		// A scheduling form, not a chat about to be sent: keep promos out.
 		isTransientChat: true,
 		inputEditorMinLines: 3,
+		inputEditorQuickSuggestions: EditorOptions.quickSuggestions.defaultValue,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no
 		// outer horizontal gutter. Without this, ChatInputPart would still
@@ -1339,6 +1356,33 @@ export function renderForm(
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
+	const targetHint = DOM.append(promptSection, $('.automation-target-hint'));
+	const targetHintMessage = DOM.append(targetHint, $('span.automation-target-hint-message', {
+		role: 'status',
+		'aria-atomic': 'true',
+	}));
+	const chooseWorkspaceContainer = DOM.append(targetHint, $('span.automation-target-hint-action'));
+	disposables.add(instantiationService.createInstance(Link, chooseWorkspaceContainer, {
+		label: localize('automation.form.chooseWorkspace', "Choose Workspace"),
+		href: '#',
+	}, {
+		opener: () => workspacePicker.showPicker(),
+	}));
+	const selectedSessionTypeChanged = observableSignalFromEvent(targetHint, sessionTypePicker.onDidChangeSelectedPick);
+	disposables.add(autorun(reader => {
+		sessionTypesChanged.read(reader);
+		selectedSessionTypeChanged.read(reader);
+		const isQuickChat = isolationModel.isQuickChatObs.read(reader);
+		const folderUri = isolationModel.folderUriObs.read(reader);
+		const sessionTypes = isQuickChat
+			? sessionsManagementService.getQuickChatSessionTypes()
+			: folderUri ? sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+		const message = getAutomationTargetHint(state, sessionTypes);
+		setAutomationControlVisible(targetHint, message !== undefined);
+		if (targetHintMessage.textContent !== (message ?? '')) {
+			targetHintMessage.textContent = message ?? '';
+		}
+	}));
 	const sessionConfigurationRow = DOM.append(promptSection, $('.automation-form-row'));
 	const sessionConfigurationLabel = DOM.append(sessionConfigurationRow, $('span.automation-form-label', {
 		id: 'automation-session-configuration-label',
@@ -1383,6 +1427,8 @@ export function renderForm(
 	}));
 	DOM.hide(sessionConfigurationError);
 	disposables.add(autorun(reader => {
+		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
+		setAutomationControlVisible(sessionConfigurationRow, hasTarget);
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
@@ -1614,7 +1660,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const noWorkspace = this.targetModel?.isQuickChat === true;
 		const label = noWorkspace
 			? localize('automation.form.noWorkspace', "No workspace")
-			: workspace?.label ?? localize('pickWorkspace', "workspace");
+			: workspace?.label ?? localize('automation.form.selectWorkspace', "Select workspace");
 		const icon = noWorkspace ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
 		trigger.setAttribute('aria-label', workspace || noWorkspace
