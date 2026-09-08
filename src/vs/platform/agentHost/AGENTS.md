@@ -139,7 +139,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
   persisted archive/GitHub fields needed for cleanup; and the designated pull
   request is authoritatively refreshed before a candidate is restored. Eligible
   sessions are archived through the normal `SessionIsArchivedChanged` action
-  path.
+  path. Inactive merged-session worktrees are independently removed when the
+  default-on cleanup setting is enabled and Git confirms that the branch tracks
+  an upstream with no unpushed or uncommitted work.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:

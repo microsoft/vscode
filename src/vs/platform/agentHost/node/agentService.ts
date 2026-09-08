@@ -2097,7 +2097,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * This deliberately avoids provider metadata, transcript materialization,
 	 * presentation overlays, and the shared `listSessions()` computation.
 	 */
-	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
+	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
 		const registered = (await this._listRegisteredSessions()).filter(entry => !entry.external);
 		const limiter = new Limiter<IAgentHostSessionLifecycleCandidate | undefined>(4);
 		const candidates = await Promise.all(registered.map(entry => limiter.queue(async () => {
@@ -2110,7 +2110,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			let archived = liveStatus !== undefined ? isSessionStatusArchived(liveStatus) : undefined;
-			if (archived === false && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
+			if (archived === false && !cleanupWorktrees && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
 				return undefined;
 			}
 			if (archived === true && deleteCutoff === undefined) {
@@ -2118,6 +2118,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (archived === undefined
 				&& deleteCutoff === undefined
+				&& !cleanupWorktrees
 				&& (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
 				return undefined;
 			}
@@ -2156,10 +2157,12 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 
-			const action = archived ? 'delete' : 'archive';
-			if (action === 'delete'
-				? deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff
-				: archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff) {
+			const action = archived
+				? 'delete'
+				: archiveCutoff !== undefined && Number.isFinite(modifiedTime) && modifiedTime <= archiveCutoff
+					? 'archive'
+					: cleanupWorktrees ? 'cleanupWorktree' : undefined;
+			if (!action || (action === 'delete' && (deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff))) {
 				return undefined;
 			}
 			const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
@@ -4192,6 +4195,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	canAutomaticallyDeleteArchivedSession(session: URI): Promise<boolean> {
 		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
+	}
+
+	cleanupWorktree(session: URI, sessionId: string): Promise<void> {
+		return this._worktree.cleanupWorktree(session, sessionId);
 	}
 
 	private async _doDisposeSession(session: URI): Promise<void> {

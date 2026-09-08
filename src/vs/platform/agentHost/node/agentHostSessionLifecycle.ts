@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSessionRelatedPullRequestUrls, isSessionStatusArchived, readSessionGitHubState, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -21,15 +21,16 @@ const DEFAULT_INTERVAL_MS = 60 * 60 * 1000;
 export interface IAgentHostSessionLifecycleCandidate {
 	readonly session: URI;
 	readonly pullRequestUrl: string;
-	readonly action: 'archive' | 'delete';
+	readonly action: 'archive' | 'delete' | 'cleanupWorktree';
 }
 
 export interface IAgentHostSessionLifecycleAccessor {
-	readonly listCandidates: (archiveCutoff: number | undefined, deleteCutoff: number | undefined) => Promise<readonly IAgentHostSessionLifecycleCandidate[]>;
+	readonly listCandidates: (archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean) => Promise<readonly IAgentHostSessionLifecycleCandidate[]>;
 	readonly restoreSession: (session: URI) => Promise<void>;
 	readonly getAutoArchivedAt: (session: URI) => Promise<number | undefined>;
 	readonly setAutoArchivedAt: (session: URI, timestamp: number) => Promise<void>;
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
+	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
 	readonly deleteSession: (session: URI, validate: () => Promise<boolean>) => Promise<boolean>;
 }
 
@@ -52,7 +53,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 	private readonly _now: () => number;
 	private _runPromise = Promise.resolve();
 	private _disposed = false;
-	private _thresholds: { readonly archiveAfterDays: number; readonly deleteAfterDays: number };
+	private _settings: { readonly archiveAfterDays: number; readonly deleteAfterDays: number; readonly cleanupWorktrees: boolean };
 
 	constructor(
 		private readonly _accessor: IAgentHostSessionLifecycleAccessor,
@@ -66,15 +67,16 @@ export class AgentHostSessionLifecycle extends Disposable {
 		super();
 		this._intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
 		this._now = options.now ?? Date.now;
-		this._thresholds = this._readThresholds();
+		this._settings = this._readSettings();
 		this._scheduler = this._register(new RunOnceScheduler(() => this._runScheduled(), this._intervalMs));
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const thresholds = this._readThresholds();
-			if (thresholds.archiveAfterDays === this._thresholds.archiveAfterDays
-				&& thresholds.deleteAfterDays === this._thresholds.deleteAfterDays) {
+			const settings = this._readSettings();
+			if (settings.archiveAfterDays === this._settings.archiveAfterDays
+				&& settings.deleteAfterDays === this._settings.deleteAfterDays
+				&& settings.cleanupWorktrees === this._settings.cleanupWorktrees) {
 				return;
 			}
-			this._thresholds = thresholds;
+			this._settings = settings;
 			this._schedule(0);
 		}));
 		this._register(providerService.onDidRegisterProvider(() => this._schedule(0)));
@@ -99,30 +101,31 @@ export class AgentHostSessionLifecycle extends Disposable {
 			.then(() => this.run())
 			.catch(error => this._logService.warn('[AgentHostSessionLifecycle] Auto-archive pass failed', error))
 			.finally(() => {
-				if (this._thresholds.archiveAfterDays > 0 || this._thresholds.deleteAfterDays > 0) {
+				if (this._settings.archiveAfterDays > 0 || this._settings.deleteAfterDays > 0 || this._settings.cleanupWorktrees) {
 					this._schedule(this._intervalMs);
 				}
 			});
 	}
 
 	async run(): Promise<void> {
-		const { archiveAfterDays, deleteAfterDays } = this._thresholds;
-		if (archiveAfterDays === 0 && deleteAfterDays === 0) {
+		const { archiveAfterDays, deleteAfterDays, cleanupWorktrees } = this._settings;
+		if (archiveAfterDays === 0 && deleteAfterDays === 0 && !cleanupWorktrees) {
 			return;
 		}
 
 		const archiveCutoff = archiveAfterDays > 0 ? this._now() - archiveAfterDays * DAY_MS : undefined;
 		const deleteCutoff = deleteAfterDays > 0 ? this._now() - deleteAfterDays * DAY_MS : undefined;
-		const candidates = await this._accessor.listCandidates(archiveCutoff, deleteCutoff);
+		const candidates = await this._accessor.listCandidates(archiveCutoff, deleteCutoff, cleanupWorktrees);
 		for (const candidate of candidates) {
 			await this._evaluateCandidate(candidate);
 		}
 	}
 
-	private _readThresholds(): { readonly archiveAfterDays: number; readonly deleteAfterDays: number } {
+	private _readSettings(): { readonly archiveAfterDays: number; readonly deleteAfterDays: number; readonly cleanupWorktrees: boolean } {
 		return {
 			archiveAfterDays: this._readThreshold(AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey),
 			deleteAfterDays: this._readThreshold(AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey),
+			cleanupWorktrees: this._configurationService.getRootValue(platformRootSchema, AgentHostAutoRemoveWorktreesAfterMergeConfigKey) !== false,
 		};
 	}
 
@@ -147,14 +150,15 @@ export class AgentHostSessionLifecycle extends Disposable {
 			return;
 		}
 
-		const currentArchiveAfterDays = this._thresholds.archiveAfterDays;
-		const currentDeleteAfterDays = this._thresholds.deleteAfterDays;
-		const refreshedCandidate = currentArchiveAfterDays > 0 || currentDeleteAfterDays > 0
+		const currentArchiveAfterDays = this._settings.archiveAfterDays;
+		const currentDeleteAfterDays = this._settings.deleteAfterDays;
+		const refreshedCandidate = currentArchiveAfterDays > 0 || currentDeleteAfterDays > 0 || this._settings.cleanupWorktrees
 			? await this._getCleanupCandidate(
 				session,
 				this._stateManager.getSessionSummary(sessionKey),
 				currentArchiveAfterDays > 0 ? this._now() - currentArchiveAfterDays * DAY_MS : undefined,
 				currentDeleteAfterDays > 0 ? this._now() - currentDeleteAfterDays * DAY_MS : undefined,
+				this._settings.cleanupWorktrees,
 			)
 			: undefined;
 		if (refreshedCandidate?.action !== candidate.action
@@ -162,8 +166,13 @@ export class AgentHostSessionLifecycle extends Disposable {
 			return;
 		}
 
+		if (candidate.action === 'cleanupWorktree') {
+			await this._accessor.cleanupWorktree(session, sessionKey);
+			return;
+		}
+
 		if (candidate.action === 'archive') {
-			const finalArchiveAfterDays = this._thresholds.archiveAfterDays;
+			const finalArchiveAfterDays = this._settings.archiveAfterDays;
 			const finalPullRequestUrl = finalArchiveAfterDays > 0
 				? this._getArchiveCandidate(
 					this._stateManager.getSessionSummary(sessionKey),
@@ -186,16 +195,17 @@ export class AgentHostSessionLifecycle extends Disposable {
 						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
 						return false;
 					}
-					const finalDeleteAfterDays = this._thresholds.deleteAfterDays;
+					const finalDeleteAfterDays = this._settings.deleteAfterDays;
 					const finalCandidate = finalDeleteAfterDays > 0
 						? await this._getCleanupCandidate(
 							session,
 							this._stateManager.getSessionSummary(sessionKey),
 							undefined,
 							this._now() - finalDeleteAfterDays * DAY_MS,
+							this._settings.cleanupWorktrees,
 						)
 						: undefined;
-					return this._thresholds.deleteAfterDays === finalDeleteAfterDays
+					return this._settings.deleteAfterDays === finalDeleteAfterDays
 						&& finalCandidate?.action === 'delete'
 						&& finalCandidate.pullRequestUrl.toLowerCase() === pullRequest.url.toLowerCase();
 				});
@@ -208,7 +218,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 	}
 
-	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<{ readonly pullRequestUrl: string; readonly action: 'archive' | 'delete' } | undefined> {
+	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean): Promise<IAgentHostSessionLifecycleCandidate | undefined> {
 		if (!summary
 			|| isSessionStatusActive(summary.status)) {
 			return undefined;
@@ -219,16 +229,17 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 		if (!isSessionStatusArchived(summary.status)) {
 			const modifiedTime = Date.parse(summary.modifiedAt);
-			return archiveCutoff !== undefined && modifiedTime <= archiveCutoff
-				? { pullRequestUrl, action: 'archive' }
-				: undefined;
+			if (archiveCutoff !== undefined && modifiedTime <= archiveCutoff) {
+				return { session, pullRequestUrl, action: 'archive' };
+			}
+			return cleanupWorktrees ? { session, pullRequestUrl, action: 'cleanupWorktree' } : undefined;
 		}
 		if (deleteCutoff === undefined) {
 			return undefined;
 		}
 		const autoArchivedAt = await this._accessor.getAutoArchivedAt(session);
 		return autoArchivedAt !== undefined && autoArchivedAt <= deleteCutoff
-			? { pullRequestUrl, action: 'delete' }
+			? { session, pullRequestUrl, action: 'delete' }
 			: undefined;
 	}
 

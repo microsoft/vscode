@@ -3084,7 +3084,7 @@ suite('AgentService (node dispatcher)', () => {
 				}));
 			}
 
-			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined, false);
 
 			assert.deepStrictEqual({
 				candidates: candidates.map(candidate => ({
@@ -3124,7 +3124,7 @@ suite('AgentService (node dispatcher)', () => {
 				})),
 			]);
 
-			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000);
+			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000, false);
 
 			assert.deepStrictEqual(candidates.map(candidate => ({
 				session: candidate.session.toString(),
@@ -3134,6 +3134,34 @@ suite('AgentService (node dispatcher)', () => {
 				session: session.toString(),
 				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/3',
 				action: 'delete',
+			}]);
+		});
+
+		test('enumerates inactive sessions for worktree cleanup when record cleanup is disabled', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const session = AgentSession.uri('copilot', 'merged-worktree');
+			await registry.register(session, {
+				provider: 'copilot',
+				startTime: Date.UTC(2026, 8, 5),
+				modifiedTime: Date.UTC(2026, 8, 5),
+				source: 'explicit',
+			}, { checkTombstone: false });
+			await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'],
+			}));
+
+			const candidates = await svc.listSessionLifecycleCandidates(undefined, undefined, true);
+
+			assert.deepStrictEqual(candidates.map(candidate => ({
+				session: candidate.session.toString(),
+				pullRequestUrl: candidate.pullRequestUrl,
+				action: candidate.action,
+			})), [{
+				session: session.toString(),
+				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/4',
+				action: 'cleanupWorktree',
 			}]);
 		});
 	});

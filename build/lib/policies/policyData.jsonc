@@ -466,6 +466,21 @@
             "included": true
         },
         {
+            "key": "chat.agentSessions.autoRemoveWorktreesAfterMerge",
+            "name": "ChatAgentSessionsAutoRemoveWorktreesAfterMerge",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "autoRemoveWorktreesAfterMerge.policy",
+                    "value": "Configure whether worktrees for inactive agent sessions are automatically removed after their pull request is merged."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.approvedAccountOrganizations",
             "name": "ChatApprovedAccountOrganizations",
             "category": "InteractiveSession",

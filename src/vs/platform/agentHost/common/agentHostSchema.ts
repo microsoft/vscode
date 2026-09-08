@@ -558,6 +558,9 @@ export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchive
 /** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
 export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
 
+/** Root config key controlling automatic worktree removal for sessions with merged pull requests. */
+export const AgentHostAutoRemoveWorktreesAfterMergeConfigKey = 'autoRemoveWorktreesAfterMerge';
+
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
  * support for the Copilot provider. When `true`, the Copilot provider advertises
@@ -887,6 +890,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
 		enum: [0, 1, 7, 15, 30],
 		default: 0,
+	}),
+	[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoRemoveWorktreesAfterMerge.title', "Auto-Remove Worktrees After Merge"),
+		description: localize('agentHost.config.autoRemoveWorktreesAfterMerge.description', "Whether worktrees for inactive sessions are automatically removed after their pull request is merged. Worktrees are only removed when the branch tracks an upstream, has no unpushed commits, and has no uncommitted changes."),
+		default: true,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

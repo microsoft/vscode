@@ -190,7 +190,7 @@ export function createAgentServiceComposition(
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		owned.add(new AgentHostSessionLifecycle(
 			{
-				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
+				listCandidates: (archiveCutoff, deleteCutoff, cleanupWorktrees) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff, cleanupWorktrees),
 				restoreSession: session => agentService!.restoreSession(session),
 				getAutoArchivedAt: async session => {
 					const ref = await sessionDataService.tryOpenDatabase(session);
@@ -209,6 +209,7 @@ export function createAgentServiceComposition(
 					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
 				}),
 				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
+				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
 				deleteSession: (session, validate) => agentService!.disposeSessionIf(session, validate),
 			},
 			configurationService,
