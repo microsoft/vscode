@@ -1189,6 +1189,8 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
+	hasStarted?: boolean;
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;

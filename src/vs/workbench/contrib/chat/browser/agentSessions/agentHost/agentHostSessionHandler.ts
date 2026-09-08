@@ -119,6 +119,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
+import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
 
 /**
@@ -1643,7 +1644,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return Promise.resolve();
 				},
 				draftInputState,
-				initialProgress,
+				initialProgress?.filter(part => !isUnstartedSubagent(part)),
 				historySubagentObservations,
 				() => {
 					// Only tear down when this session still owns the entry. The state
@@ -3290,9 +3291,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * The returned disposable owns the entire per-turn graph, including the
 	 * underlying session subscription reference.
 	 */
-	private _observeTurn(opts: IObserveTurnOptions): IDisposable {
-		const sessionKey = opts.backendSession.toString();
+	private _observeTurn(options: IObserveTurnOptions): IDisposable {
 		const store = new DisposableStore();
+		const publisher = store.add(new AgentHostSubagentProgress(options.sink));
+		const opts: IObserveTurnOptions = { ...options, sink: parts => publisher.publish(parts) };
+		for (const part of opts.snapshotToolCalls?.values() ?? []) {
+			if (isUnstartedSubagent(part)) {
+				publisher.publish([part]);
+			}
+		}
+		const sessionKey = opts.backendSession.toString();
 		this._ensureTurnStopWatch(opts.chatURI, opts.turnId);
 		// `_ensureSessionSubscription` returns a process-shared, non-refcounted
 		// subscription owned by the chat session lifecycle. Do NOT release it
@@ -4227,6 +4235,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation.toolSpecificData = {
 				...currentData,
 				...protocolData,
+				hasStarted: currentData?.hasStarted ?? protocolData.hasStarted,
 				chatResource,
 				isChatAvailable,
 				description,
@@ -4347,14 +4356,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.toolSpecificData = prepared.toolSpecificData;
 			}
 		}
-		this._tryObserveSubagentToolCall(initial, invocation, undefined, opts, subagentContext);
-
 		// The shared invocation is created with no `sessionResource`, so it
 		// does not `appendProgress` into a chat model. Emit it explicitly so it
 		// renders in this chat / subagent group (mirrors `_setupServerToolCall`).
 		if (!renderedBySnapshot) {
 			opts.sink([invocation]);
 		}
+		this._tryObserveSubagentToolCall(initial, invocation, undefined, opts, subagentContext);
 
 		let confirmationDispatched = false;
 
@@ -4894,6 +4902,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				item.parts.splice(index + 1, 0, ...innerParts);
 			}
 		}
+		for (const item of history) {
+			if (item.type === 'response') {
+				for (let index = item.parts.length - 1; index >= 0; index--) {
+					if (isUnstartedSubagent(item.parts[index])) {
+						item.parts.splice(index, 1);
+					}
+				}
+			}
+		}
 	}
 
 	private async _loadSubagentState(parentSessionUri: string, childChatUri: string): Promise<IRestoredSubagentState | undefined> {
@@ -4959,6 +4976,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			part.toolSpecificData.modelName = modelName;
 		}
 		const timing = getSubagentTiming(childState);
+		part.toolSpecificData.hasStarted = !!childState.activeTurn || childState.turns.length > 0;
 		part.toolSpecificData.isChatAvailable = true;
 		part.toolSpecificData.isActive = !!childState.activeTurn;
 		part.toolSpecificData.startedAt = timing.startedAt;
@@ -5142,10 +5160,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const fallbackDuration = !isActive && timing.duration === undefined && parentInvocation.toolSpecificData.isActive && parentInvocation.toolSpecificData.startedAt !== undefined
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
-					if (parentInvocation.toolSpecificData.isActive !== isActive
+					if (!parentInvocation.toolSpecificData.hasStarted
+						|| parentInvocation.toolSpecificData.isActive !== isActive
 						|| parentInvocation.toolSpecificData.activity !== activity
 						|| parentInvocation.toolSpecificData.startedAt !== timing.startedAt
 						|| parentInvocation.toolSpecificData.duration !== fallbackDuration) {
+						parentInvocation.toolSpecificData.hasStarted = true;
 						parentInvocation.toolSpecificData.isActive = isActive;
 						if (activity) {
 							parentInvocation.toolSpecificData.activity = activity;
@@ -5237,12 +5257,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const cts = new CancellationTokenSource();
 		const reconnectStore = chatSession.registerDisposable(new DisposableStore());
 		reconnectStore.add(toDisposable(() => cts.dispose(true)));
+		let initialBuffer: IChatProgress[] | undefined = [];
 		reconnectStore.add(this._observeTurn({
 			backendSession,
 			sessionResource: chatSession.sessionResource,
 			chatURI,
 			turnId,
-			sink: parts => chatSession.appendProgress(parts),
+			sink: parts => {
+				if (initialBuffer) {
+					initialBuffer.push(...parts);
+				} else {
+					chatSession.appendProgress(parts);
+				}
+			},
 			cancellationToken: cts.token,
 			snapshotToolCalls,
 			seedEmittedLengths,
@@ -5252,6 +5279,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				reconnectStore.dispose();
 			},
 		}));
+		// Already-hydrated children belong in the initial snapshot, not between its streaming markdown fragments.
+		const initialParts = initialProgress.filter(part => !isUnstartedSubagent(part));
+		const initialSet = new Set(initialParts);
+		chatSession.progressObs.set([...initialParts, ...initialBuffer.filter(part => !initialSet.has(part))], undefined);
+		initialBuffer = undefined;
 	}
 
 	// ---- File edit routing ---------------------------------------------------

@@ -2100,6 +2100,7 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+				hasStarted: false,
 				isChatAvailable: false,
 			});
 		});

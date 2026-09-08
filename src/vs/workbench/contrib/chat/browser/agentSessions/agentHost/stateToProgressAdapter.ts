@@ -407,6 +407,7 @@ function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): I
 	}
 	return {
 		kind: 'subagent',
+		hasStarted: false,
 		description: getSubagentTaskDescription(tc),
 		...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 		agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
@@ -1888,6 +1889,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			subAgentInvocationId: subAgentInvocationId,
 			toolSpecificData: {
 				kind: 'subagent',
+				hasStarted: false,
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
 				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
@@ -2621,6 +2623,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	if (subagentContent) {
 		existing.toolSpecificData = {
 			kind: 'subagent',
+			hasStarted: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.hasStarted : false,
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
 			isChatAvailable: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isChatAvailable : false,
 			description: getSubagentTaskDescription(tc),
@@ -2740,6 +2743,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			const resultText = getToolOutputText(tc);
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				hasStarted: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.hasStarted : false,
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
 				isChatAvailable: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isChatAvailable : false,
 				description: getSubagentTaskDescription(tc),
@@ -2757,6 +2761,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			// block. Refresh metadata + carry the tool's output as the result.
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				hasStarted: invocation.toolSpecificData.hasStarted,
 				isActive: invocation.toolSpecificData.isActive,
 				isChatAvailable: invocation.toolSpecificData.isChatAvailable,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,

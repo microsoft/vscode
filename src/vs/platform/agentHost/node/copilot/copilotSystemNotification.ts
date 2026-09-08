@@ -34,17 +34,27 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			};
 		}
 		case 'agent_completed':
+		case 'agent_idle': {
+			const name = kind.displayName?.trim() || kind.description?.trim() || kind.agentType.trim();
+			if (kind.type === 'agent_idle') {
+				return {
+					messageText: name
+						? localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", name)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentIdle', "Background agent is complete"),
+					startsTurn: true,
+				};
+			}
 			return {
 				messageText: kind.status === 'failed'
-					? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", kind.agentId)
-					: localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", kind.agentId),
+					? name
+						? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", name)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentFailed', "Background agent failed")
+					: name
+						? localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", name)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentCompleted', "Background agent completed"),
 				startsTurn: true,
 			};
-		case 'agent_idle':
-			return {
-				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
-				startsTurn: true,
-			};
+		}
 		case 'factory_completed':
 			return {
 				messageText: kind.status === 'error'

@@ -3081,6 +3081,7 @@ suite('AgentHostClientTools', () => {
 			}, {
 				parent: {
 					kind: 'subagent',
+					hasStarted: true,
 					description: 'Prepared delegated task',
 					agentName: undefined,
 					chatResource: subagentChat,
