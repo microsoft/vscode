@@ -331,7 +331,7 @@ Every model is selected explicitly. Sending no selection is deliberately not pin
 
 The prompt is the CLI's product, not the host's — it is compiled into the `@github/copilot` native binary and only becomes observable when the CLI serializes it onto the wire. These tests therefore read it from a **replayed** turn, which is deterministic and tokenless. They deliberately do not snapshot while recording: a recording run reaches live CAPI for the model catalog and experiment assignment, and either can move the prompt for reasons unrelated to this repository. The explicit SDK `toolSearch.enabled` setting is authoritative, so this suite needs no experiment assignment or runtime environment override.
 
-The client-override baselines require an `@github/copilot` build containing [github/copilot-agent-runtime#18448](https://github.com/github/copilot-agent-runtime/pull/18448). The currently pinned `1.0.83-0` predates that fix: it emits Claude's built-in regex schema and GPT's hosted search instead. Until VS Code bumps to a package containing the fix, reproduce these baselines by building that runtime branch and temporarily using its `dist-cli` as `node_modules/@github/copilot-<platform>-<arch>`.
+The client-override baselines use the bundled `@github/copilot-sdk@1.0.13` and `@github/copilot@1.0.84-2`, which includes [github/copilot-agent-runtime#18448](https://github.com/github/copilot-agent-runtime/pull/18448). These dependencies are already on `main` via [#334606](https://github.com/microsoft/vscode/pull/334606); no custom runtime build or package substitution is needed.
 
 Accept a new baseline with the same flag the AHP snapshots use, then review the diff:
 
