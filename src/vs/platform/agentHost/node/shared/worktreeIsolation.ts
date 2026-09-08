@@ -63,6 +63,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined>;
 	canAutomaticallyDeleteArchivedSession(sessionUri: URI): Promise<boolean>;
+	isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean>;
 	removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
 	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
 	cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void>;
@@ -1093,6 +1094,29 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 	}
 
+	async isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean> {
+		let meta: IWorktreeMetadata | undefined;
+		try {
+			meta = await this._readWorktreeMetadata(sessionUri);
+		} catch (error) {
+			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to read worktree metadata before automatic cleanup: ${errorMessage(error)}`);
+			return true;
+		}
+		if (!meta?.worktreePath || !meta.repositoryRoot) {
+			return false;
+		}
+		try {
+			await fs.access(meta.worktreePath.fsPath);
+			return true;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return false;
+			}
+			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to inspect worktree before automatic cleanup: ${errorMessage(error)}`);
+			return true;
+		}
+	}
+
 	/** Force-removes the resolved worktree after the user confirms session deletion. */
 	async removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
 		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));
@@ -1527,6 +1551,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> { return turns; }
 	async prepareSessionDeletion(_sessionUri: URI, _sessionId: string): Promise<ISessionWorktree | undefined> { return undefined; }
 	async canAutomaticallyDeleteArchivedSession(_sessionUri: URI): Promise<boolean> { return true; }
+	async isWorktreeCleanupNeeded(_sessionUri: URI): Promise<boolean> { return false; }
 	async removeSessionWorktree(_sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
 	async discardSessionWorktree(_sessionUri: URI, _sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
 	async cleanupWorktree(_sessionUri: URI, _sessionId: string): Promise<void> { }

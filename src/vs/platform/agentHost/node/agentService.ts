@@ -2165,6 +2165,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!action || (action === 'delete' && (deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff))) {
 				return undefined;
 			}
+			if (action === 'cleanupWorktree' && !await this._worktree.isWorktreeCleanupNeeded(entry.session)) {
+				return undefined;
+			}
 			const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
 			return pullRequestUrl ? { session: entry.session, pullRequestUrl, action } : undefined;
 		})));
@@ -4197,6 +4200,16 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
 	}
 
+	archiveSession(session: URI): void {
+		const channel = session.toString();
+		const action = {
+			type: ActionType.SessionIsArchivedChanged,
+			isArchived: true,
+		} as const;
+		this._stateManager.dispatchServerAction(channel, action);
+		this._sideEffects.handleAction(channel, action);
+	}
+
 	cleanupWorktree(session: URI, sessionId: string): Promise<void> {
 		return this._worktree.cleanupWorktree(session, sessionId);
 	}
@@ -4220,6 +4233,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session.toString());
 		const sessionId = AgentSession.id(session);
 		const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
+		const cleanupWorkingDirectories = worktree?.repositoryRoot
+			? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
+			: workingDirectories;
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider) {
 			await this._disposeSession(provider, session);
@@ -4243,12 +4259,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
 		//
-		// Runs before the worktree is removed: subscribers of the will-delete
-		// event drop this session's git refs, and for a worktree-isolated
-		// session the working directory *is* the worktree, so once it is gone
-		// the repository can no longer be resolved and the refs would leak
-		// into the main repository (`refs/agents/*` is shared, not per-worktree).
-		await this._sessionDataService.deleteSessionData(session, workingDirectories);
+		// Runs before the worktree is removed. For worktree sessions, pass the
+		// persisted repository root instead of the checkout path so subscribers
+		// can still delete shared refs after archive cleanup or a process restart.
+		await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
 		await this._worktree.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.clearInputRequestsForSession(session.toString());

@@ -6,8 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { ActionType } from '../common/state/sessionActions.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, isAgentHostWorktreeCleanupEnabled, platformRootSchema } from '../common/agentHostSchema.js';
 import { getSessionRelatedPullRequestUrls, isSessionStatusArchived, readSessionGitHubState, SessionStatus, type SessionSummary } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -29,6 +28,7 @@ export interface IAgentHostSessionLifecycleAccessor {
 	readonly restoreSession: (session: URI) => Promise<void>;
 	readonly getAutoArchivedAt: (session: URI) => Promise<number | undefined>;
 	readonly setAutoArchivedAt: (session: URI, timestamp: number) => Promise<void>;
+	readonly archiveSession: (session: URI) => void;
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
 	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
 	readonly deleteSession: (session: URI, validate: () => Promise<boolean>) => Promise<boolean>;
@@ -122,10 +122,16 @@ export class AgentHostSessionLifecycle extends Disposable {
 	}
 
 	private _readSettings(): { readonly archiveAfterDays: number; readonly deleteAfterDays: number; readonly cleanupWorktrees: boolean } {
+		const archiveAfterDays = this._readThreshold(AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey);
+		const deleteAfterDays = this._readThreshold(AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey);
 		return {
-			archiveAfterDays: this._readThreshold(AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey),
-			deleteAfterDays: this._readThreshold(AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey),
-			cleanupWorktrees: this._configurationService.getRootValue(platformRootSchema, AgentHostAutoRemoveWorktreesAfterMergeConfigKey) !== false,
+			archiveAfterDays,
+			deleteAfterDays,
+			cleanupWorktrees: isAgentHostWorktreeCleanupEnabled(
+				this._configurationService.getRootValue(platformRootSchema, AgentHostAutoRemoveWorktreesAfterMergeConfigKey),
+				archiveAfterDays,
+				deleteAfterDays,
+			),
 		};
 	}
 
@@ -140,6 +146,30 @@ export class AgentHostSessionLifecycle extends Disposable {
 		const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey, candidate.pullRequestUrl);
 		if (pullRequest?.state !== 'merged'
 			|| pullRequest.url.toLowerCase() !== candidate.pullRequestUrl.toLowerCase()) {
+			return;
+		}
+
+		if (candidate.action === 'cleanupWorktree') {
+			const currentArchiveAfterDays = this._settings.archiveAfterDays;
+			const currentDeleteAfterDays = this._settings.deleteAfterDays;
+			if (!this._settings.cleanupWorktrees) {
+				return;
+			}
+			const summary = this._stateManager.getSessionSummary(sessionKey);
+			if (summary) {
+				const refreshedCandidate = await this._getCleanupCandidate(
+					session,
+					summary,
+					currentArchiveAfterDays > 0 ? this._now() - currentArchiveAfterDays * DAY_MS : undefined,
+					currentDeleteAfterDays > 0 ? this._now() - currentDeleteAfterDays * DAY_MS : undefined,
+					true,
+				);
+				if (refreshedCandidate?.action !== 'cleanupWorktree'
+					|| refreshedCandidate.pullRequestUrl.toLowerCase() !== pullRequest.url.toLowerCase()) {
+					return;
+				}
+			}
+			await this._accessor.cleanupWorktree(session, sessionKey);
 			return;
 		}
 
@@ -166,11 +196,6 @@ export class AgentHostSessionLifecycle extends Disposable {
 			return;
 		}
 
-		if (candidate.action === 'cleanupWorktree') {
-			await this._accessor.cleanupWorktree(session, sessionKey);
-			return;
-		}
-
 		if (candidate.action === 'archive') {
 			const finalArchiveAfterDays = this._settings.archiveAfterDays;
 			const finalPullRequestUrl = finalArchiveAfterDays > 0
@@ -183,17 +208,17 @@ export class AgentHostSessionLifecycle extends Disposable {
 				return;
 			}
 			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
-			this._stateManager.dispatchServerAction(sessionKey, {
-				type: ActionType.SessionIsArchivedChanged,
-				isArchived: true,
-			});
+			this._accessor.archiveSession(session);
 			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
 			try {
 				const deleted = await this._accessor.deleteSession(session, async () => {
 					if (!await this._accessor.canDeleteSession(session)) {
-						this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
-						return false;
+						await this._accessor.cleanupWorktree(session, sessionKey);
+						if (!await this._accessor.canDeleteSession(session)) {
+							this._logService.info(`[AgentHostSessionLifecycle] Skipping permanent deletion because the archived session still has a worktree: session=${sessionKey}`);
+							return false;
+						}
 					}
 					const finalDeleteAfterDays = this._settings.deleteAfterDays;
 					const finalCandidate = finalDeleteAfterDays > 0

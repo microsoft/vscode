@@ -473,7 +473,7 @@
             "localization": {
                 "description": {
                     "key": "autoRemoveWorktreesAfterMerge.policy",
-                    "value": "Configure whether worktrees for inactive agent sessions are automatically removed after their pull request is merged."
+                    "value": "Configure standalone worktree cleanup for inactive agent sessions after their pull request is merged. Automatic archive or deletion settings override this policy."
                 }
             },
             "type": "boolean",

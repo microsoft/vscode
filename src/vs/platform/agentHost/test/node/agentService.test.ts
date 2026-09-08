@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -3052,6 +3052,40 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session lifecycle candidates', () => {
+		test('archiveSession runs archive side effects when record cleanup overrides the standalone opt-out', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const cleaned: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				cleanupWorktreeOnArchive: async session => { cleaned.push(session.toString()); },
+			}));
+			getConfigurationService(svc).updateRootConfig({
+				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
+				[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0,
+				[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: false,
+			});
+			const session = AgentSession.uri('copilot', 'auto-archive-side-effects');
+			getStateManager(svc).createSession({
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Auto archive side effects',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+
+			svc.archiveSession(session);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				archived: isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())?.status),
+				cleaned,
+			}, {
+				archived: true,
+				cleaned: [session.toString()],
+			});
+		});
+
 		test('filters the registry before reading only lifecycle metadata', async () => {
 			const perSession = createPerSessionDataService();
 			const opened: string[] = [];
@@ -3140,6 +3174,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('enumerates inactive sessions for worktree cleanup when record cleanup is disabled', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			let cleanupNeeded = true;
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				isWorktreeCleanupNeeded: async () => cleanupNeeded,
+			}));
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
 			const session = AgentSession.uri('copilot', 'merged-worktree');
 			await registry.register(session, {
@@ -3153,16 +3191,24 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 
 			const candidates = await svc.listSessionLifecycleCandidates(undefined, undefined, true);
+			cleanupNeeded = false;
+			const afterCleanup = await svc.listSessionLifecycleCandidates(undefined, undefined, true);
 
-			assert.deepStrictEqual(candidates.map(candidate => ({
-				session: candidate.session.toString(),
-				pullRequestUrl: candidate.pullRequestUrl,
-				action: candidate.action,
-			})), [{
-				session: session.toString(),
-				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/4',
-				action: 'cleanupWorktree',
-			}]);
+			assert.deepStrictEqual({
+				candidates: candidates.map(candidate => ({
+					session: candidate.session.toString(),
+					pullRequestUrl: candidate.pullRequestUrl,
+					action: candidate.action,
+				})),
+				afterCleanup,
+			}, {
+				candidates: [{
+					session: session.toString(),
+					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/4',
+					action: 'cleanupWorktree',
+				}],
+				afterCleanup: [],
+			});
 		});
 	});
 
@@ -3193,9 +3239,13 @@ suite('AgentService (node dispatcher)', () => {
 			// For a worktree-isolated session that directory *is* the worktree, so
 			// removing it first would strand the refs in the main repository.
 			const order: string[] = [];
+			let cleanupWorkingDirectories: readonly string[] | undefined;
 			const sessionDataService: ISessionDataService = {
 				...nullSessionDataService,
-				deleteSessionData: async () => { order.push('deleteSessionData'); },
+				deleteSessionData: async (_session, workingDirectories) => {
+					order.push('deleteSessionData');
+					cleanupWorkingDirectories = workingDirectories;
+				},
 			};
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(svc, copilotAgent);
@@ -3214,7 +3264,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			await svc.disposeSession(session);
 
-			assert.deepStrictEqual(order, ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:file:///worktree']);
+			assert.deepStrictEqual({
+				order,
+				cleanupWorkingDirectories,
+			}, {
+				order: ['prepareSessionDeletion', 'deleteSessionData', 'removeSessionWorktree:file:///worktree'],
+				cleanupWorkingDirectories: ['file:///repo'],
+			});
 		});
 
 		test('preserves session data when worktree metadata cannot be read', async () => {

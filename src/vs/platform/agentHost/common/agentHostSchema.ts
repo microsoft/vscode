@@ -561,6 +561,16 @@ export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'auto
 /** Root config key controlling automatic worktree removal for sessions with merged pull requests. */
 export const AgentHostAutoRemoveWorktreesAfterMergeConfigKey = 'autoRemoveWorktreesAfterMerge';
 
+export function isAgentHostWorktreeCleanupEnabled(autoRemoveWorktreesAfterMerge: unknown, archiveAfterDays: unknown, deleteAfterDays: unknown): boolean {
+	return autoRemoveWorktreesAfterMerge !== false
+		|| isAgentHostSessionLifecycleThresholdEnabled(archiveAfterDays)
+		|| isAgentHostSessionLifecycleThresholdEnabled(deleteAfterDays);
+}
+
+function isAgentHostSessionLifecycleThresholdEnabled(value: unknown): boolean {
+	return value === 1 || value === 7 || value === 15 || value === 30;
+}
+
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
  * support for the Copilot provider. When `true`, the Copilot provider advertises

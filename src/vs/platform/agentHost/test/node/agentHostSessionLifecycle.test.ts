@@ -41,6 +41,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly deleteError?: Error;
 		readonly autoArchivedAt?: number;
 		readonly canDeleteSession?: boolean;
+		readonly worktreePresent?: boolean;
 		readonly onGetAutoArchivedAt?: (configurationService: AgentConfigurationService) => void;
 		readonly onSetAutoArchivedAt?: (timestamp: number, configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
 	}) {
@@ -77,10 +78,12 @@ suite('AgentHostSessionLifecycle', () => {
 		const restored: string[] = [];
 		const resolved: string[] = [];
 		const cleanedWorktrees: string[] = [];
+		const archivedSessions: string[] = [];
 		const deleted: string[] = [];
 		const autoArchiveTimestamps: number[] = [];
 		const listed: { readonly archiveCutoff: number | undefined; readonly deleteCutoff: number | undefined; readonly cleanupWorktrees: boolean }[] = [];
 		let autoArchivedAt = options?.autoArchivedAt;
+		let worktreePresent = options?.worktreePresent ?? false;
 		const pullRequestStatusService = new class extends mock<IAgentHostPullRequestStatusService>() {
 			override readonly onDidChangePullRequestStatus = Event.None;
 			override getPullRequestStatus() { return options?.status; }
@@ -125,9 +128,17 @@ suite('AgentHostSessionLifecycle', () => {
 					autoArchivedAt = timestamp;
 					options?.onSetAutoArchivedAt?.(timestamp, configurationService, stateManager, session);
 				},
-				canDeleteSession: async () => options?.canDeleteSession !== false,
+				archiveSession: resource => {
+					archivedSessions.push(resource.toString());
+					stateManager.dispatchServerAction(resource.toString(), {
+						type: ActionType.SessionIsArchivedChanged,
+						isArchived: true,
+					});
+				},
+				canDeleteSession: async () => options?.canDeleteSession !== false && !worktreePresent,
 				cleanupWorktree: async resource => {
 					cleanedWorktrees.push(resource.toString());
+					worktreePresent = false;
 				},
 				deleteSession: async (resource, validate) => {
 					if (!await validate()) {
@@ -148,11 +159,11 @@ suite('AgentHostSessionLifecycle', () => {
 			logService,
 			{ now: () => NOW, start: false },
 		));
-		return { lifecycle, configurationService, stateManager, session, restored, resolved, cleanedWorktrees, deleted, autoArchiveTimestamps, listed };
+		return { lifecycle, configurationService, stateManager, session, restored, resolved, cleanedWorktrees, archivedSessions, deleted, autoArchiveTimestamps, listed };
 	}
 
 	test('archives an inactive internal session after an authoritative merged result', async () => {
-		const { lifecycle, stateManager, session, restored, resolved } = createHarness({
+		const { lifecycle, stateManager, session, restored, resolved, archivedSessions } = createHarness({
 			status: mergedPullRequestStatus(),
 		});
 		const actions: string[] = [];
@@ -169,45 +180,19 @@ suite('AgentHostSessionLifecycle', () => {
 			resolved,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 			actions,
+			archivedSessions,
 		}, {
 			restored: [session.toString()],
 			resolved: [session.toString()],
 			archived: true,
 			actions: [`${session.toString()}:true`],
+			archivedSessions: [session.toString()],
 		});
 	});
 
 	test('does not archive when GitHub still reports the pull request open', async () => {
 		const { lifecycle, stateManager, session, restored, resolved } = createHarness({
 			status: { ...mergedPullRequestStatus(), state: 'open' },
-		});
-
-		test('cleans up an inactive merged session worktree when archive and delete are disabled', async () => {
-			const { lifecycle, session, cleanedWorktrees } = createHarness({
-				enabled: false,
-				status: mergedPullRequestStatus(),
-			});
-
-			await lifecycle.run();
-
-			assert.deepStrictEqual(cleanedWorktrees, [session.toString()]);
-		});
-
-		test('keeps the worktree when automatic removal is disabled', async () => {
-			const { lifecycle, restored, resolved, cleanedWorktrees, listed } = createHarness({
-				enabled: false,
-				autoRemoveWorktreesAfterMerge: false,
-				status: mergedPullRequestStatus(),
-			});
-
-			await lifecycle.run();
-
-			assert.deepStrictEqual({ restored, resolved, cleanedWorktrees, listed }, {
-				restored: [],
-				resolved: [],
-				cleanedWorktrees: [],
-				listed: [],
-			});
 		});
 
 		await lifecycle.run();
@@ -220,6 +205,96 @@ suite('AgentHostSessionLifecycle', () => {
 			restored: [],
 			resolved: [session.toString()],
 			archived: false,
+		});
+	});
+
+	test('cleans up an inactive merged session worktree without restoring when record cleanup is disabled', async () => {
+		const { lifecycle, session, restored, cleanedWorktrees } = createHarness({
+			enabled: false,
+			status: mergedPullRequestStatus(),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			cleanedWorktrees,
+		}, {
+			restored: [],
+			cleanedWorktrees: [session.toString()],
+		});
+	});
+
+	test('keeps the worktree when automatic removal and record cleanup are disabled', async () => {
+		const { lifecycle, restored, resolved, cleanedWorktrees, listed } = createHarness({
+			enabled: false,
+			autoRemoveWorktreesAfterMerge: false,
+			status: mergedPullRequestStatus(),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({ restored, resolved, cleanedWorktrees, listed }, {
+			restored: [],
+			resolved: [],
+			cleanedWorktrees: [],
+			listed: [],
+		});
+	});
+
+	test('archive configuration overrides the standalone worktree cleanup opt-out', async () => {
+		const { lifecycle, session, restored, cleanedWorktrees, listed } = createHarness({
+			archiveAfterDays: 7,
+			deleteAfterDays: 0,
+			autoRemoveWorktreesAfterMerge: false,
+			modifiedTime: NOW,
+			status: mergedPullRequestStatus(),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			cleanedWorktrees,
+			listed,
+		}, {
+			restored: [],
+			cleanedWorktrees: [session.toString()],
+			listed: [{
+				archiveCutoff: NOW - 7 * DAY_MS,
+				deleteCutoff: undefined,
+				cleanupWorktrees: true,
+			}],
+		});
+	});
+
+	test('deletion configuration removes a retained worktree before deleting', async () => {
+		const { lifecycle, session, restored, cleanedWorktrees, deleted, listed } = createHarness({
+			archiveAfterDays: 0,
+			deleteAfterDays: 1,
+			autoRemoveWorktreesAfterMerge: false,
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			worktreePresent: true,
+			status: mergedPullRequestStatus(),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			restored,
+			cleanedWorktrees,
+			deleted,
+			listed,
+		}, {
+			restored: [session.toString()],
+			cleanedWorktrees: [session.toString()],
+			deleted: [session.toString()],
+			listed: [{
+				archiveCutoff: undefined,
+				deleteCutoff: NOW - DAY_MS,
+				cleanupWorktrees: true,
+			}],
 		});
 	});
 
@@ -404,11 +479,12 @@ suite('AgentHostSessionLifecycle', () => {
 	});
 
 	test('does not delete an archived session that is unarchived during GitHub refresh', async () => {
-		const { lifecycle, stateManager, session, deleted } = createHarness({
+		const { lifecycle, stateManager, session, cleanedWorktrees, deleted } = createHarness({
 			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 			modifiedTime: NOW - 3 * DAY_MS,
 			status: mergedPullRequestStatus(),
 			autoArchivedAt: NOW - 2 * DAY_MS,
+			worktreePresent: true,
 			onResolve: (_configurationService, manager, resource) => manager.dispatchServerAction(resource.toString(), {
 				type: ActionType.SessionIsArchivedChanged,
 				isArchived: false,
@@ -418,9 +494,11 @@ suite('AgentHostSessionLifecycle', () => {
 		await lifecycle.run();
 
 		assert.deepStrictEqual({
+			cleanedWorktrees,
 			deleted,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
+			cleanedWorktrees: [],
 			deleted: [],
 			archived: false,
 		});
@@ -495,11 +573,10 @@ suite('AgentHostSessionLifecycle', () => {
 		assert.strictEqual(isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status), false);
 	});
 
-	test('skips fully disabled, active, recent archive-only, and external sessions before restoring', async () => {
+	test('skips fully disabled, active, and external sessions before restoring', async () => {
 		const harnesses = [
 			createHarness({ enabled: false, autoRemoveWorktreesAfterMerge: false, status: mergedPullRequestStatus() }),
 			createHarness({ sessionStatus: SessionStatus.InProgress, status: mergedPullRequestStatus() }),
-			createHarness({ modifiedTime: NOW, autoRemoveWorktreesAfterMerge: false, status: mergedPullRequestStatus() }),
 			createHarness({ external: true, status: mergedPullRequestStatus() }),
 		];
 
@@ -510,7 +587,6 @@ suite('AgentHostSessionLifecycle', () => {
 			resolved: harness.resolved,
 			archived: isSessionStatusArchived(harness.stateManager.getSessionSummary(harness.session.toString())?.status),
 		})), [
-			{ restored: [], resolved: [], archived: false },
 			{ restored: [], resolved: [], archived: false },
 			{ restored: [], resolved: [], archived: false },
 			{ restored: [], resolved: [], archived: false },
