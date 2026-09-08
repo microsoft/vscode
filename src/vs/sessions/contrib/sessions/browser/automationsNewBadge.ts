@@ -21,7 +21,7 @@ export const AUTOMATIONS_NEW_BADGE_SEEN_STORAGE_KEY = 'sessions.automations.newB
 export const AUTOMATIONS_NEW_BADGE_STYLE_SETTING = 'sessions.automations.newBadgeStyle';
 export const AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT = 'agentSessionsAutomationsNewBadgeStyle';
 
-export type AutomationsNewBadgeStyle = 'accent' | 'soft' | 'outline';
+export type AutomationsNewBadgeStyle = 'accent' | 'soft' | 'outline' | 'unread';
 
 const DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE: AutomationsNewBadgeStyle = 'outline';
 
@@ -182,7 +182,7 @@ export class AutomationsNewBadgeState extends Disposable {
 		if (value === undefined || value === DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE) {
 			return DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE;
 		}
-		if (value === 'accent' || value === 'soft') {
+		if (value === 'accent' || value === 'soft' || value === 'unread') {
 			return value;
 		}
 		this.logService.warn(`[AutomationsNewBadgeState] Unsupported badge style treatment '${value}'; using '${DEFAULT_AUTOMATIONS_NEW_BADGE_STYLE}'.`);

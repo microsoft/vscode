@@ -1620,12 +1620,17 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				icon: Codicon.pinned,
 				title: localize('chatCompositeBar.unpin', "Unpin"),
 			},
-			menu: {
+			menu: [{
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsStickyContext, SessionIsArchivedContext.negate()),
+			}, {
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/4_pin',
 				order: 10,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
-			},
+			}],
 		});
 	}
 

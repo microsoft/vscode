@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import type { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
@@ -54,24 +55,28 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
-	test('classifies worked-on issues and pull requests as artifacts', () => {
+	test('distinguishes attempted pull request work from inspection or review', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
-		const sessionClassification = 'An issue or pull request this session works on is an artifact even if the session did not create it';
-		const instructionClassification = 'An issue or pull request you work on is an artifact even if you did not create it';
+		const classificationInput: IJSONSchema | undefined = addDefinition?.inputSchema?.properties?.isArtifact;
+		const descriptions = [
+			addDefinition?.description,
+			classificationInput?.description,
+			ARTIFACT_TOOLS_INSTRUCTION,
+		];
 
 		assert.deepStrictEqual({
-			definition: addDefinition?.description?.includes(sessionClassification),
-			input: addDefinition?.inputSchema?.properties?.isArtifact,
-			instruction: ARTIFACT_TOOLS_INSTRUCTION.includes(instructionClassification),
-			reference: ARTIFACT_TOOLS_INSTRUCTION.includes('something you did not produce but the user should look at because of this task'),
+			inputType: classificationInput?.type,
+			classifications: descriptions.map(description => ({
+				artifact: description?.includes('you create or attempt to fix, change, or unblock is an artifact'),
+				reference: description?.includes('inspection or review alone makes it a reference'),
+			})),
 		}, {
-			definition: true,
-			input: {
-				type: 'boolean',
-				description: 'Required. `true` for an artifact. An issue or pull request this session works on is an artifact even if the session did not create it; other artifacts are things the session produced, such as a plan file it wrote outside the workspace or another side effect of its work. `false` for a reference — something the session did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, or a website that matters for the task.',
-			},
-			instruction: true,
-			reference: true,
+			inputType: 'boolean',
+			classifications: [
+				{ artifact: true, reference: true },
+				{ artifact: true, reference: true },
+				{ artifact: true, reference: true },
+			],
 		});
 	});
 
