@@ -89,7 +89,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, actionBarActions ?? []);
+				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
@@ -171,7 +171,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], listOptions: IActionListOptions | undefined): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
@@ -197,6 +197,14 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+		if (listOptions?.filterAsCombobox) {
+			renderDisposables.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
+				if (e.keyCode === KeyCode.Escape && !e.browserEvent.isComposing) {
+					dom.EventHelper.stop(e, true);
+					this.hide(true);
+				}
+			}));
+		}
 
 		// Clicking the header banner must not move focus out of the list, which
 		// would blur the widget and dismiss it.

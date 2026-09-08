@@ -1062,37 +1062,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
-		[ChatConfiguration.TurnStatusPills]: {
-			anyOf: [
-				{
-					type: 'boolean',
-				},
-				{
-					type: 'object',
-					properties: {
-						changes: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
-						},
-						preview: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
-						},
-						browser: {
-							type: 'boolean',
-							default: false,
-							description: nls.localize('chat.turnStatusPills.browser', "Show a pill for browser activity in the turn."),
-						},
-					},
-					additionalProperties: false,
-					deprecationMessage: nls.localize('chat.turnStatusPills.objectDeprecated', "The per-pill object form is deprecated. Use a boolean value instead."),
-				},
-			],
-			markdownDescription: nls.localize('chat.turnStatusPills', "Controls whether agent status pills are shown above the chat input and inside completed responses. Only applies to agent sessions."),
-			default: true,
-		},
 		[mcpAccessConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers."),
@@ -2388,6 +2357,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
+		},
+		[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.openInAgentsWindow.revealCurrentSession', "Controls whether Open in Agents Window reveals the current local Agent Host session instead of opening a new session."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		'chat.approvedAccountOrganizations': {
 			type: 'array',

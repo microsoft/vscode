@@ -94,7 +94,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
 
-	// The bundled runtime currently rejects the SDK's optional displayName field; keep this executable in known-issue recording until that runtime fix ships.
+	// The bundled OSS runtime currently rejects the SDK's optional displayName field; keep this executable in known-issue recording until that runtime fix ships.
 	(context.runKnownIssueTests && copilotCustomAgentTest ? test : test.skip)('custom agent without a display name completes as a subagent', async function () {
 		this.timeout(180_000);
 
@@ -114,7 +114,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		assert.match(markdownText(snapshot.snapshot?.state as ChatState | undefined), /CUSTOM_AGENT_CHILD_OK/);
 	});
 
-	(copilotCustomAgentTest ? test : test.skip)('restored parent accepts a new turn after a custom subagent has no transcript', async function () {
+	// OSS and product runtimes take different model paths for this scenario; see KNOWN_ISSUES.md.
+	test.skip('restored parent accepts a new turn after a custom subagent has no transcript', async function () {
 		this.timeout(240_000);
 
 		const sessionUri = await createCustomAgentSession('ahp-missing-custom-agent-transcript-');

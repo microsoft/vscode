@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
@@ -155,7 +155,17 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		], [true, false]);
 	});
 
-	test('uses declared agents window support', () => {
+	test('ignores declared agents window support when the experimental feature is disabled', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+		], [false, true]);
+	});
+
+	test('uses declared agents window support when the experimental feature is enabled', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([

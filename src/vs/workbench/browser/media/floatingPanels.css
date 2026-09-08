@@ -281,8 +281,9 @@
 
 /* Separate the activity bar items so they read as distinct floating targets. The gap is
  * published by activitybarPart.ts as `--activity-bar-action-gap` (0px at the compact size)
- * so that it stays in step with the overflow computation. */
-.monaco-workbench.floating-panels .part.activitybar > .content .monaco-action-bar .action-item + .action-item {
+ * so that it stays in step with the overflow computation. Nested menus keep their own
+ * row and separator spacing. */
+.monaco-workbench.floating-panels .part.activitybar > .content :not(.monaco-menu) > .monaco-action-bar > .actions-container > .action-item + .action-item {
 	margin-top: var(--activity-bar-action-gap, 0px);
 }
 
