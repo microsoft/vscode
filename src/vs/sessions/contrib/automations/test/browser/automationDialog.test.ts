@@ -758,6 +758,7 @@ suite('Automation branch picker', () => {
 		readonly supportsWorktreeConfiguration?: boolean;
 		readonly failOpenRepositoryOnce?: boolean;
 		readonly providerInitiallyUnavailable?: boolean;
+		readonly onDidChangeTarget?: Event<void>;
 		readonly revalidate?: () => void;
 		readonly visible?: boolean;
 	}): {
@@ -829,7 +830,7 @@ suite('Automation branch picker', () => {
 			state,
 			model,
 			model.folderUriObs,
-			Event.None,
+			options?.onDidChangeTarget ?? Event.None,
 			options?.revalidate ?? (() => { }),
 			undefined,
 			visible,
@@ -1160,6 +1161,28 @@ suite('Automation branch picker', () => {
 			localGitRequests: getOpenRepositoryAttempts(),
 			branch: container.querySelector('.automation-form-branch-name')?.textContent,
 		}, { attempts: 2, localGitRequests: 0, branch: 'remote-main' });
+	});
+
+	test('coalesces target and session-type notifications into one provider repository lookup', async () => {
+		const targetChanged = disposables.add(new Emitter<void>());
+		const requests: string[] = [];
+		const { state, model, setProviderAvailable } = createItem({
+			onDidChangeTarget: targetChanged.event,
+			getWorktreeOptions: async (_folder, sessionTypeId) => {
+				requests.push(sessionTypeId);
+				return { supportsWorktree: true, currentBranch: `${sessionTypeId}-main`, branches: [`${sessionTypeId}-main`] };
+			},
+		});
+		await timeout(0);
+		state.sessionTypeId = 'claude';
+		targetChanged.fire();
+		setProviderAvailable();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requests,
+			branch: model.persistedBranch,
+		}, { requests: ['copilotcli', 'claude'], branch: 'claude-main' });
 	});
 
 	test('queries the provider for branches beyond its initial completion window', async () => {
