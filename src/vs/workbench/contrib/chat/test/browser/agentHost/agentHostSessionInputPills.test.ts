@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,8 +24,10 @@ import { BrowserEditorInput } from '../../../../browserView/common/browserEditor
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostSessionChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
@@ -91,12 +94,46 @@ suite('AgentHostSessionInputPills', () => {
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
 			pullRequestUrls: [
-				'https://github.com/microsoft/vscode/pull/1',
 				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/1',
 			],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
 			artifactIds: ['website'],
-			referenceIds: ['issue-reference', 'resource'],
+			// Newest first: `resource` was recorded after `issue-reference`.
+			referenceIds: ['resource', 'issue-reference'],
+		});
+	});
+
+	test('lists each pill newest first, within the section it belongs to', () => {
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'old-website', type: SessionArtifactType.Website, label: 'Old Preview', link: 'https://example.com/old', isArtifact: true },
+			{ id: 'old-reference', type: SessionArtifactType.Resource, label: 'Old Docs', uri: 'https://example.com/old-docs', isArtifact: false },
+			{ id: 'old-pr', type: SessionArtifactType.PullRequest, label: 'Old PR', link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true, isArtifact: true },
+			{ id: 'old-issue', type: SessionArtifactType.Issue, label: 'Old Issue', link: 'https://github.com/microsoft/vscode/issues/1', isGitHub: true, isArtifact: true },
+			{ id: 'new-website', type: SessionArtifactType.Website, label: 'New Preview', link: 'https://example.com/new', isArtifact: true },
+			{ id: 'new-reference', type: SessionArtifactType.Resource, label: 'New Docs', uri: 'https://example.com/new-docs', isArtifact: false },
+			{ id: 'new-pr', type: SessionArtifactType.PullRequest, label: 'New PR', link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true, isArtifact: true },
+			{ id: 'new-issue', type: SessionArtifactType.Issue, label: 'New Issue', link: 'https://github.com/microsoft/vscode/issues/2', isGitHub: true, isArtifact: true },
+		];
+
+		const metadata = getAgentHostSessionPillMetadata(withSessionArtifacts(undefined, entries));
+
+		assert.deepStrictEqual({
+			pullRequestUrls: metadata.pullRequestUrls,
+			issueUrls: metadata.issueUrls,
+			artifactIds: metadata.artifacts.map(artifact => artifact.id),
+			referenceIds: metadata.references.map(reference => reference.id),
+		}, {
+			pullRequestUrls: [
+				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/1',
+			],
+			issueUrls: [
+				'https://github.com/microsoft/vscode/issues/2',
+				'https://github.com/microsoft/vscode/issues/1',
+			],
+			artifactIds: ['new-website', 'old-website'],
+			referenceIds: ['new-reference', 'old-reference'],
 		});
 	});
 
@@ -199,12 +236,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -303,12 +335,7 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -407,7 +434,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('matches the Agents Window pull request summary presentation', () => {
+	test('matches the Agents Window pull request summary presentation', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
@@ -449,12 +476,8 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set(),
-			isVisible: () => true,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		const filterActions = createSessionPullRequestPillData(constObservable([]), visibility.pullRequests).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -484,6 +507,9 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: icon?.style.color,
 			hasChevron: button?.querySelector('.chat-pill-chevron') !== null,
 		};
+		await filterActions[1].run();
+		const filteredLabel = persistentContent.querySelector('.chat-pill-label')?.textContent;
+		await filterActions[0].run();
 		connection.setState(StateComponents.Session, {
 			defaultChat: buildDefaultChatUri(backendSession),
 			chats: [],
@@ -495,16 +521,21 @@ suite('AgentHostSessionInputPills', () => {
 		} as unknown as SessionState);
 		const singleButton = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const singleIcon = singleButton?.querySelector<HTMLElement>('.chat-pill-icon');
+		const single = {
+			buttonPreserved: singleButton === multiple.button,
+			label: singleButton?.querySelector('.chat-pill-label')?.textContent,
+			iconClass: singleIcon?.classList.contains('codicon-git-pull-request-done'),
+			iconColor: singleIcon?.style.color,
+			hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
+		};
+		await filterActions[1].run();
 
 		assert.deepStrictEqual({
 			multiple,
-			single: {
-				buttonPreserved: singleButton === multiple.button,
-				label: singleButton?.querySelector('.chat-pill-label')?.textContent,
-				iconClass: singleIcon?.classList.contains('codicon-git-pull-request-done'),
-				iconColor: singleIcon?.style.color,
-				hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
-			},
+			filteredLabel,
+			single,
+			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
+			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {
 			multiple: {
 				button,
@@ -513,6 +544,7 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-green)',
 				hasChevron: true,
 			},
+			filteredLabel: '2 Pull Requests',
 			single: {
 				buttonPreserved: true,
 				label: '#1',
@@ -520,6 +552,8 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-purple)',
 				hasChevron: false,
 			},
+			filteredOnly: null,
+			canConfigure: true,
 		});
 	});
 
@@ -573,12 +607,8 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map([[browser.id, browser]]),
 		});
-		const visibility = upcastPartial<ISessionChatPillVisibilityService>({
-			readHiddenKinds: () => new Set([SessionChatPillKind.Browsers]),
-			isVisible: kind => kind !== SessionChatPillKind.Browsers,
-			hide: () => { },
-			toggle: () => { },
-		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		visibility.hide(SessionChatPillKind.Browsers);
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
@@ -606,6 +636,103 @@ suite('AgentHostSessionInputPills', () => {
 		}, {
 			pills: ['1 Artifact'],
 			empty: false,
+		});
+	});
+
+	test('hides the session pills in a subagent chat', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const defaultChat = buildDefaultChatUri(backendSession);
+		const subagentChat = buildSubagentChatUri(backendSession, 'tool-1');
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat,
+				chats: [{
+					resource: subagentChat,
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-1' },
+				}],
+				_meta: withSessionArtifacts(undefined, [{
+					id: 'preview',
+					type: SessionArtifactType.Website,
+					label: 'Preview',
+					link: 'https://example.com/preview',
+					isArtifact: true,
+				}]),
+			} as unknown as SessionState],
+		]));
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		let persistentContentHeight: number | undefined;
+		// The chat editor keeps one pills instance while its widget navigates
+		// between the session and one of its subagent chats.
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: height => persistentContentHeight = height,
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+		const showChat = (resource: URI) => {
+			const previousSessionResource = viewModel.sessionResource;
+			viewModel = upcastPartial<ChatViewModel>({ sessionResource: resource });
+			viewModelChanged.fire({ previousSessionResource, currentSessionResource: resource });
+			return {
+				pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
+				hidden: persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden'),
+				persistentContentHeight,
+			};
+		};
+		const explicitQuery = new URLSearchParams();
+		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, subagentChat);
+
+		assert.deepStrictEqual({
+			session: showChat(sessionResource),
+			// The subagent editor addresses its chat by query parameter, and by
+			// fragment alone once the session state resolves the chat id.
+			explicitSubagent: showChat(sessionResource.with({ fragment: 'subagent/tool-1', query: explicitQuery.toString() })),
+			canonicalSubagent: showChat(sessionResource.with({ fragment: 'subagent/tool-1' })),
+			backToSession: showChat(sessionResource),
+		}, {
+			session: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
+			explicitSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
+			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
+			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 		});
 	});
 });

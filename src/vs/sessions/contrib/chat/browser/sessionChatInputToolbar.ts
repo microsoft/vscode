@@ -17,7 +17,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
-import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, observeTurnStatusPillsEnabled } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
@@ -27,7 +28,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -76,7 +77,7 @@ function getGitHubRepositoryHoverData(owner: string, repo: string, openerService
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
 		const title = pullRequest?.title ?? ref.title;
 		const label = title
@@ -84,9 +85,10 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
 		const resolvedIcon = icon ?? computePullRequestIcon('open');
 		const attention = getPullRequestAttention(resolvedIcon, status);
-		const state = pullRequest?.isDraft
+		const pullRequestState = pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
+		const state = pullRequestState === 'open' && pullRequest?.isDraft
 			? 'draft'
-			: pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
+			: pullRequestState;
 		const stateDescription = state === 'draft'
 			? localize('sessionChatPills.pullRequestDraft', "draft")
 			: attention ?? (
@@ -101,6 +103,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			label,
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
+			pullRequestState: state,
 			toolbarActions: [toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy Pull Request URL"),
@@ -126,7 +129,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				}
 				void commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, { pullRequest: ref });
 			},
-		} satisfies IChatPillEntry;
+		} satisfies IChatPullRequestPillEntry;
 	});
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.pullRequests', "Pull Requests"), entries }] : [];
 }
@@ -224,6 +227,13 @@ export class SessionChatInputToolbar extends Disposable {
 		return this._findOwningSession(chat.resource, reader);
 	});
 
+	/**
+	 * Whether the reflected chat is a subagent (worker) chat. Its pills describe
+	 * the session the subagent was spawned from rather than the subagent's own
+	 * work, so the row stays hidden there.
+	 */
+	private readonly _isSubagentChat: IObservable<boolean> = derived(this, reader => this._chat.read(reader)?.origin?.kind === ChatOriginKind.Tool);
+
 	/** The current turn's diff stats. */
 	private readonly _diffStats: IObservable<IDiffStats>;
 	/** Artifact sections shown in the artifact pill. */
@@ -259,8 +269,8 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeSessionInputPillStats(this._session.read(reader), changesStatsCache, reader);
 		});
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+		const pillsEnabled = constObservable(true);
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
@@ -273,8 +283,8 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
-		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled, constObservable(true)));
+		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
+		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const gitHubInfo = derived(this, reader => {
 			const session = this._session.read(reader);
 			const workspace = session?.workspace.read(reader);
@@ -292,7 +302,7 @@ export class SessionChatInputToolbar extends Disposable {
 			const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
 			return { ref, issue: reference.object.issue.read(reader) };
 		}));
-		const issuesActive = derived(this, reader => pillsEnabled.read(reader) && visibility.isVisible(SessionChatPillKind.Issues, reader));
+		const issuesActive = derived(this, reader => visibility.isVisible(SessionChatPillKind.Issues, reader));
 		this._register(autorun(reader => {
 			if (!issuesActive.read(reader)) {
 				return;
@@ -338,7 +348,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
 				},
 			},
-			pullRequests: { sections: pullRequestSections, icon: pullRequestPresentation.icon },
+			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
 			issues: { sections: issueSections, icon: issueIcon },
 			artifacts: { sections: this._artifactSections },
 			references: { sections: this._referenceSections },
@@ -350,7 +360,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
-			enabled: pillsEnabled,
+			enabled: pillsVisible,
 			sources: constObservable(sources.sources),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
