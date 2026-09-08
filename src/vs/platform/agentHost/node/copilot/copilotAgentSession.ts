@@ -112,6 +112,7 @@ const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new 
 ]);
 
 function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource | undefined {
+	// Runtime 1.0.84-2 emits taskModelSource before SDK 1.0.13 declares it; remove this cast once the generated SDK type includes it.
 	const source = (data as { taskModelSource?: unknown }).taskModelSource;
 	switch (source) {
 		case 'task_argument':
