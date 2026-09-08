@@ -581,6 +581,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[RemoteAgentHostAutoConnectSettingId]: {
@@ -644,6 +645,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[TunnelAgentHostsSettingId]: {
@@ -689,6 +691,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 			default: {},
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 	},
