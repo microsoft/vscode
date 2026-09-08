@@ -159,7 +159,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
 	}
 
-	function registerClientConnection(clientId: string, connected: boolean): void {
+	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
+		let connected = initiallyConnected;
 		const source: IAgentHostClientConnectionSource = {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
@@ -167,6 +168,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			requestWorkspaceTrust: async () => false,
 		};
 		disposables.add(clientConnectionService.registerSource(source));
+		return value => connected = value;
 	}
 
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
@@ -830,7 +832,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	});
 
 	test('emits when a stalled client tool later completes', async () => {
-		registerClientConnection('client-1', true);
+		const setClientConnected = registerClientConnection('client-1', true);
 
 		await runWithFakedTimers({}, async () => {
 			setupSession();
@@ -846,6 +848,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			});
 
 			await timeout(5 * 60 * 1000);
+			setClientConnected(false);
 			toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
 		});
 
