@@ -1310,6 +1310,21 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
+	test('reconciles GitHub references after every started turn outcome', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+
+		contributions.service.turnEnd(turnEnd('success'));
+		contributions.service.turnEnd(turnEnd('cancelled', { kind: 'cancelled' }));
+		contributions.service.turnEnd(turnEnd('error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: false,
+		}));
+
+		assert.strictEqual(observed.filter(entry => entry === 'githubReferences').length, 3);
+	});
+
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
