@@ -272,6 +272,8 @@ jobs:
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --tracing
+        env:
+          VSCODE_SMOKE_TEST_POLICY: '1'
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

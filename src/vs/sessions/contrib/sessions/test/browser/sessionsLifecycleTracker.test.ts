@@ -10,7 +10,8 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { MAX_TRACKED_SESSIONS, MAX_TYPED_FILES_PER_SESSION, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,6 +23,7 @@ interface ICreateSessionOptions {
 	changes?: readonly ISessionFileChange[];
 	changesSummary?: ISessionChangesSummary;
 	isExternal?: IObservable<boolean>;
+	artifacts?: readonly ISessionArtifact[];
 }
 
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
@@ -41,6 +43,7 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, opts.changes ?? []),
 		changesSummary: opts.changesSummary !== undefined ? observableValue(`changesSummary-${id}`, opts.changesSummary as ISessionChangesSummary | undefined) : undefined,
+		artifacts: opts.artifacts !== undefined ? observableValue(`artifacts-${id}`, opts.artifacts) : undefined,
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -84,12 +87,15 @@ function createFolder(uri: URI, opts: { readonly workTreeUri?: URI; readonly wit
 }
 
 function createPullRequestRef(number: number, state: GitHubPullRequestState | 'draft'): IGitHubPullRequestRef {
+	const resolvedState = state === 'draft' ? GitHubPullRequestState.Open : state;
 	return {
 		owner: 'microsoft',
 		repo: 'vscode',
 		number,
 		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
 		icon: computePullRequestIcon(state),
+		state: resolvedState,
+		liveState: resolvedState,
 	};
 }
 
@@ -99,9 +105,14 @@ suite('SessionsLifecycleTracker', () => {
 	let storage: InMemoryStorageService;
 	let tracker: SessionsLifecycleTracker;
 
+	function createTracker(): SessionsLifecycleTracker {
+		const usage = new SessionsWindowUsageService(storage);
+		return disposables.add(new SessionsLifecycleTracker(storage, usage.windowOpenCount));
+	}
+
 	setup(() => {
 		storage = disposables.add(new InMemoryStorageService());
-		tracker = disposables.add(new SessionsLifecycleTracker(storage));
+		tracker = createTracker();
 	});
 
 	test('starts untracked until a user interaction is recorded', () => {
@@ -144,7 +155,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.recordNewChatRequestSent(session);
 		tracker.bumpCounter(session, 'feedbackAdded');
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 
 		assert.strictEqual(secondTracker.isTracked(session.sessionId), true);
 		const summary = secondTracker.finalize(session.sessionId, 'archived', session);
@@ -265,7 +276,7 @@ suite('SessionsLifecycleTracker', () => {
 		stored[session.sessionId].typedFileHashes = [123, 456];
 		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const reloaded = disposables.add(new SessionsLifecycleTracker(storage));
+		const reloaded = createTracker();
 		reloaded.addTypedCharacters(session.sessionId, URI.parse('file:///repo/a.ts'), 2);
 
 		const summary = reloaded.finalize(session.sessionId, 'archived', session);
@@ -535,6 +546,72 @@ suite('SessionsLifecycleTracker', () => {
 		});
 	});
 
+	test('summary counts artifacts, references, and each resolved pull request artifact state', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const pullRequests = [
+			createPullRequestRef(1, GitHubPullRequestState.Merged),
+			createPullRequestRef(2, GitHubPullRequestState.Open),
+			createPullRequestRef(3, 'draft'),
+			createPullRequestRef(4, GitHubPullRequestState.Closed),
+			{
+				owner: 'microsoft',
+				repo: 'vscode',
+				number: 5,
+				uri: URI.parse('https://github.com/microsoft/vscode/pull/5'),
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+		];
+		const gitHubInfo: IGitHubInfo = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequests,
+		};
+		const workspace = createWorkspace(workspaceUri, [createFolder(workspaceUri, { gitHubInfo })]);
+		const pullRequestArtifacts = pullRequests.map<ISessionArtifact>(pullRequest => ({
+			id: `pr-${pullRequest.number}`,
+			kind: SessionArtifactKind.PullRequest,
+			label: `Pull request ${pullRequest.number}`,
+			isArtifact: true,
+			link: pullRequest.uri,
+			isGitHub: true,
+		}));
+		const artifacts: readonly ISessionArtifact[] = [
+			...pullRequestArtifacts,
+			{ id: 'issue-1', kind: SessionArtifactKind.Issue, label: 'Issue 1', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/1'), isGitHub: true },
+			{ id: 'issue-2', kind: SessionArtifactKind.Issue, label: 'Issue 2', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/2'), isGitHub: true },
+			{ id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: true, commitHash: 'abc123' },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.parse('file:///repo/plan.md') },
+			{ id: 'website', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
+			{ id: 'pr-reference', kind: SessionArtifactKind.PullRequest, label: 'PR reference', isArtifact: false, link: pullRequests[0].uri, isGitHub: true },
+			{ id: 'issue-reference', kind: SessionArtifactKind.Issue, label: 'Issue reference', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/3'), isGitHub: true },
+			{ id: 'file-reference', kind: SessionArtifactKind.File, label: 'File reference', isArtifact: false, uri: URI.parse('file:///repo/readme.md') },
+		];
+		const session = createSession('s1', { workspace, artifacts });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.deepStrictEqual({
+			pullRequestArtifactMergedCount: summary?.pullRequestArtifactMergedCount,
+			pullRequestArtifactOpenCount: summary?.pullRequestArtifactOpenCount,
+			pullRequestArtifactDraftCount: summary?.pullRequestArtifactDraftCount,
+			pullRequestArtifactClosedCount: summary?.pullRequestArtifactClosedCount,
+			issueArtifactCount: summary?.issueArtifactCount,
+			otherArtifactCount: summary?.otherArtifactCount,
+			artifactCount: summary?.artifactCount,
+			referenceCount: summary?.referenceCount,
+		}, {
+			pullRequestArtifactMergedCount: 1,
+			pullRequestArtifactOpenCount: 1,
+			pullRequestArtifactDraftCount: 1,
+			pullRequestArtifactClosedCount: 1,
+			issueArtifactCount: 2,
+			otherArtifactCount: 3,
+			artifactCount: 10,
+			referenceCount: 3,
+		});
+	});
+
 	test('recordFirstRequestTaskInfo is a no-op when the session is not tracked', () => {
 		const session = createSession('s1');
 
@@ -566,7 +643,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.recordNewChatRequestSent(session);
 		tracker.recordFirstRequestTaskInfo(session, { hasWorktreeCreatedTask: false, configuredTasksCount: 2 });
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 		const summary = secondTracker.finalize(session.sessionId, 'archived', session);
 
 		assert.ok(summary);
@@ -660,7 +737,7 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.incrementAndGetUserRequestCounters(session);
 		tracker.incrementAndGetUserRequestCounters(session);
 
-		const secondTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const secondTracker = createTracker();
 		assert.deepStrictEqual(secondTracker.incrementAndGetUserRequestCounters(session), { userSessionsTotal: 3, userSessionsInWorkspace: 3, userSessionsForProvider: 3 });
 	});
 
@@ -708,7 +785,7 @@ suite('SessionsLifecycleTracker', () => {
 	test('tracker treats corrupted storage as empty', () => {
 		storage.store(SESSIONS_KEY, '{not valid json', StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const recoveredTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const recoveredTracker = createTracker();
 
 		assert.deepStrictEqual(recoveredTracker.getTrackedIds(), []);
 	});
@@ -745,7 +822,7 @@ suite('SessionsLifecycleTracker', () => {
 		}
 		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const capTracker = disposables.add(new SessionsLifecycleTracker(storage));
+		const capTracker = createTracker();
 		assert.strictEqual(capTracker.getTrackedIds().length, MAX_TRACKED_SESSIONS);
 
 		const newSession = createSession('brand-new');

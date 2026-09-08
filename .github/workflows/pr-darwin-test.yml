@@ -235,6 +235,8 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
+        env:
+          VSCODE_SMOKE_TEST_POLICY: '1'
 
       - name: Install Squid for network-isolated smoke tests
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}

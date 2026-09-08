@@ -42,7 +42,7 @@ import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../modelSelection.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
-import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
 
@@ -2433,9 +2433,13 @@ class InputModel implements IInputModel {
 			selectedModel: undefined,
 			inputText: '',
 			selections: [],
-			contrib: {},
 			...current,
 			...state,
+			// `contrib` is a shared bag whose keys belong to their individual
+			// writers - widget contributions, but also non-widget writers such as
+			// the customization migration hint. A partial update must not drop
+			// the keys it says nothing about, so merge rather than replace.
+			contrib: { ...current?.contrib, ...state.contrib },
 			origin: state.origin
 		}, undefined);
 	}
@@ -3391,31 +3395,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 }
 
-export function updateRanges(variableData: IChatRequestVariableData, promptText: IChatPromptText): IChatRequestVariableData {
-	const mapOffset = (offset: number): number => {
-		if (!promptText.rangeEdits) {
-			return offset - promptText.diff;
-		}
-
-		const leadingTrim = promptText.leadingTrim ?? 0;
-		let mappedOffset = offset - leadingTrim;
-		for (const edit of promptText.rangeEdits) {
-			const oldLength = edit.range.endExclusive - edit.range.start;
-			if (offset >= edit.range.endExclusive) {
-				mappedOffset += edit.newLength - oldLength;
-			} else if (offset > edit.range.start) {
-				return Math.max(0, edit.range.start - leadingTrim + Math.min(offset - edit.range.start, edit.newLength));
-			}
-		}
-		return Math.max(0, mappedOffset);
-	};
-
+export function updateRanges(variableData: IChatRequestVariableData, diff: number): IChatRequestVariableData {
 	return {
 		variables: variableData.variables.map(v => ({
 			...v,
 			range: v.range && {
-				start: mapOffset(v.range.start),
-				endExclusive: mapOffset(v.range.endExclusive)
+				start: v.range.start - diff,
+				endExclusive: v.range.endExclusive - diff
 			}
 		}))
 	};

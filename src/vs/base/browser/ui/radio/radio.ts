@@ -12,7 +12,7 @@ import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { Button } from '../button/button.js';
-import { DisposableMap, DisposableStore } from '../../../common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
 export interface IRadioStyles {
@@ -55,6 +55,10 @@ export class Radio extends Widget {
 	private readonly _onDidSelect = this._register(new Emitter<number>());
 	readonly onDidSelect = this._onDidSelect.event;
 
+	private readonly _onDidActivate = this._register(new Emitter<number>());
+	/** Fires on click, Enter, or Space, even when the item is already selected. */
+	readonly onDidActivate = this._onDidActivate.event;
+
 	readonly domNode: HTMLElement;
 
 	private readonly hoverDelegate: IHoverDelegate;
@@ -84,6 +88,21 @@ export class Radio extends Widget {
 		this.setItems(opts.items);
 	}
 
+	/** The option buttons in item order, for callers that need to measure or decorate them. */
+	get optionElements(): readonly HTMLElement[] {
+		return this.orderedButtons.map(button => button.element);
+	}
+	/** Shows `text` on an option until the returned disposable puts the item's own label back. */
+	overrideOptionLabel(index: number, text: string): IDisposable {
+		const button = this.orderedButtons[index];
+		const item = this.items[index];
+		if (!button || !item) {
+			return Disposable.None;
+		}
+		this.setButtonLabel(button, text);
+		return toDisposable(() => this.setButtonLabel(button, item.text));
+	}
+
 	setItems(items: ReadonlyArray<IRadioOptionItem>): void {
 		this.buttons.clearAndDisposeAll();
 		this.orderedButtons = [];
@@ -100,8 +119,10 @@ export class Radio extends Widget {
 			}));
 			button.element.setAttribute('role', 'radio');
 			button.enabled = !item.disabled;
-			// Button turns Enter and Space into a click, which is how `focus` mode selects.
-			disposables.add(button.onDidClick(() => this.selectItem(index)));
+			disposables.add(button.onDidClick(() => {
+				this.selectItem(index);
+				this._onDidActivate.fire(index);
+			}));
 			disposables.add(addDisposableListener(button.element, EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				const delta = event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow) ? 1
@@ -137,8 +158,19 @@ export class Radio extends Widget {
 	focusActiveItem(): void {
 		const index = this.activeItem ? this.items.indexOf(this.activeItem) : -1;
 		if (index !== -1) {
-			this.orderedButtons[index]?.focus();
+			this.focusItem(index);
 		}
+	}
+
+	/** Moves focus to an item without selecting it. */
+	focusItem(index: number): void {
+		if (!this.orderedButtons[index]) {
+			throw new Error('Invalid Index');
+		}
+		for (let candidate = 0; candidate < this.orderedButtons.length; candidate++) {
+			this.orderedButtons[candidate].element.tabIndex = candidate === index ? 0 : -1;
+		}
+		this.orderedButtons[index].focus();
 	}
 
 	private selectItem(index: number): void {
@@ -167,11 +199,15 @@ export class Radio extends Widget {
 		}
 	}
 
-	private focusItem(index: number): void {
-		for (let candidate = 0; candidate < this.orderedButtons.length; candidate++) {
-			this.orderedButtons[candidate].element.tabIndex = candidate === index ? 0 : -1;
+	private setButtonLabel(button: Button, text: string): void {
+		button.label = text;
+		if (this.domNode.classList.contains('segmented')) {
+			for (const element of button.element.children) {
+				if (!element.classList.contains('codicon')) {
+					element.setAttribute('data-label', element.textContent ?? '');
+				}
+			}
 		}
-		this.orderedButtons[index]?.focus();
 	}
 
 	private updateButtons(): void {
@@ -183,7 +219,7 @@ export class Radio extends Widget {
 			button.element.classList.toggle('previous-active', isPreviousActive);
 			button.element.setAttribute('aria-checked', String(isActive));
 			button.element.tabIndex = isActive ? 0 : -1;
-			button.label = item.text;
+			this.setButtonLabel(button, item.text);
 		}
 	}
 
