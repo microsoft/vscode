@@ -37,13 +37,41 @@ export const CLAUDE_SDK_DEFAULT_AGENT_NAME = 'general-purpose';
  */
 const CLAUDE_INTERNAL_SCHEME = 'claude-internal';
 
-function makeDirectory(base: URI, sub: string, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization | HookCustomization)[]): DirectoryCustomization {
-	const uri = URI.joinPath(base, '.claude', sub).toString();
+function findDirectoryUri(childUri: URI, type: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule, bucketBase: URI): URI {
+	const path = childUri.path;
+	if (path.includes('/.agents/skills/')) {
+		return URI.joinPath(bucketBase, '.agents', 'skills');
+	}
+	if (path.includes('/.github/skills/')) {
+		return URI.joinPath(bucketBase, '.github', 'skills');
+	}
+	if (path.includes('/.claude/skills/')) {
+		return URI.joinPath(bucketBase, '.claude', 'skills');
+	}
+	if (path.includes('/.agents/agents/')) {
+		return URI.joinPath(bucketBase, '.agents', 'agents');
+	}
+	if (path.includes('/.github/agents/')) {
+		return URI.joinPath(bucketBase, '.github', 'agents');
+	}
+	if (path.includes('/.claude/agents/')) {
+		return URI.joinPath(bucketBase, '.claude', 'agents');
+	}
+	if (path.includes('/.claude/commands/')) {
+		return URI.joinPath(bucketBase, '.claude', 'commands');
+	}
+	const sub = type === CustomizationType.Agent ? 'agents' : type === CustomizationType.Skill ? 'skills' : 'rules';
+	return URI.joinPath(bucketBase, '.claude', sub);
+}
+
+function makeDirectoryWithUri(dirUri: URI, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook, children: readonly (AgentCustomization | SkillCustomization | RuleCustomization | HookCustomization)[]): DirectoryCustomization {
+	const uri = dirUri.toString();
+	const name = basename(dirUri);
 	return {
 		type: CustomizationType.Directory,
 		id: customizationId(uri),
 		uri,
-		name: sub,
+		name,
 		enabled: true,
 		contents,
 		writable: true,
@@ -93,14 +121,10 @@ function makePlugin(plugin: IResolvedNativePlugin): PluginCustomization {
  */
 interface ICustomizationBucket {
 	readonly base: URI;
-	readonly agents: AgentCustomization[];
-	readonly skills: SkillCustomization[];
-	readonly rules: RuleCustomization[];
-	readonly hooks: HookCustomization[];
 }
 
 function createBucket(base: URI): ICustomizationBucket {
-	return { base, agents: [], skills: [], rules: [], hooks: [] };
+	return { base };
 }
 
 function findCustomizationBucket(uri: URI, workspaceBuckets: readonly ICustomizationBucket[], userBucket: ICustomizationBucket): ICustomizationBucket {
@@ -132,36 +156,36 @@ export function mapDiscoveredCustomizations(
 	const roots = distinctClaudeWorkingDirectories(Array.isArray(workingDirectories) ? workingDirectories : workingDirectories ? [workingDirectories] : []);
 	const workspaceBuckets = roots.map(createBucket);
 	const userBucket = createBucket(userHome);
+	const directoryMap = new Map<string, { uri: URI; contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook; children: (AgentCustomization | SkillCustomization | RuleCustomization | HookCustomization)[] }>();
+
+	const getOrCreateDir = (dirUri: URI, contents: CustomizationType.Agent | CustomizationType.Skill | CustomizationType.Rule | CustomizationType.Hook) => {
+		const key = `${contents}:${dirUri.toString()}`;
+		let entry = directoryMap.get(key);
+		if (!entry) {
+			entry = { uri: dirUri, contents, children: [] };
+			directoryMap.set(key, entry);
+		}
+		return entry;
+	};
+
 	for (const d of discovered) {
 		const bucket = findCustomizationBucket(d.uri, workspaceBuckets, userBucket);
-		if (d.customization.type === CustomizationType.Agent) {
-			bucket.agents.push(d.customization);
-		} else if (d.customization.type === CustomizationType.Skill) {
-			bucket.skills.push(d.customization);
-		} else {
-			bucket.rules.push(d.customization);
-		}
+		const type = d.customization.type;
+		const dirUri = findDirectoryUri(d.uri, type, bucket.base);
+		getOrCreateDir(dirUri, type).children.push(d.customization);
 	}
-	// Hooks arrive already projected (one per declaring settings file); they
-	// carry no `IParsed*` wrapper, so attribute them to scope via their source
-	// settings-file uri.
+
 	for (const hook of hooks) {
-		findCustomizationBucket(URI.parse(hook.uri), workspaceBuckets, userBucket).hooks.push(hook);
+		const hookUri = URI.parse(hook.uri);
+		const bucket = findCustomizationBucket(hookUri, workspaceBuckets, userBucket);
+		const dirUri = URI.joinPath(bucket.base, '.claude', 'hooks');
+		getOrCreateDir(dirUri, CustomizationType.Hook).children.push(hook);
 	}
 
 	const result: Customization[] = [];
-	for (const bucket of [...workspaceBuckets, userBucket]) {
-		if (bucket.agents.length > 0) {
-			result.push(makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents));
-		}
-		if (bucket.skills.length > 0) {
-			result.push(makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills));
-		}
-		if (bucket.rules.length > 0) {
-			result.push(makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules));
-		}
-		if (bucket.hooks.length > 0) {
-			result.push(makeDirectory(bucket.base, 'hooks', CustomizationType.Hook, bucket.hooks));
+	for (const entry of directoryMap.values()) {
+		if (entry.children.length > 0) {
+			result.push(makeDirectoryWithUri(entry.uri, entry.contents, entry.children));
 		}
 	}
 
@@ -514,27 +538,38 @@ export class ClaudeCustomizationWatcher extends Disposable {
 			}
 		};
 
-		const primary = roots[0];
-		if (primary) {
-			const projectClaude = URI.joinPath(primary, '.claude');
+		const watchRootCustomizations = (root: URI) => {
+			const projectClaude = URI.joinPath(root, '.claude');
 			watch(projectClaude, true);
 			addClaudeTriggers(projectClaude);
+
+			const projectAgents = URI.joinPath(root, '.agents');
+			watch(projectAgents, true);
+			triggers.push(URI.joinPath(projectAgents, 'skills'), URI.joinPath(projectAgents, 'agents'));
+
+			const projectGithub = URI.joinPath(root, '.github');
+			watch(projectGithub, true);
+			triggers.push(URI.joinPath(projectGithub, 'skills'), URI.joinPath(projectGithub, 'agents'));
+		};
+
+		const primary = roots[0];
+		if (primary) {
+			watchRootCustomizations(primary);
 			watch(primary, false);
 			triggers.push(URI.joinPath(primary, '.mcp.json'));
 		}
 		for (const additional of roots.slice(1)) {
-			const projectClaude = URI.joinPath(additional, '.claude');
-			watch(projectClaude, true);
-			triggers.push(
-				URI.joinPath(projectClaude, 'agents'),
-				URI.joinPath(projectClaude, 'skills'),
-				URI.joinPath(projectClaude, 'settings.json'),
-				URI.joinPath(projectClaude, 'settings.local.json'),
-			);
+			watchRootCustomizations(additional);
 		}
 		const userClaude = URI.joinPath(userHome, '.claude');
 		watch(userClaude, true);
 		addClaudeTriggers(userClaude);
+		const userAgents = URI.joinPath(userHome, '.agents');
+		watch(userAgents, true);
+		triggers.push(URI.joinPath(userAgents, 'skills'), URI.joinPath(userAgents, 'agents'));
+		const userGithub = URI.joinPath(userHome, '.github');
+		watch(userGithub, true);
+		triggers.push(URI.joinPath(userGithub, 'skills'), URI.joinPath(userGithub, 'agents'));
 
 		// Memory files (CLAUDE.md / CLAUDE.local.md) — reuse the scanner's
 		// canonical list so the watcher never drifts from what it actually

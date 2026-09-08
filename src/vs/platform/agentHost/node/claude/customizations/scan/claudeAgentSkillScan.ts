@@ -61,9 +61,19 @@ export async function scanClaudeCustomizationScope(
 	includeCommands: boolean = true,
 ): Promise<readonly (IParsedAgent | IParsedSkill)[]> {
 	const { agents: agentsDir, skills: skillsDir, commands: commandsDir } = scopeRoots(scope);
+	const skillDirs = [
+		skillsDir,
+		URI.joinPath(scope, '.agents', 'skills'),
+		URI.joinPath(scope, '.github', 'skills'),
+	];
+	const agentDirs = [
+		agentsDir,
+		URI.joinPath(scope, '.agents', 'agents'),
+		URI.joinPath(scope, '.github', 'agents'),
+	];
 	const [agentResources, skillResources, commandResources] = await Promise.all([
-		readAgentComponents([agentsDir], fileService),
-		readSkills(skillsDir, [skillsDir], fileService),
+		readAgentComponents(agentDirs, fileService),
+		readSkills(skillsDir, skillDirs, fileService),
 		includeCommands ? readAgentComponents([commandsDir], fileService) : [],
 	]);
 	const agents = new Map<string, IParsedAgent>();
