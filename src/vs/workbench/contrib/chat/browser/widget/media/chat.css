@@ -1947,6 +1947,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
+	align-items: center;
 }
 
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {

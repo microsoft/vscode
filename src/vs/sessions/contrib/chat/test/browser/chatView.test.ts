@@ -266,6 +266,29 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('centers text-only in-session secondary actions', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const session = dom.append(workbench, dom.$('.interactive-session'));
+		const toolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
+		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+		const item = dom.append(actionBar, dom.$('.action-item'));
+		const label = dom.append(item, dom.$('a.action-label'));
+		label.textContent = 'Plan';
+
+		assert.deepStrictEqual({
+			labelHeight: label.getBoundingClientRect().height,
+			labelAlignItems: dom.getWindow(label).getComputedStyle(label).alignItems,
+			labelIsNotClipped: label.scrollWidth <= label.clientWidth,
+			text: label.textContent,
+		}, {
+			labelHeight: 22,
+			labelAlignItems: 'center',
+			labelIsNotClipped: true,
+			text: 'Plan',
+		});
+	});
+
 	test('centers compact in-session picker glyphs inside their action item', () => {
 		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));
