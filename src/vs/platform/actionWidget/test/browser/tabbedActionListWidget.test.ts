@@ -167,6 +167,31 @@ suite('TabbedActionListWidget', () => {
 		assert.strictEqual(widget.isVisible, false);
 	});
 
+	test('items receive pointer input immediately after opening', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const selected: string[] = [];
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('first'), action('second')] }),
+			delegate: { onSelect: item => selected.push(item.id), onHide: () => { } },
+		});
+		const container = contextView.getContextViewElement();
+		container.style.cssText = 'position: fixed; top: 20px; left: 20px; z-index: 10000;';
+		const row = container.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		const bounds = row.getBoundingClientRect();
+		assert.ok(row.contains(document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)));
+		row.click();
+		assert.deepStrictEqual(selected, ['second']);
+		widget.hide();
+	});
+
 	for (const matches of [['first match'], ['first match', 'second match']]) {
 		test(`tab-bar search accepts after ArrowDown with ${matches.length} matching results`, () => {
 			const { widget, input, selected } = createSearchableWidget(disposables, [...matches, 'other']);

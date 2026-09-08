@@ -69,14 +69,14 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('describes long pasted text attachments', () => {
+	test('describes long pasted text attachments regardless of line count', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
 
 		assert.deepStrictEqual({
-			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
-			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text, including single-line text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text, including single-line text'),
 		}, {
 			agentView: true,
 			inlineChat: true,
