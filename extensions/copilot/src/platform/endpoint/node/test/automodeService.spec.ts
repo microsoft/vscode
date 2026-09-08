@@ -17,7 +17,6 @@ import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
-import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { defaultAutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
@@ -37,7 +36,6 @@ describe('AutomodeService', () => {
 	let mockAuthService: IAuthenticationService;
 	let mockLogService: ILogService;
 	let mockInstantiationService: IInstantiationService;
-	let mockExpService: IExperimentationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let configurationService: IConfigurationService;
 	let onDidAuthenticationChangeEmitter: Emitter<void>;
@@ -66,7 +64,6 @@ describe('AutomodeService', () => {
 			mockAuthService,
 			mockLogService,
 			mockInstantiationService,
-			mockExpService,
 			mockTelemetryService,
 			new NullRequestLogger(),
 			configurationService
@@ -158,7 +155,6 @@ describe('AutomodeService', () => {
 			)
 		} as unknown as IInstantiationService;
 
-		mockExpService = new NullExperimentationService();
 		configure();
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
@@ -748,7 +744,7 @@ describe('AutomodeService', () => {
 		});
 
 		it('announces tier support from the effective setting, not a separate experiment lookup', async () => {
-			vi.spyOn(mockExpService, 'getTreatmentVariable').mockReturnValue(true);
+			const getExperimentBasedConfig = vi.spyOn(configurationService, 'getExperimentBasedConfig');
 			automodeService = createService();
 			expect(automodeService.areAutoModeTiersSupported()).toBe(false);
 
@@ -760,7 +756,11 @@ describe('AutomodeService', () => {
 			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, false);
 			listener.dispose();
 
-			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 2, supported: false });
+			expect({
+				announced,
+				supported: automodeService.areAutoModeTiersSupported(),
+				experimentLookups: getExperimentBasedConfig.mock.calls.length,
+			}).toEqual({ announced: 2, supported: false, experimentLookups: 0 });
 		});
 
 		it('does not reuse a cached endpoint from a different tier when /auto fails', async () => {
