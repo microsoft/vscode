@@ -482,7 +482,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
 					: Math.max(0, height - inputHeight);
 				listContainer.style.height = `${contentHeight}px`;
-				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listContainer.dataset.expectedHeight = String(contentHeight);
 				listWidget.layout(contentHeight, width);
 			} finally {
 				layouting = false;
@@ -807,7 +807,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			warnings.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));
@@ -908,11 +908,11 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
 	status.role = 'status';
 	status.textContent = 'Running disabled pet observer probe';
-	status.dataset['warningCount'] = '0';
+	status.dataset.warningCount = '0';
 	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
-			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
-			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			status.dataset.warningCount = String(Number(status.dataset.warningCount) + 1);
+			status.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 		}
 	}));
 

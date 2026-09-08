@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
+import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1018,6 +1022,92 @@ suite('ModernUIContribution', () => {
 			leavesRail: true,
 		});
 	});
+
+	for (const { name, classes, gap } of [
+		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8 },
+		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4 },
+		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0 },
+		{ name: 'classic layout', classes: '', gap: 0 },
+	]) {
+		test(`keeps compact application menu spacing independent of the activity rail in ${name}`, async () => {
+			const root = document.createElement('div');
+			root.className = `monaco-workbench ${classes}`;
+			root.style.height = '400px';
+			root.style.setProperty('--activity-bar-width', '36px');
+			root.style.setProperty('--activity-bar-action-height', '36px');
+			root.style.setProperty('--activity-bar-action-gap', `${gap}px`);
+			root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+			root.style.setProperty('--vscode-spacing-size20', '2px');
+			root.style.setProperty('--vscode-spacing-size40', '4px');
+			root.style.setProperty('--vscode-spacing-size60', '6px');
+			root.style.setProperty('--vscode-spacing-size80', '8px');
+			document.body.appendChild(root);
+			const disposables = new DisposableStore();
+			store.add(combinedDisposable(disposables, toDisposable(() => root.remove())));
+
+			const activityBar = appendElement(root, `part activitybar left${name === 'compact activity bar' ? ' compact' : ''}`);
+			const content = appendElement(activityBar, 'content');
+			const menubar = appendElement(content, 'menubar');
+			const rail = disposables.add(new ActionBar(appendElement(content, 'composite-bar'), { orientation: ActionsOrientation.VERTICAL }));
+			rail.push([
+				disposables.add(new Action('explorer', 'Explorer')),
+				disposables.add(new Action('search', 'Search')),
+			]);
+			const actions = [
+				disposables.add(new Action('undo', 'Undo')),
+				disposables.add(new Action('redo', 'Redo')),
+				new Separator(),
+				disposables.add(new Action('cut', 'Cut')),
+				disposables.add(new Action('copy', 'Copy')),
+			];
+			const menuBar = new MenuBar(menubar, {
+				visibility: 'compact',
+				compactMode: { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
+			}, unthemedMenuStyles);
+			disposables.add(combinedDisposable(toDisposable(() => menuBar.blur()), menuBar));
+			menuBar.push([
+				{ label: 'Edit', actions },
+				{ label: 'View', actions: [] },
+				{ label: 'Help', actions: [] },
+			]);
+			menuBar.update();
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(getWindow(root), () => resolve())));
+			menuBar.toggleFocus();
+			menubar.querySelector<HTMLElement>('.menubar-menu-button')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+
+			const applicationMenu = menubar.querySelector<HTMLElement>('.monaco-menu');
+			assert.ok(applicationMenu);
+			applicationMenu.querySelector<HTMLElement>('.action-menu-item')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			const submenu = applicationMenu.querySelector<HTMLElement>('.monaco-submenu .monaco-menu');
+			assert.ok(submenu);
+
+			const referenceHost = appendElement(root, 'reference-menu');
+			disposables.add(new Menu(referenceHost, actions, {}, unthemedMenuStyles));
+			const referenceMenu = referenceHost.querySelector<HTMLElement>('.monaco-menu')!;
+			const menuGeometry = (menu: HTMLElement) => {
+				const items = [...menu.querySelector('.actions-container')!.children];
+				const top = items[0].getBoundingClientRect().top;
+				return items.map(item => ({
+					height: item.getBoundingClientRect().height,
+					offset: item.getBoundingClientRect().top - top,
+					marginTop: getWindow(menu).getComputedStyle(item).marginTop,
+				}));
+			};
+			const applicationRows = menuGeometry(applicationMenu);
+			const railItems = content.querySelectorAll<HTMLElement>('.composite-bar .action-item');
+			assert.deepStrictEqual({
+				railGap: getWindow(root).getComputedStyle(railItems[1]).marginTop,
+				applicationMargins: applicationRows.map(row => row.marginTop),
+				applicationRowStep: applicationRows[1].offset,
+				submenu: menuGeometry(submenu),
+			}, {
+				railGap: `${gap}px`,
+				applicationMargins: ['0px', '0px', '0px'],
+				applicationRowStep: 24,
+				submenu: menuGeometry(referenceMenu),
+			});
+		});
+	}
 
 	test('styles focused and open compact application menu states', () => {
 		const root = document.createElement('div');

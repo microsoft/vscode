@@ -13,6 +13,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -40,6 +41,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
 	relayCommand: string | undefined;
+	endpointPollsBeforeAvailable = 0;
+	endpointPolls = 0;
 	loadedCertificates = 0;
 	writtenCertificates: readonly string[] | undefined;
 	forceConcurrentRenameCollision = false;
@@ -159,10 +162,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: '', stderr: '', code: 1 };
 			}
 			if (command.includes('agent endpoints')) {
+				this.endpointPolls++;
 				return {
 					stdout: JSON.stringify({
 						userDataPath: '/home/vscode/.config/Code',
-						endpoints: [{
+						endpoints: this.endpointPolls <= this.endpointPollsBeforeAvailable ? [] : [{
 							schemaVersion: 2,
 							type: 'standalone',
 							pid: 42,
@@ -335,6 +339,26 @@ suite('Dev Container Agent Host Main Service', () => {
 			output: ['connection:Starting Dev Container\n'],
 		});
 	});
+
+	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointPollsBeforeAvailable = 21;
+
+		const result = await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+		await service.disconnect('connection');
+
+		assert.deepStrictEqual({
+			address: result.address,
+			polledPastShortDeadline: service.endpointPolls > 20,
+		}, {
+			address: 'devcontainer:container-id',
+			polledPastShortDeadline: true,
+		});
+	}));
 
 	test('installs the Alpine CLI artifact in a musl container', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService('musl', true));
