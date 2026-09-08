@@ -39,6 +39,7 @@ import { IActiveSession } from '../../../../../services/sessions/common/sessions
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
+import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
 
 suite('AgentHostModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -224,6 +225,29 @@ suite('AgentHostModePicker', () => {
 			{ anchorMatches: true, above: true, submenu: undefined, expanded: 'true', focusRestored: true },
 			{ anchorMatches: true, above: true, submenu: 'agentHostModePicker.permissions', expanded: 'true', focusRestored: true },
 		]);
+	});
+
+	test('toolbar focus follows the current mode button when the setting changes live', async () => {
+		const { picker, configuration } = setup();
+		const item = store.add(new PickerActionViewItem(picker));
+		const container = dom.append(document.body, dom.$('div'));
+		store.add({ dispose: () => container.remove() });
+		item.render(container);
+		item.setFocusable(true);
+		const states = [];
+		for (const enabled of [true, false, true]) {
+			await configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.ExperimentalModePermissionsPicker,
+				affectedKeys: new Set([ChatConfiguration.ExperimentalModePermissionsPicker]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.ExperimentalModePermissionsPicker], overrides: [] },
+			});
+			item.focus();
+			const target = container.querySelector<HTMLElement>(enabled ? '.agent-host-mode-button' : '.action-label')!;
+			states.push({ enabled, focusedButton: document.activeElement === target && target.role === 'button', itemFocused: item.isFocused() });
+		}
+		assert.deepStrictEqual(states, [true, false, true].map(enabled => ({ enabled, focusedButton: true, itemFocused: true })));
 	});
 
 	test('preserves the split trigger elements when configuration changes', () => {

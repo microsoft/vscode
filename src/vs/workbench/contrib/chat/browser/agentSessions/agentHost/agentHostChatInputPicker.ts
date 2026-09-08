@@ -251,7 +251,7 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 	const trigger = dom.append(slot, disabled ? dom.$('span.action-label') : dom.$(combined ? 'div.action-label' : 'a.action-label'));
 	if (disabled) {
 		trigger.setAttribute('aria-readonly', 'true');
-	} else {
+	} else if (!combined) {
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
@@ -776,7 +776,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
 			}));
 		}
-		if (!isEqual(sessionResource, this._widget.viewModel?.sessionResource)) {
+		if (this._store.isDisposed || this._actionWidgetService.isVisible || !isEqual(sessionResource, this._widget.viewModel?.sessionResource)) {
 			return;
 		}
 

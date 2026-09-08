@@ -47,6 +47,7 @@ export interface IAgentHostSessionEnumPickerItem {
 export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _triggerGesture = this._register(new MutableDisposable());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
@@ -84,6 +85,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
+		this._triggerGesture.clear();
 		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
@@ -98,7 +100,6 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._triggerElement = trigger;
 		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? '') })));
 
-		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
@@ -115,6 +116,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		this._updateTrigger();
 		return trigger;
+	}
+
+	focus(): void {
+		this._triggerElement?.focus();
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
@@ -223,6 +228,11 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 		this._renderTriggerLabel(this._triggerElement, label, icon);
 		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
+		if (this._triggerElement.role === 'group') {
+			this._triggerGesture.clear();
+		} else if (!this._triggerGesture.value) {
+			this._triggerGesture.value = Gesture.addTarget(this._triggerElement);
+		}
 	}
 
 	protected _renderTriggerLabel(trigger: HTMLElement, label: string, icon: ThemeIcon | undefined): void {
@@ -377,6 +387,10 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 
 	protected override _createTrigger(slot: HTMLElement): HTMLElement {
 		return dom.append(slot, dom.$('div.action-label'));
+	}
+
+	override focus(): void {
+		(this._splitTrigger.value?.modeButton ?? this._triggerElement)?.focus();
 	}
 
 	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions = this._getListOptions()): boolean {

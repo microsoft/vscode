@@ -11,6 +11,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -109,11 +111,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const onDidShow = store.add(new Emitter<void>());
 		const actionWidget = new class extends mock<IActionWidgetService>() {
 			override isVisible = false;
+			showCount = 0;
 			items: readonly IActionListItem<unknown>[] = [];
 			anchor: Parameters<IActionWidgetService['show']>[4] | undefined;
 			options: IActionListOptions | undefined;
 			onHide: (() => void) | undefined;
 			override show<T>(_id: string, _preview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: Parameters<IActionWidgetService['show']>[4], _container: Parameters<IActionWidgetService['show']>[5], _actions?: Parameters<IActionWidgetService['show']>[6], _accessibility?: Parameters<IActionWidgetService['show']>[7], options?: IActionListOptions): void {
+				this.showCount++;
 				this.items = items;
 				this.anchor = anchor;
 				this.options = options;
@@ -280,6 +284,28 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			{ anchorMatches: true, above: true, submenu: undefined, expanded: 'true' },
 			{ anchorMatches: true, above: true, submenu: 'agentHostModePicker.permissions', expanded: 'true' },
 		]);
+	});
+
+	test('does not handle touch taps on the non-interactive combined group', async () => {
+		const { modeContainer, actionWidget } = setup();
+		modeContainer.querySelector('.action-label')!.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+		await timeout(0);
+		assert.strictEqual(actionWidget.showCount, 0);
+	});
+
+	test('concurrent opens do not replace the first permissions popup', async () => {
+		const { modePicker, modeContainer, actionWidget } = setup();
+		const permissions = modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!;
+		const mode = modeContainer.querySelector<HTMLElement>('.agent-host-mode-button')!;
+		await Promise.all([
+			modePicker['_showPicker'](permissions, true),
+			modePicker['_showPicker'](mode),
+		]);
+		assert.deepStrictEqual({
+			showCount: actionWidget.showCount,
+			submenu: actionWidget.options?.initialSubmenuId,
+			permissionsExpanded: permissions.ariaExpanded,
+		}, { showCount: 1, submenu: 'agentHostModePicker.permissions', permissionsExpanded: 'true' });
 	});
 
 	test('the combined editor popup fades without changing its geometry', () => {

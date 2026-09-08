@@ -482,7 +482,7 @@ suite('ActionListWidget', () => {
 					}, {
 						kind: ActionListItemKind.Action,
 						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { runs++; } }),
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { widget.hide(); runs++; } }),
 					}],
 				},
 			}],
@@ -641,6 +641,38 @@ suite('ActionListWidget', () => {
 		assert.deepStrictEqual(results, cases.map(({ x, gap }) => ({
 			x, gap: gap ?? 4, overControl: true, aboveControl: true, submenuFocused: true, modeBesidePermissions: true,
 		})));
+	});
+
+	test('reveals the initial submenu row when the parent list is height-clamped', () => {
+		const list = createActionList(disposables, [
+			...Array.from({ length: 10 }, (_, index) => action(`mode-${index}`)),
+			{
+				kind: ActionListItemKind.Action,
+				label: 'Permissions',
+				submenu: {
+					id: 'permissions',
+					items: [{
+						kind: ActionListItemKind.Action,
+						label: 'Manual',
+						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
+					}],
+					alignWithParentBottom: true,
+				},
+			},
+		], {
+			anchor: { x: 400, y: 90, width: 100, height: 24 },
+			listOptions: { showFilter: false, anchorPosition: AnchorPosition.ABOVE, initialSubmenuId: 'permissions' },
+		});
+		list.layout(260);
+		const initiallyRendered = list.domNode.querySelector('.monaco-list-row[aria-haspopup="listbox"]');
+		list.focus();
+		const submenu = list.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		assert.deepStrictEqual({
+			initiallyRendered: !!initiallyRendered,
+			footerRendered: !!list.domNode.querySelector('.monaco-list-row[aria-haspopup="listbox"]'),
+			submenuVisible: submenu.style.display,
+			submenuFocused: submenu.contains(document.activeElement),
+		}, { initiallyRendered: false, footerRendered: true, submenuVisible: '', submenuFocused: true });
 	});
 
 	test('rich submenu skips disabled choices and preserves their details', () => {
