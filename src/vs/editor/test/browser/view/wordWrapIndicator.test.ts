@@ -355,9 +355,9 @@ suite('WordWrapIndicatorOverlay', () => {
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
 			},
 			{
-				indicatorTurnedOn: true,
+				indicatorTurnedOn: false,
 				indicatorTurnedOff: true,
-				wrappingTurnedOn: true,
+				wrappingTurnedOn: false,
 				wrappingTurnedOff: true,
 				layoutChanged: true,
 				unrelatedChange: false
