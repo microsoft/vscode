@@ -19,9 +19,11 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
 import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/chatListRenderer.js';
 import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatOptions.js';
 import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -186,8 +188,30 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	}
 }
 
+function renderCompletionNotices(context: ComponentFixtureContext): void {
+	const { container, disposableStore } = context;
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: context.theme,
+		additionalServices: registerChatFixtureServices,
+	});
+	container.classList.add('interactive-session');
+	container.style.width = '620px';
+	container.style.padding = '12px';
+	const transcript = dom.append(container, dom.$('.interactive-item-container'));
+	const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+	for (const content of [
+		'Background agent `Renderer reviewer` is complete',
+		'Background agent `History reviewer` completed',
+		'Background agent `Lifecycle reviewer` failed',
+	]) {
+		const part = disposableStore.add(instantiationService.createInstance(ChatSystemNotificationContentPart, { kind: 'systemNotification', content: new MarkdownString(content) }, renderer));
+		transcript.appendChild(part.domNode);
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
 });
