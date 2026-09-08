@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IApplicationBadge, INativeHostService } from '../../../../platform/native/common/native.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../platform/product/common/product.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
@@ -21,6 +22,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
+export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
 
 /**
  * Renders the number of unarchived sessions that need the user's attention:
@@ -56,7 +58,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, false, this._configurationService);
+		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, SESSIONS_APPLICATION_BADGE_DEFAULT, this._configurationService);
 		this._blockedSessions = this._register(instantiationService.createInstance(BlockedSessions));
 
 		this._sessions = observableFromEvent(this, this._sessionsManagementService.onDidChangeSessions, () => this._sessionsManagementService.getSessions());

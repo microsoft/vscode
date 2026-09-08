@@ -336,6 +336,15 @@
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Soft/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/af268bfa64dd8a47c8e05e756742156c27b0ff49306146e2aa343260b5838735)
 
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e0a82b05f1166a334c8d48990d1dbfa3c4ae6dfa358a88ca3cf56fffbf93792e)
+
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a1db74bd19da0772ca4caeaf341646344e2cb775708c5732f00a30fd94473960)
+
+#### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/38d000ecc104d74252f7bac7d47f712e8deb2bd4907657d50993cbf0ee9fcc3e)
+
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4c6dfa53103d4a06dd28aa56baad6798cd36894da97bffc351618aed8b10396f)
 
@@ -380,3 +389,12 @@
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4aceb7c295b1a4b1cb8675fbbfa3376d9951506a0d02e6f34eac1770dd148110)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d40fed5ccaf446183e91efce92563fe87fe4505a6f3ec92219de95d74ede5803)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/54f41b5fe0f20683151eb5891abbe8ac449d2f16f7dde922e9a3a7104c638770)
+
+#### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6a869c24b606e74a74331f03f693b8459e7ab2a92f77269b4b2ca49b880a4ffa)

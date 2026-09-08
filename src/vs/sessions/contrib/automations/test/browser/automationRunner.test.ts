@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationRunClaim } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -151,10 +150,10 @@ suite('AutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(createAutomationService(storage, log, NullTelemetryService));
+		const service = teardown.add(createAutomationService(storage, log));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		const notifications = new RecordingNotificationService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, notifications);
+		const runner = new AutomationRunner(service, sessionsMgmt, log, notifications);
 		return { service, sessionsMgmt, runner, notifications };
 	}
 
@@ -181,9 +180,9 @@ suite('AutomationRunner', () => {
 	test('reports an authority-dispatched run as started without creating another session', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, new TestAutomationStorageService(storage)));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		const runner = new AutomationRunner(service, sessionsMgmt, log, NullTelemetryService, new RecordingNotificationService());
+		const runner = new AutomationRunner(service, sessionsMgmt, log, new RecordingNotificationService());
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 
 		const operation = runner.runOnce(automation, 'manual', 0);
@@ -225,8 +224,8 @@ suite('AutomationRunner', () => {
 	test('forwards cancellation to an authority-dispatched run', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, NullTelemetryService, new TestAutomationStorageService(storage)));
-		const runner = new AutomationRunner(service, new FakeSessionsManagementService(), log, NullTelemetryService, new RecordingNotificationService());
+		const service = teardown.add(new ExternalDispatchAutomationService(storage, log, new TestAutomationStorageService(storage)));
+		const runner = new AutomationRunner(service, new FakeSessionsManagementService(), log, new RecordingNotificationService());
 		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: workspaceTarget() });
 		const cancellation = new CancellationTokenSource();
 		const operation = runner.runOnce(automation, 'manual', 0, cancellation.token);

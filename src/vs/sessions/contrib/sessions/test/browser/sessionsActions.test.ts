@@ -75,6 +75,7 @@ suite('Sessions - Actions', () => {
 			.map(item => ({ id: item.command.id, group: item.group }));
 
 		assert.deepStrictEqual(actions, [
+			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -107,12 +108,29 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('uses a concise pin title in the session toolbar', () => {
-		const pin = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+	test('shows pinned sessions in the session toolbar navigation group', () => {
+		const pinItems = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.chatCompositeBar.togglePin');
+			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin')
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''))
+			.map(item => ({
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
 
-		assert.strictEqual(pin && (typeof pin.command.title === 'string' ? pin.command.title : pin.command.title.value), 'Pin');
+		assert.deepStrictEqual(pinItems, [{
+			title: 'Pin',
+			group: 'navigation',
+			order: 10,
+			when: 'sessionIsCreated && sessionIsSticky && !sessionIsArchived',
+		}, {
+			title: 'Pin',
+			group: 'secondary/4_pin',
+			order: 10,
+			when: 'sessionIsCreated && !sessionIsArchived',
+		}]);
 	});
 
 	test('keeps the Command Palette delete action explicit', () => {
@@ -198,6 +216,7 @@ suite('Sessions - Actions', () => {
 			}));
 
 		assert.deepStrictEqual(actions, [
+			{ title: 'Pin', group: 'navigation' },
 			{ title: 'Pin', group: 'secondary/4_pin' },
 			{ title: 'Maximize', group: 'secondary/4_pin' },
 			{ title: 'Close', group: 'secondary/4_pin' },

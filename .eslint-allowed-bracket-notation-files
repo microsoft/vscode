@@ -508,26 +508,6 @@ extensions/git/src/ipc/ipcClient.ts
 extensions/git/src/ipc/ipcServer.ts
 extensions/git/src/util.ts
 
-# Test infrastructure (18 files)
-src/vs/platform/instantiation/test/common/instantiationServiceMock.ts
-src/vs/workbench/test/browser/componentFixtures/chat/chatWidget.fixture.ts
-src/vs/workbench/test/browser/componentFixtures/multiDiffEditorScroll.fixture.ts
-src/vs/workbench/test/browser/componentFixtures/resizeObserver.fixture.ts
-test/automation/src/electron.ts
-test/automation/src/scm.ts
-test/automation/src/search.ts
-test/componentFixtures/playwright/tests/chatResizeObserver.spec.ts
-test/componentFixtures/playwright/tests/utils.ts
-test/monaco/esm-check/esm-check.js
-test/sanity/src/context.ts
-test/sanity/src/main.ts
-test/smoke/src/areas/agentsWindow/agentsWindow.test.ts
-test/smoke/src/areas/preferences/preferences.test.ts
-test/smoke/test/index.js
-test/unit/electron/index.js
-test/unit/electron/preload.js
-test/unit/electron/renderer.js
-
 # Workbench UI and remaining services (23 files)
 src/vs/workbench/browser/parts/editor/editor.ts
 src/vs/workbench/browser/parts/editor/editorGroupView.ts

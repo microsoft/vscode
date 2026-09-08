@@ -26,6 +26,7 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessio
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
 import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from './sessionsTypedCharactersTracker.js';
 
@@ -66,10 +67,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@IModelService modelService: IModelService,
+		@ISessionsWindowUsageService sessionsWindowUsageService: ISessionsWindowUsageService,
 	) {
 		super();
 
-		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService);
+		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService, sessionsWindowUsageService.windowOpenCount);
 		// Registered after the lifecycle tracker is created but before it is
 		// registered: disposing flushes buffered typing, which needs a live
 		// lifecycle tracker to attribute it to.

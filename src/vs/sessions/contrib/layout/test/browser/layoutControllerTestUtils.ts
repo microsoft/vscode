@@ -31,7 +31,7 @@ import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { ChatInteractivity, IChat, ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -355,11 +355,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
 		}, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 		}, new class extends mock<IDecorationsService>() {
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
-		}, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 		})),
 		contextKeyService,
 	};
@@ -416,7 +415,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-		override readonly activeSessionChangeCountObs = harness.sessionChangesService.activeSessionChangeCountObs;
+		override readonly activeSessionUncommittedChangesCountObs = harness.sessionChangesService.activeSessionUncommittedChangesCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {

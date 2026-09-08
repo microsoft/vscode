@@ -35,6 +35,7 @@ interface IPendingSessionWorkspaceConversion {
 	readonly isolation: boolean;
 	readonly initiatingClientId: string;
 	readonly prompt: string | undefined;
+	readonly showTransition: boolean;
 	phase: 'requested' | 'converting';
 	resolvedWorkingDirectory?: URI;
 	transition?: IAgentWorkspaceTransitionRecord;
@@ -99,12 +100,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (activeTurnId !== turnId) {
 			throw new Error('Session workspace conversion must be requested from the active turn.');
 		}
-		const prompt = this._stateManager.getChatState(chat.toString())?.activeTurn?.message.text;
+		const chatState = this._stateManager.getChatState(chat.toString());
+		const prompt = chatState?.activeTurn?.message.text;
 		const key = chat.toString();
 		if (this.isPending(key)) {
 			throw new Error('A workspace conversion is already pending for this session.');
 		}
-		this._pending.set(key, { chat, turnId, workspaceFolder, isolation, initiatingClientId, prompt, phase: 'requested' });
+		this._pending.set(key, { chat, turnId, workspaceFolder, isolation, initiatingClientId, prompt, showTransition: !!chatState?.turns.length, phase: 'requested' });
 	}
 
 	isPending(chat: ProtocolURI): boolean {
@@ -128,7 +130,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let continuation: IDeferredAgentHostTurn | undefined;
 		try {
 			continuation = this._beginContinuation(pending);
-			pending.transition = this._createWorkspaceTransition(pending);
+			if (pending.showTransition) {
+				pending.transition = this._createWorkspaceTransition(pending);
+			}
 			pending.resolvedWorkingDirectory = await this._convert(pending, continuation);
 			this._pending.delete(chat);
 			await this._continueConversion(continuation, pending, true);
@@ -155,9 +159,6 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	private async _convert(pending: IPendingSessionWorkspaceConversion, continuation: IDeferredAgentHostTurn): Promise<URI> {
 		const { chat, workspaceFolder, isolation, initiatingClientId, prompt, transition } = pending;
-		if (!transition) {
-			throw new Error('Cannot convert a session without a workspace transition.');
-		}
 		const { session, state, previousWorkingDirectory } = this._validateConversion(chat, workspaceFolder);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.agentHostCapabilities.workspaceConversion) {
@@ -224,14 +225,14 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			? { ...convertedState.config?.values, ...configPatch }
 			: undefined;
 		let persistenceError: unknown;
-		const persistTransition = this._stateManager.getActiveTurnId(chat.toString()) === continuation.turnId;
+		const persistTransition = !!transition && this._stateManager.getActiveTurnId(chat.toString()) === continuation.turnId;
 		const database = this._sessionDataService.openDatabase(session);
 		try {
 			const metadata = { [AH_META_WORKSPACELESS_DB_KEY]: 'false' };
 			if (configValues) {
 				Object.assign(metadata, { configValues: JSON.stringify(configValues) });
 			}
-			if (persistTransition) {
+			if (persistTransition && transition) {
 				await database.object.setWorkspaceConversion(continuation.turnId, serializeAgentWorkspaceTransition(transition), metadata);
 				pending.transitionPersisted = true;
 			} else {
@@ -536,7 +537,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					workspaceName: pending.transition.workspaceName,
 				},
 			);
-		} else {
+		} else if (!converted || pending.showTransition) {
 			this._publishConversionOutcome(pending.chat, continuation, label);
 		}
 		try {

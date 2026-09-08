@@ -849,7 +849,7 @@ export interface IAgentHostStalledToolCallCompletedReport extends IAgentHostTurn
 	timeAfterStallMs: number;
 }
 
-function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): string | TelemetryTrustedValue<string> | undefined {
+export function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): 'byokModel' | 'unknown' | TelemetryTrustedValue<string> | undefined {
 	if (model === undefined) {
 		return undefined;
 	}

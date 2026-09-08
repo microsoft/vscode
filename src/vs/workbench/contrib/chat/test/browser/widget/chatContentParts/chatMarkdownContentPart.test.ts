@@ -270,6 +270,25 @@ suite('ChatMarkdownContentPart', () => {
 		);
 	});
 
+	test('preserves absolute Windows targets for newly created file links', () => {
+		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+			provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+			resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, 'windows-host'),
+		}));
+
+		const files = [
+			'C:/Repos/3/vscode/simple.txt',
+			'C:/my project/simple.txt',
+			'//server/share/simple.txt',
+		];
+		const part = createMarkdownPart(files.map(path => `Created [simple.txt](<${path}>).`).join('\n'));
+
+		assert.deepStrictEqual(
+			Array.from(part.domNode.querySelectorAll('a'), link => ({ text: link.textContent, href: link.dataset.href })),
+			files.map(path => ({ text: 'simple.txt', href: toAgentHostUri(URI.file(path), 'windows-host').toString() })),
+		);
+	});
+
 	test('renders plain markdown without code blocks', () => {
 		const part = createMarkdownPart('Hello, world!');
 

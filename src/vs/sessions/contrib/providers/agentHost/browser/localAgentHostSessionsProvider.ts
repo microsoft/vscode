@@ -264,6 +264,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		};
 		bindConnection();
 		this._register(this._agentHostService.onAgentHostStart(bindConnection));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			connectionListeners.clear();
+			automations.clearConnection();
+		}));
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some

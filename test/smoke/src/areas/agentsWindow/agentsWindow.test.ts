@@ -366,10 +366,10 @@ export function setup(logger: Logger) {
 				// "from source" signal: parseQuality() also returns Quality.Dev for
 				// a `--build` product when VSCODE_QUALITY is unset, which would
 				// wrongly hard-fail a packaged build that legitimately lacks Codex.
-				const isFromSource = process.env['VSCODE_DEV'] === '1';
-				const isPublishBuild = (process.env['VSCODE_PUBLISH'] ?? '').toLowerCase() === 'true';
+				const isFromSource = process.env.VSCODE_DEV === '1';
+				const isPublishBuild = (process.env.VSCODE_PUBLISH ?? '').toLowerCase() === 'true';
 				if (isFromSource || isPublishBuild) {
-					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env['VSCODE_DEV'] ?? '<unset>'}, VSCODE_PUBLISH=${process.env['VSCODE_PUBLISH'] ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
+					throw new Error(`[Agents Window/Codex] Codex session type unexpectedly unavailable (VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_PUBLISH=${process.env.VSCODE_PUBLISH ?? '<unset>'}) — the SDK should be resolvable from node_modules (from source) or product.agentSdks.codex (publish build)`);
 				}
 				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
@@ -380,7 +380,7 @@ export function setup(logger: Logger) {
 			// optional dependency that npm silently skips when its install fails.
 			// A stale `node_modules` cache can thus have the shim but no binary, so
 			// fail fast here (from source) instead of timing out at spawn time.
-			if (process.env['VSCODE_DEV'] === '1') {
+			if (process.env.VSCODE_DEV === '1') {
 				const repoRoot = path.resolve(process.cwd(), '..', '..');
 				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
 				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';

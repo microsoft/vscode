@@ -84,6 +84,15 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(wire, { toolKind: 'search' });
 			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
 		});
+
+		test('reads a progress message and drops a non-string one', () => {
+			const wire = toToolCallMeta({ progressMessage: 'Searching' });
+			assert.deepStrictEqual({ wire, read: readToolCallMeta(toolCall(wire)), dropped: readToolCallMeta(toolCall({ progressMessage: 42 })) }, {
+				wire: { progressMessage: 'Searching' },
+				read: { progressMessage: 'Searching' },
+				dropped: {},
+			});
+		});
 	});
 
 	suite('readEphemeralSessionMeta', () => {

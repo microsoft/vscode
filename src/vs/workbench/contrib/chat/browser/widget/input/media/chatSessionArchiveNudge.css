@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-session-archive-nudge {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+}
+
+.chat-session-archive-nudge-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-session-archive-nudge-icon {
+	flex-shrink: 0;
+	margin-top: var(--vscode-spacing-size20);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.chat-session-archive-nudge-title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+	overflow-wrap: break-word;
+}
+
+.chat-session-archive-nudge-actions {
+	flex-shrink: 0;
+}
+
+.chat-session-archive-nudge-body {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	overflow-wrap: break-word;
+}
+
+.chat-session-archive-nudge-body p {
+	margin: 0;
+}
+
+.chat-session-archive-nudge-description > p + p,
+.chat-session-archive-nudge-body > .chat-session-archive-nudge-worktree {
+	margin-top: var(--vscode-spacing-size60);
+}
+
+.chat-session-archive-nudge-footer {
+	display: flex;
+}
+
+.chat-session-archive-nudge-footer > .monaco-button {
+	width: auto;
+}

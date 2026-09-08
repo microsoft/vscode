@@ -13,6 +13,8 @@ import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../c
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
 
+const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
+
 const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
@@ -24,7 +26,7 @@ const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: 'Required. `true` for an artifact. An issue or pull request this session works on is an artifact even if the session did not create it; other artifacts are things the session produced, such as a plan file it wrote outside the workspace or another side effect of its work. `false` for a reference — something the session did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, or a website that matters for the task.',
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a report written outside the workspace. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
@@ -50,7 +52,7 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: 'Record an artifact or a reference so it is surfaced next to the chat input. An issue or pull request this session works on is an artifact even if the session did not create it. Other artifacts are notable results the session produced beyond ordinary workspace edits, such as a plan or report file it wrote outside the workspace. A reference is something the session did not produce but the user should look at because of this task: the pull request or commit that introduced a bug, an issue it investigated, or a website worth reading. Set `isArtifact` accordingly. Do not record routine files you merely edited or sessions and chats created with session-management tools.',
+		description: `Record an artifact or a reference so it is surfaced next to the chat input. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report written outside the workspace. References are existing resources the user should look at because of this task, such as a bug-introducing commit or relevant website. Set \`isArtifact\` accordingly. Do not record routine files you merely edited or sessions and chats created with session-management tools.`,
 		inputSchema: addArtifactInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -209,4 +211,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
  * The instruction appended to every agent's host instructions while the
  * artifact tools are enabled.
  */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record the notable results of your work with \`${ArtifactServerToolName.AddArtifactOrReference}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits) so they are surfaced next to the chat input. Pass \`isArtifact: true\` for an artifact. An issue or pull request you work on is an artifact even if you did not create it; other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report file you wrote outside the workspace. Pass \`isArtifact: false\` for a reference — something you did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, an issue you investigated, or a website worth reading. Record each one once, and do not record routine files you merely edited, commits you create unless the user asks for them, or sessions and chats created with session-management tools.`;
+export const ARTIFACT_TOOLS_INSTRUCTION = `Record the notable results of your work with \`${ArtifactServerToolName.AddArtifactOrReference}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits) so they are surfaced next to the chat input. Pass \`isArtifact: true\` for an artifact and \`isArtifact: false\` for a reference. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report written outside the workspace. References are existing resources the user should look at because of this task, such as a bug-introducing commit or relevant website. Record each one once, and do not record routine files you merely edited, commits you create unless the user asks for them, or sessions and chats created with session-management tools.`;

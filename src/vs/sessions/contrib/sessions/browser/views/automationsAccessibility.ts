@@ -120,7 +120,7 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		lines.push('');
 		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
 		for (const template of AUTOMATION_TEMPLATES) {
-			lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.prompt));
+			lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
 		}
 	}
 

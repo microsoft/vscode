@@ -45,6 +45,7 @@ import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCL
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
@@ -7627,6 +7628,61 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined);
 		});
 
+		test('loads workspace transitions alongside provider history from the existing restore database', async () => {
+			class DelayedTransitionDatabase extends TestSessionDatabase {
+				private readonly _releaseTransitionRead = new DeferredPromise<void>();
+				transitionReadPending = false;
+
+				override async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
+					this.transitionReadPending = true;
+					await this._releaseTransitionRead.p;
+					this.transitionReadPending = false;
+					return super.getTurnWorkspaceTransitions();
+				}
+
+				releaseTransitionRead(): void {
+					this._releaseTransitionRead.complete();
+				}
+			}
+
+			const database = new DelayedTransitionDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id });
+			await database.setTurnWorkspaceTransition('provider-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in project',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'project',
+			}));
+			let providerSawTransitionRead = false;
+			agent.chats.getMessages = async () => {
+				providerSawTransitionRead = database.transitionReadPending;
+				database.releaseTransitionRead();
+				return [{
+					id: 'provider-turn',
+					message: { text: 'Continue work', origin: { kind: MessageKind.SystemNotification } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response-1', content: 'Provider output' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}];
+			};
+			getStateManager(svc).deleteSession(session.toString());
+
+			await svc.restoreSession(session);
+
+			const restoredTurn = getStateManager(svc).getChatState(buildDefaultChatUri(session))?.turns[0];
+			assert.deepStrictEqual({
+				providerSawTransitionRead,
+				transitionQueryCalls: database.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				providerSawTransitionRead: true,
+				transitionQueryCalls: 1,
+				responseParts: ['Now working in project', ResponsePartKind.Markdown],
+			});
+		});
+
 		test('marks only an explicit restore as an activating metadata read', async () => {
 			class LazyMetadataAgent extends MockAgent {
 				ambientReads = 0;
@@ -11568,6 +11624,45 @@ suite('AgentService (node dispatcher)', () => {
 
 			const registered = (await localService.listSessions()).map(s => s.session.toString());
 			assert.ok(!registered.includes(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id').toString()), 'the backing session must not leak into the registered session list');
+		});
+
+		test('restores workspace transitions from a peer chat database', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: agent.id });
+			const peer = URI.parse(buildChatUri(session, 'peer-with-transition'));
+			const sessionDatabase = sessionData.database(session);
+			const peerDatabase = sessionData.database(peer);
+			await sessionDatabase.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString(), providerData: 'peer-backing' }]));
+			await peerDatabase.setTurnWorkspaceTransition('peer-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in peer workspace',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'peer workspace',
+			}));
+			agent.chats.getMessages = async chat => isDefaultChatUri(chat) ? [] : [{
+				id: 'peer-turn',
+				message: { text: 'Continue peer work', origin: { kind: MessageKind.SystemNotification } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response', content: 'Peer output' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}];
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			await localService.subscribe(peer, 'peer-reader');
+
+			const restoredTurn = getStateManager(localService).getChatState(peer.toString())?.turns[0];
+			assert.deepStrictEqual({
+				sessionTransitionQueries: sessionDatabase.getTurnWorkspaceTransitionsCalls,
+				peerTransitionQueries: peerDatabase.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				sessionTransitionQueries: 0,
+				peerTransitionQueries: 1,
+				responseParts: ['Now working in peer workspace', ResponsePartKind.Markdown],
+			});
 		});
 
 		test('persists a replacement backing reported after peer chat materialization', async () => {

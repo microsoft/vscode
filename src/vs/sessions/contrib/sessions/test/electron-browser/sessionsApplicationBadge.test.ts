@@ -15,6 +15,7 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IApplicationBadge, INativeHostService } from '../../../../../platform/native/common/native.js';
+import product from '../../../../../platform/product/common/product.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -81,12 +82,11 @@ function createSession(id: string, state: { status?: SessionStatus; isRead?: boo
 suite('SessionsApplicationBadge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBadge(sessions: ISession[], enabled = true) {
+	function createBadgeWithConfiguration(sessions: ISession[], configuration: TestConfigurationService) {
 		const management = store.add(new TestSessionsManagementService());
 		management.sessions.push(...sessions);
 
 		const nativeHost = new TestNativeHostService();
-		const configuration = new TestConfigurationService({ [SESSIONS_APPLICATION_BADGE_SETTING]: enabled });
 		const blockedSessions = new TestBlockedSessions();
 		blockedSessions.setSessions(sessions.filter(session => !session.isArchived.get() && session.status.get() === SessionStatus.NeedsInput));
 		const instantiationService = store.add(new TestInstantiationService());
@@ -95,6 +95,10 @@ suite('SessionsApplicationBadge', () => {
 		store.add(new SessionsApplicationBadge(management, nativeHost, configuration, new TestThemeService(), instantiationService));
 
 		return { management, nativeHost, configuration, blockedSessions };
+	}
+
+	function createBadge(sessions: ISession[], enabled = true) {
+		return createBadgeWithConfiguration(sessions, new TestConfigurationService({ [SESSIONS_APPLICATION_BADGE_SETTING]: enabled }));
 	}
 
 	function badgeCounts(nativeHost: TestNativeHostService): (number | undefined)[] {
@@ -131,6 +135,15 @@ suite('SessionsApplicationBadge', () => {
 		assert.deepStrictEqual(nativeHost.badges.map(badge => ({ count: badge?.count, description: badge?.description })), [
 			{ count: 1, description: '1 session needs your attention' }
 		]);
+	});
+
+	test('uses the product-quality default when the setting value is unavailable', () => {
+		const { nativeHost } = createBadgeWithConfiguration(
+			[createSession('unread', { isRead: false }).session],
+			new TestConfigurationService()
+		);
+
+		assert.deepStrictEqual(badgeCounts(nativeHost), product.quality !== 'stable' ? [1] : []);
 	});
 
 	test('is off until enabled', () => {
