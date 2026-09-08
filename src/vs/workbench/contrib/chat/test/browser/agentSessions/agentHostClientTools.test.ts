@@ -2795,6 +2795,125 @@ suite('AgentHostClientTools', () => {
 			);
 		}));
 
+		test('closing a peer chat leaves the default chat\'s background subagent observer running', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Detached observers are shared per backend session, so closing a peer must not strand one.
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testSubagentTool, testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/session-1', fragment: 'peer-1' });
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const parentChat = URI.parse(buildDefaultChatUri(backendSession));
+			const peerChat = buildChatUri(backendSession, 'peer-1');
+			const parentToolCallId = 'client-task-1';
+			const subagentChat = buildSubagentChatUri(backendSession, parentToolCallId);
+			const summary: SessionSummary = {
+				resource: backendSession,
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: '2025-01-01T00:00:00.000Z',
+				modifiedAt: '2025-01-01T00:00:00.000Z',
+			};
+
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionChatAdded,
+				summary: createDefaultChatSummary(summary, peerChat),
+			} as SessionAction);
+			connection.applySessionAction(parentChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'delegate work', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(parentChat, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				toolName: 'task',
+				displayName: 'Delegated Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+				_meta: { toolKind: 'subagent', subagentChatUri: subagentChat },
+			});
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const peerSession = await handler.provideChatSessionContent(peerResource, CancellationToken.None);
+			await timeout(0);
+
+			connection.applySessionAction(parentChat, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				invocationMessage: 'Delegating task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			// A background subagent: its turn is running when the parent tool call and turn both finish.
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'sub-turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '', origin: { kind: MessageKind.User } },
+			});
+			connection.applySessionAction(parentChat, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				result: { success: true, pastTenseMessage: 'Delegated task' },
+			});
+			connection.applySessionAction(parentChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1,
+			});
+			await timeout(0);
+
+			peerSession.dispose();
+			await timeout(0);
+
+			// Only now does the still-running subagent ask for a client tool.
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'sub-turn-1',
+				toolCallId: 'runTask-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			});
+			connection.applySessionAction(URI.parse(subagentChat), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'sub-turn-1',
+				toolCallId: 'runTask-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			await timeout(0);
+			applyRunningClientExecution(connection, subagentChat, 'sub-turn-1', {
+				toolCallId: 'runTask-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{}',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				begun: toolsService.begunToolCalls.filter(invocation => invocation.toolCallId === 'runTask-call-1').length,
+				invoked: toolsService.invokedToolCalls.filter(invocation => invocation.chatStreamToolCallId === 'runTask-call-1').length,
+				claimedBy: toolsService.invokedToolCalls
+					.filter(invocation => invocation.chatStreamToolCallId === 'runTask-call-1')
+					.map(invocation => invocation.context?.sessionResource.toString()),
+				completed: connection.dispatchedActions.filter(entry =>
+					entry.channel === subagentChat
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'runTask-call-1').length,
+			}, {
+				begun: 1,
+				invoked: 1,
+				claimedBy: [sessionResource.toString()],
+				completed: 1,
+			});
+		}));
+
 		test('denies an unclaimed confirmable client tool after the grace window without executing it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testConfirmTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
