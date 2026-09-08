@@ -55,7 +55,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -266,6 +266,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
+			[EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY]: {
+				type: 'boolean',
+				scope: ConfigurationScope.APPLICATION,
+				description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, extensions can declare whether they support running in the Agents window."),
+				default: false,
+				tags: ['experimental'],
+				experiment: { mode: 'startup' },
+				agentsWindow: { default: false }
+			},
 			'extensions.experimental.affinity': {
 				type: 'object',
 				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
@@ -371,6 +380,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'github',
 				scope: ConfigurationScope.APPLICATION,
 				included: false,
+				policy: {
+					name: 'ExtensionGalleryAuthProvider',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.137',
+					localization: {
+						description: {
+							key: 'extensions.gallery.authProvider',
+							value: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.gallery.authProvider.github',
+								value: localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
+							},
+							{
+								key: 'extensions.gallery.authProvider.microsoft',
+								value: localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+							},
+						]
+					}
+				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
 				type: 'boolean',

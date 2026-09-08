@@ -18,6 +18,7 @@ import { agentHostUri } from '../../../../../platform/agentHost/common/agentHost
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -34,7 +35,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -75,12 +76,13 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Optional kind-scoped policy for automatically starting the host. */
 	readonly autoConnect?: IAgentHostAutoConnect;
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
 	 * The provider derives both directions from this pair, so they cannot drift apart.
 	 */
-	readonly sessionSchemeAlias?: ISessionSchemeAlias;
+	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	/**
 	 * Suppresses the `[host]` suffix that otherwise disambiguates this host's workspaces from
 	 * identically-named ones on other hosts. Set by hosts whose label names a task rather than a
@@ -89,6 +91,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly omitHostFromWorkspaceLabel?: boolean;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
+	/** Keeps unavailable and initially connecting sessions read-only, but permits self-healing reconnects. */
+	readonly readOnlyWhenDisconnected?: boolean;
 	/** See {@link IAgentHostAdapterOptions.defaultChangesetKind}. */
 	readonly defaultChangesetKind?: ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
 	/**
@@ -103,13 +107,6 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  * The two names a session goes by when the host's session scheme differs from its agent provider.
  * The raw session id is shared, so only the scheme is translated.
  */
-export interface ISessionSchemeAlias {
-	/** Scheme the UI routes by — the agent provider (e.g. `copilot`). */
-	readonly ui: string;
-	/** Scheme the host's session registry is keyed by (e.g. `ahp-session`). */
-	readonly backend: string;
-}
-
 /**
  * Sessions provider for a remote agent host connection. A thin subclass of
  * {@link BaseAgentHostSessionsProvider} that adds the connection-lifecycle
@@ -141,16 +138,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly autoConnect?: IAgentHostAutoConnect;
+	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly automations: ISessionsProviderAutomations;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
-	/**
-	 * Forces this host's sessions read-only. Distinct from `disconnected`: a disconnected host may
-	 * come back, so its sessions stay writable and queue on reconnect, whereas this marks a host
-	 * that is gone and whose sessions exist only as replayed history.
-	 */
-	private readonly _readOnly = observableValue<boolean>('providerReadOnly', false);
+	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
@@ -189,7 +182,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
-	private readonly _sessionSchemeAlias: ISessionSchemeAlias | undefined;
+	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
@@ -213,6 +206,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -237,10 +231,25 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
+		if (this._sessionSchemeAlias || this._defaultChangesetKind) {
+			this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+				sessionSchemeAlias: this._sessionSchemeAlias,
+				defaultChangesetKind: this._defaultChangesetKind,
+			}));
+		}
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;
+		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;
+		this._readOnly = config.readOnlyWhenDisconnected
+			? derived(this, reader => {
+				const status = this._connectionStatus.read(reader);
+				return RemoteAgentHostConnectionStatus.isDisconnected(status)
+					|| RemoteAgentHostConnectionStatus.isConnecting(status)
+					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
+			})
+			: constObservable(false);
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
@@ -498,17 +507,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
-	}
-
-	/**
-	 * Forces every session on this host to be read-only.
-	 *
-	 * Set when the host is permanently unreachable and its sessions are being served from
-	 * persisted history: the conversation is genuine, but there is no host left to send to, so the
-	 * composer must be hidden rather than accept input that can never be delivered.
-	 */
-	setReadOnly(readOnly: boolean): void {
-		this._readOnly.set(readOnly, undefined);
 	}
 
 	/**

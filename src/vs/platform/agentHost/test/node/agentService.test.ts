@@ -41,10 +41,11 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionOptions } from '../../node/agentHostDatabase.js';
@@ -1168,7 +1169,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerSetting: 'initial',
 			},
 			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
-			folder: { isolation: 'folder', branch: 'feature', providerSetting: 'folder' },
+			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
 
@@ -2803,6 +2804,7 @@ suite('AgentService (node dispatcher)', () => {
 				unsupported: undefined,
 			});
 		});
+
 	});
 
 	suite('createSession', () => {
@@ -6652,7 +6654,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
+				createStash: async () => { },
 				commitAll: async () => { },
 				mergeBranch: async () => '',
 				restore: async () => { },
@@ -6760,7 +6764,9 @@ suite('AgentService (node dispatcher)', () => {
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
+				checkout: async () => { },
 				hasUncommittedChanges: async () => false,
+				createStash: async () => { },
 				commitAll: async () => { },
 				mergeBranch: async () => '',
 				hasUpstream: async () => false,
@@ -7605,6 +7611,77 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
+
+		test('refuses to restore a workspace-conversion quarantine before materializing the provider', async () => {
+			const database = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id });
+			await database.setMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, 'true');
+			getStateManager(svc).deleteSession(session.toString());
+
+			await assert.rejects(
+				svc.restoreSession(session),
+				/could not be detached from an untrusted working directory/,
+			);
+			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined);
+		});
+
+		test('loads workspace transitions alongside provider history from the existing restore database', async () => {
+			class DelayedTransitionDatabase extends TestSessionDatabase {
+				private readonly _releaseTransitionRead = new DeferredPromise<void>();
+				transitionReadPending = false;
+
+				override async getTurnWorkspaceTransitions(): Promise<Map<string, string>> {
+					this.transitionReadPending = true;
+					await this._releaseTransitionRead.p;
+					this.transitionReadPending = false;
+					return super.getTurnWorkspaceTransitions();
+				}
+
+				releaseTransitionRead(): void {
+					this._releaseTransitionRead.complete();
+				}
+			}
+
+			const database = new DelayedTransitionDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id });
+			await database.setTurnWorkspaceTransition('provider-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in project',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'project',
+			}));
+			let providerSawTransitionRead = false;
+			agent.chats.getMessages = async () => {
+				providerSawTransitionRead = database.transitionReadPending;
+				database.releaseTransitionRead();
+				return [{
+					id: 'provider-turn',
+					message: { text: 'Continue work', origin: { kind: MessageKind.SystemNotification } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response-1', content: 'Provider output' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}];
+			};
+			getStateManager(svc).deleteSession(session.toString());
+
+			await svc.restoreSession(session);
+
+			const restoredTurn = getStateManager(svc).getChatState(buildDefaultChatUri(session))?.turns[0];
+			assert.deepStrictEqual({
+				providerSawTransitionRead,
+				transitionQueryCalls: database.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				providerSawTransitionRead: true,
+				transitionQueryCalls: 1,
+				responseParts: ['Now working in project', ResponsePartKind.Markdown],
+			});
+		});
 
 		test('marks only an explicit restore as an activating metadata read', async () => {
 			class LazyMetadataAgent extends MockAgent {
@@ -9252,11 +9329,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('registers subagent summaries without loading child transcripts until subscription', async () => {
 			class LazySubagentMockAgent extends MockAgent {
 				readonly messageReads: string[] = [];
-				private returnEmptyChildOnce = true;
+				childTranscriptAvailable = false;
 				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 					this.messageReads.push(session.toString());
-					if (parseChatUri(session)?.chatId.startsWith('subagent/') && this.returnEmptyChildOnce) {
-						this.returnEmptyChildOnce = false;
+					if (parseChatUri(session)?.chatId.startsWith('subagent/') && !this.childTranscriptAvailable) {
 						return [];
 					}
 					return super.getSessionMessages(session);
@@ -9304,12 +9380,33 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(service.subscribe(URI.parse(childChatUri), 'child-reader-first'), /Subagent transcript is not available yet/);
 			assert.strictEqual(getStateManager(service).getChatState(childChatUri), undefined);
+			const envelopePromise = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			const sendPromise = Event.toPromise(agent.onDidSendMessage);
+			service.dispatchAction(buildDefaultChatUri(sessionResource), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-after-missing-subagent',
+				startedAt: '2026-09-02T16:15:03.293Z',
+				message: { text: 'Start it for me', origin: { kind: MessageKind.User } },
+			}, 'client-test', 1);
+			const [envelope, send] = await Promise.all([envelopePromise, sendPromise]);
+			agent.childTranscriptAvailable = true;
 			await service.subscribe(URI.parse(childChatUri), 'child-reader-second');
 			const childState = getStateManager(service).getChatState(childChatUri);
-			assert.ok(childState);
-			assert.strictEqual(childState.turns.length, 1);
-			assert.strictEqual(agent.messageReads.filter(resource => resource === childChatUri).length, 2);
-			assert.strictEqual(getStateManager(service).getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')), undefined);
+			assert.deepStrictEqual({
+				turnRejected: envelope.rejectionReason !== undefined,
+				parentActiveTurn: getStateManager(service).getChatState(buildDefaultChatUri(sessionResource))?.activeTurn?.id,
+				sentPrompt: send.prompt,
+				childTurnCount: childState?.turns.length,
+				childMessageReads: agent.messageReads.filter(resource => resource === childChatUri).length,
+				legacyChildSession: getStateManager(service).getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')),
+			}, {
+				turnRejected: false,
+				parentActiveTurn: 'turn-after-missing-subagent',
+				sentPrompt: 'Start it for me',
+				childTurnCount: 1,
+				childMessageReads: 3,
+				legacyChildSession: undefined,
+			});
 		});
 
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
@@ -11527,6 +11624,45 @@ suite('AgentService (node dispatcher)', () => {
 
 			const registered = (await localService.listSessions()).map(s => s.session.toString());
 			assert.ok(!registered.includes(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id').toString()), 'the backing session must not leak into the registered session list');
+		});
+
+		test('restores workspace transitions from a peer chat database', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: agent.id });
+			const peer = URI.parse(buildChatUri(session, 'peer-with-transition'));
+			const sessionDatabase = sessionData.database(session);
+			const peerDatabase = sessionData.database(peer);
+			await sessionDatabase.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString(), providerData: 'peer-backing' }]));
+			await peerDatabase.setTurnWorkspaceTransition('peer-turn', serializeAgentWorkspaceTransition({
+				content: 'Now working in peer workspace',
+				workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
+				workspaceName: 'peer workspace',
+			}));
+			agent.chats.getMessages = async chat => isDefaultChatUri(chat) ? [] : [{
+				id: 'peer-turn',
+				message: { text: 'Continue peer work', origin: { kind: MessageKind.SystemNotification } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'peer-response', content: 'Peer output' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}];
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			await localService.subscribe(peer, 'peer-reader');
+
+			const restoredTurn = getStateManager(localService).getChatState(peer.toString())?.turns[0];
+			assert.deepStrictEqual({
+				sessionTransitionQueries: sessionDatabase.getTurnWorkspaceTransitionsCalls,
+				peerTransitionQueries: peerDatabase.getTurnWorkspaceTransitionsCalls,
+				responseParts: restoredTurn?.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : part.kind),
+			}, {
+				sessionTransitionQueries: 0,
+				peerTransitionQueries: 1,
+				responseParts: ['Now working in peer workspace', ResponsePartKind.Markdown],
+			});
 		});
 
 		test('persists a replacement backing reported after peer chat materialization', async () => {
@@ -14602,7 +14738,7 @@ suite('AgentService (node dispatcher)', () => {
 					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
 					diffCalls: [sourceDir.toString()],
 					uncommittedFiles: [sourceFile],
-					uncommittedOperations: ['commit', 'discard-changes'],
+					uncommittedOperations: ['checkout', 'commit', 'discard-changes'],
 				},
 				afterMaterialization: {
 					workingDirectory: worktreeDir.toString(),

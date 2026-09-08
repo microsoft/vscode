@@ -13,16 +13,19 @@ import { localize } from '../../../nls.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SessionFocusedChatIsRenameTargetContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning
@@ -97,6 +100,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _contextDisposables = this._register(new DisposableStore());
+	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
 
 	/** The configured wording for the archive/unarchive action (Archive vs Delete). */
@@ -120,8 +125,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
 		// Assigned here rather than as a field initializer: `_instantiationService`
 		// is a parameter property of this class, which class-field semantics
@@ -137,7 +146,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._barContainer = $('.chat-group-view-bar');
 		this.element.appendChild(this._barContainer);
 
-		this._compositeBar = this._register(this._instantiationService.createInstance(ChatCompositeBar, undefined));
+		this._compositeBar = this._register(this._scopedInstantiationService.createInstance(ChatCompositeBar, undefined));
 		this._barContainer.appendChild(this._compositeBar.element);
 
 		// Single status banner, shown flush below this group's tab bar when the
@@ -179,6 +188,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._connection.setSession(context?.session);
 
 		if (!context) {
+			this._focusedChatIsRenameTargetKey.reset();
 			this._compositeBar.setGroup(undefined);
 			this._currentView.clear();
 			this._setRemoteHostUnavailableEmptyState(undefined);
@@ -203,6 +213,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const activeResource = context.activeChatResource.read(reader);
 			return context.chats.read(reader).find(c => c.resource.toString() === activeResource);
 		});
+		this._contextDisposables.add(autorun(reader => {
+			const activeResource = context.activeChatResource.read(reader);
+			const mainResource = context.mainChatResource.read(reader);
+			this._focusedChatIsRenameTargetKey.set(activeResource !== mainResource);
+		}));
 		const currentView = observableValue<AbstractChatView | undefined>(this._contextDisposables, this._currentView.value);
 
 		const readOnlyContent = derived(reader => {
@@ -215,31 +230,41 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			if (archived) {
 				const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
 				return {
-					message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
-					action: {
-						label: action.title.value,
-						run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+					archived: true,
+					content: {
+						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+						action: {
+							label: action.title.value,
+							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+						},
 					},
 				};
 			}
-			return { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") };
+			return { archived: false, content: { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") } };
 		});
 
 		const surface = derived<IChatGroupSurface>(reader => {
 			const readOnly = readOnlyContent.read(reader);
-			if (readOnly) {
-				return { banner: readOnly, recovery: undefined };
+			if (readOnly?.archived) {
+				return { banner: readOnly.content, recovery: undefined };
 			}
 
+			// Keep the banner while history loads to avoid flashing the centered recovery state.
 			const view = currentView.read(reader);
-			const recovery = view?.hasVisibleTranscriptContent.read(reader)
+			const transcriptSettled = view === undefined || !view.isLoadingTranscript.read(reader);
+			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader)
 				? undefined
 				: this._connection.recoveryContent.read(reader);
 			if (recovery) {
 				return { banner: undefined, recovery };
 			}
+			// Explain connection-related read-only state before falling back to the generic notice.
+			const connectionBanner = this._connection.bannerContent.read(reader);
+			if (connectionBanner) {
+				return { banner: connectionBanner, recovery: undefined };
+			}
 
-			return { banner: this._connection.bannerContent.read(reader), recovery: undefined };
+			return { banner: readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
@@ -260,8 +285,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView()
-					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options);
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService)
+					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
@@ -333,8 +358,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._currentView.value?.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+		this._currentView.value?.selectWorkspace(folderUri, options);
+	}
+
+	selectNoWorkspace(): void {
+		this._currentView.value?.selectNoWorkspace();
 	}
 
 	prefillInput(text: string): void {

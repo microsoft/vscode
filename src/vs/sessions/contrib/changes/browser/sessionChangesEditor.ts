@@ -30,6 +30,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorVariant } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
@@ -69,15 +70,7 @@ const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 };
 
 const CHANGES_LIST_BOTTOM_PADDING_PX = 24;
-const CHANGES_ENTRY_HEADER_HEIGHT_PX = 32;
-const CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX = 8;
-
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
-
-	readonly headerClickToCollapse = true;
-	readonly diffEditorItemHorizontalInsets = { left: 0, right: 0 };
-	readonly diffEditorItemHeaderHeight = CHANGES_ENTRY_HEADER_HEIGHT_PX;
-	readonly diffEditorItemContentBottomPadding = CHANGES_ENTRY_CONTENT_BOTTOM_PADDING_PX;
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
@@ -87,10 +80,10 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
-	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel {
+	createResourceLabel(element: HTMLElement, kind: MultiDiffEditorItemLabelKind, accessoryContainer: HTMLElement): IResourceLabel {
 		const label = this.instantiationService.createInstance(ResourceLabel, element, {});
 		const showDiffStats = kind === MultiDiffEditorItemLabelKind.Primary;
-		return new SessionChangesResourceLabel(label, element, showDiffStats, this.changesObs);
+		return new SessionChangesResourceLabel(label, accessoryContainer, showDiffStats, this.changesObs);
 	}
 
 	handleHeaderMiddleClick(resource: URI): boolean {
@@ -129,7 +122,7 @@ class SessionChangesResourceLabel extends Disposable implements IResourceLabel {
 
 	constructor(
 		private readonly label: ResourceLabel,
-		element: HTMLElement,
+		accessoryContainer: HTMLElement,
 		showDiffStats: boolean,
 		changesObs: IObservable<readonly ISessionFileChange[]>,
 	) {
@@ -137,9 +130,9 @@ class SessionChangesResourceLabel extends Disposable implements IResourceLabel {
 		this._register(label);
 
 		if (showDiffStats) {
-			const statsContainer = append(element, $('.session-changes-file-stats'));
-			const added = append(statsContainer, $('.working-set-lines-added'));
-			const removed = append(statsContainer, $('.working-set-lines-removed'));
+			accessoryContainer.classList.add('session-changes-file-stats');
+			const added = append(accessoryContainer, $('.working-set-lines-added'));
+			const removed = append(accessoryContainer, $('.working-set-lines-removed'));
 			added.setAttribute('aria-hidden', 'true');
 			removed.setAttribute('aria-hidden', 'true');
 
@@ -148,15 +141,15 @@ class SessionChangesResourceLabel extends Disposable implements IResourceLabel {
 				const stats = resource
 					? getChangesEditorFileStats(resource, changesObs.read(reader))
 					: undefined;
-				statsContainer.style.display = stats ? '' : 'none';
+				accessoryContainer.style.display = stats ? '' : 'none';
 				if (stats) {
 					added.textContent = `+${stats.insertions}`;
 					removed.textContent = `-${stats.deletions}`;
-					statsContainer.setAttribute('aria-label', localize('sessionChangesEditor.fileCounts', '{0} lines added, {1} lines removed', stats.insertions, stats.deletions));
+					accessoryContainer.setAttribute('aria-label', localize('sessionChangesEditor.fileCounts', '{0} lines added, {1} lines removed', stats.insertions, stats.deletions));
 				} else {
 					added.textContent = '';
 					removed.textContent = '';
-					statsContainer.removeAttribute('aria-label');
+					accessoryContainer.removeAttribute('aria-label');
 				}
 			}));
 		}
@@ -184,6 +177,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private widget: MultiDiffEditorWidget | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	private bodyContainer: HTMLElement | undefined;
+
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this.widget?.getContextKeyService();
+	}
 
 	private _singlePane = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
@@ -276,11 +273,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			MultiDiffEditorWidget,
 			this.bodyContainer,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
-			CHANGES_DIFF_EDITOR_OPTIONS,
+			{
+				variant: MultiDiffEditorVariant.Compact,
+				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
+			},
 		));
+		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
-			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
+			this.widget?.setViewMode(this.diffEditorOptionsService.viewMode.read(reader));
 		}));
 	}
 
@@ -295,6 +296,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	getLayoutDebugState(): IObservable<IMultiDiffEditorLayoutDebugState> {
 		return this.widget!.getLayoutDebugState();
+	}
+
+	override getControl(): IDiffEditor | undefined {
+		return this.widget?.getActiveControl();
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this.widget?.resetWidthBasedLayout();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -486,12 +495,13 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('changeset-review-action');
+		container.classList.add('changeset-review-action', 'multi-diff-action-always-visible');
 	}
 
 	override updateChecked(): void {
 		super.updateChecked();
 
+		this.element?.classList.toggle('checked', !!this.action.checked);
 		this.updateAriaLabel();
 		this.updateTooltip();
 	}
