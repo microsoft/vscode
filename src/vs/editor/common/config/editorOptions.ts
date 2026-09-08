@@ -342,7 +342,7 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
-	 * Control whether an indicator is rendered at the end of soft wrapped lines.
+	 * Control whether an indicator is rendered at the right edge of soft wrapped lines.
 	 * Defaults to false.
 	 */
 	wordWrapIndicator?: boolean;
@@ -3012,8 +3012,8 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
-			// (leaving a column for the word wrap indicator, which is drawn after the last character
-			// of a wrapped view line and would otherwise end up underneath the vertical scrollbar)
+			// (leaving the rightmost column for the word wrap indicator so that it does not overlap
+			// the wrapped text or end up underneath the vertical scrollbar)
 			wrappingColumn = Math.max(1, viewportColumn - (wordWrapIndicator ? 1 : 0));
 			if (wordWrap === 'bounded') {
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
@@ -6880,7 +6880,7 @@ export const EditorOptions = {
 			markdownDescription: nls.localize({
 				key: 'wordWrapIndicator',
 				comment: []
-			}, "Controls whether an indicator is rendered at the end of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
+			}, "Controls whether an indicator is rendered at the right edge of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(

@@ -7,10 +7,10 @@ import assert from 'assert';
 import { ScrollEvent } from '../../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestColorTheme } from '../../../../platform/theme/test/common/testThemeService.js';
-import { HorizontalPosition, IViewLines, RenderingContext } from '../../../browser/view/renderingContext.js';
+import { IViewLines, RenderingContext } from '../../../browser/view/renderingContext.js';
 import { WordWrapIndicatorOverlay } from '../../../browser/viewParts/wordWrapIndicator/wordWrapIndicator.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
-import { Position } from '../../../common/core/position.js';
+import { ScrollType } from '../../../common/editorCommon.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { TextModel } from '../../../common/model/textModel.js';
@@ -21,25 +21,9 @@ import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { testViewModel } from '../viewModel/testViewModel.js';
 
-/**
- * `TestConfiguration` reports a monospace font with a 10px wide character, so a
- * position at column `c` sits at `(c - 1) * 10` px.
- */
-const CHAR_WIDTH = 10;
-
 const LINE_HEIGHT = 19;
 
 interface IRenderOptions {
-	/**
-	 * View lines for which `visibleRangeForPosition` reports that nothing is rendered.
-	 * Defaults to every line being rendered.
-	 */
-	readonly unrenderedLines?: readonly number[];
-	/**
-	 * View lines for which `visibleRangeForPosition` reports an approximated position, as it does
-	 * for columns past `stopRenderingLineAfter`. Defaults to every position being measured.
-	 */
-	readonly approximatedLines?: readonly number[];
 	/**
 	 * The view lines the viewport covers. Defaults to the entire document.
 	 */
@@ -91,13 +75,7 @@ function renderOverlay(overlay: WordWrapIndicatorOverlay, viewModel: ViewModel, 
 	const viewportLineCount = viewport.endLineNumber - viewport.startLineNumber + 1;
 	const viewLines: IViewLines = {
 		linesVisibleRangesForRange: () => null,
-		visibleRangeForPosition: (position: Position) => {
-			if (renderOptions.unrenderedLines?.includes(position.lineNumber)) {
-				return null;
-			}
-			const outsideRenderedLine = renderOptions.approximatedLines?.includes(position.lineNumber) ?? false;
-			return new HorizontalPosition(outsideRenderedLine, (position.column - 1) * CHAR_WIDTH);
-		}
+		visibleRangeForPosition: () => null
 	};
 	const viewportData = new ViewportData(
 		[new Selection(1, 1, 1, 1)],
@@ -156,8 +134,8 @@ function scrollEvent(changed: { scrollTopChanged?: boolean; scrollLeftChanged?: 
 }
 
 /**
- * Fires every view event that can move the end of a view line at an overlay that has already
- * painted `text`, and reports which of them asked for a rerender.
+ * Fires every view event that can affect an indicator at an overlay that has already painted
+ * `text`, and reports which of them asked for a rerender.
  */
 function invalidationsAfterRender(text: string[], options: IEditorOptions): Record<string, boolean> {
 	const invalidations: Record<string, boolean> = {};
@@ -171,8 +149,8 @@ function invalidationsAfterRender(text: string[], options: IEditorOptions): Reco
 		invalidations.onLinesInserted = overlay.onLinesInserted(new viewEvents.ViewLinesInsertedEvent(1, 1));
 		invalidations.onTokensChanged = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 1, toLineNumber: 1 }]));
 		invalidations.onZonesChanged = overlay.onZonesChanged(new viewEvents.ViewZonesChangedEvent());
-		// Scrolling vertically brings other lines into the viewport; scrolling horizontally
-		// does not, and the glyph scrolls with the content anyway.
+		// Vertical scrolling changes the rendered lines, while horizontal scrolling changes the
+		// content-relative position needed to keep the glyph pinned to the viewport.
 		invalidations.onScrolledVertically = overlay.onScrollChanged(scrollEvent({ scrollTopChanged: true }));
 		invalidations.onScrolledHorizontally = overlay.onScrollChanged(scrollEvent({ scrollLeftChanged: true }));
 	});
@@ -203,16 +181,25 @@ suite('WordWrapIndicatorOverlay', () => {
 		'short',
 		'ddddd eeeee'
 	];
+	const VIEWPORT_OPTIONS: IEditorOptions = {
+		folding: false,
+		glyphMargin: false,
+		lineDecorationsWidth: 0,
+		lineNumbers: 'off',
+		minimap: { enabled: false },
+		scrollbar: { verticalScrollbarSize: 10 }
+	};
 	// With `wordWrapColumn: 6` this maps to the view lines:
 	//   1: 'aaaaa ' (wrapped)  2: 'bbbbb ' (wrapped)  3: 'ccccc'
 	//   4: 'short'
 	//   5: 'ddddd ' (wrapped)  6: 'eeeee'
-	const WRAPPING_OPTIONS: IEditorOptions = { wordWrap: 'wordWrapColumn', wordWrapColumn: 6 };
+	const WRAPPING_OPTIONS: IEditorOptions = { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 6 };
+	const INDICATOR_VIEWPORT_LEFT = 80;
 
-	test('renders an indicator at the end of every soft wrapped view line', () => {
+	test('renders an indicator for every soft wrapped view line', () => {
 		assert.deepStrictEqual(
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }),
-			[indicator(60), indicator(60), '', '', indicator(60), '']
+			[indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
 		);
 	});
 
@@ -244,38 +231,31 @@ suite('WordWrapIndicatorOverlay', () => {
 		);
 	});
 
-	test('positions the indicator after the last character of the view line', () => {
-		// 'aaa bb cccc' wraps into 'aaa ' / 'bb ' / 'cccc', so the first two view lines
-		// end at column 5 (x = 40) and column 4 (x = 30) respectively.
+	test('positions the indicator at the right edge of the viewport', () => {
+		// 'aaa bb cccc' wraps into view lines of different lengths, but both indicators
+		// occupy the final character cell before the 10px vertical scrollbar.
 		assert.deepStrictEqual(
-			renderIndicators(['aaa bb cccc'], { wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
-			[indicator(40), indicator(30), '']
+			renderIndicators(['aaa bb cccc'], { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
+			[indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '']
 		);
 	});
 
 	test('renders an indicator when a word is broken mid token', () => {
-		// A single token longer than the wrap column has no break opportunity, so it is split
-		// after 5 characters and the first view line ends at column 6 (x = 50).
 		assert.deepStrictEqual(
-			renderIndicators(['aaaaaaaaaa'], { wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
-			[indicator(50), '']
+			renderIndicators(['aaaaaaaaaa'], { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
+			[indicator(INDICATOR_VIEWPORT_LEFT), '']
 		);
 	});
 
-	test('renders nothing for view lines that are not rendered', () => {
-		assert.deepStrictEqual(
-			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, { unrenderedLines: [1] }),
-			['', indicator(60), '', '', indicator(60), '']
-		);
-	});
-
-	test('renders nothing for view lines whose end is only approximated', () => {
-		// Past `stopRenderingLineAfter` the reported position is the width of the rendered part of
-		// the line rather than the position of the column that was asked for.
-		assert.deepStrictEqual(
-			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, { approximatedLines: [1] }),
-			['', indicator(60), '', '', indicator(60), '']
-		);
+	test('keeps the indicator at the right edge while horizontally scrolled', () => {
+		withOverlay(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, ({ viewModel, render }) => {
+			viewModel.viewLayout.setMaxLineWidth(200);
+			viewModel.viewLayout.setScrollPosition({ scrollLeft: 20 }, ScrollType.Immediate);
+			assert.deepStrictEqual(
+				render(),
+				[indicator(INDICATOR_VIEWPORT_LEFT + 20), indicator(INDICATOR_VIEWPORT_LEFT + 20), '', '', indicator(INDICATOR_VIEWPORT_LEFT + 20), '']
+			);
+		});
 	});
 
 	test('renders only the view lines inside the viewport', () => {
@@ -285,7 +265,7 @@ suite('WordWrapIndicatorOverlay', () => {
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, {
 				viewport: { startLineNumber: 2, endLineNumber: 4 }
 			}),
-			['', indicator(60), '', '', '', '']
+			['', indicator(INDICATOR_VIEWPORT_LEFT), '', '', '', '']
 		);
 	});
 
@@ -308,11 +288,11 @@ suite('WordWrapIndicatorOverlay', () => {
 					}]);
 				}
 			}),
-			[indicator(60, 2 * LINE_HEIGHT), indicator(60, 2 * LINE_HEIGHT), '', '', indicator(60), '']
+			[indicator(INDICATOR_VIEWPORT_LEFT, 2 * LINE_HEIGHT), indicator(INDICATOR_VIEWPORT_LEFT, 2 * LINE_HEIGHT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
 		);
 	});
 
-	test('asks for a rerender on every event that can move a line end', () => {
+	test('asks for a rerender on every event that can affect an indicator', () => {
 		assert.deepStrictEqual(
 			invalidationsAfterRender(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }),
 			{
@@ -322,10 +302,10 @@ suite('WordWrapIndicatorOverlay', () => {
 				onLinesChanged: true,
 				onLinesDeleted: true,
 				onLinesInserted: true,
-				onTokensChanged: true,
+				onTokensChanged: false,
 				onZonesChanged: true,
 				onScrolledVertically: true,
-				onScrolledHorizontally: false
+				onScrolledHorizontally: true
 			}
 		);
 	});
@@ -352,22 +332,14 @@ suite('WordWrapIndicatorOverlay', () => {
 		);
 	});
 
-	test('ignores token changes outside the rendered viewport', () => {
-		const invalidations: Record<string, boolean> = {};
+	test('ignores token changes', () => {
+		let invalidated: boolean | undefined;
 		withOverlay(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, ({ overlay, render }) => {
-			render({ viewport: { startLineNumber: 2, endLineNumber: 4 } });
-			invalidations.beforeViewport = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 1, toLineNumber: 1 }]));
-			invalidations.insideViewport = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 3, toLineNumber: 3 }]));
-			invalidations.afterViewport = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 5, toLineNumber: 6 }]));
-			invalidations.acrossViewport = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 1, toLineNumber: 6 }]));
+			render();
+			invalidated = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 1, toLineNumber: 6 }]));
 		});
 
-		assert.deepStrictEqual(invalidations, {
-			beforeViewport: false,
-			insideViewport: true,
-			afterViewport: false,
-			acrossViewport: true
-		});
+		assert.strictEqual(invalidated, false);
 	});
 
 	test('asks for a rerender only on configuration changes that matter', () => {
@@ -378,8 +350,7 @@ suite('WordWrapIndicatorOverlay', () => {
 				indicatorTurnedOff: configurationChangeInvalidates(options, { wordWrapIndicator: false }),
 				wrappingTurnedOn: configurationChangeInvalidates({ wordWrap: 'off', wordWrapIndicator: true }, WRAPPING_OPTIONS),
 				wrappingTurnedOff: configurationChangeInvalidates(options, { wordWrap: 'off' }),
-				// The cached options are unchanged, but a layout change can move the wrap column
-				// and with it the end of every view line.
+				// A layout change can move the right edge of the viewport.
 				layoutChanged: configurationChangeInvalidates(options, { lineNumbers: 'off' }),
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
 			},

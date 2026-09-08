@@ -109,7 +109,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	WordWrapIndicator: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Three numbered lines of plain text, the first and third of which wrap onto further unnumbered view lines. Every view line that continues onto the next one ends with a small muted hooked arrow glyph placed immediately after its last character. The unwrapped short line and the final view line of each wrapped line have no glyph.'],
+		expectedVisualDescriptions: ['Three numbered lines of plain text, the first and third of which wrap onto further unnumbered view lines. Every view line that continues onto the next one has a small muted hooked arrow glyph aligned in a column at the far right edge of the editor viewport. The unwrapped short line and the final view line of each wrapped line have no glyph.'],
 		render: context => renderWordWrapIndicator(context),
 	}),
 	WordWrapIndicatorDisabled: defineComponentFixture({
@@ -119,7 +119,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	}),
 	WordWrapIndicatorVariableLineHeight: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The first model line is rendered at double the height of the others. The hooked arrow glyphs on its wrapped view lines are as tall as those taller lines and stay aligned with the text, while the glyph on the last line keeps the default height.'],
+		expectedVisualDescriptions: ['The first model line is rendered at double the height of the others. The hooked arrow glyphs remain aligned at the far right edge of the editor viewport and are as tall as their corresponding view lines.'],
 		render: context => renderWordWrapIndicator(context, {
 			decorations: model => [{
 				range: new Range(1, 1, 1, model.getLineMaxColumn(1)),
@@ -129,17 +129,17 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	}),
 	WordWrapIndicatorWrappingIndent: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The same wrapped plain text, with every continuation view line indented past the start of its model line. The hooked arrow glyphs stay pinned to the end of each wrapped view line, so they are unaffected by the indent and remain flush with the wrap column.'],
+		expectedVisualDescriptions: ['The same wrapped plain text, with every continuation view line indented past the start of its model line. The hooked arrow glyphs stay pinned to the far right edge of the editor viewport, unaffected by the indent or the length of the wrapped text.'],
 		render: context => renderWordWrapIndicator(context, { options: { wrappingIndent: 'indent' } }),
 	}),
 	WordWrapIndicatorUnbreakableToken: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A single long run of letters with no spaces in it, broken mid token across two view lines above a short unwrapped line. The first view line ends with a hooked arrow glyph immediately after its last letter, showing that a mid word break is marked the same way as a break at a space.'],
+		expectedVisualDescriptions: ['A single long run of letters with no spaces in it, broken mid token across two view lines above a short unwrapped line. The first view line has a hooked arrow glyph at the far right edge of the editor viewport, showing that a mid word break is marked the same way as a break at a space.'],
 		render: context => renderWordWrapIndicator(context, { text: UNBREAKABLE_TEXT }),
 	}),
 	WordWrapIndicatorViewportWrapping: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Long unbreakable runs of letters and digits separated by short unwrapped lines, wrapped to the width of the editor rather than to a fixed column. They add up to more view lines than fit the height, so the vertical scrollbar is painted along the right edge and the bottom view line is clipped. The long runs offer no break at a space, so each of their wrapped view lines runs the full width the wrap column allows. The hooked arrow glyph sits immediately after the last character of those view lines, drawn whole and with a clear gap before the scrollbar rather than cut off at the edge of the content or painted underneath it. The short line and the final view line of each run carry no glyph.'],
+		expectedVisualDescriptions: ['Long unbreakable runs of letters and digits separated by short unwrapped lines, wrapped to the width of the editor rather than to a fixed column. They add up to more view lines than fit the height, so the vertical scrollbar is painted along the right edge and the bottom view line is clipped. Every wrapped view line has a hooked arrow glyph pinned to the far right edge of the text viewport, immediately before the scrollbar. The glyphs are fully visible rather than cut off or painted underneath the scrollbar. The short line and the final view line of each run carry no glyph.'],
 		render: context => renderWordWrapIndicator(context, {
 			text: VIEWPORT_FILLING_TEXT,
 			options: { wordWrap: 'on', scrollbar: { vertical: 'visible' } },
@@ -147,14 +147,14 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	}),
 	WordWrapIndicatorSelected: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The same wrapped plain text with the whole first model line selected, so its view lines carry a selection background. The hooked arrow glyphs on those view lines stay visible against the selection background, painted underneath the selected text rather than over it.'],
+		expectedVisualDescriptions: ['The same wrapped plain text with the whole first model line selected, so its view lines carry a selection background. The hooked arrow glyphs remain visible in their column at the far right edge of the editor viewport.'],
 		render: context => renderWordWrapIndicator(context, {
 			selection: new Selection(1, 1, 2, 1),
 		}),
 	}),
 	WordWrapIndicatorWithWhitespace: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The same wrapped plain text with whitespace rendering turned on, so every space shows as a small dot. The hooked arrow glyphs sit immediately after the trailing dot of each wrapped view line and are drawn in the same muted colour as the dots, since the indicator colour defaults to the whitespace colour.'],
+		expectedVisualDescriptions: ['The same wrapped plain text with whitespace rendering turned on, so every space shows as a small dot. The hooked arrow glyphs remain aligned at the far right edge of the editor viewport and use the same muted colour as the dots, since the indicator colour defaults to the whitespace colour.'],
 		render: context => renderWordWrapIndicator(context, { options: { renderWhitespace: 'all' } }),
 	}),
 });

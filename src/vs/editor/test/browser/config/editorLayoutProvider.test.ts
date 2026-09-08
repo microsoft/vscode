@@ -1442,11 +1442,10 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 	});
 
-	test('leaves a column for the word wrap indicator when wrapping to the viewport', () => {
+	test('leaves the rightmost column for the word wrap indicator when wrapping to the viewport', () => {
 		// 990px of content at 10px per character hold 98 columns once the 2px kept free for the
-		// cursor are taken off. The indicator is drawn after the last character of a wrapped view
-		// line, so it needs the last of those columns to itself; without it the glyph would reach
-		// past the viewport, where the vertical scrollbar is painted over it.
+		// cursor are taken off. The indicator occupies the rightmost column, so wrapped text needs
+		// to stop one column earlier rather than overlap the glyph.
 		const wrappingOf = (wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded', wordWrapIndicator: boolean) => {
 			const layoutInfo = computeLayoutInfo({
 				outerWidth: 1000,
