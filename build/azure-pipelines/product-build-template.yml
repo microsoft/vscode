@@ -413,32 +413,32 @@ stages:
                   container: centos
                   arch: arm64
 
-            # Debian 13
+            # Debian 11
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
-                  name: debian_13_amd64
-                  displayName: Debian 13 amd64
+                  name: debian_11_amd64
+                  displayName: Debian 11 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: debian-13
+                  container: debian-11
                   arch: amd64
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
-                  name: debian_13_arm32
-                  displayName: Debian 13 arm32
+                  name: debian_11_arm32
+                  displayName: Debian 11 arm32
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-13
+                  container: debian-11
                   arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
-                  name: debian_13_arm64
-                  displayName: Debian 13 arm64
+                  name: debian_11_arm64
+                  displayName: Debian 11 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-13
+                  container: debian-11
                   arch: arm64
 
             # Debian 12
