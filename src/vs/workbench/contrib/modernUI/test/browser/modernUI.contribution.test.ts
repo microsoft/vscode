@@ -1455,8 +1455,8 @@ suite('ModernUIContribution', () => {
 			restingOpacity: verticalStyle.opacity,
 		}, {
 			registeredDefaults: {
-				dark: transparent(foreground, 0.225),
-				light: transparent(foreground, 0.225),
+				dark: transparent(foreground, 0.4),
+				light: transparent(foreground, 0.4),
 				hcDark: foreground,
 				hcLight: foreground,
 			},

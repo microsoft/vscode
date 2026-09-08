@@ -16,7 +16,7 @@ The Modern UI colors below are experimental and require a build that supports th
 | `surface.border` | Shared frame border and default for region-specific frame borders | `foreground` at 15% alpha composited over `surface.background`, producing an opaque color in dark and light themes; `contrastBorder` in high contrast themes |
 | `editor.border` | Border of the editor surface in the modern layout | `surface.border` |
 | `modernPanel.border` | Outer border of the floating panel surface | `surface.border` |
-| `modernSash.gripForeground` | Color of the resting resize grip dots between top-level workbench parts | `foreground` at 22.5% alpha in dark and light themes; opaque `foreground` in high contrast themes |
+| `modernSash.gripForeground` | Color of the resting resize grip dots between top-level workbench parts | `foreground` at 40% alpha in dark and light themes; opaque `foreground` in high contrast themes |
 | `modernTab.activeBackground` | Background of active Modern UI tabs | `list.inactiveSelectionBackground` |
 | `modernTab.activeForeground` | Foreground of active Modern UI tabs | `list.inactiveSelectionForeground`, then `foreground` |
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
@@ -72,7 +72,7 @@ In a color theme file:
     "surface.border": "#3a3a3a",
     "editor.border": "#505050",
     "modernPanel.border": "#505050",
-    "modernSash.gripForeground": "#cccccc39",
+    "modernSash.gripForeground": "#cccccc66",
     "modernTab.activeBackground": "#3d3d3d",
     "modernTab.activeForeground": "#f0f0f0",
     "modernTab.hoverBackground": "#292929",
@@ -109,7 +109,7 @@ To try a smaller set of overrides in `settings.json`:
     "modernUI.shellBackground": "#181818",
     "modernUI.inactiveShellBackground": "#202020",
     "modernPanel.border": "#505050",
-    "modernSash.gripForeground": "#cccccc39",
+    "modernSash.gripForeground": "#cccccc66",
     "statusBar.inactiveBackground": "#202020"
   }
 }
