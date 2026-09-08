@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -43,14 +43,14 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING } from '../../browser/automationsNewBadge.js';
+import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -209,7 +209,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('renders the new badge only on the Automations section when templates are recycled', () => {
+		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
 				override set context(_context: unknown) { }
@@ -218,10 +218,16 @@ suite('Sessions - SessionsList', () => {
 			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return false; }
 			}());
-			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() { });
+			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+				override getStatusIcon(_status: SessionStatus, isRead: boolean) {
+					return isRead ? Codicon.circleSmallFilled : Codicon.circleFilled;
+				}
+			});
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const runs = observableValue<readonly IAutomationRun[]>(disposables, []);
+			const badgePresentation = observableValue<AutomationsNewBadgeStyle | undefined>(disposables, 'outline');
 			const automationService = new class extends mock<IAutomationService>() {
-				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+				override readonly runs = runs;
 			};
 			const renderer = new SessionSectionRenderer(
 				true,
@@ -230,7 +236,7 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable('outline'),
+				badgePresentation,
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -248,11 +254,28 @@ suite('Sessions - SessionsList', () => {
 				collapsible: false,
 				collapsed: false,
 			}), 0, template);
-			const automationSnapshot = {
-				text: template.newBadge.textContent,
-				display: template.newBadge.style.display,
-				ariaHidden: template.newBadge.getAttribute('aria-hidden'),
-			};
+			const getPresentationSnapshot = () => ({
+				badgeText: template.newBadge.textContent,
+				badgeDisplay: template.newBadge.style.display,
+				badgeAriaHidden: template.newBadge.getAttribute('aria-hidden'),
+				hasOutlineBadge: template.newBadge.classList.contains('session-section-new-badge-outline'),
+				hasUnreadDot: !!container.querySelector('.session-section-icon > .codicon-circle-filled:not([data-icon-fading-out="1"])'),
+				hasSpinner: !!container.querySelector('.session-section-icon > .monaco-pixel-spinner:not([data-icon-fading-out="1"])'),
+				hasCalendar: template.icon.classList.contains('codicon-calendar'),
+			});
+			const outline = getPresentationSnapshot();
+
+			badgePresentation.set('unread', undefined);
+			const unread = getPresentationSnapshot();
+
+			runs.set([upcastPartial<IAutomationRun>({ status: 'running' })], undefined);
+			const running = getPresentationSnapshot();
+
+			runs.set([], undefined);
+			const unreadRestored = getPresentationSnapshot();
+
+			badgePresentation.set(undefined, undefined);
+			const dismissed = getPresentationSnapshot();
 
 			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
 				element: { id: 'workspace:test', label: 'Test', sessions: [] },
@@ -261,28 +284,73 @@ suite('Sessions - SessionsList', () => {
 			}), 0, template);
 
 			assert.deepStrictEqual({
-				automationSnapshot,
+				outline,
+				unread,
+				running,
+				unreadRestored,
+				dismissed,
 				recycledDisplay: template.newBadge.style.display,
 				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
 			}, {
-				automationSnapshot: {
-					text: 'New',
-					display: 'inline-flex',
-					ariaHidden: 'true',
+				outline: {
+					badgeText: 'New',
+					badgeDisplay: 'inline-flex',
+					badgeAriaHidden: 'true',
+					hasOutlineBadge: true,
+					hasUnreadDot: false,
+					hasSpinner: false,
+					hasCalendar: true,
+				},
+				unread: {
+					badgeText: 'New',
+					badgeDisplay: 'none',
+					badgeAriaHidden: 'true',
+					hasOutlineBadge: false,
+					hasUnreadDot: true,
+					hasSpinner: false,
+					hasCalendar: false,
+				},
+				running: {
+					badgeText: 'New',
+					badgeDisplay: 'none',
+					badgeAriaHidden: 'true',
+					hasOutlineBadge: false,
+					hasUnreadDot: false,
+					hasSpinner: true,
+					hasCalendar: false,
+				},
+				unreadRestored: {
+					badgeText: 'New',
+					badgeDisplay: 'none',
+					badgeAriaHidden: 'true',
+					hasOutlineBadge: false,
+					hasUnreadDot: true,
+					hasSpinner: false,
+					hasCalendar: false,
+				},
+				dismissed: {
+					badgeText: 'New',
+					badgeDisplay: 'none',
+					badgeAriaHidden: 'true',
+					hasOutlineBadge: false,
+					hasUnreadDot: false,
+					hasSpinner: false,
+					hasCalendar: true,
 				},
 				recycledDisplay: 'none',
 				recycledShortcutClass: false,
 			});
 		});
 
-		test('updates the Automations row accessible label when the new badge is dismissed', () => {
+		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'outline');
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
 				});
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
@@ -295,6 +363,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
+			await list.resetAutomationsNewBadge();
 			const row = container.querySelector<HTMLElement>('.monaco-list-row');
 			const before = row?.getAttribute('aria-label');
 
@@ -1360,6 +1429,84 @@ suite('Sessions - SessionsList', () => {
 				flatRowOffset: 54,
 			});
 		});
+	});
+
+	suite('session toolbar keyboard focus', () => {
+		for (const pinned of [false, true]) {
+			test(`tabs into the selected ${pinned ? 'pinned' : 'unpinned'} session toolbar without hover`, () => {
+				const session = createTestSession('Session').session;
+				const harness = createListHarness(disposables, [session], {
+					pinnedSessionIds: new Set(pinned ? [session.sessionId] : []),
+				});
+				harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
+				const action = new class extends mock<MenuItemAction>() {
+					override readonly id = 'sessions.test.action';
+					override readonly label = 'Session Action';
+					override readonly enabled = true;
+					override async run(): Promise<void> { }
+				}();
+				harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(menuId: MenuId): IMenu {
+						return {
+							onDidChange: Event.None,
+							getActions: () => menuId === SessionItemToolbarMenuId ? [['navigation', [action]]] : [],
+							dispose: () => { },
+						};
+					}
+				}());
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				assert.ok(list.reveal(session.resource));
+
+				const tree = container.querySelector<HTMLElement>('.monaco-list');
+				const row = container.querySelector('.session-item')?.closest('.monaco-list-row');
+				const toolbar = row?.querySelector<HTMLElement>('.session-title-toolbar');
+				const button = toolbar?.querySelector<HTMLElement>('[tabindex="0"]');
+				assert.ok(tree && row && toolbar && button);
+
+				const outside = mainWindow.document.createElement('button');
+				container.appendChild(outside);
+				outside.focus();
+				const unfocusedDisplay = mainWindow.getComputedStyle(toolbar).display;
+				list.focus();
+				const focusedDisplay = mainWindow.getComputedStyle(toolbar).display;
+				tree.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+				const toolbarFocused = mainWindow.document.activeElement === button;
+				const toolbarFocusedDisplay = mainWindow.getComputedStyle(toolbar).display;
+				const tabFromAction = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true });
+				button.dispatchEvent(tabFromAction);
+				outside.focus();
+				const blurredDisplay = mainWindow.getComputedStyle(toolbar).display;
+				list.focus();
+				const reverseTab = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true });
+				tree.dispatchEvent(reverseTab);
+
+				assert.deepStrictEqual({
+					selected: row.classList.contains('selected'),
+					unfocusedDisplay,
+					focusedDisplay,
+					toolbarFocused,
+					toolbarFocusedDisplay,
+					tabFromActionPrevented: tabFromAction.defaultPrevented,
+					blurredDisplay,
+					reverseTabPrevented: reverseTab.defaultPrevented,
+				}, {
+					selected: true,
+					unfocusedDisplay: 'none',
+					focusedDisplay: 'block',
+					toolbarFocused: true,
+					toolbarFocusedDisplay: 'block',
+					tabFromActionPrevented: false,
+					blurredDisplay: 'none',
+					reverseTabPrevented: false,
+				});
+			});
+		}
 	});
 
 	suite('session chat rows', () => {

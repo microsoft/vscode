@@ -162,6 +162,7 @@ import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
+import { ChatSessionArchiveNudge, IChatSessionArchiveNudgeOptions } from './chatSessionArchiveNudge.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../chatPetAchievements.js';
 import { IChatPetService } from '../../chatPetService.js';
@@ -515,6 +516,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputNotificationContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
+	private sessionArchiveNudgeContainer: HTMLElement | undefined;
+	private sessionArchiveNudgeOptions: IChatSessionArchiveNudgeOptions | undefined;
+	private readonly sessionArchiveNudgeWidget = this._register(new MutableDisposable<ChatSessionArchiveNudge>());
 	private readonly _chatPetHorizontalPlatformProviders = new Set<IChatPetHorizontalPlatformProvider>();
 	private readonly _onDidChangeChatPetHorizontalPlatforms = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
@@ -540,6 +544,41 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get persistentContentContainerElement(): HTMLElement {
 		return this.persistentContentContainer;
+	}
+
+	get hasSessionArchiveNudge(): boolean {
+		return !!this.sessionArchiveNudgeWidget.value;
+	}
+
+	setSessionArchiveNudge(options: IChatSessionArchiveNudgeOptions | undefined): void {
+		this.sessionArchiveNudgeOptions = options;
+		if (!this.sessionArchiveNudgeContainer) {
+			return;
+		}
+
+		if (!options) {
+			const restoreFocus = this.sessionArchiveNudgeWidget.value && dom.isAncestorOfActiveElement(this.sessionArchiveNudgeWidget.value.domNode);
+			this.sessionArchiveNudgeWidget.clear();
+			if (restoreFocus) {
+				this.focus();
+			}
+			return;
+		}
+
+		const widgetOptions: IChatSessionArchiveNudgeOptions = {
+			...options,
+			onDismiss: () => {
+				this.focus();
+				this.setSessionArchiveNudge(undefined);
+				options.onDismiss();
+			},
+		};
+		if (this.sessionArchiveNudgeWidget.value) {
+			this.sessionArchiveNudgeWidget.value.setOptions(widgetOptions);
+		} else {
+			const widget = this.sessionArchiveNudgeWidget.value = this.instantiationService.createInstance(ChatSessionArchiveNudge, widgetOptions);
+			this.sessionArchiveNudgeContainer.appendChild(widget.domNode);
+		}
 	}
 
 	get gettingStartedTipContainerElement(): HTMLElement {
@@ -3119,6 +3158,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
+				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
 				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
 					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
 					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
@@ -3153,6 +3193,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
+				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
 				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
 				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
 				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),
@@ -3185,6 +3226,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.container = elements.root;
 		this.persistentContentContainer = elements.persistentContentContainer;
+		this.sessionArchiveNudgeContainer = elements.sessionArchiveNudgeContainer;
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);
@@ -3193,6 +3235,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Create a scoped context key service for option group visibility expressions
 		// This isolates chatSessionOption.* context keys to this specific chat input instance
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+		const archiveNudgeContextKeyService = this._register(this.contextKeyService.createScoped(this.sessionArchiveNudgeContainer));
+		ChatContextKeys.inChatInput.bindTo(archiveNudgeContextKeyService).set(true);
 
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
@@ -3998,6 +4042,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this.renderAttachedContext();
+
+		this.setSessionArchiveNudge(this.sessionArchiveNudgeOptions);
 
 		// Defer only the carousel max-height update to the next animation
 		// frame. That write changes a descendant whose height flexes back
