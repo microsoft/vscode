@@ -107,6 +107,8 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 Capabilities describe operations supported by the backing provider and remain observable when support may change during hydration. Provider-specific checks belong in the provider; shared services and UI consume the capability contract.
 
+Providers that own repository access expose workspace-specific worktree support and branch choices through `ISessionsProvider.getWorktreeOptions`. Consumers use that authority for remote workspaces rather than asking the local Git extension; providers without that operation retain local Git discovery.
+
 ### Changes
 
 Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
