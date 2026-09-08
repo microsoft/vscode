@@ -167,8 +167,8 @@
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-left,
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-right {
 	min-width: var(--vscode-spacing-size120);
-	height: 0;
-	border-top: var(--vscode-strokeThickness) solid currentColor;
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-widget-border, var(--vscode-contrastBorder));
 	flex: 1;
 }
 
