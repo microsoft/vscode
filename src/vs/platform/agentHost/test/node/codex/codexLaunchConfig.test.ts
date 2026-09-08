@@ -59,7 +59,7 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
 	});
 
-	test('defines workspace-only permission profiles after extra arguments', () => {
+	test('defines workspace-scoped permission profiles after extra arguments', () => {
 		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
 		const expectedOverrides = codexPermissionProfileOverrides();
 		assert.deepStrictEqual({
@@ -83,19 +83,19 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
-	test('uses filesystem restrictions supported by each platform sandbox', () => {
+	test('uses platform-supported profiles without path-specific exceptions', () => {
 		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
 		const macProfile = codexPermissionProfileOverrides('darwin')[1];
 		const windowsProfiles = codexPermissionProfileOverrides('win32');
 		const windowsProfile = windowsProfiles[1];
 		assert.deepStrictEqual({
-			linux: [linuxProfile.includes('glob_scan_max_depth = 1'), linuxProfile.includes('"/etc/passwd*" = "deny"'), linuxProfile.includes('/private/etc/passwd')],
-			mac: [macProfile.includes('glob_scan_max_depth'), macProfile.includes('"/etc/passwd*" = "deny"'), macProfile.includes('"/private/etc/passwd*" = "deny"')],
+			linux: linuxProfile,
+			mac: macProfile,
 			windows: windowsProfiles,
 			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
 		}, {
-			linux: [true, true, false],
-			mac: [false, true, true],
+			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
 				'permissions.vscode-workspace={ extends = ":workspace", network = { enabled = false } }',

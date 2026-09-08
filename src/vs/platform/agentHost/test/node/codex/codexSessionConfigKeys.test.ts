@@ -151,7 +151,7 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
-	test('resolveChatConfig describes workspace-only default permissions', async () => {
+	test('resolveChatConfig describes workspace-scoped default permissions', async () => {
 		const agent = createAgent(disposables);
 		const { schema } = await agent.resolveChatConfig({ config: {} });
 		const permissions = schema.properties[CodexSessionConfigKey.PermissionsPreset];
@@ -160,8 +160,8 @@ suite('codexSessionConfigKeys', () => {
 			value,
 			description: permissions.enumDescriptions?.[index],
 		})), [
-			{ value: 'default', description: 'Codex can read and edit files in the workspace and run routine local commands. It asks before using the internet or going beyond the workspace.' },
-			{ value: 'auto-review', description: 'Same workspace access as Default, but approval requests are routed through the auto-reviewer instead of prompting you.' },
+			{ value: 'default', description: 'Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access.' },
+			{ value: 'auto-review', description: 'Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you.' },
 			{ value: 'full-access', description: 'Codex can edit files outside the workspace and use the internet without asking. Use only when you want full machine access.' },
 		]);
 	});

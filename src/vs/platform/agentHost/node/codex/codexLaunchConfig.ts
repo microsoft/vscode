@@ -14,18 +14,11 @@ const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-netw
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
 export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
-	const protectedSystemPathPatterns = platform === 'win32'
-		? []
-		: platform === 'darwin'
-			? ['/etc/passwd*', '/private/etc/passwd*']
-			: ['/etc/passwd*'];
 	const fileSystemOverride = platform === 'win32'
 		? ''
 		: `, filesystem = { ${[
-			...(platform === 'linux' ? ['glob_scan_max_depth = 1'] : []),
 			`":root" = "deny"`,
 			`":minimal" = "read"`,
-			...protectedSystemPathPatterns.map(pattern => `${JSON.stringify(pattern)} = "deny"`),
 			`":tmpdir" = "write"`,
 			`":slash_tmp" = "deny"`,
 		].join(', ')} }`;
