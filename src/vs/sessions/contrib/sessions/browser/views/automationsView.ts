@@ -660,11 +660,19 @@ class AutomationCardsSection extends Disposable {
 
 		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
 		scheduleElement.textContent = schedule;
+<<<<<<< HEAD
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
 		this.emptyStateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
 		card.setAttribute('aria-describedby', description.id);
+=======
+		const prompt = DOM.append(card, $('span.automations-template-card-prompt'));
+		prompt.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
+		prompt.textContent = template.prompt;
+		this.emptyStateDisposables.add(this.hoverService.setupDelayedHover(prompt, { content: template.prompt }));
+		card.setAttribute('aria-describedby', prompt.id);
+>>>>>>> b90e78d57e8 (automations: feat: backport templates and target selection to 1.137 (#334865))
 
 		this.emptyStateDisposables.add(DOM.addDisposableListener(card, DOM.EventType.CLICK, () => {
 			void this.openCreateDialog({

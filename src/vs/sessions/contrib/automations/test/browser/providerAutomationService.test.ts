@@ -395,7 +395,11 @@ suite('ProviderAutomationService', () => {
 
 	test('an unavailable remote catalogue does not block local automation operations', async () => {
 		const { service, providerStore, storage, automationStorage, addProvider } = createService();
+<<<<<<< HEAD
 		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), automationStorage));
+=======
+		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), NullTelemetryService, automationStorage));
+>>>>>>> b90e78d57e8 (automations: feat: backport templates and target selection to 1.137 (#334865))
 		remote.setCatalogueState('unavailable');
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', order: 1, automations: remote }));
 

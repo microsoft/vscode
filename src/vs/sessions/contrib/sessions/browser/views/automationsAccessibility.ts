@@ -120,7 +120,11 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		lines.push('');
 		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
 		for (const template of AUTOMATION_TEMPLATES) {
+<<<<<<< HEAD
 			lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
+=======
+			lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.prompt));
+>>>>>>> b90e78d57e8 (automations: feat: backport templates and target selection to 1.137 (#334865))
 		}
 	}
 
