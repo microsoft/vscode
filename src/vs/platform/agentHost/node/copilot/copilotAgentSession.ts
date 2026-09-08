@@ -3317,18 +3317,14 @@ export class CopilotAgentSession extends Disposable {
 		await this._disposeShellInitScript();
 	}
 
-	/**
-	 * The Auto routing profile this session launched with, which the runtime fixes for the session's
-	 * lifetime. Read from the frozen plan so a later gate flip cannot change what it reports.
-	 */
-	get launchAutoTier(): AutoModeTier | undefined {
-		return this._launchPlan.kind === 'create' ? this._launchPlan.autoTier : this._launchPlan.fallback.autoTier;
-	}
-
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+			reasoningEffort,
+			contextTier,
+			...(autoTier !== undefined ? { autoTier } : {}),
+		}));
 		this._lastSeenModelId = model;
-		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, { reasoningEffort, contextTier }));
 	}
 
 	/**

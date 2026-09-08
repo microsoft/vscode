@@ -364,7 +364,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	areAutoModeTiersSupported(): boolean {
-		return this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AutoModeTiersEnabled, this._expService);
+		return this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTiersEnabled);
 	}
 
 	/**

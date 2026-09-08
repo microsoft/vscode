@@ -747,7 +747,8 @@ describe('AutomodeService', () => {
 			expect(autoRequestBodies()).toEqual([{ prompt: 'panel turn', tier: 'intelligence' }]);
 		});
 
-		it('announces tier support when the setting changes', async () => {
+		it('announces tier support from the effective setting, not a separate experiment lookup', async () => {
+			vi.spyOn(mockExpService, 'getTreatmentVariable').mockReturnValue(true);
 			automodeService = createService();
 			expect(automodeService.areAutoModeTiersSupported()).toBe(false);
 
@@ -756,9 +757,10 @@ describe('AutomodeService', () => {
 			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, true);
 			// An unrelated change must not re-announce.
 			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTierOverride, 'intelligence');
+			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, false);
 			listener.dispose();
 
-			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 1, supported: true });
+			expect({ announced, supported: automodeService.areAutoModeTiersSupported() }).toEqual({ announced: 2, supported: false });
 		});
 
 		it('does not reuse a cached endpoint from a different tier when /auto fails', async () => {

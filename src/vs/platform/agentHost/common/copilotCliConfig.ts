@@ -34,11 +34,10 @@ export const enum CopilotCliConfigKey {
 	ReasoningSummary = 'reasoningSummary',
 	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
 	MultiTurnContextRouting = 'multiTurnContextRouting',
-	/**
-	 * Offer the Auto model's routing-profile ("Optimize for") picker. Off by default. Separate from
-	 * the extension's gate, which tracks CAPI readiness rather than the bundled runtime's support.
-	 */
+	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
 	AutoModeTiers = 'autoModeTiers',
+	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
+	AutoModeTierOverride = 'autoModeTierOverride',
 	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
 	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
@@ -47,10 +46,7 @@ export const enum CopilotCliConfigKey {
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
-// VS Code `chat.agentHost.*` / `chat.copilot.*` setting IDs that feed the root-config
-// keys above, kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
-// and forwarded into the host's root config by `AgentHostCopilotCliSettingsContribution`
-// (and, for the terminal-tool toggle, `AgentHostTerminalContribution`).
+// Client setting IDs forwarded into the matching provider-owned root-config keys.
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
@@ -71,12 +67,11 @@ export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot
 
 export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
 
-export const AgentHostAutoModeTiersEnabledSettingId = 'chat.agentHost.copilot.autoModeTiers.enabled';
+export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
-/**
- * ExP treatment gating the Auto routing-profile picker. The Copilot extension gates its own picker
- * on this same name, so one assignment turns tiers on for both harnesses.
- */
+export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
+
+/** Applied to the shared setting's default by the workbench configuration service. */
 export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
 
 export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
@@ -208,9 +203,15 @@ export const copilotCliConfigSchema = createSchema({
 	}),
 	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.autoModeTiers.title', "Auto Routing Profiles"),
-		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker that biases routing toward efficiency, balance, or intelligence. The profile is chosen before a session starts and applies for its lifetime."),
+		title: localize('agentHost.config.autoModeTiers.title', "Auto Optimize for"),
+		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker with Efficiency, Balance, and Intelligence options. You can change the preference during a session. When disabled, the service chooses how to route unless an override is configured."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.AutoModeTierOverride]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
+		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference, even when the picker is disabled. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ReasoningSummary, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ReasoningSummary, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPlugin
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { autoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -1125,10 +1125,7 @@ suite('resolveCopilotReasoningEffort', () => {
 	});
 });
 
-/**
- * The Auto model's routing profile ("Optimize for"): only the `auto` entry routes per turn, and the
- * host's `autoModeTiers` gate decides whether the profile ever reaches the runtime.
- */
+/** Auto's "Optimize for" preference shares the extension's override and picker gate. */
 suite('getCopilotAutoTier', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1139,14 +1136,14 @@ suite('getCopilotAutoTier', () => {
 				getCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }),
 				// The picker's default is a real selection, forwarded like any other.
 				getCopilotAutoTier({ id: 'auto', config: { tier: 'balance' } }),
-				// A retired tier name is not a runtime wire value, so sending it would be rejected.
+				// Retired selections are translated before they reach the runtime.
 				getCopilotAutoTier({ id: 'auto', config: { tier: 'max' } }),
 				getCopilotAutoTier({ id: 'auto' }),
 				// A profile left on a concrete model by an earlier Auto selection.
 				getCopilotAutoTier({ id: 'gpt-5', config: { tier: 'efficiency' } }),
 				getCopilotAutoTier(undefined),
 			],
-			['intelligence', 'balance', undefined, undefined, undefined, undefined]
+			['intelligence', 'balance', 'intelligence', undefined, undefined, undefined]
 		);
 	});
 
@@ -1159,22 +1156,28 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('only forwards a profile while the gate is on', () => {
+	test('resolves the override before gated picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };
-		const configOf = (autoModeTiers: boolean | undefined): Pick<IAgentConfigurationService, 'getRootValue'> =>
-			({ getRootValue: (_schema, key) => (key === CopilotCliConfigKey.AutoModeTiers ? autoModeTiers : undefined) as never });
-
+		const configOf = (autoModeTiers: boolean | undefined, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+			getRootValue: (schema, key) => {
+				const value = copilotCliConfigSchema.values({ autoModeTiers, autoModeTierOverride })[key];
+				return schema.validate(key, value) ? value : undefined;
+			},
+		});
 		assert.deepStrictEqual(
 			[
 				resolveCopilotAutoTier(model, configOf(true), log, 's1'),
-				// A profile persisted while the gate was on must not survive turning it off: the runtime
-				// rejects unknown `capi` fields, so an older runtime would fail the session outright.
+				// A saved selection must not bypass disabling the picker.
 				resolveCopilotAutoTier(model, configOf(false), log, 's1'),
 				resolveCopilotAutoTier(model, configOf(undefined), log, 's1'),
 				resolveCopilotAutoTier({ id: 'gpt-5', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
+				resolveCopilotAutoTier(model, configOf(true, 'intelligence'), log, 's1'),
+				resolveCopilotAutoTier(model, configOf(false, 'balance'), log, 's1'),
+				resolveCopilotAutoTier(model, configOf(true, 'fast'), log, 's1'),
+				resolveCopilotAutoTier({ id: 'gpt-5' }, configOf(true, 'intelligence'), log, 's1'),
 			],
-			['efficiency', undefined, undefined, undefined]
+			['efficiency', undefined, undefined, undefined, 'intelligence', 'balance', 'efficiency', undefined]
 		);
 	});
 });
@@ -1519,34 +1522,37 @@ suite('CopilotSessionLauncher resume config', () => {
 	});
 });
 
-/**
- * The routing profile is a create-time option: the runtime fixes it for the session's lifetime and
- * restores it on cold resume, so re-sending it on resume would collide with the resident one.
- */
+/** Resume preserves runtime-owned routing state; a turn's selection is applied through setModel. */
 suite('CopilotSessionLauncher auto tier', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Launches a session and returns the `capi` options the SDK was called with. */
-	async function capiOptionsFor(kind: 'create' | 'resume', autoTier: AutoModeTier | undefined): Promise<unknown> {
-		let capi: unknown = 'not-called';
+	async function capiOptionsFor(kind: 'create' | 'resume' | 'fallback', model: ModelSelection | undefined, enabled = true, override?: string): Promise<SessionConfig['capi'][]> {
+		const capiCalls: SessionConfig['capi'][] = [];
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: { options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
-		const client = {
-			createSession: async (config: { capi?: unknown }) => {
-				capi = config.capi;
+		const client: Pick<CopilotClient, 'createSession' | 'resumeSession'> = {
+			createSession: async config => {
+				capiCalls.push(config.capi);
 				return session;
 			},
-			resumeSession: async (_sessionId: string, config: { capi?: unknown }) => {
-				capi = config.capi;
+			resumeSession: async (_sessionId, config) => {
+				capiCalls.push(config?.capi);
+				if (kind === 'fallback') {
+					throw Object.assign(new Error('Session has no events'), { code: -32603 });
+				}
 				return session;
 			},
-		} as unknown as Pick<CopilotClient, 'createSession' | 'resumeSession'>;
-		const launcher = createTestLauncher();
+		};
+		const launcher = createTestLauncher(undefined, {
+			[CopilotCliConfigKey.AutoModeTiers]: enabled,
+			[CopilotCliConfigKey.AutoModeTierOverride]: override,
+		});
 		const base = {
 			client,
 			sessionId: 'session-1',
@@ -1558,8 +1564,8 @@ suite('CopilotSessionLauncher auto tier', () => {
 			githubToken: undefined,
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
-			? { ...base, kind: 'create', model: { id: 'auto' }, autoTier }
-			: { ...base, kind: 'resume', fallback: { model: { id: 'auto' }, autoTier } };
+			? { ...base, kind: 'create', model }
+			: { ...base, kind: 'resume', fallback: { model } };
 
 		const sessions = new DisposableStore();
 		try {
@@ -1568,20 +1574,43 @@ suite('CopilotSessionLauncher auto tier', () => {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
-		return capi;
+		return capiCalls;
 	}
 
-	test('sends the plan profile verbatim on create, and never on resume', async () => {
+	test('resolves the override and gated picker preference when creating a session', async () => {
+		const model: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
 		assert.deepStrictEqual(
 			[
-				// Sent exactly as frozen. The launcher must not resolve it again against the live gate.
-				await capiOptionsFor('create', 'intelligence'),
-				// No profile: omitted entirely, so a runtime without the contract never sees the field.
+				await capiOptionsFor('create', model),
+				await capiOptionsFor('create', model, false),
+				await capiOptionsFor('create', { id: 'auto' }),
+				await capiOptionsFor('create', { id: 'gpt-5', config: { tier: 'intelligence' } }),
+				await capiOptionsFor('create', { id: 'auto', config: { tier: 'max' } }),
 				await capiOptionsFor('create', undefined),
-				// Resume keeps whatever profile the runtime journaled for the session.
-				await capiOptionsFor('resume', 'intelligence'),
+				await capiOptionsFor('create', model, false, 'balance'),
+				await capiOptionsFor('create', undefined, false, 'balance'),
 			],
-			[{ autoTier: 'intelligence' }, undefined, undefined]
+			[
+				[{ autoTier: 'intelligence' }], [undefined], [undefined], [undefined], [{ autoTier: 'intelligence' }], [undefined],
+				[{ autoTier: 'balance' }], [{ autoTier: 'balance' }],
+			]
+		);
+	});
+
+	test('preserves runtime routing state on resume unless overridden, and handles empty-session fallback', async () => {
+		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };
+		assert.deepStrictEqual(
+			[
+				await capiOptionsFor('resume', model),
+				await capiOptionsFor('fallback', model),
+				await capiOptionsFor('fallback', model, false),
+				await capiOptionsFor('resume', model, false, 'intelligence'),
+				await capiOptionsFor('fallback', model, false, 'intelligence'),
+			],
+			[
+				[undefined], [undefined, { autoTier: 'efficiency' }], [undefined, undefined],
+				[{ autoTier: 'intelligence' }], [{ autoTier: 'intelligence' }, { autoTier: 'intelligence' }],
+			]
 		);
 	});
 });
