@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import type { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
@@ -51,6 +52,31 @@ suite('Artifact Server Tools', () => {
 		}, {
 			definition: true,
 			instruction: true,
+		});
+	});
+
+	test('distinguishes attempted pull request work from inspection or review', () => {
+		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const classificationInput: IJSONSchema | undefined = addDefinition?.inputSchema?.properties?.isArtifact;
+		const descriptions = [
+			addDefinition?.description,
+			classificationInput?.description,
+			ARTIFACT_TOOLS_INSTRUCTION,
+		];
+
+		assert.deepStrictEqual({
+			inputType: classificationInput?.type,
+			classifications: descriptions.map(description => ({
+				artifact: description?.includes('you create or attempt to fix, change, or unblock is an artifact'),
+				reference: description?.includes('inspection or review alone makes it a reference'),
+			})),
+		}, {
+			inputType: 'boolean',
+			classifications: [
+				{ artifact: true, reference: true },
+				{ artifact: true, reference: true },
+				{ artifact: true, reference: true },
+			],
 		});
 	});
 

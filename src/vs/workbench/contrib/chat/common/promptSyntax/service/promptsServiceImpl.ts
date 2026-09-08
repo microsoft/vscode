@@ -19,6 +19,7 @@ import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -680,6 +681,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const commands = await this.getPromptSlashCommands(token);
 		const command = commands.find(cmd => cmd.name === name && matchesSessionType(cmd.sessionTypes, sessionType));
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			return {
 				...command,
 				parsedPromptFile: await this.parseNew(command.uri, token),
@@ -793,10 +797,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const skipReason = isEnabled ? undefined : 'disabled';
 				return { status, skipReason, promptPath: this.withPromptPathMetadata(promptPath, agent.name, agent.description), agent };
 			} catch (e) {
+				if (isCancellationError(e)) {
+					throw e;
+				}
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 					this.logger.warn(`[computeAgentDiscoveryInfo] Skipping agent file that does not exist: ${uri}`, error.message);
-				} else if (!isCancellationError(e)) {
+				} else {
 					this.logger.error(`[computeAgentDiscoveryInfo] Failed to parse agent file: ${uri}`, error);
 				}
 				return {
@@ -1631,12 +1638,13 @@ class CachedPromise<T> extends Disposable {
 				throw err;
 			});
 			// The pool is only meaningful while the computation is in flight.
-			promise.finally(() => {
+			const disposePool = () => {
 				if (this.cachedPool === pool) {
 					this.cachedPool = undefined;
 				}
 				pool!.dispose();
-			});
+			};
+			promise.then(disposePool, disposePool);
 			this.cachedPromise = promise;
 			this.cachedPool = pool;
 		}

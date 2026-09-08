@@ -20,7 +20,7 @@
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 var(--vscode-spacing-size100);
+	padding: 0 var(--vscode-spacing-size20);
 	box-sizing: border-box;
 	container-type: inline-size;
 
@@ -35,7 +35,19 @@
 	flex-direction: row;
 	align-items: flex-start;
 	gap: 6px;
+	height: var(--vscode-spacing-size320, 32px);
+	margin: 0 calc(-1 * var(--vscode-spacing-size80));
+	padding: 0 var(--vscode-spacing-size20);
 	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground, var(--chat-tab-active-foreground)) 12%, transparent);
+	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .chat-composite-bar.session-header-bar .chat-composite-bar-header {
+	border-bottom-color: var(--vscode-contrastBorder);
+}
+
+.agent-sessions-workbench.editor-tabs-compact-height .chat-composite-bar.session-header-bar .chat-composite-bar-header {
+	height: var(--vscode-spacing-size280, 28px);
 }
 
 /* Main column hosts the title row. */
@@ -45,6 +57,7 @@
 	gap: 2px;
 	flex: 1 1 auto;
 	min-width: 0;
+	height: 100%;
 }
 
 /* Title row: title + actions */
@@ -52,7 +65,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	height: 34px;
+	height: 100%;
 }
 
 /* Status icon column — sits beside the main column, centered on the title line.
@@ -63,7 +76,7 @@
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	height: 34px;
+	height: 100%;
 	font-size: var(--vscode-codiconFontSize, 16px);
 	color: var(--session-view-foreground);
 }
@@ -165,9 +178,14 @@
 .chat-composite-bar-tabs-row {
 	display: flex;
 	align-items: center;
-	height: 35px;
+	height: var(--vscode-spacing-size320, 32px);
 	box-sizing: border-box;
 	overflow: hidden;
+}
+
+.chat-composite-bar.compact-height .chat-composite-bar-tabs-row {
+	--editor-group-tab-height: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size280, 28px);
 }
 
 .session-view.tabs-replace-header .chat-groups-view.single-group .chat-composite-bar-tabs-row {
@@ -201,7 +219,7 @@
 	display: flex;
 	align-items: center;
 	height: 100%;
-	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
+	min-height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size40) * 2);
 }
 
 .chat-composite-bar-toolbar {

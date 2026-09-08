@@ -569,7 +569,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	if (config.provider === 'claude') {
+	if (config.provider === 'claude' || config.provider === 'copilotcli') {
 		test('file edit before and after content can be read from session storage', async function () {
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-session-db-file-edit-'));
@@ -582,7 +582,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 				context.client,
 				sessionUri,
 				turnId,
-				'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
+				config.provider === 'copilotcli'
+					? `Use edit exactly once to replace BEFORE_STORED_VALUE with AFTER_STORED_VALUE in ${join(workspace, 'stored-edit.txt')}. Do not inspect or search for the file and do not run a shell command. Then reply exactly "done".`
+					: 'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
 				1,
 			);
 			const edit = context.client.receivedNotifications(n =>

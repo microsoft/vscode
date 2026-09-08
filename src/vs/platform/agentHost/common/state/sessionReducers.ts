@@ -24,8 +24,12 @@ const PERMISSION_REQUEST_TOOL_KINDS: Readonly<Partial<Record<AgentPermissionRequ
  *
  * Normally the `_meta.toolKind` flag an agent adapter injects (e.g.
  * `copilotEventMapper`); it is not part of the protocol. A remote agent host
- * does not stamp that key, so for a call awaiting approval the kind comes from
- * the permission request it echoes instead.
+ * does not stamp that key, so for a call awaiting approval the kind falls back
+ * to the permission request it echoes — the compatibility bridge documented in
+ * {@link readAgentPermissionRequestMeta}.
+ *
+ * A stamped kind always wins, so a host that starts describing its
+ * confirmations natively is never overridden by the fallback.
  */
 export function getToolKind(tc: ToolCallState | ICompletedToolCall): ToolKind | undefined {
 	const kind = readToolCallMeta(tc).toolKind;

@@ -291,7 +291,7 @@
 	position: relative;
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title::after {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title:not(.tabs)::after {
 	content: '';
 	position: absolute;
 	right: var(--vscode-spacing-size100);

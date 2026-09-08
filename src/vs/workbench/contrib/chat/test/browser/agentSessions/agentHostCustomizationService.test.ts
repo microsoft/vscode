@@ -4,15 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
-import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
@@ -63,6 +74,29 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
+	}
+}
+
+class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
+	override readonly onDidChange = Event.None;
+	private current: SessionState | Error | undefined;
+	private confirmed: SessionState | undefined;
+
+	override get value(): SessionState | Error | undefined {
+		return this.current;
+	}
+
+	override get verifiedValue(): SessionState | undefined {
+		return this.confirmed;
+	}
+
+	setSnapshot(state: SessionState): void {
+		this.current = state;
+		this.confirmed = state;
+	}
+
+	setError(error: Error): void {
+		this.current = error;
 	}
 }
 
@@ -266,6 +300,272 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			enabled: false,
 			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
+	});
+
+});
+
+suite('WorkbenchAgentHostCustomizationService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses provisional roots only until authoritative session state is available', () => {
+		const sessionResource = URI.parse('untitled:chat');
+		const backendSession = URI.parse('copilot:/session');
+		const provisionalRoot = URI.file('/provisional');
+		const hydratedRoot = URI.file('/hydrated');
+		const retainedRoot = URI.file('/retained');
+		const subscription = new TestSessionSubscription();
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override readonly onDidAction = Event.None;
+			override readonly rootState = {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} satisfies IAgentSubscription<RootState>;
+
+			override getSubscription<T>(_kind: StateComponents): IReference<IAgentSubscription<T>> {
+				return {
+					object: subscription as unknown as IAgentSubscription<T>,
+					dispose: () => { },
+				};
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = connection;
+			}(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get(): URI {
+					return backendSession;
+				}
+				override getProvisionalWorkingDirectories(): readonly URI[] {
+					return [provisionalRoot];
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IChatService>() {
+				override readonly onDidDisposeSession = Event.None;
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+		));
+		const createState = (workingDirectories: readonly URI[]): SessionState => createSessionState({
+			resource: backendSession.toString(),
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: workingDirectories.map(uri => uri.toString()),
+		});
+
+		const beforeSnapshot = service.getWorkingDirectories(sessionResource);
+		subscription.setSnapshot(createState([hydratedRoot]));
+		const afterSnapshot = service.getWorkingDirectories(sessionResource);
+		subscription.setSnapshot(createState([]));
+		const afterEmptySnapshot = service.getWorkingDirectories(sessionResource);
+		subscription.setSnapshot(createState([retainedRoot]));
+		subscription.setError(new Error('subscription failed'));
+		const afterError = service.getWorkingDirectories(sessionResource);
+
+		assert.deepStrictEqual({
+			beforeSnapshot,
+			afterSnapshot,
+			afterEmptySnapshot,
+			afterError,
+		}, {
+			beforeSnapshot: [provisionalRoot.toString()],
+			afterSnapshot: [hydratedRoot.toString()],
+			afterEmptySnapshot: [],
+			afterError: [retainedRoot.toString()],
+		});
+	});
+
+	/**
+	 * A subscription whose snapshot arrives after the fact, so tests can observe
+	 * the window in which `value` is still `undefined`.
+	 */
+	class LiveSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
+		private readonly _onDidChange = new Emitter<SessionState>();
+		/** Number of listeners installed on this subscription, including readiness waits. */
+		listenerCount = 0;
+		override readonly onDidChange: Event<SessionState> = (listener, thisArgs?, disposables?) => {
+			this.listenerCount++;
+			return this._onDidChange.event(listener, thisArgs, disposables);
+		};
+		private readonly _onDidError = new Emitter<Error>();
+		override readonly onDidError = this._onDidError.event;
+		private current: SessionState | Error | undefined;
+		private confirmed: SessionState | undefined;
+
+		override get value(): SessionState | Error | undefined {
+			return this.current;
+		}
+
+		override get verifiedValue(): SessionState | undefined {
+			return this.confirmed;
+		}
+
+		setSnapshot(state: SessionState): void {
+			this.current = state;
+			this.confirmed = state;
+			this._onDidChange.fire(state);
+		}
+
+		setError(error: Error): void {
+			this.current = error;
+			this._onDidError.fire(error);
+		}
+
+		dispose(): void {
+			this._onDidChange.dispose();
+			this._onDidError.dispose();
+		}
+	}
+
+	function createReadinessSut() {
+		/** Keeps the bounded wait short so timeout coverage costs no real time. */
+		class TestTimeoutCustomizationService extends WorkbenchAgentHostCustomizationService {
+			protected override readonly _snapshotTimeoutMs = 20;
+		}
+		const sessionResource = URI.parse('untitled:chat');
+		const backendSession = URI.parse('copilot:/session');
+		const subscription = store.add(new LiveSessionSubscription());
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override readonly onDidAction = Event.None;
+			override readonly rootState = {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} satisfies IAgentSubscription<RootState>;
+
+			override getSubscription<T>(_kind: StateComponents): IReference<IAgentSubscription<T>> {
+				return {
+					object: subscription as unknown as IAgentSubscription<T>,
+					dispose: () => { },
+				};
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const service = store.add(new TestTimeoutCustomizationService(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = connection;
+			}(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get(): URI {
+					return backendSession;
+				}
+				override getProvisionalWorkingDirectories(): readonly URI[] {
+					return [];
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IChatService>() {
+				override readonly onDidDisposeSession = Event.None;
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+		));
+		const directory: Customization = {
+			type: CustomizationType.Directory,
+			id: 'dir-1',
+			uri: 'file:///workspace/.github/skills',
+			name: 'skills',
+			contents: CustomizationType.Skill,
+			writable: true,
+			children: [],
+		} as unknown as Customization;
+		const stateWithDirectory: SessionState = {
+			...createSessionState({
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			}),
+			customizations: [directory],
+		};
+		return { service, subscription, sessionResource, stateWithDirectory };
+	}
+
+	test('whenCustomizationsReady defers until the first snapshot rather than reporting no customizations', async () => {
+		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut();
+
+		let resolved = false;
+		const ready = service.whenCustomizationsReady(sessionResource).then(() => { resolved = true; });
+		await timeout(0);
+		const whileLoading = { resolved, customizations: service.getCustomizations(sessionResource).map(c => c.id) };
+
+		subscription.setSnapshot(stateWithDirectory);
+		await ready;
+		const afterSnapshot = { resolved, customizations: service.getCustomizations(sessionResource).map(c => c.id) };
+
+		let resolvedAgain = false;
+		service.whenCustomizationsReady(sessionResource).then(() => { resolvedAgain = true; });
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLoading, afterSnapshot, resolvedAgain }, {
+			whileLoading: { resolved: false, customizations: [] },
+			afterSnapshot: { resolved: true, customizations: ['dir-1'] },
+			resolvedAgain: true,
+		});
+	});
+
+	test('whenCustomizationsReady stops waiting when the subscription fails', async () => {
+		const { service, subscription, sessionResource } = createReadinessSut();
+
+		let resolved = false;
+		const ready = service.whenCustomizationsReady(sessionResource).then(() => { resolved = true; });
+		subscription.setError(new Error('subscription failed'));
+		await ready;
+
+		assert.strictEqual(resolved, true);
+	});
+
+	test('whenCustomizationsReady shares one bounded wait across every prompt-type query', async () => {
+		const { service, subscription, sessionResource } = createReadinessSut();
+
+		// `createFileMigration` queries source folders once per target prompt
+		// type, sequentially, so a never-hydrating subscription must cost one
+		// deadline for the whole hint rather than one per type. Counting
+		// listeners keeps this deterministic; a wall-clock bound would be flaky.
+		// The expected two are the subscription entry's own listener plus the
+		// single shared readiness wait; the point is that it stops growing.
+		await service.whenCustomizationsReady(sessionResource);
+		const afterFirstQuery = subscription.listenerCount;
+		await service.whenCustomizationsReady(sessionResource);
+		await service.whenCustomizationsReady(sessionResource);
+
+		assert.deepStrictEqual({
+			afterFirstQuery,
+			afterThreeQueries: subscription.listenerCount,
+			stillUnresolved: subscription.value === undefined,
+		}, {
+			afterFirstQuery: 2,
+			afterThreeQueries: 2,
+			stillUnresolved: true,
 		});
 	});
 });

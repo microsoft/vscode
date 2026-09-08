@@ -96,6 +96,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
@@ -123,6 +124,7 @@ export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessio
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
+export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('sessionsList.focusedChatItem', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -1266,6 +1268,7 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
+	readonly newBadge: HTMLElement;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
@@ -1318,6 +1321,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
 		private readonly automationSessions: IObservable<readonly ISession[]>,
+		private readonly automationNewBadgePresentation: IObservable<AutomationsNewBadgeStyle | undefined>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
@@ -1339,6 +1343,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
+		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
+		newBadge.setAttribute('aria-hidden', 'true');
+		newBadge.textContent = localize('automationsNewBadge', "New");
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
@@ -1383,7 +1390,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -1397,6 +1404,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
+		template.newBadge.style.display = 'none';
+		template.newBadge.classList.remove(
+			'session-section-new-badge-accent',
+			'session-section-new-badge-soft',
+			'session-section-new-badge-outline',
+		);
 		if (element.id === AUTOMATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-shortcut');
 		}
@@ -1412,10 +1425,16 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
+				const badgeStyle = this.automationNewBadgePresentation.read(reader);
+				template.newBadge.style.display = badgeStyle && badgeStyle !== 'unread' ? 'inline-flex' : 'none';
+				template.newBadge.classList.toggle('session-section-new-badge-accent', badgeStyle === 'accent');
+				template.newBadge.classList.toggle('session-section-new-badge-soft', badgeStyle === 'soft');
+				template.newBadge.classList.toggle('session-section-new-badge-outline', badgeStyle === 'outline');
 			}));
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
+				const badgeStyle = this.automationNewBadgePresentation.read(reader);
 				if (automationStatus === SessionStatus.NeedsInput) {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
@@ -1423,6 +1442,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
+					template.icon.className = 'session-section-icon';
+					statusIcon.setStatus(SessionStatus.Completed, false, false);
+				} else if (badgeStyle === 'unread') {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
@@ -1747,6 +1769,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly isPinned: (session: ISession) => boolean;
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
+	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 }
@@ -1776,20 +1799,23 @@ class SessionsAccessibilityProvider {
 		}
 		if (isSessionSection(element)) {
 			if (element.id === AUTOMATIONS_SECTION_ID) {
-				return this.automationStatus
-					? derived(this, reader => {
-						switch (this.automationStatus?.read(reader)) {
-							case SessionStatus.NeedsInput:
-								return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
-							case SessionStatus.InProgress:
-								return localize('automationsActiveAria', "{0}, run in progress", element.label);
-							case SessionStatus.Completed:
-								return localize('automationsUnreadRunAria', "{0}, unread run", element.label);
-							default:
-								return element.label;
-						}
-					})
-					: element.label;
+				return derived(this, reader => {
+					let label = element.label;
+					switch (this.automationStatus?.read(reader)) {
+						case SessionStatus.NeedsInput:
+							label = localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							break;
+						case SessionStatus.InProgress:
+							label = localize('automationsActiveAria', "{0}, run in progress", element.label);
+							break;
+						case SessionStatus.Completed:
+							label = localize('automationsUnreadRunAria', "{0}, unread run", element.label);
+							break;
+					}
+					return this.options?.automationNewBadgeVisible?.read(reader)
+						? localize('automationsNewFeatureAria', "{0}, new feature", label)
+						: label;
+				});
 			}
 			return `${element.label}, ${element.sessions.length}`;
 		}
@@ -1866,8 +1892,16 @@ interface ISessionsListDndDelegate {
 	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
 	/** The id of the group the session belongs to, or `undefined`. */
 	getGroupIdOfSession(session: ISession): string | undefined;
+	/**
+	 * The id of the workspace section (`workspace:<label>`) the session belongs
+	 * to, or `undefined` when the list is not sectioned by workspace or the
+	 * session belongs elsewhere (pinned, done, quick chat).
+	 */
+	getWorkspaceSectionIdOfSession(session: ISession): string | undefined;
 	/** Add the given sessions to the group. */
 	addSessionsToGroup(sessions: ISession[], groupId: string, target: ISession | undefined, position: 'before' | 'after' | undefined): void;
+	/** Remove the given sessions from their group, optionally placing them before/after a target. */
+	removeSessionsFromGroup(sessions: ISession[], target: ISession | undefined, position: 'before' | 'after' | undefined): void;
 	/** Pin the given sessions, optionally placing them before/after a pinned target. */
 	pinSessions(sessions: ISession[], target: ISession | undefined, position: 'before' | 'after' | undefined): void;
 	/** Highlight only the header that will receive the dragged sessions. */
@@ -1999,6 +2033,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return this.toMembershipDropReaction(addToGroupTarget);
 		}
 
+		const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
+		if (removeFromGroupTarget) {
+			this.delegate.setDropTargetHeader(removeFromGroupTarget.header);
+			return this.toMembershipDropReaction(removeFromGroupTarget);
+		}
+
 		this.delegate.setDropTargetHeader(undefined);
 		const target = this.resolveReorderTarget(data, targetElement);
 		if (!target) {
@@ -2037,6 +2077,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
 			if (addToGroupTarget) {
 				this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
+				return;
+			}
+
+			const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
+			if (removeFromGroupTarget) {
+				this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
 				return;
 			}
 
@@ -2132,6 +2178,46 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			sessions: dragged,
 			groupId,
 			header: { kind: 'group', id: groupId },
+			target,
+			position: target ? sectorToPosition(targetSector) : undefined,
+		};
+	}
+
+	/**
+	 * Resolve a drop that takes grouped sessions back out of their custom group
+	 * and into the workspace section they belong to. The drop may land on the
+	 * workspace section header or onto/between the sessions already rendered in
+	 * it; unrelated workspace sections never accept the drop.
+	 */
+	private resolveRemoveFromGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionMembershipDropTarget | undefined {
+		if (!targetElement) {
+			return undefined;
+		}
+
+		let sectionId: string | undefined;
+		let target: ISession | undefined;
+		if (isSessionSection(targetElement)) {
+			sectionId = targetElement.id.startsWith('workspace:') ? targetElement.id : undefined;
+		} else if (isSessionItem(targetElement) && this.delegate.getGroupIdOfSession(targetElement) === undefined) {
+			sectionId = this.delegate.getWorkspaceSectionIdOfSession(targetElement);
+			target = sectionId === undefined ? undefined : targetElement;
+		}
+		if (sectionId === undefined) {
+			return undefined;
+		}
+
+		// Only sessions that currently render inside a custom group can be
+		// dropped back out, and only into their own workspace section.
+		const dragged = this.draggedSessions(data);
+		const canRemove = dragged.every(session =>
+			this.delegate.getGroupIdOfSession(session) !== undefined
+			&& this.delegate.getWorkspaceSectionIdOfSession(session) === sectionId);
+		if (dragged.length === 0 || !canRemove) {
+			return undefined;
+		}
+		return {
+			sessions: dragged,
+			header: { kind: 'section', id: sectionId },
 			target,
 			position: target ? sectorToPosition(targetSector) : undefined,
 		};
@@ -2323,6 +2409,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private readonly chatApprovalHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
+	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
 	/**
 	 * Session IDs whose hierarchy indent/connector guides should be visible:
 	 * the union of the currently-hovered session (if any) and every session
@@ -2396,6 +2483,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	get element(): HTMLElement { return this.listContainer; }
 
+	async resetAutomationsNewBadge(): Promise<void> {
+		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
+			this.customViewService.hideCustomView();
+		}
+		await this.automationsNewBadgeState.reset();
+	}
+
 	constructor(
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
@@ -2424,6 +2518,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
+		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
 		// Load excluded session types from storage
 		this.excludedSessionTypes = this.loadExcludedSessionTypes();
@@ -2518,7 +2613,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService, this.menuService);
+		const sectionRenderer = new SessionSectionRenderer(
+			true /* hideSectionCount */,
+			selectHeader,
+			instantiationService,
+			contextKeyService,
+			this.automationService,
+			this.automationSessions,
+			this.automationsNewBadgeState.presentation,
+			this.uriIdentityService,
+			this.customViewService,
+			this.menuService,
+		);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
@@ -2561,6 +2667,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					deriveStatusFromMainChat: true,
+					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -2568,7 +2675,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
 					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
 					getGroupIdOfSession: session => this._sessionGroupsService.getGroupOfSession(session.sessionId),
+					getWorkspaceSectionIdOfSession: session => this.getWorkspaceSectionIdOfSession(session),
 					addSessionsToGroup: (sessions, groupId, target, position) => this.addSessionsToGroup(sessions, groupId, target, position),
+					removeSessionsFromGroup: (sessions, target, position) => this.removeSessionsFromGroup(sessions, target, position),
 					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
@@ -2653,6 +2762,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					: 'force-no-twistie',
 			}
 		));
+		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
@@ -2694,11 +2804,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 		const updateFocusedGuideSessionIds = () => {
 			this.focusedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getFocus()), undefined);
+			focusedChatItemContext.set(DOM.isAncestorOfActiveElement(this.listContainer) && this.tree.getFocus().some(item => !!item && isSessionChatItem(item)));
 		};
 		this._register(this.tree.onDidChangeFocus(updateFocusedGuideSessionIds));
 		this._register(this.tree.onDidFocus(updateFocusedGuideSessionIds));
 		this._register(this.tree.onDidBlur(() => {
 			this.focusedGuideSessionIds.set(EMPTY_GUIDE_SESSION_IDS, undefined);
+			focusedChatItemContext.reset();
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
@@ -3200,6 +3312,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
+			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
 			children.push(renderSection({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] }));
 		}
 
@@ -3421,6 +3534,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return focusedSession ? this.getMultiSelectedSessions(focusedSession) : [];
 	}
 
+	/** Returns the focused chat row while this list owns DOM focus. */
+	getFocusedChatItem(): ISessionChatItem | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listContainer)) {
+			return undefined;
+		}
+
+		return this.tree.getFocus().find((item): item is ISessionChatItem => !!item && isSessionChatItem(item));
+	}
+
 	setVisible(visible: boolean): void {
 		if (this.visible === visible) {
 			return;
@@ -3594,6 +3716,39 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	/**
+	 * Take the given sessions out of their custom group so they render in their
+	 * own section again, optionally placing them before/after a target session
+	 * of that section.
+	 */
+	private removeSessionsFromGroup(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
+		const groupedSessions = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined);
+		if (groupedSessions.length === 0) {
+			return;
+		}
+		for (const session of groupedSessions) {
+			this._sessionGroupsService.removeFromGroup(session.sessionId);
+		}
+		if (target && position) {
+			this.reorderSessions(groupedSessions, target, position);
+		}
+	}
+
+	/**
+	 * The id of the workspace section a session belongs to, or `undefined` when
+	 * the list does not section by workspace or the session belongs to another
+	 * section (Pinned, Done, or the "Chats" section for quick chats).
+	 */
+	private getWorkspaceSectionIdOfSession(session: ISession): string | undefined {
+		if (this.options.grouping() !== SessionsGrouping.Workspace
+			|| session.isArchived.get()
+			|| this.isSessionPinned(session)
+			|| isQuickChatSession(session)) {
+			return undefined;
+		}
+		return `workspace:${sessionWorkspaceLabel(session)}`;
+	}
+
 	private commitGroupEdit(group: ISessionGroup, name: string): void {
 		this._editingGroupId = undefined;
 		const trimmed = name.trim();
@@ -3758,6 +3913,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanRenameContext.key, capabilities.canRename],
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
 		const actions = Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, groupActions]) => groupActions));
