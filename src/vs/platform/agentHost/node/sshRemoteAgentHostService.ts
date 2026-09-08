@@ -8,6 +8,7 @@ import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { Duplex } from 'stream';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
@@ -73,6 +74,7 @@ import {
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
+import { killTree } from '../../../base/node/processes.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -103,7 +105,30 @@ interface SSHClient {
 	end(): void;
 }
 
+interface ISSHProxyTransport {
+	readonly socket: Duplex;
+	/** Whatever the helper wrote to stderr, used to explain why the jump host failed. */
+	readonly stderr: () => string;
+	/** Resolves once the helper's stdio closes or {@link PROXY_STDERR_SETTLE_TIMEOUT} elapses; {@link stderr} is only complete afterwards. */
+	readonly whenStderrSettled: () => Promise<void>;
+	dispose(): void;
+}
+
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
+
+/** The `ProxyJump` helper owned by each ssh2 client. Disposed explicitly on teardown, because `client.end()` may never fire `close` for a stalled connection. */
+const proxyTransports = new WeakMap<SSHClient, ISSHProxyTransport>();
+
+function disposeProxyTransport(client: SSHClient | undefined): void {
+	if (!client) {
+		return;
+	}
+	const transport = proxyTransports.get(client);
+	if (transport) {
+		proxyTransports.delete(client);
+		transport.dispose();
+	}
+}
 
 /**
  * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
@@ -145,6 +170,12 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
  * the interval a prompt is actually outstanding.
  */
 const INTERACTIVE_TIMEOUT_MS = 300_000;
+
+/** How much of the `ProxyJump` helper's stderr to retain; without it jump-host failures all collapse to exit code 255. */
+const PROXY_STDERR_LIMIT = 4096;
+
+/** How long a failing connect waits for the helper's stderr, bounded so a helper that never closes cannot stall the failure. */
+const PROXY_STDERR_SETTLE_TIMEOUT = 250;
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -663,6 +694,8 @@ class SSHConnection extends Disposable {
 			if (!this._sshClientDetached) {
 				this._remoteStream?.close();
 				sshClient.end();
+				// `end()` on a stalled connection may never fire `close`, so stop the helper here.
+				disposeProxyTransport(sshClient);
 			}
 			this._onDidClose.fire();
 		}));
@@ -868,6 +901,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					};
 				} catch (err) {
 					sshClient.end();
+					disposeProxyTransport(sshClient);
 					this._onDidRelayClose.fire(connectionId);
 					this._onDidCloseConnection.fire(connectionId);
 					this._onDidChangeConnections.fire();
@@ -1150,6 +1184,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		} catch (err) {
 			sshClient?.end();
+			disposeProxyTransport(sshClient);
 			if (!(err instanceof CancellationError)) {
 				this._logService.error(`${LOG_PREFIX} Failed to connect to ${displayHost}`, err);
 			}
@@ -1197,6 +1232,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath,
 			identityAgent: resolved.identityAgent,
+			proxyJump: resolved.proxyJump,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
@@ -1342,6 +1378,190 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return parseSSHGOutput(stdout);
 	}
 
+	/** Expands the ssh_config(5) percent tokens that `ssh -G` leaves literal. Applied per component, because a token holding a colon would otherwise break host/port parsing. */
+	private _proxyJumpTokenExpander(config: ISSHAgentHostConfig): (value: string) => string {
+		const tokens = new Map<string, string>([
+			['%', '%'],
+			['h', config.host],
+			['n', config.sshConfigHost ?? config.host],
+			['p', String(config.port ?? 22)],
+			['r', config.username],
+		]);
+		return value => value.replace(/%(.)/g, (match, token: string) => tokens.get(token) ?? match);
+	}
+
+	private _parseProxyJump(proxyJump: string, expand: (value: string) => string = value => value): { destination: string; port?: number } {
+		if (proxyJump.includes(',')) {
+			throw new Error(localize('ssh.proxyJumpChainUnsupported', "SSH ProxyJump chains are not supported."));
+		}
+
+		// `ssh -G` normalizes this away, but accept it in case it arrives unnormalized.
+		if (/^ssh:\/\//i.test(proxyJump)) {
+			proxyJump = proxyJump.substring('ssh://'.length);
+		}
+
+		const atIndex = proxyJump.lastIndexOf('@');
+		const rawUser = atIndex === -1 ? undefined : proxyJump.substring(0, atIndex);
+		const hostAndPort = proxyJump.substring(atIndex + 1);
+		let rawHost: string;
+		let rawPortText: string | undefined;
+		if (hostAndPort.startsWith('[')) {
+			const bracketIndex = hostAndPort.indexOf(']');
+			// Bare, not bracketed: glibc and Darwin `getaddrinfo` reject `[...]` for a
+			// numeric IPv6 destination. OpenSSH's own `-J` strips them here too.
+			rawHost = hostAndPort.substring(1, bracketIndex);
+			const suffix = hostAndPort.substring(bracketIndex + 1);
+			if (bracketIndex <= 1 ||
+				hostAndPort.indexOf('[', 1) !== -1 ||
+				hostAndPort.indexOf(']', bracketIndex + 1) !== -1 ||
+				(suffix && !suffix.startsWith(':'))) {
+				throw new Error(localize('ssh.invalidProxyJump', "The SSH ProxyJump configuration is invalid."));
+			}
+			rawPortText = suffix ? suffix.substring(1) : undefined;
+		} else {
+			if (hostAndPort.includes('[') || hostAndPort.includes(']')) {
+				throw new Error(localize('ssh.invalidProxyJump', "The SSH ProxyJump configuration is invalid."));
+			}
+			const colonIndex = hostAndPort.lastIndexOf(':');
+			if (colonIndex !== -1 &&
+				hostAndPort.indexOf(':') !== colonIndex) {
+				throw new Error(localize('ssh.invalidProxyJump', "The SSH ProxyJump configuration is invalid."));
+			}
+			rawHost = colonIndex === -1 ? hostAndPort : hostAndPort.substring(0, colonIndex);
+			rawPortText = colonIndex === -1 ? undefined : hostAndPort.substring(colonIndex + 1);
+		}
+		// Split before expanding: a token holding an IPv6 address would look like a port separator.
+		const user = rawUser === undefined ? undefined : expand(rawUser);
+		const host = expand(rawHost);
+		const portText = rawPortText === undefined ? undefined : expand(rawPortText);
+		const invalidPort = portText !== undefined &&
+			(!portText || [...portText].some(character => character < '0' || character > '9'));
+		const port = invalidPort ? undefined : portText === undefined ? undefined : Number(portText);
+		if (!host ||
+			user === '' ||
+			invalidPort ||
+			(port !== undefined && (port < 1 || port > 65535))) {
+			throw new Error(localize('ssh.invalidProxyJump', "The SSH ProxyJump configuration is invalid."));
+		}
+		return {
+			destination: `${user ? `${user}@` : ''}${host}`,
+			port,
+		};
+	}
+
+	protected _spawnProxyProcess(command: string, args: readonly string[]): cp.ChildProcessWithoutNullStreams {
+		return cp.spawn(command, args, {
+			stdio: ['pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+	}
+
+	protected _killProxyProcess(pid: number): Promise<void> {
+		return killTree(pid, true);
+	}
+
+	protected async _createProxyTransport(config: ISSHAgentHostConfig): Promise<ISSHProxyTransport | undefined> {
+		if (!config.sshConfigHost ||
+			!config.proxyJump) {
+			return undefined;
+		}
+
+		const jump = this._parseProxyJump(config.proxyJump, this._proxyJumpTokenExpander(config));
+		const targetHost = config.host.includes(':') ? `[${config.host}]` : config.host;
+		const args = ['-o', 'BatchMode=yes'];
+		if (jump.port !== undefined) {
+			args.push('-p', String(jump.port));
+		}
+		args.push('-W', `${targetHost}:${config.port ?? 22}`, '--', jump.destination);
+		const child = this._spawnProxyProcess('ssh', args);
+		await new Promise<void>((resolve, reject) => {
+			const onError = (error: Error) => {
+				child.removeListener('spawn', onSpawn);
+				child.stdin.destroy();
+				child.stdout.destroy();
+				child.stderr.destroy();
+				reject(error);
+			};
+			const onSpawn = () => {
+				child.removeListener('error', onError);
+				resolve();
+			};
+			child.once('error', onError);
+			child.once('spawn', onSpawn);
+		});
+		let stderrBuffer = '';
+		child.stderr.setEncoding('utf8');
+		child.stderr.on('data', (chunk: string) => {
+			// Keep the tail so a long banner cannot push out the error after it.
+			stderrBuffer = (stderrBuffer + chunk).slice(-PROXY_STDERR_LIMIT);
+		});
+		const stderr = () => stderrBuffer.trim();
+		let closed = false;
+		const closeListeners = new Set<() => void>();
+		const whenStderrSettled = () => new Promise<void>(resolve => {
+			if (closed) {
+				resolve();
+				return;
+			}
+			const done = () => {
+				closeListeners.delete(done);
+				clearTimeout(timer);
+				resolve();
+			};
+			closeListeners.add(done);
+			const timer = setTimeout(done, PROXY_STDERR_SETTLE_TIMEOUT);
+		});
+		child.once('close', () => {
+			closed = true;
+			for (const listener of [...closeListeners]) {
+				listener();
+			}
+		});
+		const socket = Duplex.from({ readable: child.stdout, writable: child.stdin });
+		let disposed = false;
+		const dispose = () => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			socket.destroy();
+			child.stdin.destroy();
+			child.stdout.destroy();
+			child.stderr.destroy();
+			if (child.pid !== undefined &&
+				child.exitCode === null &&
+				child.signalCode === null) {
+				void this._killProxyProcess(child.pid).catch(() => {
+					if (child.exitCode === null &&
+						child.signalCode === null) {
+						child.kill();
+					}
+				});
+			}
+		};
+		child.once('error', error => socket.destroy(error));
+		// `close`, not `exit`: `exit` can fire while stderr is still draining.
+		child.once('close', (code, signal) => {
+			if (!disposed &&
+				(code !== 0 || signal !== null)) {
+				const details = stderr();
+				if (details) {
+					this._logService.error(`${LOG_PREFIX} SSH proxy process stderr: ${details}`);
+				}
+				// Code and signal only; `rejectConnect` attaches the stderr tail once.
+				socket.destroy(new Error(localize(
+					'ssh.proxyProcessExited',
+					"SSH proxy process exited before the connection closed (code {0}, signal {1}).",
+					code ?? 'none',
+					signal ?? 'none',
+				)));
+			}
+		});
+		socket.on('error', () => { });
+		socket.once('close', dispose);
+		return { socket, stderr, whenStderrSettled, dispose };
+	}
+
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
@@ -1485,8 +1705,21 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		const client = await this._createSSHClient();
+		let proxyTransport: ISSHProxyTransport | undefined;
+		try {
+			proxyTransport = await this._createProxyTransport(config);
+			if (proxyTransport) {
+				connectConfig.sock = proxyTransport.socket;
+				proxyTransports.set(client, proxyTransport);
+			}
+		} catch (error) {
+			client.end();
+			throw error;
+		}
 		return new Promise<SSHClient>((resolve, reject) => {
 			let settled = false;
+			// Unlike `settled`, this means the handshake completed and no rejection is coming.
+			let connected = false;
 			let deadlineTimer: IHandshakeDeadlineHandle | undefined;
 
 			const clearDeadline = () => {
@@ -1511,6 +1744,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					return;
 				}
 				settled = true;
+				connected = true;
 				clearDeadline();
 				this._logService.info(`${LOG_PREFIX} SSH connection established to ${config.host}`);
 				cancelLiveKbiRequests();
@@ -1526,10 +1760,33 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				clearDeadline();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
-				if (endClient) {
-					client.end();
+				const finish = () => {
+					// ssh2's own message ("Connection lost before handshake") says nothing about the cause.
+					const proxyDetails = proxyTransport?.stderr();
+					if (proxyDetails) {
+						this._logService.error(`${LOG_PREFIX} SSH proxy process stderr: ${proxyDetails}`);
+						// Annotate in place: replacing the instance drops the `name` the renderer dispatches on.
+						err.message = localize(
+							'ssh.proxyFailed',
+							"{0} (SSH proxy: {1})",
+							err.message,
+							proxyDetails,
+						);
+					}
+					proxyTransports.delete(client);
+					proxyTransport?.dispose();
+					if (endClient) {
+						client.end();
+					}
+					reject(err);
+				};
+				if (proxyTransport &&
+					!(err instanceof CancellationError)) {
+					// stderr may still be in flight; disposing now would destroy it.
+					void proxyTransport.whenStderrSettled().then(finish, finish);
+					return;
 				}
-				reject(err);
+				finish();
 			};
 
 			cancelConnectFromKbi = () => {
@@ -1555,6 +1812,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// connect promise would never settle and any outstanding host key
 			// prompt would be left on screen forever.
 			client.on('close', () => {
+				// While a rejection is pending, disposal belongs to `rejectConnect`, which waits for stderr first.
+				if (connected) {
+					disposeProxyTransport(client);
+				}
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)
@@ -1573,7 +1834,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			});
 
 			armDeadline(HANDSHAKE_TIMEOUT_MS);
-			client.connect(connectConfig);
+			try {
+				client.connect(connectConfig);
+			} catch (error) {
+				rejectConnect(error instanceof Error ? error : new Error(String(error)), false);
+			}
 		});
 	}
 
