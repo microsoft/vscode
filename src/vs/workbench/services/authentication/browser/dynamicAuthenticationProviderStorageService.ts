@@ -88,6 +88,31 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		await this.secretStorageService.set(key, JSON.stringify(credentials));
 	}
 
+	async migrateDynamicProvider(fromProviderId: string, toProviderId: string, clientId: string): Promise<boolean> {
+		if (fromProviderId === toProviderId || await this.getClientRegistration(toProviderId)) {
+			return false;
+		}
+
+		const providers = this._getStoredProviders();
+		const providerInfo = providers.find(provider => provider.providerId === fromProviderId);
+		const registration = await this.getClientRegistration(fromProviderId);
+		if (!providerInfo || registration?.clientId !== clientId) {
+			return false;
+		}
+
+		const sessions = await this.getSessionsForDynamicAuthProvider(fromProviderId, clientId);
+		await this.storeClientRegistration(toProviderId, providerInfo.authorizationServer, clientId, registration.clientSecret, providerInfo.label);
+		if (sessions) {
+			await this.setSessionsForDynamicAuthProvider(toProviderId, clientId, sessions);
+		}
+
+		const sessionKey = JSON.stringify({ isDynamicAuthProvider: true, authProviderId: fromProviderId, clientId });
+		await this.secretStorageService.delete(sessionKey);
+		await this.secretStorageService.delete(`dynamicAuthProvider:clientRegistration:${fromProviderId}`);
+		this._storeProviders(this._getStoredProviders().filter(provider => provider.providerId !== fromProviderId));
+		return true;
+	}
+
 	private _trackProvider(providerId: string, authorizationServer: string, clientId: string, label?: string): void {
 		const providers = this._getStoredProviders();
 

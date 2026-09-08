@@ -55,6 +55,12 @@ export interface IDynamicAuthenticationProviderStorageService {
 	storeClientRegistration(providerId: string, authorizationServer: string, clientId: string, clientSecret?: string, label?: string): Promise<void>;
 
 	/**
+	 * Moves a matching legacy provider registration and its tokens to a client-scoped provider id.
+	 * Returns true when migration occurred.
+	 */
+	migrateDynamicProvider(fromProviderId: string, toProviderId: string, clientId: string): Promise<boolean>;
+
+	/**
 	 * Get all dynamic authentication providers that have been interacted with.
 	 * @returns Array of provider information.
 	 */

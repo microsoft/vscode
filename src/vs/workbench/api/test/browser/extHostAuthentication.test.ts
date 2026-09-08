@@ -67,15 +67,7 @@ suite('DynamicAuthProvider', () => {
 		}
 	}
 
-	test('does not rotate the client while silently refreshing a token', async () => {
-		let fetchCalls = 0;
-		const fetcher: typeof fetch = async () => {
-			fetchCalls++;
-			return new Response(JSON.stringify({ error: 'invalid_client' }), {
-				status: 400,
-				headers: { 'Content-Type': 'application/json' },
-			});
-		};
+	function createProvider(providerId: string, fetcher: typeof fetch): TestDynamicAuthProvider {
 		const loggerService = new class extends mock<ILoggerService>() {
 			override createLogger(): ILogger {
 				return new NullLogger();
@@ -84,13 +76,14 @@ suite('DynamicAuthProvider', () => {
 		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
 			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
 		}();
-		const provider = disposables.add(new TestDynamicAuthProvider(
+		return disposables.add(new TestDynamicAuthProvider(
 			new class extends mock<IExtHostWindow>() { }(),
 			new class extends mock<IExtHostUrlsService>() { }(),
 			new class extends mock<IExtHostInitDataService>() { }(),
 			new class extends mock<IExtHostProgress>() { }(),
 			loggerService,
 			proxy,
+			providerId,
 			URI.parse('https://mcp.example.com'),
 			{
 				issuer: 'https://mcp.example.com',
@@ -111,6 +104,17 @@ suite('DynamicAuthProvider', () => {
 			}],
 			fetcher,
 		));
+	}
+
+	test('does not rotate the client while silently refreshing a token', async () => {
+		let fetchCalls = 0;
+		const provider = createProvider('dynamic-provider', async () => {
+			fetchCalls++;
+			return new Response(JSON.stringify({ error: 'invalid_client' }), {
+				status: 400,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		});
 
 		const sessions = await provider.getSessions([], { silent: true } satisfies IAuthenticationProviderSessionOptions);
 
@@ -122,6 +126,25 @@ suite('DynamicAuthProvider', () => {
 		}, {
 			sessions: [],
 			fetchCalls: 1,
+			generateNewClientIdCalls: 0,
+			clientId: 'client-id',
+		});
+	});
+
+	test('does not rotate an explicitly configured client during interactive refresh', async () => {
+		const provider = createProvider('dynamic-provider clientId=client-id', async () => new Response(JSON.stringify({ error: 'invalid_client' }), {
+			status: 400,
+			headers: { 'Content-Type': 'application/json' },
+		}));
+
+		const sessions = await provider.getSessions([], { silent: false } satisfies IAuthenticationProviderSessionOptions);
+
+		assert.deepStrictEqual({
+			sessions,
+			generateNewClientIdCalls: provider.generateNewClientIdCalls,
+			clientId: provider.clientId,
+		}, {
+			sessions: [],
 			generateNewClientIdCalls: 0,
 			clientId: 'client-id',
 		});

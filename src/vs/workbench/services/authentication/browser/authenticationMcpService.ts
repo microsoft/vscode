@@ -65,6 +65,7 @@ export interface IAuthenticationMcpService {
 	 * @param mcpServerId The MCP server id to remove the preference for
 	 */
 	removeAccountPreference(mcpServerId: string, providerId: string): void;
+	migrateAccountPreference(mcpServerId: string, fromProviderId: string, toProviderId: string): void;
 	/**
 	 * @deprecated Sets the session preference for the given provider and MCP server
 	 * @param providerId
@@ -89,6 +90,20 @@ export interface IAuthenticationMcpService {
 	selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
 	requestNewSession(providerId: string, scopes: string[], mcpServerId: string, mcpServerName: string): Promise<void>;
+}
+
+export function migrateMcpAuthenticationState(
+	authenticationMcpService: Pick<IAuthenticationMcpService, 'migrateAccountPreference'>,
+	authenticationMcpAccessService: Pick<IAuthenticationMcpAccessService, 'migrateAllowedMcpServer'>,
+	sessions: readonly AuthenticationSession[],
+	mcpServerId: string,
+	fromProviderId: string,
+	toProviderId: string,
+): void {
+	authenticationMcpService.migrateAccountPreference(mcpServerId, fromProviderId, toProviderId);
+	for (const session of sessions) {
+		authenticationMcpAccessService.migrateAllowedMcpServer(fromProviderId, toProviderId, session.account.label, mcpServerId);
+	}
 }
 
 // TODO@TylerLeonhardt: This should all go in MainThreadAuthentication
@@ -249,6 +264,22 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 		// to remove them first... and in case this gets called from somewhere else in the future.
 		this.storageService.remove(key, StorageScope.WORKSPACE);
 		this.storageService.remove(key, StorageScope.APPLICATION);
+	}
+
+	migrateAccountPreference(mcpServerId: string, fromProviderId: string, toProviderId: string): void {
+		if (fromProviderId === toProviderId) {
+			return;
+		}
+		const resolvedMcpServerId = this._inheritAuthAccountPreferenceChildToParent[mcpServerId] ?? mcpServerId;
+		const fromKey = this._getKey(resolvedMcpServerId, fromProviderId);
+		const toKey = this._getKey(resolvedMcpServerId, toProviderId);
+		for (const scope of [StorageScope.WORKSPACE, StorageScope.APPLICATION]) {
+			const preference = this.storageService.get(fromKey, scope);
+			if (preference !== undefined && this.storageService.get(toKey, scope) === undefined) {
+				this.storageService.store(toKey, preference, scope, StorageTarget.MACHINE);
+			}
+			this.storageService.remove(fromKey, scope);
+		}
 	}
 
 	private _getKey(mcpServerId: string, providerId: string): string {

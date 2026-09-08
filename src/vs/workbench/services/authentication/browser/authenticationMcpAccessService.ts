@@ -9,6 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { getLegacyDynamicAuthenticationProviderId } from '../common/authentication.js';
 
 /**
  * Compares two MCP server URLs for the purpose of access binding. They are compared by their canonical
@@ -92,6 +93,7 @@ export interface IAuthenticationMcpAccessService {
 	readAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[];
 	updateAllowedMcpServers(providerId: string, accountName: string, mcpServers: AllowedMcpServer[]): void;
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
+	migrateAllowedMcpServer(fromProviderId: string, toProviderId: string, accountName: string, mcpServerId: string): void;
 }
 
 // TODO@TylerLeonhardt: Should this class only keep track of allowed things and throw away disallowed ones?
@@ -122,8 +124,12 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 			if (trustedMCPServerAuthAccess.includes(mcpServerId)) {
 				return true;
 			}
-		} else if (trustedMCPServerAuthAccess?.[providerId]?.includes(mcpServerId)) {
-			return true;
+		} else {
+			const legacyProviderId = getLegacyDynamicAuthenticationProviderId(providerId);
+			if (trustedMCPServerAuthAccess?.[providerId]?.includes(mcpServerId)
+				|| legacyProviderId && trustedMCPServerAuthAccess?.[legacyProviderId]?.includes(mcpServerId)) {
+				return true;
+			}
 		}
 
 		const allowList = this.readAllowedMcpServers(providerId, accountName);
@@ -143,24 +149,23 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 	}
 
 	readAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[] {
-		let trustedMCPServers: AllowedMcpServer[] = [];
-		try {
-			const trustedMCPServerSrc = this._storageService.get(`mcpserver-${providerId}-${accountName}`, StorageScope.APPLICATION);
-			if (trustedMCPServerSrc) {
-				trustedMCPServers = JSON.parse(trustedMCPServerSrc);
-			}
-		} catch (err) { }
+		const trustedMCPServers = this._readStoredAllowedMcpServers(providerId, accountName);
+		const legacyProviderId = getLegacyDynamicAuthenticationProviderId(providerId);
 
 		// Add trusted MCP servers from product.json if they're not already in the list
 		const trustedMcpServerAuthAccess = this._productService.trustedMcpAuthAccess;
-		const trustedMcpServerIds =
+		const trustedMcpServerIds = new Set(
 			// Case 1: trustedMcpServerAuthAccess is an array
 			Array.isArray(trustedMcpServerAuthAccess)
 				? trustedMcpServerAuthAccess
 				// Case 2: trustedMcpServerAuthAccess is an object
 				: typeof trustedMcpServerAuthAccess === 'object'
-					? trustedMcpServerAuthAccess[providerId] ?? []
-					: [];
+					? [
+						...(trustedMcpServerAuthAccess[providerId] ?? []),
+						...(legacyProviderId ? trustedMcpServerAuthAccess[legacyProviderId] ?? [] : []),
+					]
+					: []
+		);
 
 		for (const mcpServerId of trustedMcpServerIds) {
 			const existingServer = trustedMCPServers.find(server => server.id === mcpServerId);
@@ -215,6 +220,48 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 	removeAllowedMcpServers(providerId: string, accountName: string): void {
 		this._storageService.remove(`mcpserver-${providerId}-${accountName}`, StorageScope.APPLICATION);
 		this._onDidChangeMcpSessionAccess.fire({ providerId, accountName });
+	}
+
+	migrateAllowedMcpServer(fromProviderId: string, toProviderId: string, accountName: string, mcpServerId: string): void {
+		if (fromProviderId === toProviderId) {
+			return;
+		}
+
+		const source = this._readStoredAllowedMcpServers(fromProviderId, accountName);
+		const sourceIndex = source.findIndex(server => server.id === mcpServerId);
+		if (sourceIndex === -1) {
+			return;
+		}
+
+		const [server] = source.splice(sourceIndex, 1);
+		const target = this._readStoredAllowedMcpServers(toProviderId, accountName);
+		const targetIndex = target.findIndex(candidate => candidate.id === mcpServerId);
+		if (targetIndex === -1) {
+			target.push(server);
+		}
+
+		this._storeAllowedMcpServers(toProviderId, accountName, target);
+		this._storeAllowedMcpServers(fromProviderId, accountName, source);
+		this._onDidChangeMcpSessionAccess.fire({ providerId: fromProviderId, accountName });
+		this._onDidChangeMcpSessionAccess.fire({ providerId: toProviderId, accountName });
+	}
+
+	private _readStoredAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[] {
+		try {
+			const stored = this._storageService.get(`mcpserver-${providerId}-${accountName}`, StorageScope.APPLICATION);
+			return stored ? JSON.parse(stored) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	private _storeAllowedMcpServers(providerId: string, accountName: string, servers: AllowedMcpServer[]): void {
+		const key = `mcpserver-${providerId}-${accountName}`;
+		if (servers.length) {
+			this._storageService.store(key, JSON.stringify(servers), StorageScope.APPLICATION, StorageTarget.USER);
+		} else {
+			this._storageService.remove(key, StorageScope.APPLICATION);
+		}
 	}
 }
 

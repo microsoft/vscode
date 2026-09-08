@@ -1433,7 +1433,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _authenticationKey(params: AuthenticateParams): string {
-		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		return `${params.serverName === undefined ? '0' : `1${params.serverName}`}\0${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
 	}
 
 	/**

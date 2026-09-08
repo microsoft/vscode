@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../base/common/arraysFind.js';
-import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -26,15 +26,34 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionProv
 import { IMcpEnterpriseManagedAuthIdpConfig, mcpEnterpriseManagedAuthIdpSection } from '../../contrib/mcp/common/mcpConfiguration.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
-import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpService, migrateMcpAuthenticationState } from '../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../services/authentication/browser/authenticationMcpUsageService.js';
-import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, getDynamicAuthenticationProviderId, getLegacyDynamicAuthenticationProviderId, IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { ExtensionHostKind, extensionHostKindToString } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+
+export function resolveMcpOAuthClientSecretMigration(
+	clientId: string,
+	clientSecret: string | undefined,
+	scopedRegistration: { clientId?: string; clientSecret?: string } | undefined,
+	legacyRegistration: { clientId?: string; clientSecret?: string } | undefined,
+): { clientSecret: string; shouldPersist: true } | { clientSecret: string | undefined; shouldPersist: false } {
+	if (clientSecret === undefined) {
+		const registration = scopedRegistration?.clientId === clientId
+			? scopedRegistration
+			: legacyRegistration?.clientId === clientId
+				? legacyRegistration
+				: undefined;
+		if (registration?.clientSecret !== undefined) {
+			return { clientSecret: registration.clientSecret, shouldPersist: true };
+		}
+	}
+	return { clientSecret, shouldPersist: false };
+}
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -44,6 +63,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	private readonly _servers = new Map<number, ExtHostMcpServerLaunch>();
 	private readonly _serverDefinitions = new Map<number, McpServerDefinition>();
 	private readonly _serverAuthTracking = new McpServerAuthTracker();
+	private readonly _authenticationOperations = new SequencerByKey<string>();
 	private readonly _proxy: Proxied<ExtHostMcpShape>;
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
@@ -286,52 +306,75 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			return this._getSessionForProvider(id, server, xaaProviderId, xaaScopes, issuer, errorOnUserInteraction, resourceClientId, resource, audience, resourceClientSecret);
 		}
 
-		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
-
 		const resolvedClientId = clientId ?? authDetails.clientId;
-		const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
-		let clientSecret: string | undefined;
-		let didLookupClientSecret = false;
-		if (resolvedClientId && mcpServerUrl) {
-			try {
-				clientSecret = await this._secretStorageService.get(mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId));
-				didLookupClientSecret = true;
-			} catch {
-				// Best-effort lookup; proceed without a client secret.
+		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServer, authDetails.resourceMetadata, resolvedClientId);
+		return this._authenticationOperations.queue(providerOperationId, async () => {
+			let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer, resolvedClientId ?? null);
+			const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
+			const clientSecretStorageKey = resolvedClientId && mcpServerUrl
+				? mcpOAuthClientSecretStorageKey(mcpServerUrl, resolvedClientId)
+				: undefined;
+			let clientSecret: string | undefined;
+			let didLookupClientSecret = false;
+			if (clientSecretStorageKey) {
+				try {
+					clientSecret = await this._secretStorageService.get(clientSecretStorageKey);
+					didLookupClientSecret = true;
+				} catch {
+					// Best-effort lookup; proceed without a client secret.
+				}
 			}
-		}
 
-		// If the user explicitly configured an OAuth client_id in mcp.json and the stored
-		// client secret differs from what the existing provider was registered with, force a
-		// re-registration so the new secret takes effect on subsequent token exchanges.
-		// Without this, the user can never replace a cached client secret in the extension
-		// host's DynamicAuthProvider after the provider has been registered.
-		if (didLookupClientSecret && providerId && !forceNewRegistration && this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
-			const registered = await this._dynamicAuthenticationProviderStorageService.getClientRegistration(providerId);
-			if (registered && registered.clientSecret !== clientSecret) {
-				forceNewRegistration = true;
+			const registered = resolvedClientId
+				? await this._dynamicAuthenticationProviderStorageService.getClientRegistration(providerOperationId)
+				: undefined;
+			if (resolvedClientId && didLookupClientSecret && clientSecret === undefined && clientSecretStorageKey) {
+				const legacyProviderId = registered ? undefined : getLegacyDynamicAuthenticationProviderId(providerOperationId);
+				const legacyRegistration = legacyProviderId ? await this._dynamicAuthenticationProviderStorageService.getClientRegistration(legacyProviderId) : undefined;
+				const migration = resolveMcpOAuthClientSecretMigration(resolvedClientId, clientSecret, registered, legacyRegistration);
+				clientSecret = migration.clientSecret;
+				if (migration.shouldPersist) {
+					await this._secretStorageService.set(clientSecretStorageKey, migration.clientSecret);
+				}
 			}
-		}
 
-		if (forceNewRegistration && providerId) {
-			if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
-				throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
+			// If the user explicitly configured OAuth client credentials in mcp.json and they differ
+			// from the existing dynamic provider registration, recreate only that client-scoped provider.
+			if (didLookupClientSecret && registered && !forceNewRegistration) {
+				if (registered.clientId !== resolvedClientId || registered.clientSecret !== clientSecret) {
+					forceNewRegistration = true;
+				}
 			}
-			this._authenticationService.unregisterAuthenticationProvider(providerId);
-			// TODO: Encapsulate this and the unregister in one call in the auth service
-			await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerId);
-			providerId = undefined;
-		}
 
-		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata, resolvedClientId, clientSecret);
-			if (!provider) {
-				return undefined;
+			if (forceNewRegistration) {
+				if (providerId) {
+					if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
+						throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
+					}
+					this._authenticationService.unregisterAuthenticationProvider(providerId);
+				}
+				// TODO: Encapsulate this and the unregister in one call in the auth service
+				await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerOperationId);
+				providerId = undefined;
 			}
-			providerId = provider.id;
-		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, /* audience */ undefined, clientSecret);
+			if (!providerId) {
+				const provider = await this._authenticationService.createDynamicAuthenticationProvider(
+					authorizationServer,
+					authDetails.authorizationServerMetadata,
+					authDetails.resourceMetadata,
+					resolvedClientId,
+					clientSecret,
+					providerOperationId,
+				);
+				if (!provider) {
+					return undefined;
+				}
+				providerId = provider.id;
+			}
+
+			return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, resolvedClientId, authDetails.resourceMetadata?.resource, /* audience */ undefined, clientSecret);
+		});
 	}
 
 	private _ensureXaaIssuer(): URI {
@@ -373,6 +416,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			return undefined;
 		}
 		const mcpServerUrl = server.launch.uri.toString(true);
+		const legacyProviderId = getLegacyDynamicAuthenticationProviderId(providerId);
+		if (legacyProviderId) {
+			migrateMcpAuthenticationState(this.authenticationMcpServersService, this.authenticationMCPServerAccessService, sessions, server.id, legacyProviderId, providerId);
+		}
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {

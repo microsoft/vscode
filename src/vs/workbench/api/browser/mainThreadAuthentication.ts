@@ -171,13 +171,18 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
-				const authProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+			create: async (authProviderId, authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
+				const legacyAuthProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+				// An active legacy provider owns its live token store; keep it intact and let the
+				// client-scoped provider establish an independent session instead of moving tokens.
+				if (authProviderId !== legacyAuthProviderId && overrideClientId !== undefined && !this.authenticationService.isDynamicAuthenticationProvider(legacyAuthProviderId)) {
+					await this.dynamicAuthProviderStorageService.migrateDynamicProvider(legacyAuthProviderId, authProviderId, overrideClientId);
+				}
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				let clientId = overrideClientId ?? clientDetails?.clientId;
-				const clientSecret = overrideClientId
-					? overrideClientSecret
-					: (overrideClientSecret ?? clientDetails?.clientSecret);
+				const clientSecret = overrideClientId !== undefined
+					? overrideClientSecret ?? (clientDetails?.clientId === overrideClientId ? clientDetails.clientSecret : undefined)
+					: overrideClientSecret ?? clientDetails?.clientSecret;
 				let initialTokens: (IAuthorizationTokenResponse & { created_at: number })[] | undefined = undefined;
 				if (clientId) {
 					initialTokens = await this.dynamicAuthProviderStorageService.getSessionsForDynamicAuthProvider(authProviderId, clientId);
@@ -187,6 +192,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					clientId = this.productService.authClientIdMetadataUrl;
 				}
 				return await this._proxy.$registerDynamicAuthProvider(
+					authProviderId,
 					authorizationServer,
 					serverMetadata,
 					resource,
@@ -740,8 +746,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		try {
 			if (trimmed.length === 0) {
 				// Blank-on-confirm means "no client secret" (e.g. token_endpoint_auth_method=none).
-				// Clear any stale value so subsequent prompts can still capture a fresh secret if needed.
-				await this.secretStorageService.delete(key);
+				// Preserve the explicit choice so legacy provider migration cannot revive a stale secret.
+				await this.secretStorageService.set(key, '');
 			} else {
 				await this.secretStorageService.set(key, trimmed);
 			}

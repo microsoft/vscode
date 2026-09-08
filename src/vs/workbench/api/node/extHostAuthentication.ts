@@ -33,6 +33,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
 		proxy: Proxied<MainThreadAuthenticationShape>,
+		providerId: string,
 		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
@@ -48,6 +49,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			extHostProgress,
 			loggerService,
 			proxy,
+			providerId,
 			authorizationServer,
 			serverMetadata,
 			resourceMetadata,
@@ -301,6 +303,9 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 					} else if (errorData.error === AuthorizationDeviceCodeErrorType.AccessDenied) {
 						throw new CancellationError();
 					} else if (errorData.error === AuthorizationErrorType.InvalidClient) {
+						if (this._hasConfiguredClientId) {
+							throw new Error(`Configured client ID (${this._clientId}) was rejected by the authorization server.`);
+						}
 						this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
 						await this._generateNewClientId();
 						throw new Error(`Client ID was invalid, generated a new one. Please try again.`);

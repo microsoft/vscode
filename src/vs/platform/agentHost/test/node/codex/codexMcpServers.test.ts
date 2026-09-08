@@ -224,7 +224,10 @@ suite('codexMcpServers', () => {
 		});
 
 		test('injectCodexMcpAuthTokens adds a bearer header for http servers with a token, leaving others intact', () => {
-			const tokens = new Map([['https://mcp.eng.ms/', 'tok-123']]);
+			const tokens = new Map([
+				['eng-hub-test', new Map([['https://mcp.eng.ms/', 'tok-123']])],
+				['with-headers', new Map([['https://mcp.eng.ms/', 'tok-123']])],
+			]);
 			assert.deepStrictEqual(injectCodexMcpAuthTokens({
 				'eng-hub-test': { url: 'https://mcp.eng.ms' },
 				'with-headers': { url: 'https://mcp.eng.ms/', http_headers: { 'X-Test': 'v1' } },
@@ -244,12 +247,27 @@ suite('codexMcpServers', () => {
 		});
 
 		test('injectCodexMcpAuthTokens strips a pre-existing case-insensitive authorization header', () => {
-			const tokens = new Map([['https://mcp.eng.ms/', 'tok-123']]);
+			const tokens = new Map([['s', new Map([['https://mcp.eng.ms/', 'tok-123']])]]);
 			assert.deepStrictEqual(injectCodexMcpAuthTokens({
 				s: { url: 'https://mcp.eng.ms', http_headers: { authorization: 'Bearer stale', 'X-Test': 'v1' } },
 			}, tokens), {
 				s: { url: 'https://mcp.eng.ms', http_headers: { 'X-Test': 'v1', Authorization: 'Bearer tok-123' } },
 			});
+
+		});
+
+		test('injectCodexMcpAuthTokens isolates named servers that share a URL', () => {
+			const tokens = new Map([
+				['first', new Map([['https://mcp.eng.ms/', 'first-token']])],
+				['second', new Map([['https://mcp.eng.ms/', 'second-token']])],
+			]);
+
+			const result = injectCodexMcpAuthTokens({
+				first: { url: 'https://mcp.eng.ms' },
+				second: { url: 'https://mcp.eng.ms' },
+			}, tokens);
+
+			assert.notStrictEqual(result.first.http_headers?.Authorization, result.second.http_headers?.Authorization);
 		});
 	});
 });

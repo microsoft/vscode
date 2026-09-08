@@ -395,7 +395,7 @@ export function codexStartupErrorNeedsAuth(error: string | null | undefined): bo
 /**
  * Returns a copy of `servers` with `Authorization: Bearer <token>` injected
  * into the `http_headers` of every http server whose (normalized) URL has a
- * token in `tokensByNormalizedUrl`. stdio servers and servers without a token
+ * token for their name and normalized URL. stdio servers and servers without a token
  * are passed through unchanged. Any existing authorization header is removed
  * first -- case-insensitively, since HTTP header names are case-insensitive and
  * a configured lowercase `authorization` would otherwise coexist with the
@@ -403,15 +403,15 @@ export function codexStartupErrorNeedsAuth(error: string | null | undefined): bo
  */
 export function injectCodexMcpAuthTokens(
 	servers: Record<string, ICodexMcpServerConfigJson>,
-	tokensByNormalizedUrl: ReadonlyMap<string, string>,
+	tokensByServer: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): Record<string, ICodexMcpServerConfigJson> {
-	if (tokensByNormalizedUrl.size === 0) {
+	if (tokensByServer.size === 0) {
 		return servers;
 	}
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const [name, server] of Object.entries(servers)) {
 		const normalized = server.url !== undefined ? normalizeCodexMcpResourceUrl(server.url) : undefined;
-		const token = normalized !== undefined ? tokensByNormalizedUrl.get(normalized) : undefined;
+		const token = normalized !== undefined ? tokensByServer.get(name)?.get(normalized) : undefined;
 		out[name] = token !== undefined
 			? { ...server, http_headers: { ...withoutAuthorizationHeaders(server.http_headers), Authorization: `Bearer ${token}` } }
 			: server;

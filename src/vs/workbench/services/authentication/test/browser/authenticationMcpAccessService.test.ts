@@ -219,6 +219,56 @@ suite('AuthenticationMcpAccessService', () => {
 		});
 	});
 
+	suite('migrateAllowedMcpServer', () => {
+		test('moves only the requested server to the client-scoped provider', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('legacy-provider', 'user@example.com', [
+				{ id: 'first-server', name: 'First Server', allowed: true, url: 'https://first.example.com/mcp' },
+				{ id: 'second-server', name: 'Second Server', allowed: false, url: 'https://second.example.com/mcp' },
+			]);
+
+			authenticationMcpAccessService.migrateAllowedMcpServer(
+				'legacy-provider',
+				'client-scoped-provider',
+				'user@example.com',
+				'first-server',
+			);
+
+			assert.deepStrictEqual(
+				authenticationMcpAccessService.readAllowedMcpServers('client-scoped-provider', 'user@example.com'),
+				[{ id: 'first-server', name: 'First Server', allowed: true, url: 'https://first.example.com/mcp' }],
+			);
+			assert.deepStrictEqual(
+				authenticationMcpAccessService.readAllowedMcpServers('legacy-provider', 'user@example.com'),
+				[{ id: 'second-server', name: 'Second Server', allowed: false, url: 'https://second.example.com/mcp' }],
+			);
+		});
+
+		test('preserves an existing client-scoped denial', () => {
+			authenticationMcpAccessService.updateAllowedMcpServers('legacy-provider', 'user@example.com', [
+				{ id: 'server', name: 'Server', allowed: true, url: 'https://example.com/mcp' },
+			]);
+			authenticationMcpAccessService.updateAllowedMcpServers('client-scoped-provider', 'user@example.com', [
+				{ id: 'server', name: 'Server', allowed: false, url: 'https://example.com/mcp' },
+			]);
+
+			authenticationMcpAccessService.migrateAllowedMcpServer(
+				'legacy-provider',
+				'client-scoped-provider',
+				'user@example.com',
+				'server',
+			);
+
+			assert.deepStrictEqual(
+				authenticationMcpAccessService.readAllowedMcpServers('client-scoped-provider', 'user@example.com'),
+				[{ id: 'server', name: 'Server', allowed: false, url: 'https://example.com/mcp' }],
+			);
+			assert.deepStrictEqual(
+				authenticationMcpAccessService.readAllowedMcpServers('legacy-provider', 'user@example.com'),
+				[],
+			);
+		});
+	});
+
 	suite('readAllowedMcpServers', () => {
 		test('returns empty array when no data exists', () => {
 			const result = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com');

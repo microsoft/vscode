@@ -258,6 +258,8 @@ export class TestMcpAccessService extends BaseTestService implements IAuthentica
 		this.data.delete(this.getKey(providerId, accountName));
 		this._onDidChangeMcpSessionAccess.fire({ providerId, accountName });
 	}
+
+	migrateAllowedMcpServer(): void { }
 }
 
 export class TestPreferencesService extends BaseTestService {
@@ -294,6 +296,7 @@ export class TestMcpService extends TestPreferencesService implements IAuthentic
 	declare readonly _serviceBrand: undefined;
 
 	// Stub implementations for methods we don't test
+	migrateAccountPreference(): void { }
 	updateSessionPreference(): void { }
 	getSessionPreference(): string | undefined { return undefined; }
 	removeSessionPreference(): void { }

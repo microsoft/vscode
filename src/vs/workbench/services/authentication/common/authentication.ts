@@ -180,7 +180,8 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<string>;
+	/** Creates and registers the dynamic provider using the supplied stable provider identity. */
+	create(providerId: string, authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<string>;
 	/**
 	 * Creates an XAA (enterprise-managed, ID-JAG) authentication provider for the given SSO issuer.
 	 * The returned string is the provider id.
@@ -188,8 +189,30 @@ export interface IAuthenticationProviderHostDelegate {
 	createXaa?(issuer: URI): Promise<string>;
 }
 
-export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
-	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+const DYNAMIC_AUTH_PROVIDER_CLIENT_ID_MARKER = ' clientId=';
+
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined, configuredClientId?: string): string {
+	const baseId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+	return configuredClientId === undefined
+		? baseId
+		: `${baseId}${DYNAMIC_AUTH_PROVIDER_CLIENT_ID_MARKER}${encodeURIComponent(configuredClientId)}`;
+}
+
+export function getLegacyDynamicAuthenticationProviderId(providerId: string): string | undefined {
+	const markerIndex = providerId.lastIndexOf(DYNAMIC_AUTH_PROVIDER_CLIENT_ID_MARKER);
+	return markerIndex === -1 ? undefined : providerId.slice(0, markerIndex);
+}
+
+export function getDynamicAuthenticationProviderClientId(providerId: string): string | undefined {
+	const markerIndex = providerId.lastIndexOf(DYNAMIC_AUTH_PROVIDER_CLIENT_ID_MARKER);
+	if (markerIndex === -1) {
+		return undefined;
+	}
+	try {
+		return decodeURIComponent(providerId.slice(markerIndex + DYNAMIC_AUTH_PROVIDER_CLIENT_ID_MARKER.length));
+	} catch {
+		return undefined;
+	}
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -306,7 +329,12 @@ export interface IAuthenticationService {
 	 * @param authorizationServer The authorization server url that this provider is responsible for
 	 * @param resourceServer The resource server URI that should match the provider's resourceServer (if defined)
 	 */
-	getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined>;
+	/**
+	 * Gets a provider id for the requested authorization server, resource, and configured OAuth client.
+	 * A string selects the matching client-scoped dynamic provider, `null` selects the legacy/default
+	 * dynamic provider, and `undefined` permits any matching provider for callers without client context.
+	 */
+	getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI, configuredClientId?: string | null): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
@@ -317,8 +345,10 @@ export interface IAuthenticationService {
 	/**
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
+	 * @param providerId An explicit provider identity. Use the legacy identity when restoring
+	 * dynamically registered credentials whose client id must not scope the provider.
 	 */
-	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<IAuthenticationProvider | undefined>;
 
 	/**
 	 * Gets or creates a built-in XAA (enterprise-managed, ID-JAG) authentication provider for the given

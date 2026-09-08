@@ -709,7 +709,7 @@ export interface McpServerTransportHTTPOAuth {
  * secret, and so the key is stable across mcp.json configurations that happen to share a label
  * (e.g. user mcp.json vs. workspace mcp.json). Set by the "Set Client Secret" code lens in
  * mcp.json and read at authentication time so that client secrets are never stored in
- * plain-text config files.
+ * plain-text config files. An empty stored value is an explicit secretless-client tombstone.
  */
 export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
 	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;

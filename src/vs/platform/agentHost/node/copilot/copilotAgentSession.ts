@@ -2253,7 +2253,9 @@ export class CopilotAgentSession extends Disposable {
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
 		let resolved = false;
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
-			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
+			if ((params.serverName !== undefined && pending.serverName !== params.serverName)
+				|| pending.resource.resource !== params.resource
+				|| !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
 				continue;
 			}
 			for (const toolCall of pending.toolCalls) {
