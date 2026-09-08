@@ -2719,6 +2719,40 @@ suite('CopilotChatSessionsProvider', () => {
 			}
 		}
 
+		for (const config of [
+			{ mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.Autopilot },
+			{ mode: 'future-mode', autoApprove: 'future-approvals' },
+		]) {
+			test(`preserves canonical Cloud ${config.mode} preferences over legacy aliases`, async () => {
+				const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+				const providerOption = { future: ['value'], unset: null };
+				const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, {
+					automationConfiguration: {
+						sessionTemplate: { config: { ...config, providerOption } },
+						mode: ChatModeKind.Agent,
+						permissionLevel: ChatPermissionLevel.Default,
+					},
+				});
+				const session = provider.getSession(sessionInfo.sessionId)!;
+				const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+				assert.deepStrictEqual({
+					mode: session.mode.get(),
+					permissionLevel: session.permissionLevel.get(),
+					captured,
+				}, {
+					mode: undefined,
+					permissionLevel: ChatPermissionLevel.Default,
+					captured: {
+						sessionTemplate: { config: { ...config, providerOption } },
+						modelId: undefined,
+						mode: config.mode,
+						permissionLevel: config.autoApprove,
+					},
+				});
+			});
+		}
+
 	});
 
 	suite('Automation custom agent restoration', () => {
