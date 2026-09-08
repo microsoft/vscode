@@ -15,6 +15,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMenu, IMenuService, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
@@ -159,6 +160,16 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 
 	instantiationService.stub(ICommandService, commandService);
+	const closeAction = instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close Chat' }, undefined, undefined, undefined, undefined);
+	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+		override createMenu(): IMenu {
+			return {
+				onDidChange: Event.None,
+				dispose: () => { },
+				getActions: () => [['navigation', [closeAction]]],
+			};
+		}
+	});
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(IEditorGroupsService, editorGroupsService);
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -202,12 +213,13 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
 				ariaLabel: tab.getAttribute('aria-label'),
 				tabIndex: tab.tabIndex,
+				actionTabIndex: tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')?.tabIndex,
 			})),
 			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0 },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1 },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0, actionTabIndex: undefined },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
 			],
 			hasMetadataRow: false,
 		});
@@ -218,34 +230,29 @@ suite('Sessions - ChatCompositeBar', () => {
 		mainWindow.document.body.appendChild(container);
 
 		try {
+			const dispatchKey = (target: HTMLElement, key: string, keyCode: number) => {
+				const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true, cancelable: true });
+				const keyUp = new KeyboardEvent(EventType.KEY_UP, { key, keyCode, bubbles: true, cancelable: true });
+				target.dispatchEvent(keyDown);
+				target.dispatchEvent(keyUp);
+				return { keyDown, keyUp };
+			};
+
 			tabs[0].focus();
-			const rightArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true });
-			tabs[0].dispatchEvent(rightArrow);
-			const leftArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true });
-			tabs[1].dispatchEvent(leftArrow);
-			const end = new KeyboardEvent(EventType.KEY_UP, { key: 'End', keyCode: 35, bubbles: true, cancelable: true });
-			tabs[0].dispatchEvent(end);
-			const home = new KeyboardEvent(EventType.KEY_UP, { key: 'Home', keyCode: 36, bubbles: true, cancelable: true });
-			tabs[1].dispatchEvent(home);
-			const startBoundaryArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true });
-			tabs[0].dispatchEvent(startBoundaryArrow);
+			const rightArrow = dispatchKey(tabs[0], 'ArrowRight', 39);
+			const leftArrow = dispatchKey(tabs[1], 'ArrowLeft', 37);
+			const end = dispatchKey(tabs[0], 'End', 35);
+			const home = dispatchKey(tabs[1], 'Home', 36);
+			const startBoundaryArrow = dispatchKey(tabs[0], 'ArrowLeft', 37);
 
 			assert.deepStrictEqual({
 				openedChats: sessionsService.openedChats.map(resource => resource.toString()),
 				focusedTab: bar.element.contains(mainWindow.document.activeElement) ? mainWindow.document.activeElement?.getAttribute('data-chat-resource') : undefined,
-				rightArrowDefaultPrevented: rightArrow.defaultPrevented,
-				leftArrowDefaultPrevented: leftArrow.defaultPrevented,
-				endDefaultPrevented: end.defaultPrevented,
-				homeDefaultPrevented: home.defaultPrevented,
-				startBoundaryArrowDefaultPrevented: startBoundaryArrow.defaultPrevented,
+				defaultPrevented: [rightArrow, leftArrow, end, home, startBoundaryArrow].map(events => [events.keyDown.defaultPrevented, events.keyUp.defaultPrevented]),
 			}, {
 				openedChats: ['test-chat://secondary', 'test-chat://main', 'test-chat://secondary', 'test-chat://main'],
 				focusedTab: 'test-chat://main',
-				rightArrowDefaultPrevented: true,
-				leftArrowDefaultPrevented: true,
-				endDefaultPrevented: true,
-				homeDefaultPrevented: true,
-				startBoundaryArrowDefaultPrevented: false,
+				defaultPrevented: [[true, true], [true, true], [true, true], [true, true], [true, false]],
 			});
 		} finally {
 			container.remove();
@@ -317,6 +324,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		assert.deepStrictEqual({
 			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
 			ariaSelected: tabsAfterActiveChange.map(tab => tab.getAttribute('aria-selected')),
+			tabIndices: tabsAfterActiveChange.map(tab => tab.tabIndex),
+			actionTabIndices: tabsAfterActiveChange.map(tab => tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')?.tabIndex),
 			tabsPreserved: tabsAfterVisible.map((tab, index) => tab === tabs[index]),
 			tabsPreservedWhileHidden: tabsAfterHidden.map((tab, index) => tab === tabs[index]),
 			tabsPreservedWithActionsHidden: tabsAfterActionsHidden.map((tab, index) => tab === tabs[index]),
@@ -326,6 +335,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			activeTab: secondaryResource,
 			ariaSelected: ['false', 'true'],
+			tabIndices: [-1, 0],
+			actionTabIndices: [undefined, 0],
 			tabsPreserved: [true, true],
 			tabsPreservedWhileHidden: [true, true],
 			tabsPreservedWithActionsHidden: [true, true],

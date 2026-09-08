@@ -45,6 +45,7 @@ interface IChatTab {
 	readonly chat: IChat;
 	readonly element: HTMLElement;
 	readonly inputContainer: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar | undefined;
 }
 
 /**
@@ -378,10 +379,11 @@ export class ChatCompositeBar extends Disposable {
 		// Only non-main chats can be closed; the main chat lives and dies with its
 		// session, so its tab renders no actions toolbar. The tab's chat (and its
 		// session) is forwarded as the action argument.
+		let tabToolbar: MenuWorkbenchToolBar | undefined;
 		if (!isMainChat && session) {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
-			const tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: { shouldForwardArgs: true },
 				toolbarOptions: { primaryGroup: () => true },
@@ -391,12 +393,21 @@ export class ChatCompositeBar extends Disposable {
 
 		this._tabsContainer.appendChild(tab);
 
-		const chatTab: IChatTab = { chat, element: tab, inputContainer };
+		const chatTab: IChatTab = { chat, element: tab, inputContainer, toolbar: tabToolbar };
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CLICK, () => {
 			// Cancel any in-progress rename before switching to the clicked tab.
 			this._cancelTabEditing();
 			this._delegate?.openChat(chat.resource);
+		}));
+
+		const isHandledTabKey = (event: StandardKeyboardEvent): boolean =>
+			[KeyCode.Enter, KeyCode.Space, KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.Home, KeyCode.End].some(keyCode => event.equals(keyCode));
+
+		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_DOWN, e => {
+			if (e.target === tab && isHandledTabKey(new StandardKeyboardEvent(e))) {
+				EventHelper.stop(e, true);
+			}
 		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_UP, e => {
@@ -655,6 +666,7 @@ export class ChatCompositeBar extends Disposable {
 			tab.element.classList.toggle('active', isActive);
 			tab.element.setAttribute('aria-selected', String(isActive));
 			tab.element.tabIndex = isActive ? 0 : -1;
+			tab.toolbar?.setFocusable(isActive);
 			if (isActive) {
 				tab.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 			}
