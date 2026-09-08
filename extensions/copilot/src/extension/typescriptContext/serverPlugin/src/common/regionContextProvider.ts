@@ -347,6 +347,10 @@ export class RegionContextProvider {
 		if (node.initializer === undefined) {
 			return undefined;
 		}
+
+		if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+			return undefined;
+		}
 		const initializer = this.skipOuterExpressions(node.initializer);
 		let kind: string;
 		if (ts.isArrowFunction(initializer)) {
