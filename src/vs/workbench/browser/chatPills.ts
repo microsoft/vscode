@@ -109,7 +109,7 @@ export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
 export type ChatPillsCompactMode = boolean | 'auto';
 
 export interface IChatPillsRowOptions {
-	/** Collapses pills to their icons and uses tighter spacing while preserving full accessible labels and tooltips. */
+	/** Collapses pills to their icons, from right to left as needed in auto mode, preserving accessible labels and tooltips. */
 	readonly compact?: ChatPillsCompactMode;
 	/** Window that owns the row. Required when rendering in an auxiliary window. */
 	readonly targetWindow?: CodeWindow;
@@ -124,7 +124,7 @@ export class ChatPillsRow extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _resizeObserver: DisposableResizeObserver;
 	private readonly _mutationObserver: MutationObserver | undefined;
-	private _expandedContentWidth: number | undefined;
+	private readonly _pillWidgets: ChatPillsWidget[] = [];
 	private _isLayouting = false;
 	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
 	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
@@ -148,18 +148,10 @@ export class ChatPillsRow extends Disposable {
 		const compactMode = options?.compact ?? false;
 		this.element.classList.toggle('compact', compactMode === true);
 
-		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
-			if (entries.some(entry => entry.target !== this.content)) {
-				this._expandedContentWidth = undefined;
-			}
-			this.layout();
-		}, targetWindow));
+		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, () => this.layout(), targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
 		if (compactMode === 'auto') {
-			this._mutationObserver = new targetWindow.MutationObserver(() => {
-				this._expandedContentWidth = undefined;
-				this.layout();
-			});
+			this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
 			this._observeMutations();
 			this._register({ dispose: () => this._mutationObserver?.disconnect() });
 		} else {
@@ -184,8 +176,9 @@ export class ChatPillsRow extends Disposable {
 		}));
 	}
 
-	observe(element: HTMLElement): void {
-		this._register(this._resizeObserver.observe(element));
+	observe(widget: ChatPillsWidget): void {
+		this._pillWidgets.push(widget);
+		this._register(this._resizeObserver.observe(widget.element));
 		this.layout();
 	}
 
@@ -198,19 +191,19 @@ export class ChatPillsRow extends Disposable {
 		this._mutationObserver?.disconnect();
 		try {
 			if (this._mutationObserver) {
-				const availableWidth = this.element.getBoundingClientRect().width;
-				if (this._expandedContentWidth === undefined || !this.element.classList.contains('compact')) {
-					const wasCompact = this.element.classList.contains('compact');
-					this.element.classList.remove('compact');
-					const expandedContentWidth = [...this.content.children].reduce((width, child) => {
-						return isHTMLElement(child) ? Math.max(width, child.offsetLeft + child.offsetWidth) : width;
-					}, 0);
-					if (expandedContentWidth > 0 || this.content.children.length === 0) {
-						this._expandedContentWidth = expandedContentWidth;
+				const availableWidth = this.content.clientWidth;
+				if (availableWidth > 0) {
+					const pills = this._pillWidgets.flatMap(widget => widget.getPillElements());
+					for (const pill of pills) {
+						pill.classList.remove('compact');
 					}
-					this.element.classList.toggle('compact', wasCompact);
+					for (let index = pills.length - 1; index >= 0; index--) {
+						if (this.content.scrollWidth <= availableWidth) {
+							break;
+						}
+						pills[index].classList.add('compact');
+					}
 				}
-				this.element.classList.toggle('compact', availableWidth > 0 && this._expandedContentWidth !== undefined && this._expandedContentWidth > availableWidth + 1);
 			}
 			this.scanDomNode();
 			this._onDidChangeLayout.fire();

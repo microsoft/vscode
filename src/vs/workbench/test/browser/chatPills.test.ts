@@ -10,8 +10,10 @@ import type { IManagedHoverContent } from '../../../base/browser/ui/hover/hover.
 import { timeout } from '../../../base/common/async.js';
 import { Action } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -121,7 +123,7 @@ suite('ChatPills', () => {
 		disposables.dispose();
 	});
 
-	test('compact rows collapse pill details while retaining icons', () => {
+	test('compact rows and individual pills collapse details while retaining icons', () => {
 		const disposables = store.add(new DisposableStore());
 		const row = disposables.add(new ChatPillsRow('ChatPills.compactTest', { compact: true }));
 		mainWindow.document.body.appendChild(row.element);
@@ -147,78 +149,180 @@ suite('ChatPills', () => {
 		item.appendChild(button);
 		row.content.appendChild(item);
 
-		const compactState = {
+		const getPresentation = () => ({
 			iconVisible: mainWindow.getComputedStyle(icon).display !== 'none',
 			labelVisible: mainWindow.getComputedStyle(label).display !== 'none',
 			counterVisible: mainWindow.getComputedStyle(counter).display !== 'none',
 			chevronVisible: mainWindow.getComputedStyle(chevron).display !== 'none',
 			resourceIconVisible: mainWindow.getComputedStyle(resourceIcon).display !== 'none',
 			resourceNameVisible: mainWindow.getComputedStyle(resourceName).display !== 'none',
-		};
+		});
+		const compactRow = getPresentation();
 		row.element.classList.remove('compact');
+		button.classList.add('compact');
+		const compactPill = getPresentation();
+		button.classList.remove('compact');
+		const expectedCompact = {
+			iconVisible: true,
+			labelVisible: false,
+			counterVisible: false,
+			chevronVisible: false,
+			resourceIconVisible: true,
+			resourceNameVisible: false,
+		};
 
 		assert.deepStrictEqual({
-			compactState,
+			compactRow,
+			compactPill,
 			expandedResourceIconVisible: mainWindow.getComputedStyle(resourceIcon).display !== 'none',
 		}, {
-			compactState: {
-				iconVisible: true,
-				labelVisible: false,
-				counterVisible: false,
-				chevronVisible: false,
-				resourceIconVisible: true,
-				resourceNameVisible: false,
-			},
+			compactRow: expectedCompact,
+			compactPill: expectedCompact,
 			expandedResourceIconVisible: false,
 		});
 
 		disposables.dispose();
 	});
 
-	test('automatic compact mode follows available width', () => {
-		const disposables = store.add(new DisposableStore());
-		const row = disposables.add(new ChatPillsRow('ChatPills.responsiveTest', { compact: 'auto' }));
-		row.element.style.width = '600px';
-		mainWindow.document.body.appendChild(row.element);
-		disposables.add(toDisposable(() => row.element.remove()));
+	suite('automatic compact mode', () => {
+		function createRow() {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const row = store.add(new ChatPillsRow('ChatPills.responsiveTest', { compact: 'auto' }));
+			row.element.style.width = '1000px';
+			mainWindow.document.body.appendChild(row.element);
+			store.add(toDisposable(() => row.element.remove()));
 
-		const item = mainWindow.document.createElement('div');
-		item.className = 'chat-pill-item';
-		const button = mainWindow.document.createElement('button');
-		button.className = 'monaco-button chat-pill-button';
-		const icon = mainWindow.document.createElement('span');
-		icon.className = 'chat-pill-icon';
-		const label = mainWindow.document.createElement('span');
-		label.className = 'chat-pill-label';
-		label.textContent = 'A detailed pill label that needs room';
-		button.append(icon, label);
-		item.appendChild(button);
-		row.content.appendChild(item);
+			const pills = observableValue<readonly IChatPill[]>('chatPills.responsive', [
+				{ action: store.add(new Action('pullRequests', '2 Pull Requests', ThemeIcon.asClassName(Codicon.gitPullRequest))) },
+				{ action: store.add(new Action('artifacts', '4 Artifacts', ThemeIcon.asClassName(Codicon.package))) },
+				{ action: store.add(new Action('references', '4 References', ThemeIcon.asClassName(Codicon.bookmark))) },
+			]);
+			const widget = store.add(instantiationService.createInstance(ChatPillsWidget, { pills }, undefined));
+			row.content.appendChild(widget.element);
+			row.observe(widget);
 
-		row.layout();
-		const wideCompact = row.element.classList.contains('compact');
-		row.element.style.width = '500px';
-		row.layout();
-		const mediumCompact = row.element.classList.contains('compact');
-		row.element.style.width = '40px';
-		row.layout();
-		const narrowCompact = row.element.classList.contains('compact');
-		row.element.style.width = '600px';
-		row.layout();
+			const getCollapsed = () => widget.getPillElements().map(button =>
+				mainWindow.getComputedStyle(button.querySelector('.chat-pill-label')!).display === 'none');
+			const resize = (width: number) => {
+				row.element.style.width = `${width}px`;
+				row.layout();
+				return getCollapsed();
+			};
+			return { row, widget, pills, getCollapsed, resize };
+		}
 
-		assert.deepStrictEqual({
-			wideCompact,
-			mediumCompact,
-			narrowCompact,
-			expandedAgain: !row.element.classList.contains('compact'),
-		}, {
-			wideCompact: false,
-			mediumCompact: false,
-			narrowCompact: true,
-			expandedAgain: true,
+		test('collapses right to left only when needed and restores labels as space becomes available', () => {
+			const { row, widget, resize } = createRow();
+			const buttons = widget.getPillElements();
+			const ariaLabels = buttons.map(button => button.getAttribute('aria-label'));
+			buttons[2].focus();
+
+			const allExpandedWidth = widget.element.scrollWidth;
+			const exactFit = resize(allExpandedWidth);
+			const referencesCollapsed = resize(allExpandedWidth - 1);
+			const twoExpandedWidth = widget.element.scrollWidth;
+			const artifactsCollapsed = resize(twoExpandedWidth - 1);
+			const oneExpandedWidth = widget.element.scrollWidth;
+			const allCollapsed = resize(oneExpandedWidth - 1);
+			const contentFits = row.content.scrollWidth <= row.content.clientWidth;
+			const firstRestored = resize(oneExpandedWidth);
+			const secondRestored = resize(twoExpandedWidth);
+			const allRestored = resize(allExpandedWidth);
+
+			assert.deepStrictEqual({
+				exactFit,
+				referencesCollapsed,
+				artifactsCollapsed,
+				allCollapsed,
+				contentFits,
+				firstRestored,
+				secondRestored,
+				allRestored,
+				focusPreserved: mainWindow.document.activeElement === buttons[2],
+				labelsPreserved: buttons.every((button, index) => button.getAttribute('aria-label') === ariaLabels[index]),
+			}, {
+				exactFit: [false, false, false],
+				referencesCollapsed: [false, false, true],
+				artifactsCollapsed: [false, true, true],
+				allCollapsed: [true, true, true],
+				contentFits: true,
+				firstRestored: [false, true, true],
+				secondRestored: [false, false, true],
+				allRestored: [false, false, false],
+				focusPreserved: true,
+				labelsPreserved: true,
+			});
 		});
 
-		disposables.dispose();
+		test('remeasures changed labels and added or removed pills', async () => {
+			const { widget, pills, getCollapsed, resize } = createRow();
+			const originalPills = pills.get();
+			const referenceAction = originalPills[2].action;
+			const originalLabel = referenceAction.label;
+			const allExpandedWidth = widget.element.scrollWidth;
+			resize(allExpandedWidth);
+
+			referenceAction.label = 'A much longer reference label that no longer fits';
+			await timeout(0);
+			const longerLabel = getCollapsed();
+			referenceAction.label = originalLabel;
+			await timeout(0);
+			const shorterLabel = getCollapsed();
+
+			resize(allExpandedWidth - 1);
+			pills.set(originalPills.slice(0, 2), undefined);
+			await timeout(0);
+			const removed = getCollapsed();
+			pills.set(originalPills, undefined);
+			await timeout(0);
+			const added = getCollapsed();
+
+			assert.deepStrictEqual({ longerLabel, shorterLabel, removed, added }, {
+				longerLabel: [false, false, true],
+				shorterLabel: [false, false, false],
+				removed: [false, false],
+				added: [false, false, true],
+			});
+		});
+
+		test('responds to container resizing without an explicit layout call', async () => {
+			const { row, widget, getCollapsed } = createRow();
+			const allExpandedWidth = widget.element.scrollWidth;
+			const resizeOnNextFrame = (width: number) => new Promise<void>(resolve => {
+				mainWindow.requestAnimationFrame(() => {
+					store.add(Event.once(row.onDidChangeLayout)(() => resolve()));
+					row.element.style.width = `${width}px`;
+				});
+			});
+			await resizeOnNextFrame(allExpandedWidth - 1);
+			const narrower = getCollapsed();
+			await resizeOnNextFrame(allExpandedWidth);
+
+			assert.deepStrictEqual({ narrower, wider: getCollapsed() }, {
+				narrower: [false, false, true],
+				wider: [false, false, false],
+			});
+		});
+
+		test('keeps compact pills scrollable when even their icons do not fit', () => {
+			const { row, widget, getCollapsed, resize } = createRow();
+			const allExpandedWidth = widget.element.scrollWidth;
+			resize(20);
+			row.content.scrollLeft = row.content.scrollWidth;
+			row.layout();
+			const narrow = {
+				collapsed: getCollapsed(),
+				overflowing: row.content.scrollWidth > row.content.clientWidth,
+				scrolled: row.content.scrollLeft > 0,
+			};
+			const expanded = resize(allExpandedWidth);
+
+			assert.deepStrictEqual({ narrow, expanded, scrollLeft: row.content.scrollLeft }, {
+				narrow: { collapsed: [true, true, true], overflowing: true, scrolled: true },
+				expanded: [false, false, false],
+				scrollLeft: 0,
+			});
+		});
 	});
 
 	test('preserves existing pill DOM when membership changes', () => {
