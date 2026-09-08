@@ -22,7 +22,7 @@ import { IEditableData } from '../../../common/views.js';
 import { ITerminalStatusList } from './terminalStatusList.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, IMarker as IXtermMarker } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, ILinkProvider, IMarker as IXtermMarker } from '@xterm/xterm';
 import { ScrollPosition } from './xterm/markNavigationAddon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { GroupIdentifier } from '../../../common/editor.js';
@@ -34,6 +34,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
+import type { IAction } from '../../../../base/common/actions.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
@@ -124,6 +125,8 @@ export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
 	readonly terminalToolSessionId: string | undefined;
+	/** Opens the complete output associated with this progress part, when available. */
+	readonly fullOutputAction?: IAction;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
@@ -438,6 +441,7 @@ export interface IDetachedXTermOptions {
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
+	linkProvider?: ILinkProvider;
 }
 
 /**

@@ -90,10 +90,10 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
  * Hosts choose their own content URI shapes, so the scheme cannot identify one.
  *
  * A content ref that is already a plain `file:` URI on the local connection
- * stays unwrapped: it addresses a real file and resolves normally.
+ * stays unwrapped by default. `alwaysWrap` keeps reads on the owning connection.
  */
-export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string): URI {
-	return wrapAgentHostUri(originalUri, connectionAuthority, true);
+export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string, options?: { readonly alwaysWrap?: boolean }): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, true, options?.alwaysWrap);
 }
 
 /**
@@ -105,8 +105,8 @@ export function toAgentHostContentUri(originalUri: URI, connectionAuthority: str
  */
 export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean }) => URI;
 
-function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean): URI {
-	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
+function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean, alwaysWrap = false): URI {
+	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file && !alwaysWrap) {
 		return originalUri;
 	}
 

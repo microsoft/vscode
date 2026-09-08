@@ -46,6 +46,9 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		this._register(capabilities);
 		this.capabilities = capabilities;
 		this._register(_xterm);
+		if (options.linkProvider) {
+			this._register(_xterm.raw.registerLinkProvider(options.linkProvider));
+		}
 
 		// Initialize contributions
 		const contributionDescs = TerminalExtensionsRegistry.getTerminalContributions();

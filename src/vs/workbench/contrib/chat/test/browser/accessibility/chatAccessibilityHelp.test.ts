@@ -160,6 +160,41 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents full terminal output in chat surfaces that render terminal tools', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'Show Full Output action';
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
+			accessibleView: getAccessibilityHelpText('agentView', keybindingService, true).includes('terminal output Accessible View'),
+			activation: getAccessibilityHelpText('agentView', keybindingService, true).includes('then press Enter or Space'),
+			readonly: getAccessibilityHelpText('agentView', keybindingService, true).includes('read-only editor'),
+			bestEffort: getAccessibilityHelpText('agentView', keybindingService, true).includes('if the captured output is still available'),
+			savedLocation: getAccessibilityHelpText('agentView', keybindingService, true).includes('shows where the full output was saved'),
+			truncationNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('whether the preview was truncated'),
+			inlineNote: getAccessibilityHelpText('agentView', keybindingService, true).includes('a message at the end of the inline terminal content'),
+			headerAction: getAccessibilityHelpText('agentView', keybindingService, true).includes('action in the command header'),
+		}, {
+			panelChat: true,
+			quickChat: true,
+			agentView: true,
+			inlineChat: false,
+			editsView: false,
+			accessibleView: true,
+			activation: true,
+			readonly: true,
+			bestEffort: true,
+			savedLocation: true,
+			truncationNote: true,
+			inlineNote: true,
+			headerAction: true,
+		});
+	});
+
 	test('documents session status pill keyboard interaction', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

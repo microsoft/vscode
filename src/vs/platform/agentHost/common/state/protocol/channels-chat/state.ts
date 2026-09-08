@@ -1567,6 +1567,11 @@ export interface TerminalCommandResult {
 	preview?: string;
 	/** Whether `preview` is known to be incomplete or truncated */
 	truncated?: boolean;
+	/**
+	 * Reference to the command's full captured output, read with `resourceRead`.
+	 * Availability is host-defined; the content may no longer be available when read.
+	 */
+	fullOutput?: ContentRef;
 }
 
 /**

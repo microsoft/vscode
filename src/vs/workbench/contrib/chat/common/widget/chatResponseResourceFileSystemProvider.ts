@@ -8,14 +8,17 @@ import { Event } from '../../../../../base/common/event.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { localize } from '../../../../../nls.js';
+import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatResponseResource } from '../model/chatModel.js';
-import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
+import { IChatService, IChatTerminalOutputReference, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
 export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
@@ -169,17 +172,24 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}
 	}
 
-	readFile(resource: URI): Promise<Uint8Array> {
-		return Promise.resolve(this.lookupURI(resource));
+	async readFile(resource: URI): Promise<Uint8Array> {
+		return this.lookupURI(resource);
 	}
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		Promise.resolve(this.lookupURI(resource)).then(v => stream.end(v));
+		Promise.resolve().then(() => this.lookupURI(resource)).then(value => stream.end(value), error => {
+			stream.error(error);
+			stream.end();
+		});
 		return stream;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
+		const reference = this.lookupTerminalOutput(resource);
+		if (reference) {
+			return { type: FileType.File, ctime: 0, mtime: 0, size: reference.sizeHint ?? 0 };
+		}
 		const r = await this.lookupURI(resource);
 		return {
 			type: FileType.File,
@@ -213,12 +223,7 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		throw createFileSystemProviderError('fs is readonly', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	private findMatchingInvocation(uri: URI) {
-		const parsed = ChatResponseResource.parseUri(uri);
-		if (!parsed) {
-			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
-		}
-		const { sessionResource, toolCallId, index } = parsed;
+	private findMatchingInvocation(sessionResource: URI, toolCallId: string): IChatToolInvocation | IChatToolInvocationSerialized {
 		const session = this.chatService.getSession(sessionResource);
 		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
@@ -229,11 +234,25 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			const req = requests[k];
 			const tc = req.response?.entireResponse.value.find((r): r is IChatToolInvocation | IChatToolInvocationSerialized => (r.kind === 'toolInvocation' || r.kind === 'toolInvocationSerialized') && r.toolCallId === toolCallId);
 			if (tc) {
-				return { result: tc, index };
+				return tc;
 			}
 		}
 
 		throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+	}
+
+	private lookupTerminalOutput(uri: URI): IChatTerminalOutputReference | undefined {
+		const parsed = ChatResponseResource.parseTerminalOutputUri(uri);
+		if (!parsed) {
+			return undefined;
+		}
+		const result = this.findMatchingInvocation(parsed.sessionResource, parsed.toolCallId);
+		const data = result.toolSpecificData;
+		const reference = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data).terminalCommandOutput?.fullOutput : undefined;
+		if (!reference || !isEqual(uri, ChatResponseResource.createTerminalOutputUri(parsed.sessionResource, parsed.toolCallId, reference))) {
+			throw createFileSystemProviderError(localize('chat.terminalFullOutputUnavailable', "Full terminal output is not available."), FileSystemProviderErrorCode.FileNotFound);
+		}
+		return reference;
 	}
 
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
@@ -247,7 +266,17 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 			return decoded;
 		}
 
-		const { result, index } = this.findMatchingInvocation(uri);
+		const reference = this.lookupTerminalOutput(uri);
+		if (reference) {
+			return this._fileService.readFile(URI.revive(reference.uri)).then(file => file.value.buffer);
+		}
+
+		const parsed = ChatResponseResource.parseUri(uri);
+		if (!parsed) {
+			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
+		}
+		const { sessionResource, toolCallId, index } = parsed;
+		const result = this.findMatchingInvocation(sessionResource, toolCallId);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
 			throw createFileSystemProviderError(`Tool does not have I/O`, FileSystemProviderErrorCode.FileNotFound);

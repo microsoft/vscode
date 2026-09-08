@@ -29,9 +29,7 @@ interface INonPtyShellStream {
 }
 
 /**
- * Extracts the command result from the runtime's stable text fallback. The
- * external SDK bridge currently removes the equivalent `shell_exit` content
- * block for compatibility with older SDK clients.
+ * Extracts the command result from older results without structured `shell_exit` content.
  */
 function parseCompletedShell(text: string | undefined): TerminalCommandResult | undefined {
 	const match = text && /<shellId: ([^>\r\n]+) completed with exit code (-?\d+)>\s*$/.exec(text);

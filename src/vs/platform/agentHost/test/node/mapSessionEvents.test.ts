@@ -477,7 +477,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
+	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
@@ -488,8 +488,8 @@ suite('mapSessionEvents — history replay', () => {
 					toolCallId: 'tc-1',
 					success: true,
 					result: {
-						content: 'hi\n',
-						contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, cwd: '/repo', outputPreview: 'hi\n' }],
+						content: 'Saved to: /tmp/artifact-b.txt',
+						contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, cwd: '/repo', outputPreview: 'hi\n', outputTruncated: true, outputFilePath: '/tmp/artifact-a.txt' }],
 					},
 				},
 			},
@@ -502,13 +502,13 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.deepStrictEqual(part.toolCall.content, [
-			{ type: ToolResultContentType.Text, text: 'hi\n' },
+			{ type: ToolResultContentType.Text, text: 'Saved to: /tmp/artifact-b.txt' },
 			{
 				type: ToolResultContentType.Terminal,
 				resource: 'agenthost-terminal://shell/test-session/tc-1',
 				title: 'Run Shell Command',
 				isPty: false,
-				result: { exitCode: 0, preview: 'hi\n' },
+				result: { exitCode: 0, preview: 'hi\n', truncated: true, fullOutput: { uri: URI.file('/tmp/artifact-a.txt').toString(), contentType: 'text/plain' } },
 			},
 		]);
 	});
@@ -525,7 +525,7 @@ suite('mapSessionEvents — history replay', () => {
 					success: true,
 					result: {
 						content: 'Build completed\n',
-						contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+						contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n', outputFilePath: '/tmp/read-shell-output.txt' }],
 					},
 				},
 			},
@@ -1294,6 +1294,39 @@ suite('mapSessionEvents — subagent routing', () => {
 suite('appendSdkToolResultContent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const existingTerminal of [false, true]) {
+		for (const outputPreview of [undefined, null, '', 'preview\n']) {
+			test(`retains full output with ${existingTerminal ? 'existing' : 'new'} terminal and ${JSON.stringify(outputPreview)} preview`, () => {
+				const terminal = { type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/abc', title: 'Bash' } as const;
+				const content: ToolResultContent[] = existingTerminal ? [terminal] : [];
+				const result = appendSdkToolResultContent(content, [{
+					type: 'shell_exit',
+					shellId: '0',
+					exitCode: 2,
+					outputPreview,
+					outputFilePath: '/tmp/full output #1.txt',
+				}], { session: AgentSession.uri('copilot', 'test-session'), toolCallId: 'tc-1', title: 'Run Shell Command' });
+				const expectedResult = {
+					exitCode: 2,
+					...(typeof outputPreview === 'string' ? { preview: outputPreview } : {}),
+					fullOutput: { uri: URI.file('/tmp/full output #1.txt').toString(), contentType: 'text/plain' },
+				};
+				assert.deepStrictEqual({ result, content }, {
+					result: { shellId: '0', result: expectedResult },
+					content: [{
+						...(existingTerminal ? terminal : {
+							type: ToolResultContentType.Terminal,
+							resource: 'agenthost-terminal://shell/test-session/tc-1',
+							title: 'Run Shell Command',
+							isPty: false,
+						}),
+						result: expectedResult,
+					}],
+				});
+			});
+		}
+	}
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
 		const content: ToolResultContent[] = [

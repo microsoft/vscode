@@ -176,6 +176,7 @@
 
 .chat-terminal-content-part .chat-terminal-action-bar {
 	display: flex;
+	flex-shrink: 0;
 	gap: 4px;
 	margin-left: auto;
 	align-self: center;
@@ -307,4 +308,9 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-show-link-container {
 	display: inline;
 	white-space: nowrap;
+}
+
+.chat-terminal-show-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
