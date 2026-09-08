@@ -139,7 +139,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
   persisted archive/GitHub fields needed for cleanup; and every related pull
   request is authoritatively refreshed before a candidate is restored. A
   session is eligible only when no related pull request is open and at least one
-  related pull request is merged; closed-unmerged PRs do not block it. Eligible
+  related pull request is merged; closed-unmerged PRs do not block it. Pull
+  request state is refreshed again immediately before lifecycle side effects so
+  reopening a closed PR blocks the action. Eligible
   sessions are archived through the normal `SessionIsArchivedChanged` action
   and side-effect path. Cleanup-only candidates are handled without restoring
   the session, and sessions whose worktree is already absent are filtered

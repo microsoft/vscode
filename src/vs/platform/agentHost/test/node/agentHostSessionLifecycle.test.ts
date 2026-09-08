@@ -186,7 +186,7 @@ suite('AgentHostSessionLifecycle', () => {
 			archivedSessions,
 		}, {
 			restored: [session.toString()],
-			resolved: [session.toString()],
+			resolved: [session.toString(), session.toString()],
 			archived: true,
 			actions: [`${session.toString()}:true`],
 			archivedSessions: [session.toString()],
@@ -340,7 +340,7 @@ suite('AgentHostSessionLifecycle', () => {
 			summary: stateManager.getSessionSummary(session.toString()),
 		}, {
 			restored: [session.toString()],
-			resolved: [session.toString()],
+			resolved: [session.toString(), session.toString(), session.toString()],
 			deleted: [session.toString()],
 			summary: undefined,
 		});
@@ -637,7 +637,7 @@ suite('AgentHostSessionLifecycle', () => {
 			resolvedPullRequestUrls,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
-			resolvedPullRequestUrls: pullRequestUrls,
+			resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls],
 			archived: true,
 		});
 	});
@@ -657,9 +657,50 @@ suite('AgentHostSessionLifecycle', () => {
 			resolvedPullRequestUrls,
 			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
 		}, {
-			resolvedPullRequestUrls: pullRequestUrls,
+			resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls],
 			archived: true,
 		});
+	});
+
+	test('does not archive, delete, or clean the worktree when a closed related pull request reopens', async () => {
+		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
+		const reopeningStatus = () => {
+			let secondPullRequestReads = 0;
+			return (pullRequestUrl: string) => {
+				if (pullRequestUrl === PULL_REQUEST_URL) {
+					return mergedPullRequestStatus();
+				}
+				return {
+					...mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2),
+					state: ++secondPullRequestReads === 1 ? 'closed' as const : 'open' as const,
+				};
+			};
+		};
+		const harnesses = [
+			createHarness({ pullRequestUrls, resolveStatus: reopeningStatus() }),
+			createHarness({ enabled: false, pullRequestUrls, resolveStatus: reopeningStatus() }),
+			createHarness({
+				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+				autoArchivedAt: NOW - 2 * DAY_MS,
+				worktreePresent: true,
+				pullRequestUrls,
+				resolveStatus: reopeningStatus(),
+			}),
+		];
+
+		await Promise.all(harnesses.map(harness => harness.lifecycle.run()));
+
+		assert.deepStrictEqual(harnesses.map(harness => ({
+			restored: harness.restored,
+			resolvedPullRequestUrls: harness.resolvedPullRequestUrls,
+			cleanedWorktrees: harness.cleanedWorktrees,
+			deleted: harness.deleted,
+			archived: isSessionStatusArchived(harness.stateManager.getSessionSummary(harness.session.toString())?.status),
+		})), [
+			{ restored: [harnesses[0].session.toString()], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [harnesses[2].session.toString()], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: true },
+		]);
 	});
 
 	test('does not archive when every related pull request is closed without merging', async () => {

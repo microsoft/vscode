@@ -167,6 +167,9 @@ export class AgentHostSessionLifecycle extends Disposable {
 					return;
 				}
 			}
+			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+				return;
+			}
 			await this._accessor.cleanupWorktree(session, sessionKey);
 			return;
 		}
@@ -205,12 +208,18 @@ export class AgentHostSessionLifecycle extends Disposable {
 			if (!samePullRequestUrls(finalPullRequestUrls, candidate.pullRequestUrls)) {
 				return;
 			}
+			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+				return;
+			}
 			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
 			this._accessor.archiveSession(session);
 			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
 			try {
 				const deleted = await this._accessor.deleteSession(session, async () => {
+					if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+						return false;
+					}
 					if (!await this._accessor.canDeleteSession(session)) {
 						await this._accessor.cleanupWorktree(session, sessionKey);
 						if (!await this._accessor.canDeleteSession(session)) {
@@ -230,7 +239,8 @@ export class AgentHostSessionLifecycle extends Disposable {
 						: undefined;
 					return this._settings.deleteAfterDays === finalDeleteAfterDays
 						&& finalCandidate?.action === 'delete'
-						&& samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls);
+						&& samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls)
+						&& await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls);
 				});
 				if (deleted) {
 					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
