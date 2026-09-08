@@ -15,7 +15,6 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -42,8 +41,6 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 	private readonly registration = this._register(new MutableDisposable());
 	private readonly restoreRequest = this._register(new MutableDisposable<IDisposable>());
 	private readonly restoreScheduler = this._register(new RunOnceScheduler(() => this.restorePersistedSkillReferences(), 200));
-	// The cursor position settles after the model content event.
-	private readonly retriggerScheduler = this._register(new RunOnceScheduler(() => this.retriggerSuggestionsAfterDeletion(), 0));
 	private references: Array<{ decorationId: string; text: string }> = [];
 	private triggerCharacters: readonly string[] = [];
 
@@ -57,14 +54,19 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
+		// Match the Sessions composer so typing after a deletion retriggers suggestions.
+		this.editor.updateOptions({
+			quickSuggestions: {
+				other: 'on',
+				comments: 'off',
+				strings: 'off',
+			},
+		});
 		this._register(registerChatInputReferenceDecorationType(codeEditorService, AUTOMATION_SKILL_DECORATION_TYPE));
-		this._register(this.editor.onDidChangeModelContent(event => {
+		this._register(this.editor.onDidChangeModelContent(() => {
 			this.restoreRequest.clear();
 			this.updateDecorations();
 			this.restoreScheduler.schedule();
-			if (event.changes.some(change => change.text === '' && change.rangeLength > 0)) {
-				this.retriggerScheduler.schedule();
-			}
 		}));
 
 		let currentScheme: string | undefined;
@@ -78,7 +80,6 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 			this.registration.clear();
 			this.restoreRequest.clear();
 			this.restoreScheduler.cancel();
-			this.retriggerScheduler.cancel();
 			this.triggerCharacters = [];
 			if (scheme && isAgentHostTarget(scheme)) {
 				void this.registerForScheme(scheme);
@@ -106,23 +107,6 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 		);
 		this.triggerCharacters = triggerCharacters;
 		this.restorePersistedSkillReferences();
-	}
-
-	private retriggerSuggestionsAfterDeletion(): void {
-		const model = this.editor.getModel();
-		const position = this.editor.getPosition();
-		if (!model || !position || this.triggerCharacters.length === 0) {
-			return;
-		}
-		const textBeforeCursor = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
-		const token = textBeforeCursor.match(/\S+$/)?.[0];
-		if (token?.length === 1 && this.triggerCharacters.includes(token)) {
-			this.triggerSuggest();
-		}
-	}
-
-	protected triggerSuggest(): void {
-		SuggestController.get(this.editor)?.triggerSuggest(undefined, true);
 	}
 
 	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {

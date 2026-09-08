@@ -14,6 +14,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { CompletionItemKind, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
@@ -60,13 +61,17 @@ suite('AutomationInputCompletions', () => {
 
 	teardown(() => sinon.restore());
 
-	test('shows agent host skills for the automation draft session', async () => {
+	test('enables quick suggestions and shows agent host skills for the automation draft session', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('vscode-chat-input:automation')));
 		let decorations: readonly Range[] = [];
+		let quickSuggestions: IEditorOptions['quickSuggestions'];
 		const editor = upcastPartial<ICodeEditor>({
 			getModel: () => model,
 			onDidChangeModelContent: Event.None,
+			updateOptions: options => {
+				quickSuggestions = options.quickSuggestions;
+			},
 			setDecorationsByType: (_description, _key, options) => {
 				decorations = options.map(option => Range.lift(option.range));
 				return options.map((_, index) => `decoration-${index}`);
@@ -104,7 +109,12 @@ suite('AutomationInputCompletions', () => {
 		const command = result?.suggestions[0].command;
 		CommandsRegistry.getCommand(command!.id)!.handler(upcastPartial<ServicesAccessor>({}), ...command!.arguments!);
 
-		assert.deepStrictEqual({ suggestions, decorations }, {
+		assert.deepStrictEqual({ quickSuggestions, suggestions, decorations }, {
+			quickSuggestions: {
+				other: 'on',
+				comments: 'off',
+				strings: 'off',
+			},
 			suggestions: [
 				{
 					label: { label: '/review ', description: 'Review the workspace' },
@@ -125,55 +135,6 @@ suite('AutomationInputCompletions', () => {
 		});
 	});
 
-	test('retriggers suggestions when deleting back to a trigger character', async () => {
-		const languageFeaturesService = new LanguageFeaturesService();
-		const model = store.add(createTextModel('/review', null, undefined, URI.parse('vscode-chat-input:automation')));
-		const onDidChangeModelContent = store.add(new Emitter<IModelContentChangedEvent>());
-		const editor = upcastPartial<ICodeEditor>({
-			getModel: () => model,
-			getPosition: () => model.getPositionAt(model.getValueLength()),
-			onDidChangeModelContent: onDidChangeModelContent.event,
-			setDecorationsByType: () => [],
-		});
-		const codeEditorService = upcastPartial<ICodeEditorService>({
-			registerDecorationType: () => ({ dispose() { } }),
-		});
-		const session = upcastPartial<ISession>({
-			sessionId: 'automation',
-			resource: URI.parse('agent-host-copilot:automation'),
-		});
-		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
-			automationSession: constObservable(session),
-		});
-		class TestAutomationInputCompletions extends AutomationInputCompletions {
-			triggerCount = 0;
-
-			protected override triggerSuggest(): void {
-				this.triggerCount++;
-			}
-		}
-		const completions = store.add(new TestAutomationInputCompletions(editor, languageFeaturesService, new TestChatSessionsService(), sessionsManagementService, codeEditorService, new NullLogService()));
-		await timeout(0);
-
-		model.setValue('/r');
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({
-			changes: [{ range: new Range(1, 3, 1, 8), rangeOffset: 2, rangeLength: 5, text: '' }],
-		}));
-		await timeout(0);
-		const afterPartialDeletion = completions.triggerCount;
-
-		model.setValue('/');
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({
-			changes: [{ range: new Range(1, 2, 1, 3), rangeOffset: 1, rangeLength: 1, text: '' }],
-		}));
-		await timeout(0);
-
-		assert.deepStrictEqual({ afterPartialDeletion, afterBareTriggerDeletion: completions.triggerCount }, {
-			afterPartialDeletion: 0,
-			afterBareTriggerDeletion: 1,
-		});
-	});
-
 	test('restores persisted skill references and removes stale decorations after edits', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const model = store.add(createTextModel(
@@ -189,6 +150,7 @@ suite('AutomationInputCompletions', () => {
 		const editor = upcastPartial<ICodeEditor>({
 			getModel: () => model,
 			onDidChangeModelContent: onDidChangeModelContent.event,
+			updateOptions: () => { },
 			setDecorationsByType: (_description, _key, options) => {
 				decorations = options.map(option => Range.lift(option.range));
 				decorationRanges.clear();
@@ -213,12 +175,12 @@ suite('AutomationInputCompletions', () => {
 		await timeout(0);
 		model.setValue('/reviewx then /plan and /runtime-skill plus /unknown');
 		decorationRanges.set('decoration-1', new Range(1, 25, 1, 39));
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({ changes: [] }));
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
 		await timeout(250);
 		const afterRightEdgeEdit = decorations;
 		model.setValue('/reviewx then /plan and x/runtime-skill plus /unknown');
 		decorationRanges.set('decoration-0', new Range(1, 26, 1, 40));
-		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({ changes: [] }));
+		onDidChangeModelContent.fire(upcastPartial<IModelContentChangedEvent>({}));
 		await timeout(250);
 
 		assert.deepStrictEqual({ afterRightEdgeEdit, afterLeftEdgeEdit: decorations }, {
