@@ -13,7 +13,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISendRequestWillEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
@@ -50,7 +50,7 @@ suite('SessionGroupsService', () => {
 	let service: SessionGroupsService;
 	let storageService: InMemoryStorageService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
-	let willSendRequestEmitter: Emitter<ISession>;
+	let willSendRequestEmitter: Emitter<ISendRequestWillEvent>;
 	let sessionStartedEmitter: Emitter<ISession>;
 	let sessionArchivedEmitter: Emitter<ISession>;
 	let sessionUnarchivedEmitter: Emitter<ISession>;
@@ -62,7 +62,7 @@ suite('SessionGroupsService', () => {
 
 	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
 	function sendNewSession(draftId: string, committedId: string = draftId): void {
-		willSendRequestEmitter.fire(createSession(draftId));
+		willSendRequestEmitter.fire({ requestId: 1, session: createSession(draftId), options: { query: 'test' } });
 		if (committedId !== draftId) {
 			sessionReplacedEmitter.fire({ from: createSession(draftId), to: createSession(committedId) });
 		}
@@ -74,7 +74,7 @@ suite('SessionGroupsService', () => {
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
-		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
+		willSendRequestEmitter = disposables.add(new Emitter<ISendRequestWillEvent>());
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
 		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
 		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
@@ -627,7 +627,7 @@ suite('SessionGroupsService', () => {
 
 		// Dispatch a send for A, then arm B before A's start commits.
 		service.setPendingNewSessionGroup(a.id);
-		willSendRequestEmitter.fire(createSession('a-draft'));
+		willSendRequestEmitter.fire({ requestId: 1, session: createSession('a-draft'), options: { query: 'test' } });
 		service.setPendingNewSessionGroup(b.id);
 
 		sessionStartedEmitter.fire(createSession('a-draft'));

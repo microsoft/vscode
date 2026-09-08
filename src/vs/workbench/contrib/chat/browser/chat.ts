@@ -122,8 +122,13 @@ export interface IChatWidgetService {
 	 * ⚠️ Consider carefully if this is appropriate for your use case. If you
 	 * can know what session you're interacting with, prefer {@link getWidgetBySessionResource}
 	 * or similar methods to work nicely with multiple chat widgets.
+	 *
+	 * A focused embedded widget is returned for action routing while focus is
+	 * inside it, without making it part of global widget discovery.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
+	/** The most recently focused non-embedded chat surface. */
+	readonly lastFocusedChatSurface: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 	readonly onDidRemoveWidget: Event<IChatWidget>;
@@ -136,13 +141,13 @@ export interface IChatWidgetService {
 	readonly onDidBackgroundSession: Event<URI>;
 
 	/**
-	 * Fires when the focused chat widget changes.
+	 * Fires when the focused non-embedded chat widget changes.
 	 */
 	readonly onDidChangeFocusedWidget: Event<IChatWidget | undefined>;
 
 	/**
-	 * Fires when the focused chat session changes, either because the focused widget
-	 * changed or because the focused widget loaded a different session.
+	 * Fires when the focused non-embedded chat session changes, either because
+	 * the focused widget changed or because it loaded a different session.
 	 */
 	readonly onDidChangeFocusedSession: Event<void>;
 
@@ -167,7 +172,8 @@ export interface IChatWidgetService {
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
 	/**
-	 * An IChatWidget registers itself when created.
+	 * An IChatWidget registers itself when created. Embedded widgets participate
+	 * only in focus-local action routing.
 	 */
 	register(newWidget: IChatWidget): IDisposable;
 }
@@ -245,6 +251,8 @@ export interface IChatListItemRendererOptions {
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly contentHorizontalPadding?: number;
+	/** Whether a newly completed response animates into its collapsed work summary. Defaults to true. */
+	readonly animateCompletedResponseCollapse?: boolean;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
 	 * so command/tool output pasted by the model wraps instead of overflowing).
@@ -331,7 +339,6 @@ export interface IChatWidgetViewOptions {
 
 	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
 	enableFind?: boolean;
-
 	/**
 	 * Height of the content this host mounts into
 	 * {@link ChatInputPart.persistentContentContainerElement}. Setting it floats that
@@ -339,6 +346,16 @@ export interface IChatWidgetViewOptions {
 	 * the same space below the transcript. Must match the content's rendered height.
 	 */
 	persistentContentHeight?: number;
+	/** Whether this widget may render the chat pet. Defaults to true. */
+	enableChatPet?: boolean;
+	/** Whether this widget renders the transcript's scroll-to-bottom button. Defaults to true. */
+	renderScrollToBottomButton?: boolean;
+	/**
+	 * Whether this widget is an embedded response renderer rather than a full
+	 * chat surface. Embedded widgets are used as the keyboard action target only
+	 * while focused and are excluded from global widget discovery.
+	 */
+	isEmbedded?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -408,6 +425,8 @@ export const CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT = 100;
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
+	/** Whether this widget is embedded inside another chat surface. */
+	readonly isEmbedded?: boolean;
 	/** DOM node of the scrollable transcript area, excluding the input part. */
 	readonly transcriptDomNode: HTMLElement;
 	readonly visible: boolean;

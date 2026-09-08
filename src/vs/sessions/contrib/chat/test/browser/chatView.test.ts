@@ -75,15 +75,21 @@ suite('Sessions - Chat View', () => {
 	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
 		const isVisible = observableValue(disposables, false);
 		const forwarded: boolean[] = [];
+		const transientVisibility: boolean[] = [];
 		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
 			_isVisibleObs: isVisible,
 			_widget: { setVisible: () => forwarded.push(isVisible.get()) },
+			_transientSideChat: { setVisible: (visible: boolean) => transientVisibility.push(visible) },
 		});
 
 		view.setVisible(true);
 		view.setVisible(false);
 
-		assert.deepStrictEqual({ forwarded, isVisible: isVisible.get() }, { forwarded: [false, true], isVisible: false });
+		assert.deepStrictEqual({ forwarded, transientVisibility, isVisible: isVisible.get() }, {
+			forwarded: [false, true],
+			transientVisibility: [true, false],
+			isVisible: false,
+		});
 	});
 
 	test('forwards new chat visibility to the aquarium host', () => {
@@ -898,6 +904,18 @@ suite('Sessions - Chat View', () => {
 			plainRow: 'rgb(255, 0, 0)',
 			plainRequest: 'rgba(0, 0, 0, 0)',
 		});
+	});
+
+	test('keeps inline request-editing composers in block layout', () => {
+		const workbench = dom.$('.agent-sessions-workbench');
+		const sessionsPart = dom.append(workbench, dom.$('.part.sessionspart'));
+		const session = dom.append(sessionsPart, dom.$('.interactive-session'));
+		const editInputContainer = dom.append(session, dom.$('.chat-edit-input-container'));
+		const editInput = dom.append(editInputContainer, dom.$('.interactive-input-part.chat-input-surface-stack'));
+		dom.getActiveDocument().body.append(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.strictEqual(dom.getWindow(editInput).getComputedStyle(editInput).display, 'block');
 	});
 
 	test('stores view state independently by chat resource', () => {

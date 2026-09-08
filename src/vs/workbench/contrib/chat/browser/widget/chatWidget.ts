@@ -386,6 +386,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private transcriptContextValue: IChatRequestTranscriptContextVariableEntry | undefined;
 
 	get domNode() { return this.container; }
+	get isEmbedded() { return this.viewOptions.isEmbedded === true; }
 
 	private listWidget!: ChatListWidget;
 	private _findController: ChatFindWidget | undefined;
@@ -678,7 +679,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
-		ChatContextKeys.findSupported.bindTo(contextKeyService).set(!!this.viewOptions.enableFind);
+		if (!this.isEmbedded) {
+			ChatContextKeys.findSupported.bindTo(contextKeyService).set(!!this.viewOptions.enableFind);
+		}
 		this._register(this.onDidChangeViewModel(() => this._onDidChangeFindableContent.fire()));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
@@ -1128,7 +1131,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
-		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
+		if (this.viewOptions.enableChatPet !== false && this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
@@ -2052,7 +2055,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
-			this._layoutListForInputHeight();
+			if (visible) {
+				this.layout(this.bodyDimension.height, this.bodyDimension.width);
+			} else {
+				this._layoutListForInputHeight();
+			}
 		}
 	}
 
@@ -2118,6 +2125,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
 				paddingBottom: this._persistentContentHeight,
+				renderScrollToBottomButton: this.viewOptions.renderScrollToBottomButton,
 			}
 		));
 
@@ -3785,8 +3793,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			: this.inputPartMaxHeightOverride !== undefined
 				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
 				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
-		this.inputPart.setMaxHeight(inputMaxHeight);
-		this.inputPart.layout(width);
+		if (this._inputVisible || this.inputPart.hasVisibleContentWhenInputHidden) {
+			this.inputPart.setMaxHeight(inputMaxHeight);
+			this.inputPart.layout(width);
+		}
 
 		this._layoutListForInputHeight();
 		this._onDidLayout.fire({ width, height });
@@ -3817,7 +3827,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
-		const inputHeight = this._inputVisible ? this.inputPart.height.get() : this.inputPart.element.offsetHeight;
+		const inputHeight = this._inputVisible
+			? this.inputPart.height.get()
+			: this.inputPart.hasVisibleContentWhenInputHidden ? this.inputPart.element.offsetHeight : 0;
 		const readOnlyBannerHeight = this.readOnlyBanner?.visible ? CHAT_READ_ONLY_BANNER_HEIGHT : 0;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;

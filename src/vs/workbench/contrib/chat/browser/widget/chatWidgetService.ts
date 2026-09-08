@@ -26,7 +26,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	declare readonly _serviceBrand: undefined;
 
 	private _widgets: IChatWidget[] = [];
+	private _embeddedWidgets: IChatWidget[] = [];
 	private _lastFocusedWidget: IChatWidget | undefined = undefined;
+	private _focusedEmbeddedWidget: IChatWidget | undefined;
 
 	private readonly _onDidAddWidget = this._register(new Emitter<IChatWidget>());
 	readonly onDidAddWidget = this._onDidAddWidget.event;
@@ -59,6 +61,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	get lastFocusedWidget(): IChatWidget | undefined {
+		return this._focusedEmbeddedWidget ?? this._lastFocusedWidget;
+	}
+
+	get lastFocusedChatSurface(): IChatWidget | undefined {
 		return this._lastFocusedWidget;
 	}
 
@@ -79,7 +85,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
-		const last = this.lastFocusedWidget;
+		const last = this.lastFocusedChatSurface;
 		if (last && await this.reveal(last, preserveFocus)) {
 			return last;
 		}
@@ -244,8 +250,11 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	register(newWidget: IChatWidget): IDisposable {
-		if (this._widgets.some(widget => widget === newWidget)) {
+		if (this._widgets.some(widget => widget === newWidget) || this._embeddedWidgets.some(widget => widget === newWidget)) {
 			throw new Error('Cannot register the same widget multiple times');
+		}
+		if (newWidget.isEmbedded) {
+			return this._registerEmbeddedWidget(newWidget);
 		}
 
 		this._widgets.push(newWidget);
@@ -282,6 +291,29 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				}
 				this._onDidRemoveWidget.fire(newWidget);
 			})
+		);
+	}
+
+	private _registerEmbeddedWidget(widget: IChatWidget): IDisposable {
+		this._embeddedWidgets.push(widget);
+		// Embedded response renderers need to be the keyboard action target while
+		// focused, but must not participate in global widget discovery or focus
+		// events that represent full chat surfaces.
+		const focusTracker = dom.trackFocus(widget.domNode);
+		return combinedDisposable(
+			focusTracker,
+			focusTracker.onDidFocus(() => this._focusedEmbeddedWidget = widget),
+			focusTracker.onDidBlur(() => {
+				if (this._focusedEmbeddedWidget === widget) {
+					this._focusedEmbeddedWidget = undefined;
+				}
+			}),
+			toDisposable(() => {
+				this._embeddedWidgets.splice(this._embeddedWidgets.indexOf(widget), 1);
+				if (this._focusedEmbeddedWidget === widget) {
+					this._focusedEmbeddedWidget = undefined;
+				}
+			}),
 		);
 	}
 }

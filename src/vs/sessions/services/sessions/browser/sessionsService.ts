@@ -88,9 +88,8 @@ export interface IOpenNewSessionResult {
 /** Options for {@link ISessionsService.closeChat}. */
 export interface ICloseChatOptions {
 	/**
-	 * Do not remember the chat as the most recently closed item. Used by batch
-	 * closes (e.g. "Close All Chats"), where remembering just the final chat of
-	 * the batch would make one arbitrary member of it reopenable.
+	 * Do not change which item is reopened by the reopen-last-closed action,
+	 * such as for batch or transient closes.
 	 */
 	readonly skipHistory?: boolean;
 }
@@ -98,6 +97,10 @@ export interface ICloseChatOptions {
 export interface IOpenSessionOptions {
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
+}
+
+export interface IOpenChatOptions extends IOpenSessionOptions {
+	readonly token?: CancellationToken;
 }
 
 /**
@@ -211,13 +214,13 @@ export interface ISessionsService {
 	 * When `options.preserveFocus` is set, the chat is shown without moving
 	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void>;
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
 	 * and can be reopened from the session header's chats dropdown.
 	 */
-	closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
+	closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
 
 	/**
 	 * Reopen the single most recently closed chat or session and focus it.
@@ -377,6 +380,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
+	private _sendFollowRequestId: number | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -488,8 +492,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
-		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onWillSendRequest(({ requestId, session, options }) => {
+			if (!options.preserveActiveChat) {
+				this._startSendFollow(session, requestId);
+			}
+		}));
+		this._register(this.sessionsManagementService.onDidEndSendRequest(({ requestId }) => {
+			if (requestId === this._sendFollowRequestId) {
+				this._sendFollowRequestId = undefined;
+				this._sendFollow.clear();
+			}
+		}));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -655,7 +668,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	private _startSendFollow(session: ISession): void {
+	private _startSendFollow(session: ISession, requestId: number): void {
 		const store = new DisposableStore();
 		let followId = session.sessionId;
 		// A foreground send can replace the session id (draft graduating into a
@@ -675,6 +688,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 		}));
+		this._sendFollowRequestId = requestId;
 		this._sendFollow.value = store;
 	}
 
@@ -712,9 +726,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/**
 	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
 	 */
-	private _startOpenSession(): CancellationToken {
+	private _startOpenSession(parentToken?: CancellationToken): CancellationToken {
 		this._openSessionCts.value?.cancel();
-		const cts = new CancellationTokenSource();
+		const cts = new CancellationTokenSource(parentToken);
 		this._openSessionCts.value = cts;
 		return cts.token;
 	}
@@ -748,15 +762,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._visibility.setActive(session, preserveFocus);
 	}
 
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		return this._openChatSession(session, chatUri, options, 'explicit');
 	}
 
-	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenChatOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+		if (options?.token?.isCancellationRequested) {
+			return;
+		}
 		const t0 = Date.now();
 		this._cancelRestore();
 		this._dismissCustomViewForNavigation(intent);
-		const token = this._startOpenSession();
+		const token = this._startOpenSession(options?.token);
 		// Redirect a superseded resource (e.g. a legacy session adopted into another
 		// provider) before activating, the same way `openSession` does for a URI, so
 		// opening by object migrates rather than activating the old facade as-is.
@@ -787,7 +804,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this._activate(session, preserveFocus);
-		if (!await this._waitForSessionToLoad(session, token)) {
+		if (!await this._waitForSessionToLoad(session, token) || token.isCancellationRequested) {
 			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 			return;
 		}
@@ -819,10 +836,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
-	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+	async closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
-		this._visibility.closeChat(session, chat);
+		this._visibility.closeChat(session, chat, options?.skipHistory);
 		this._setChatClosedState(session, chat, true);
 		if (!options?.skipHistory) {
 			this._closedItems.recordClosedChat(session, chat.resource);

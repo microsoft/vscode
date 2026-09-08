@@ -15,12 +15,10 @@ import { editorSelectionBackground, editorSelectionForeground } from '../../../.
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IResolvedResponseSelection, resolveResponseSelection } from './responseSelectionResolver.js';
-import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { ISideChatOrchestrationService, SideChatPresentation } from './sideChatOrchestration.js';
 
 /**
  * Name of the CSS custom highlight that stands in for the native selection
@@ -109,8 +107,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		@ISideChatOrchestrationService private readonly _sideChatOrchestrationService: ISideChatOrchestrationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
@@ -347,7 +344,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	 * it — outside interactions like Escape or selection invalidation must not
 	 * race the in-flight create/open/send.
 	 */
-	private _dismiss(force = false): void {
+	private _dismiss(force = false, preserveFocus = false): void {
 		if (!force && this._input.isBusy) {
 			return;
 		}
@@ -362,7 +359,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._input.setBusy(false);
 		this._input.hide();
 		this._input.clearInput();
-		if (hadFocus) {
+		if (hadFocus && !preserveFocus) {
 			// Hiding the focused input would otherwise leave focus stranded on
 			// the body; return it to the transcript it was invoked from.
 			this._widget.focusResponseItem(true);
@@ -388,34 +385,47 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 
-		// Keep the overlay visible with a busy state instead of eagerly
-		// dismissing: opening the created side chat naturally dismisses it via
-		// `setChat`; on failure the question and normal controls are restored
-		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
 		const generation = this._generation;
-		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
-			.then(() => {
-				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
-				if (this._generation !== generation) {
-					return;
-				}
-				// `setChat` (fired by the view change from opening the side
-				// chat) normally dismisses this overlay already; clear busy
-				// defensively in case that doesn't happen.
+		void this._createAndSendSideChat(session, chat, resolved.response.requestId, resolved.text, query, generation);
+	}
+
+	private async _createAndSendSideChat(session: ISession, sourceChat: IChat, turnId: string, selectedText: string, query: string, generation: number): Promise<void> {
+		let presentation: SideChatPresentation | undefined;
+		try {
+			const prepared = await this._sideChatOrchestrationService.createAndPresent(session, sourceChat, turnId, query, { text: selectedText });
+			presentation = prepared.presentation;
+			if (presentation !== SideChatPresentation.Full && this._generation === generation) {
+				this._dismissAfterBackgroundPresentation(presentation === SideChatPresentation.Superseded);
+			}
+
+			await prepared.send({ query });
+			if (presentation === SideChatPresentation.Full && this._generation === generation) {
 				this._input.setBusy(false);
-			})
-			.catch(err => {
-				this._logService.error('[selectionSideChat] Failed to create side chat', err);
-				if (this._generation !== generation) {
-					return;
-				}
-				this._notificationService.error(localize('sessions.selectionSideChat.createFailed', "The side chat could not be created."));
-				this._input.setBusy(false);
-				this._input.inputElement.value = query;
-				this._input.autoSize();
-				this._input.updateActionEnabled();
-				this._input.inputElement.focus();
-			});
+				this._dismiss();
+			}
+		} catch (err) {
+			this._logService.error('[selectionSideChat] Failed to create or send side chat', err);
+			if (this._generation !== generation) {
+				return;
+			}
+			if (presentation === SideChatPresentation.Transient || presentation === SideChatPresentation.Superseded) {
+				this._notificationService.error(localize('sessions.selectionSideChat.sendFailed', "The side question could not be answered."));
+				return;
+			}
+			this._notificationService.error(localize('sessions.selectionSideChat.createFailed', "The side chat could not be created."));
+			this._input.setBusy(false);
+			this._input.inputElement.value = query;
+			this._input.autoSize();
+			this._input.updateActionEnabled();
+			this._input.inputElement.focus();
+		}
+	}
+
+	private _dismissAfterBackgroundPresentation(preserveFocus: boolean): void {
+		dom.getWindow(this._widget.domNode).getSelection()?.removeAllRanges();
+		this._input.setBusy(false);
+		this._dismiss(false, preserveFocus);
+		this._autoScrollHold.clear();
 	}
 }

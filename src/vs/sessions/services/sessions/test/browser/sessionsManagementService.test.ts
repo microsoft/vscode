@@ -39,7 +39,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestOptions as IManagementSendRequestOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionsPartService } from '../../browser/sessionsPartService.js';
@@ -672,6 +672,88 @@ suite('SessionsManagementService', () => {
 		}, {
 			activeCustomView: 'test.customView',
 			activeChat: stubChat.resource.toString(),
+		});
+	});
+
+	test('an already-cancelled chat open preserves the active chat and custom view', async () => {
+		const sideChat = { ...stubChat, resource: URI.parse('test:///side-chat') };
+		const session = stubSession({ sessionId: 'active', providerId: 'test', chats: constObservable([stubChat, sideChat]) });
+		const { customViewService, view } = createSessionsManagementService(session, disposables);
+		await view.openSession(session.resource);
+		await view.closeChat(session, sideChat, { skipHistory: true });
+		showTestCustomView(customViewService, disposables);
+
+		await view.openChat(session, sideChat.resource, { token: CancellationToken.Cancelled });
+
+		assert.deepStrictEqual({
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openChats: view.activeSession.get()?.openChats.get().map(chat => chat.resource.toString()),
+			customView: customViewService.activeCustomView.get()?.id,
+		}, {
+			activeChat: stubChat.resource.toString(),
+			openChats: [stubChat.resource.toString()],
+			customView: 'test.customView',
+		});
+	});
+
+	test('cancelling a chat open during resource resolution prevents stale navigation', async () => {
+		const sideChat = { ...stubChat, resource: URI.parse('test:///side-chat') };
+		const session = stubSession({ sessionId: 'active', providerId: 'test', chats: constObservable([stubChat, sideChat]) });
+		const resolutionStarted = new DeferredPromise<void>();
+		const resolution = new DeferredPromise<URI | undefined>();
+		let deferResolution = false;
+		const provider = new class extends TestSessionsProvider {
+			override resolveSessionResource(): Promise<URI | undefined> {
+				if (deferResolution) {
+					void resolutionStarted.complete();
+					return resolution.p;
+				}
+				return Promise.resolve(undefined);
+			}
+		}(session);
+		const { view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+		await view.closeChat(session, sideChat, { skipHistory: true });
+		const cancellation = disposables.add(new CancellationTokenSource());
+		deferResolution = true;
+
+		const opening = view.openChat(session, sideChat.resource, { token: cancellation.token });
+		await resolutionStarted.p;
+		cancellation.cancel();
+		await resolution.complete(undefined);
+		await opening;
+
+		assert.deepStrictEqual({
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openChats: view.activeSession.get()?.openChats.get().map(chat => chat.resource.toString()),
+		}, {
+			activeChat: stubChat.resource.toString(),
+			openChats: [stubChat.resource.toString()],
+		});
+	});
+
+	test('cancelling a chat open while the session loads prevents stale navigation', async () => {
+		const sideChat = { ...stubChat, resource: URI.parse('test:///side-chat') };
+		const loading = observableValue('loading', false);
+		const session = stubSession({ sessionId: 'active', providerId: 'test', loading, chats: constObservable([stubChat, sideChat]) });
+		const { view } = createSessionsManagementService(session, disposables);
+		await view.openSession(session.resource);
+		await view.closeChat(session, sideChat, { skipHistory: true });
+		const cancellation = disposables.add(new CancellationTokenSource());
+		loading.set(true, undefined);
+
+		const opening = view.openChat(session, sideChat.resource, { token: cancellation.token });
+		await timeout(0);
+		cancellation.cancel();
+		await opening;
+		loading.set(false, undefined);
+
+		assert.deepStrictEqual({
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			openChats: view.activeSession.get()?.openChats.get().map(chat => chat.resource.toString()),
+		}, {
+			activeChat: stubChat.resource.toString(),
+			openChats: [stubChat.resource.toString()],
 		});
 	});
 
@@ -1951,6 +2033,42 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	test('sendRequest with preserveActiveChat remains awaited and fires the send lifecycle', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		let providerCompleted = false;
+		let providerOptions: ISendRequestOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+				providerOptions = options;
+				await Promise.resolve();
+				providerCompleted = true;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		let willSendOptions: IManagementSendRequestOptions | undefined;
+		disposables.add(service.onWillSendRequest(event => willSendOptions = event.options));
+
+		const options: IManagementSendRequestOptions = { query: 'hi', preserveActiveChat: true };
+		await service.sendRequest(session, chat, options);
+
+		assert.deepStrictEqual({
+			providerCompleted,
+			sameOptions: willSendOptions === options,
+			providerOptions,
+		}, {
+			providerCompleted: true,
+			sameOptions: true,
+			providerOptions: { query: 'hi' },
+		});
+	});
+
 	test('mirrored follow-up requests preserve submitted attachments', () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -2021,6 +2139,124 @@ suite('SessionsManagementService', () => {
 			afterHiddenSend: sideChat.resource.toString(),
 			afterVisibleSend: toolChat.resource.toString(),
 		});
+	});
+
+	test('a preserved send completion does not clear another send follow', async () => {
+		const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/main'), title: constObservable('main') };
+		const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/side'), title: constObservable('side') };
+		const materializedChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/materialized'), title: constObservable('materialized') };
+		const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, sideChat]);
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats,
+			mainChat: constObservable(mainChat),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const normalStarted = new DeferredPromise<void>();
+		const normalCompleted = new DeferredPromise<void>();
+		const preservedStarted = new DeferredPromise<void>();
+		const preservedCompleted = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, chatResource: URI): Promise<ISession> {
+				if (chatResource.toString() === mainChat.resource.toString()) {
+					normalStarted.complete();
+					await normalCompleted.p;
+				} else {
+					preservedStarted.complete();
+					await preservedCompleted.p;
+				}
+				return session;
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+
+		const normalSend = service.sendRequest(session, mainChat, { query: 'foreground' });
+		await normalStarted.p;
+		const preservedSend = service.sendRequest(session, sideChat, { query: 'transient', preserveActiveChat: true });
+		await preservedStarted.p;
+		preservedCompleted.complete();
+		await preservedSend;
+
+		chats.set([mainChat, sideChat, materializedChat], undefined);
+		const activeAfterPreservedCompletion = view.activeSession.get()?.activeChat.get().resource.toString();
+		normalCompleted.complete();
+		await normalSend;
+
+		assert.strictEqual(activeAfterPreservedCompletion, materializedChat.resource.toString());
+	});
+
+	test('an earlier send cannot clear a later follow when options are reused', async () => {
+		const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/main'), title: constObservable('main') };
+		const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/side'), title: constObservable('side') };
+		const materializedChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/materialized'), title: constObservable('materialized') };
+		const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, sideChat]);
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats,
+			mainChat: constObservable(mainChat),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const firstStarted = new DeferredPromise<void>();
+		const firstCompleted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const secondCompleted = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, chatResource: URI): Promise<ISession> {
+				if (chatResource.toString() === mainChat.resource.toString()) {
+					firstStarted.complete();
+					await firstCompleted.p;
+				} else {
+					secondStarted.complete();
+					await secondCompleted.p;
+				}
+				return session;
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+		const options = { query: 'shared options' };
+
+		const firstSend = service.sendRequest(session, mainChat, options);
+		await firstStarted.p;
+		const secondSend = service.sendRequest(session, sideChat, options);
+		await secondStarted.p;
+		firstCompleted.complete();
+		await firstSend;
+		chats.set([mainChat, sideChat, materializedChat], undefined);
+		const activeAfterFirstCompletion = view.activeSession.get()?.activeChat.get().resource.toString();
+		secondCompleted.complete();
+		await secondSend;
+
+		assert.strictEqual(activeAfterFirstCompletion, materializedChat.resource.toString());
+	});
+
+	test('a failed foreground send clears its exact send follow', async () => {
+		const mainChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/main'), title: constObservable('main') };
+		const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/side'), title: constObservable('side') };
+		const materializedChat: IChat = { ...stubChat, resource: URI.parse('test:///chat/materialized'), title: constObservable('materialized') };
+		const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, sideChat]);
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats,
+			mainChat: constObservable(mainChat),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(): Promise<ISession> {
+				throw new Error('send failed');
+			}
+		}(session);
+		const { service, view } = createSessionsManagementService(session, disposables, provider);
+		await view.openSession(session.resource);
+
+		await assert.rejects(service.sendRequest(session, mainChat, { query: 'foreground' }), /send failed/);
+		chats.set([mainChat, sideChat, materializedChat], undefined);
+
+		assert.strictEqual(view.activeSession.get()?.activeChat.get().resource.toString(), sideChat.resource.toString());
 	});
 
 	test('createAndSendNewChatRequest sends without changing the active view', async () => {

@@ -208,7 +208,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// bind to exactly one input even when several are open.
 		this._focusedSessionResource = observableFromEvent(this,
 			this.chatWidgetService.onDidChangeFocusedSession,
-			() => this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource);
+			() => this.chatWidgetService.lastFocusedChatSurface?.viewModel?.sessionResource);
 
 		this.registerListeners();
 	}

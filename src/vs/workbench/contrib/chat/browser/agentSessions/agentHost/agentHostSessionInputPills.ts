@@ -398,6 +398,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		}));
 		const updateVisibility = (visible: boolean) => {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
+			this._widget.inputPart.setPersistentContentVisible(visible);
 			this._widget.setPersistentContentHeight(visible ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined);
 		};
 		this._register(inputPills.onDidChangeVisibility(updateVisibility));

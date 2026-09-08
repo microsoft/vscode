@@ -44,7 +44,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		this._register(this._chatWidgetService.onDidAddWidget(widget => this._attachWidget(widget)));
 		this._register(this._chatWidgetService.onDidRemoveWidget(widget => this._widgetListeners.deleteAndDispose(widget)));
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => {
-			const widget = this._chatWidgetService.lastFocusedWidget;
+			const widget = this._chatWidgetService.lastFocusedChatSurface;
 			if (widget) {
 				this._syncWidgetFromBackend(widget);
 			}

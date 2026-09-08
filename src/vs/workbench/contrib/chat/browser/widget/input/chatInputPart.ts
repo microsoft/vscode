@@ -254,6 +254,10 @@ function createOverflowAction(action: IAction, run: () => void): IAction {
 	};
 }
 
+export function updateChatInputHiddenLayoutState(inputPart: HTMLElement, hasVisiblePersistentContent: boolean, hasVisibleToolConfirmation: boolean): void {
+	inputPart.classList.toggle('chat-input-has-visible-content', hasVisiblePersistentContent || hasVisibleToolConfirmation);
+}
+
 export interface IChatInputStyles {
 	overlayBackground: string;
 	listForeground: string;
@@ -524,6 +528,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatPetHorizontalPlatformProviders = new Set<IChatPetHorizontalPlatformProvider>();
 	private readonly _onDidChangeChatPetHorizontalPlatforms = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
+	private _hasVisiblePersistentContent = false;
+	private _hasVisibleToolConfirmation = false;
 	private inputContainer!: HTMLElement;
 	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
@@ -581,6 +587,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = this.sessionArchiveNudgeWidget.value = this.instantiationService.createInstance(ChatSessionArchiveNudge, widgetOptions);
 			this.sessionArchiveNudgeContainer.appendChild(widget.domNode);
 		}
+	}
+
+	get hasVisibleContentWhenInputHidden(): boolean {
+		return this._hasVisiblePersistentContent || this._hasVisibleToolConfirmation;
+	}
+
+	setPersistentContentVisible(visible: boolean): void {
+		if (this._hasVisiblePersistentContent === visible) {
+			return;
+		}
+		this._hasVisiblePersistentContent = visible;
+		this._updateHiddenInputLayoutState();
 	}
 
 	get gettingStartedTipContainerElement(): HTMLElement {
@@ -3261,7 +3279,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
 		this.chatPlanReviewContainer = elements.chatPlanReviewContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
-		dom.hide(this.chatToolConfirmationCarouselContainer);
+		this._setToolConfirmationCarouselVisible(false);
 		this._register(this.chatInputNoticeHubService.registerHost(this.noticeHost, this.container));
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
 		this._register(registerChatInputOnboardingHosts(
@@ -3454,7 +3472,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		const { location } = this.getWidgetLocationInfo(widget);
-		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
+		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedChatSurface);
 		const voiceSessionResource = observableFromEvent(this, widget.onDidChangeViewModel, () => widget.viewModel?.sessionResource);
 		const isVoiceInputActive = derived(this, reader => focusedWidget.read(reader) === widget);
 		const isVoiceSessionActive = derived(this, reader => {
@@ -4556,7 +4574,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidChangeActiveConfirmationSubagent.fire(part.activeSubAgentInvocationId);
 		}
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
-		dom.show(this.chatToolConfirmationCarouselContainer);
+		this._setToolConfirmationCarouselVisible(true);
 		this.updateToolConfirmationCarouselMaxHeight();
 
 		this._register(Event.once(part.onDidEmpty)(() => {
@@ -4564,7 +4582,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(undefined);
 				dom.clearNode(this.chatToolConfirmationCarouselContainer);
-				dom.hide(this.chatToolConfirmationCarouselContainer);
+				this._setToolConfirmationCarouselVisible(false);
 			}
 		}));
 
@@ -4608,7 +4626,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this._onDidChangeActiveConfirmationSubagent.fire(undefined);
 		dom.clearNode(this.chatToolConfirmationCarouselContainer);
-		dom.hide(this.chatToolConfirmationCarouselContainer);
+		this._setToolConfirmationCarouselVisible(false);
 	}
 
 	/**
@@ -4619,12 +4637,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const carousel = this._currentToolConfirmationCarousel;
 		if (carousel && carousel.pendingCount > 0) {
 			dom.append(this.chatToolConfirmationCarouselContainer, carousel.domNode);
-			dom.show(this.chatToolConfirmationCarouselContainer);
+			this._setToolConfirmationCarouselVisible(true);
 			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
-			dom.hide(this.chatToolConfirmationCarouselContainer);
+			this._setToolConfirmationCarouselVisible(false);
 		}
 		this._onDidChangeActiveConfirmationSubagent.fire(carousel?.activeSubAgentInvocationId);
+	}
+
+	private _setToolConfirmationCarouselVisible(visible: boolean): void {
+		this._hasVisibleToolConfirmation = visible;
+		dom.setVisibility(visible, this.chatToolConfirmationCarouselContainer);
+		this._updateHiddenInputLayoutState();
+	}
+
+	private _updateHiddenInputLayoutState(): void {
+		updateChatInputHiddenLayoutState(this.container, this._hasVisiblePersistentContent, this._hasVisibleToolConfirmation);
 	}
 
 	setWorkingSetCollapsed(collapsed: boolean): void {
