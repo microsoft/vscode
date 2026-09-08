@@ -594,6 +594,7 @@ class CopilotTurn extends Disposable {
 	private _providerCallState: AgentTurnProviderCallState = 'notStarted';
 	private _providerTurnStarted = false;
 	private readonly _stopWatch = StopWatch.create(false);
+	private readonly _pendingToolCompletions = new Set<Promise<void>>();
 
 	/**
 	 * This turn's own Copilot cost in nano-AIU, summed from the `copilotUsage`
@@ -744,6 +745,20 @@ class CopilotTurn extends Disposable {
 
 	markCompleted(): void { this._state = 'completed'; }
 	markAborted(): void { this._state = 'aborted'; }
+
+	get hasPendingToolCompletions(): boolean { return this._pendingToolCompletions.size > 0; }
+
+	trackToolCompletion(completion: Promise<void>): void {
+		this._pendingToolCompletions.add(completion);
+		const remove = () => this._pendingToolCompletions.delete(completion);
+		void completion.then(remove, remove);
+	}
+
+	async drainToolCompletions(): Promise<void> {
+		while (this.hasPendingToolCompletions && !this._store.isDisposed) {
+			await Promise.allSettled(this._pendingToolCompletions);
+		}
+	}
 
 	/**
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
@@ -5207,7 +5222,7 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
-		this._register(wrapper.onToolComplete(async e => {
+		this._register(wrapper.onToolComplete(e => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
@@ -5296,37 +5311,55 @@ export class CopilotAgentSession extends Disposable {
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
-			for (const filePath of filePaths) {
-				try {
-					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId, this._currentTurn.value?.clientContext);
-					if (fileEdit) {
-						content.push(fileEdit);
-					}
-				} catch (err) {
-					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+			const turn = this._currentTurn.value;
+			const turnId = this._turnId;
+			const modelId = this._lastSeenModelId;
+			const abortToken = this._abortToken;
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
+			const complete = () => {
+				this._emitAction({
+					type: ActionType.ChatToolCallComplete,
+					turnId,
+					toolCallId: e.data.toolCallId,
+					result: {
+						success: e.data.success,
+						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path)),
+						content: content.length > 0 ? content : undefined,
+						error: e.data.error,
+					},
+					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
+				}, parentToolCallId);
+				if (retireNonPtyShellTracking) {
+					// Preserve the result in chat state before removing its live output resource.
+					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
+			};
+			if (filePaths.length === 0) {
+				complete();
+				return;
 			}
-
-			this._emitAction({
-				type: ActionType.ChatToolCallComplete,
-				turnId: this._turnId,
-				toolCallId: e.data.toolCallId,
-				result: {
-					success: e.data.success,
-					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path)),
-					content: content.length > 0 ? content : undefined,
-					error: e.data.error,
-				},
-				_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
-			}, parentToolCallId);
-			if (retireNonPtyShellTracking) {
-				// Preserve the terminal result in chat state before removing its
-				// now-redundant live output resource from the host.
-				this._nonPtyShellTerminals.retire(e.data.toolCallId);
-			}
+			const completion = (async () => {
+				for (const filePath of filePaths) {
+					if (!isCurrent()) {
+						return;
+					}
+					try {
+						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext);
+						if (fileEdit) {
+							content.push(fileEdit);
+						}
+					} catch (err) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+					}
+				}
+				if (isCurrent()) {
+					complete();
+				}
+			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
+			turn?.trackToolCompletion(completion);
 		}));
 
-		this._register(wrapper.onIdle(e => {
+		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
@@ -5383,6 +5416,13 @@ export class CopilotAgentSession extends Disposable {
 			// turn here means the SDK went idle before emitting any event for it
 			// (a degenerate no-op send); complete it defensively so the session
 			// does not hang.
+			if (turn.hasPendingToolCompletions) {
+				const abortToken = this._abortToken;
+				await turn.drainToolCompletions();
+				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+					return;
+				}
+			}
 			this._completeActiveRepoInfoTelemetry();
 			this._completeActiveTurn();
 		}));

@@ -99,8 +99,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 
 	for (const initiallySelected of [true, false]) {
 		const title = initiallySelected
-			? 'custom agent selected on the first turn survives a host restart'
-			: 'custom agent selected after a default turn survives a host restart';
+			? 'session with a custom agent selected on its first turn remains resumable'
+			: 'session with a custom agent selected after a default turn remains resumable';
 		(copilotCustomAgentTest ? test : test.skip)(title, async function () {
 			this.timeout(180_000);
 			const workspace = createCustomAgentWorkspace('ahp-selected-custom-agent-', true);
@@ -193,6 +193,24 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				childTurns: [TurnState.Complete],
 				parentResponse: 'PARENT_DONE',
 			});
+			if (!allTools && !checkFileOutputGuidance) {
+				const request: {
+					tools: {
+						name: string;
+						input_schema: { properties: { model?: { enum?: string[] }; agent_type?: { enum?: string[] }; mode?: { description?: string } } };
+					}[];
+				} = JSON.parse(context.observedModelRequestBodies[0]);
+				const task = request.tools.find(tool => tool.name === 'task');
+				assert.deepStrictEqual({
+					modelAllowed: task?.input_schema.properties.model?.enum?.includes('claude-sonnet-5'),
+					customAgentAllowed: task?.input_schema.properties.agent_type?.enum?.includes('e2e-display-name-child'),
+					modeDescription: task?.input_schema.properties.mode?.description,
+				}, {
+					modelAllowed: true,
+					customAgentAllowed: true,
+					modeDescription: 'sync waits; background returns immediately. Await results before use.',
+				});
+			}
 			if (checkFileOutputGuidance) {
 				const childRequest = context.observedModelRequestBodies.find(body => {
 					const request = summarizeAnthropicRequest(body);

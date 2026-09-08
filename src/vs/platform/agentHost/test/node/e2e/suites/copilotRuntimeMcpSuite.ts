@@ -13,20 +13,24 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
+const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
+const invalidImageData = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const imageOmittedNote = '[MCP image omitted because its data was invalid or its MIME type unsupported]';
 
 export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
 		return;
 	}
 
-	async function createPluginSession() {
+	async function createPluginSession(includeImages = false) {
 		const root = mkdtempSync(join(tmpdir(), 'ahp-runtime-mcp-'));
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');
@@ -63,7 +67,10 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			'server.setRequestHandler(CallToolRequestSchema, async request => {',
 			'  const tag = request.params.arguments.tag;',
 			`  appendFileSync(${JSON.stringify(calls)}, JSON.stringify(tag) + "\\n");`,
-			'  return { content: [{ type: "text", text: `MCP_PROBE:${tag}` }] };',
+			`  return { content: [{ type: "text", text: \`MCP_PROBE:\${tag}\` }, ...${JSON.stringify(includeImages ? [
+				{ type: 'image', data: imageData, mimeType: 'image/png' },
+				{ type: 'image', data: invalidImageData, mimeType: 'image/png' }, // GIF bytes with a mismatched MIME type.
+			] : [])}] };`,
 			'});',
 			'server.connect(new StdioServerTransport());',
 		].join('\n'));
@@ -89,7 +96,31 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			const state = await pluginState(sessionUri, pluginUri);
 			assert.ok(state.children?.some(child => child.type === CustomizationType.McpServer));
 		}, 100, 100);
-		return { sessionUri, pluginUri, calls };
+		return { sessionUri, pluginUri, workspace, calls, customization };
+	}
+
+	async function restartPluginSession(session: Awaited<ReturnType<typeof createPluginSession>>): Promise<void> {
+		await context.restartServer();
+		context.client.setWorkingDirectory(session.workspace);
+		const clientId = 'runtime-mcp-resumed-client';
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+		await context.client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: context.config.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+		await context.client.call<SubscribeResult>('subscribe', { channel: session.sessionUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(session.sessionUri) });
+		context.client.dispatch({
+			channel: session.sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionActiveClientSet, activeClient: { clientId, tools: [], customizations: [session.customization] } },
+		});
+		await retry(async () => {
+			const plugin = await pluginState(session.sessionUri, session.pluginUri);
+			assert.strictEqual(plugin.clientId, clientId);
+			assert.ok(plugin.children?.some(child => child.type === CustomizationType.McpServer));
+		}, 100, 100);
 	}
 
 	async function pluginState(sessionUri: string, pluginUri: string): Promise<PluginCustomization> {
@@ -115,6 +146,64 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 				: [];
 		});
 	}
+
+	test('runtime MCP: invalid sibling images are omitted before model requests and cold resume', async function () {
+		this.timeout(240_000);
+		const session = await createPluginSession(true);
+		const result = await driveTurnToCompletion(context.client, session.sessionUri, 'mixed-images',
+			'Call runtime_probe exactly once with tag "images", then reply exactly MCP_IMAGES_READY. Do not call any other tools.', 2);
+		const request = context.observedModelRequestBodies.at(-1)!;
+		const modelRequest: {
+			messages: { content: { type: string; content?: string | { type: string; source?: { type: string; media_type: string; data: string } }[] }[] }[];
+		} = JSON.parse(request);
+		const imageSources = modelRequest.messages.flatMap(message => message.content)
+			.filter(block => block.type === 'tool_result')
+			.flatMap(block => Array.isArray(block.content) ? block.content : [])
+			.filter(block => block.type === 'image')
+			.map(block => block.source);
+		const completions = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
+			.flatMap(notification => {
+				const { channel, action } = getActionEnvelope(notification);
+				return channel === buildDefaultChatUri(session.sessionUri) && action.type === ActionType.ChatToolCallComplete
+					? [action.result.success] : [];
+			});
+		assert.deepStrictEqual({
+			response: result.responseText.trim(),
+			calls: readFileSync(session.calls, 'utf8'),
+			toolCompletions: completions,
+			textReachedModel: request.includes('MCP_PROBE:images'),
+			imageSources,
+			invalidImageReachedModel: request.includes(invalidImageData),
+			omissionNotes: request.split(imageOmittedNote).length - 1,
+		}, {
+			response: 'MCP_IMAGES_READY',
+			calls: '"images"\n',
+			toolCompletions: [true],
+			textReachedModel: true,
+			imageSources: [{ type: 'base64', media_type: 'image/png', data: imageData }],
+			invalidImageReachedModel: false,
+			omissionNotes: 1,
+		});
+
+		await restartPluginSession(session);
+		const resumedRequestIndex = context.observedModelRequestBodies.length;
+		const resumed = await driveTurnToCompletion(context.client, session.sessionUri, 'mixed-images-resumed',
+			'Reply exactly MCP_IMAGES_RESUMED. Do not call tools.', 2);
+		const resumedRequests = context.observedModelRequestBodies.slice(resumedRequestIndex);
+		assert.deepStrictEqual({
+			response: resumed.responseText.trim(),
+			requestCount: resumedRequests.length,
+			historyReachedModel: resumedRequests[0]?.includes('MCP_PROBE:images'),
+			invalidImageReachedModel: resumedRequests.some(body => body.includes(invalidImageData)),
+			calls: readFileSync(session.calls, 'utf8'),
+		}, {
+			response: 'MCP_IMAGES_RESUMED',
+			requestCount: 1,
+			historyReachedModel: true,
+			invalidImageReachedModel: false,
+			calls: '"images"\n',
+		});
+	});
 
 	test('runtime MCP: plugin tools remain callable after a built-in subagent', async function () {
 		this.timeout(240_000);
