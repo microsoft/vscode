@@ -77,6 +77,7 @@
 		"surface.border": "#00000000",
 		"modernActivityBarItem.activeBackground": "#353535",
 		"modernActivityBarItem.hoverBackground": "#35353566",
+		"modernSash.gripForeground": "#272727",
 	},
 	"tokenColors": [
 		{

@@ -549,6 +549,7 @@
 		"editorIndentGuide.activeBackground": "#777777b0",
 		// modern ui
 		"surface.border": "#00000000",
+		"modernSash.gripForeground": "#705697",
 	},
 	"semanticHighlighting": true
 }

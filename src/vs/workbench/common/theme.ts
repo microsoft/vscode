@@ -696,8 +696,8 @@ export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_B
 // Default matches the previous hardcoded treatment: `foreground` at 30% alpha, drawn at 0.75
 // opacity. High contrast themes get the opaque foreground so the grips stay legible.
 export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
-	dark: transparent(foreground, 0.225),
-	light: transparent(foreground, 0.225),
+	dark: transparent(foreground, 0.4),
+	light: transparent(foreground, 0.4),
 	hcDark: foreground,
 	hcLight: foreground
 }, localize('modernSashGripForeground', "Color of the grip handles marking the resizable boundaries between workbench parts when the modern UI is enabled."));
