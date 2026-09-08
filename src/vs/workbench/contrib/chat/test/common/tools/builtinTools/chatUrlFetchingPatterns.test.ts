@@ -65,6 +65,29 @@ suite('ChatUrlFetchingPatterns', () => {
 				'https://example.com',
 			]);
 		});
+
+		test('encoded user information does not produce approval patterns', () => {
+			const encodedSeparators = ['%2F', '%2f', '%5C', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
+
+			assert.deepStrictEqual(
+				encodedSeparators.map(encodedSeparator => extractUrlPatterns(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`))),
+				encodedSeparators.map(() => [])
+			);
+		});
+
+		test('authorityless HTTP URLs do not produce approval patterns', () => {
+			const urls = [
+				String.raw`https:\localhost%2F@evil.example/resource`,
+				String.raw`https:/\localhost%25%32%66@evil.example/resource`,
+				String.raw`https:\example.com%5C@evil.example/resource`,
+				String.raw`https:/\api.example.com%25%35%43@evil.example/resource`,
+			];
+
+			assert.deepStrictEqual(
+				urls.map(url => extractUrlPatterns(URI.parse(url))),
+				urls.map(() => [])
+			);
+		});
 	});
 
 	suite('getPatternLabel', () => {
@@ -153,6 +176,109 @@ suite('ChatUrlFetchingPatterns', () => {
 			};
 			assert.strictEqual(isUrlApproved(url, approved, false), false);
 		});
+
+		test('encoded user information does not match boolean auto-approval rules', () => {
+			const encodedSeparators = ['%2F', '%2f', '%5C', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
+			const exactRules: Record<string, boolean | IUrlApprovalSettings>[] = [{ 'example.com': true }, { 'https://example.com': true }];
+			const wildcardRules: Record<string, boolean | IUrlApprovalSettings>[] = [{ '*.example.com': true }, { 'https://*.example.com': true }];
+
+			assert.deepStrictEqual(
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					exact: exactRules.map(approved => [
+						isUrlApproved(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`), approved, true),
+						isUrlApproved(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`), approved, false),
+					]),
+					wildcard: wildcardRules.map(approved => [
+						isUrlApproved(URI.parse(`https://api.example.com${encodedSeparator}@evil.example/resource`), approved, true),
+						isUrlApproved(URI.parse(`https://api.example.com${encodedSeparator}@evil.example/resource`), approved, false),
+					]),
+				})),
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					exact: [[false, false], [false, false]],
+					wildcard: [[false, false], [false, false]],
+				}))
+			);
+		});
+
+		test('encoded user information does not match granular auto-approval rules', () => {
+			const encodedSeparators = ['%2F', '%2f', '%5C', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
+			const approved: Record<string, IUrlApprovalSettings> = {
+				'example.com': { approveRequest: true, approveResponse: true }
+			};
+
+			assert.deepStrictEqual(
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					request: isUrlApproved(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`), approved, true),
+					response: isUrlApproved(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`), approved, false),
+				})),
+				encodedSeparators.map(encodedSeparator => ({
+					encodedSeparator,
+					request: false,
+					response: false,
+				}))
+			);
+		});
+
+		test('bare wildcard explicitly auto-approves URLs with encoded user information', () => {
+			const url = URI.parse('https://example.com%2F@evil.example/resource');
+			assert.deepStrictEqual([
+				isUrlApproved(url, { '*': true }, true),
+				isUrlApproved(url, { '*': true }, false),
+			], [
+				true,
+				true,
+			]);
+		});
+
+		test('authorityless URL can only be auto-approved by a bare wildcard', () => {
+			const url = URI.parse(String.raw`https:\localhost%25%32%66@evil.example/resource`);
+			assert.deepStrictEqual([
+				isUrlApproved(url, { 'https://localhost': true }, true),
+				isUrlApproved(url, { '*': true }, true),
+				isUrlApproved(url, { '*': { approveRequest: true, approveResponse: false } }, true),
+				isUrlApproved(url, { '*': { approveRequest: true, approveResponse: false } }, false),
+			], [
+				false,
+				true,
+				true,
+				false,
+			]);
+		});
+
+		test('authorityless URL respects negative and missing bare wildcard settings', () => {
+			const url = URI.parse(String.raw`https:\localhost%25%32%66@evil.example/resource`);
+			assert.deepStrictEqual([
+				isUrlApproved(url, { '*': false }, true),
+				isUrlApproved(url, { '*': { approveResponse: true } }, true),
+				isUrlApproved(url, { '*': { approveResponse: true } }, false),
+				isUrlApproved(url, { '*': { approveRequest: false, approveResponse: true } }, true),
+			], [
+				false,
+				false,
+				true,
+				false,
+			]);
+		});
+
+		test('overlapping patterns distinguish missing approval from explicit denial', () => {
+			const url = URI.parse('https://api.example.com/resource');
+			assert.deepStrictEqual([
+				isUrlApproved(url, {
+					'https://api.example.com': { approveResponse: true },
+					'https://*.example.com': { approveRequest: true },
+				}, true),
+				isUrlApproved(url, {
+					'https://api.example.com': { approveRequest: false },
+					'https://*.example.com': true,
+				}, true),
+			], [
+				true,
+				false,
+			]);
+		});
 	});
 
 	suite('getMatchingPattern', () => {
@@ -186,6 +312,30 @@ suite('ChatUrlFetchingPatterns', () => {
 			};
 			const pattern = getMatchingPattern(url, approved);
 			assert.ok(pattern !== undefined);
+		});
+
+		test('encoded user information does not resolve to an approved pattern', () => {
+			const encodedSeparators = ['%2F', '%2f', '%5C', '%5c', '%25%32%46', '%25%32%66', '%25%35%43', '%25%35%63'];
+			const approved = {
+				'https://example.com': true,
+				'https://*.example.com': true,
+			};
+
+			assert.deepStrictEqual(
+				encodedSeparators.map(encodedSeparator => getMatchingPattern(URI.parse(`https://example.com${encodedSeparator}@evil.example/resource`), approved)),
+				encodedSeparators.map(() => undefined)
+			);
+		});
+
+		test('authorityless URL resolves only to a bare wildcard pattern', () => {
+			const url = URI.parse(String.raw`https:\localhost%25%32%66@evil.example/resource`);
+			assert.deepStrictEqual([
+				getMatchingPattern(url, { 'https://localhost': true }),
+				getMatchingPattern(url, { '*': true }),
+			], [
+				undefined,
+				'*',
+			]);
 		});
 	});
 });

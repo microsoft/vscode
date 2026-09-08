@@ -52,7 +52,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { type IAgentHostAutomationExecution, IAgentHostAutomationService } from './agentHostAutomationService.js';
+import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -391,16 +391,12 @@ export interface IAgentServiceOptions {
 }
 
 export interface IAgentServiceCallbacks {
-	readonly automationExecution: IAgentHostAutomationExecution;
 	readonly canEvictChangeset: (changeset: string) => boolean;
 	readonly startAgentMergeTurn: IAgentMergeControllerOptions['startTurn'];
 	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
-	readonly getAutonomousSessionConfig: IAgentMergeControllerOptions['getAutonomousSessionConfig'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
-	readonly getSessionMetadata: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
-	readonly restoreSession: (session: URI) => Promise<void>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 }
@@ -423,7 +419,6 @@ export interface IAgentServiceCollaborators {
 	readonly localTurns: AgentHostLocalTurns;
 	readonly sideEffects: AgentSideEffects;
 	readonly serverToolHost: AgentServerToolHost;
-	readonly automationService: IAgentHostAutomationService;
 }
 
 /** Core services that must exist before {@link AgentService} can be constructed. */
@@ -539,7 +534,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	private readonly _configurationService: AgentConfigurationService;
-	private readonly _automationService: IAgentHostAutomationService;
+	private readonly _automationService: AgentHostAutomationService;
 	/** Captures baseline / per-turn git checkpoints backing the changeset pipeline. */
 	private readonly _checkpointService: IAgentHostCheckpointService;
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
@@ -648,7 +643,22 @@ export class AgentService extends Disposable implements IAgentService {
 		this._localTurns = collaborators.localTurns;
 		this._sideEffects = collaborators.sideEffects;
 		this._serverToolHost = collaborators.serverToolHost;
-		this._automationService = collaborators.automationService;
+		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
+			isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
+			createSession: (template, run) => this.createSession({
+				provider: template.provider,
+				model: template.model,
+				agent: template.agent,
+				workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
+				config: template.config,
+				_meta: {
+					automation: run.automation,
+					automationRun: run.resource,
+				},
+			}),
+			startSession: (session, message) => this._startAutomationMessage(session, message),
+			cancelSession: session => this._cancelAutomationSession(session),
+		}));
 		this._register(this._providerService.registerProviderInitializer(provider => this._initializeProvider(provider)));
 		this._register(this._providerService.onDidRegisterProvider(provider => this._onDidRegisterProvider(provider)));
 		this._sessionResidency = this._register(instantiationService.createInstance(
@@ -675,31 +685,12 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		));
 		core.callbackBinder.bind({
-			automationExecution: {
-				isSessionTemplateAvailable: template => this._providerService.resolveProvider(template.provider) !== undefined,
-				createSession: (template, run) => this.createSession({
-					provider: template.provider,
-					model: template.model,
-					agent: template.agent,
-					workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
-					config: template.config,
-					_meta: {
-						automation: run.automation,
-						automationRun: run.resource,
-					},
-				}),
-				startSession: (session, message) => this._startAutomationMessage(session, message),
-				cancelSession: session => this._cancelAutomationSession(session),
-			},
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
 			startAgentMergeTurn: (session, turnId, prompt) => this._startAgentMergePrompt(session, turnId, prompt),
 			cancelAgentMergeTurn: (session, turnId) => this._cancelAgentMergePrompt(session, turnId),
 			postAgentMergeNotice: (session, kind, content) => this._postAgentMergeNotice(session, kind, content),
-			getAutonomousSessionConfig: (session, config) => this._providerService.getProviderForSession(session)?.getAutonomousSessionConfig?.(config),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
-			getSessionMetadata: session => this._getSessionMetadata(session),
-			restoreSession: session => this.restoreSession(session),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 		});
