@@ -125,14 +125,20 @@
 
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center {
 	box-sizing: border-box;
+	width: calc(100% - var(--vscode-spacing-size200));
 	height: var(--vscode-spacing-size240);
+	margin: 0 var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-medium);
 	background: transparent;
 	box-shadow: none;
+	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 }
 
-.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:hover {
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:hover,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:focus-visible {
 	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:focus-visible {
@@ -154,15 +160,15 @@
 	justify-content: center;
 	align-items: center;
 	height: 100%;
-	color: var(--vscode-editorCodeLens-foreground);
+	transform: translateX(calc(-1 * var(--vscode-spacing-size100)));
+	color: inherit;
 }
 
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-left,
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-right {
 	min-width: var(--vscode-spacing-size120);
 	height: 0;
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorCodeLens-foreground);
-	opacity: 0.5;
+	border-top: var(--vscode-strokeThickness) solid currentColor;
 	flex: 1;
 }
 
@@ -171,7 +177,7 @@
 	align-items: center;
 	min-width: 0;
 	margin: 0 var(--vscode-spacing-size60);
-	color: var(--vscode-editorCodeLens-foreground);
+	color: inherit;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
