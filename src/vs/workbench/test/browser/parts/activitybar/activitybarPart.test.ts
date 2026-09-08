@@ -457,6 +457,7 @@ suite('ActivitybarPart', () => {
 		});
 		const el = document.createElement('div');
 		fixture.appendChild(el);
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
 		part.create(el);
 
 		const activeModernBackground = el.style.backgroundColor;
