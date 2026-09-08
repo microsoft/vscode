@@ -54,14 +54,6 @@ export class AutomationInputCompletions extends AgentHostInputCompletionsBase<vo
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
-		// Match the Sessions composer so typing after a deletion retriggers suggestions.
-		this.editor.updateOptions({
-			quickSuggestions: {
-				other: 'on',
-				comments: 'off',
-				strings: 'off',
-			},
-		});
 		this._register(registerChatInputReferenceDecorationType(codeEditorService, AUTOMATION_SKILL_DECORATION_TYPE));
 		this._register(this.editor.onDidChangeModelContent(() => {
 			this.restoreRequest.clear();

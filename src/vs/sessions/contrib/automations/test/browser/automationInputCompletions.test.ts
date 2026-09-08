@@ -14,7 +14,6 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { CompletionItemKind, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
@@ -61,17 +60,13 @@ suite('AutomationInputCompletions', () => {
 
 	teardown(() => sinon.restore());
 
-	test('enables quick suggestions and shows agent host skills for the automation draft session', async () => {
+	test('shows agent host skills for the automation draft session', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('vscode-chat-input:automation')));
 		let decorations: readonly Range[] = [];
-		let quickSuggestions: IEditorOptions['quickSuggestions'];
 		const editor = upcastPartial<ICodeEditor>({
 			getModel: () => model,
 			onDidChangeModelContent: Event.None,
-			updateOptions: options => {
-				quickSuggestions = options.quickSuggestions;
-			},
 			setDecorationsByType: (_description, _key, options) => {
 				decorations = options.map(option => Range.lift(option.range));
 				return options.map((_, index) => `decoration-${index}`);
@@ -109,12 +104,7 @@ suite('AutomationInputCompletions', () => {
 		const command = result?.suggestions[0].command;
 		CommandsRegistry.getCommand(command!.id)!.handler(upcastPartial<ServicesAccessor>({}), ...command!.arguments!);
 
-		assert.deepStrictEqual({ quickSuggestions, suggestions, decorations }, {
-			quickSuggestions: {
-				other: 'on',
-				comments: 'off',
-				strings: 'off',
-			},
+		assert.deepStrictEqual({ suggestions, decorations }, {
 			suggestions: [
 				{
 					label: { label: '/review ', description: 'Review the workspace' },
@@ -150,7 +140,6 @@ suite('AutomationInputCompletions', () => {
 		const editor = upcastPartial<ICodeEditor>({
 			getModel: () => model,
 			onDidChangeModelContent: onDidChangeModelContent.event,
-			updateOptions: () => { },
 			setDecorationsByType: (_description, _key, options) => {
 				decorations = options.map(option => Range.lift(option.range));
 				decorationRanges.clear();
