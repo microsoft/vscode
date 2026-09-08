@@ -2975,10 +2975,17 @@ suite('CopilotChatSessionsProvider', () => {
 				const discoveryStarted = new DeferredPromise<void>();
 				let modes: readonly IChatMode[] = [];
 				let sentOptions: IChatSendRequestOptions | undefined;
+				const sessionOptions: ChatSessionOptionsMap = new Map();
 				const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
 					sentOptions = options;
 					return { kind: 'rejected', reason: 'Request recorded' };
 				}, {
+					chatSessionsService: {
+						setSessionOption: (_resource, optionId, value) => {
+							sessionOptions.set(optionId, value);
+							return true;
+						},
+					},
 					chatModeService: createModeService(() => modes, async () => {
 						await discoveryStarted.complete();
 						await ready.p;
@@ -3001,11 +3008,13 @@ suite('CopilotChatSessionsProvider', () => {
 					sentBeforeDiscovery,
 					instructions: sentOptions?.modeInfo?.modeInstructions?.content,
 					agent: sentOptions?.modeInfo?.modeInstructions?.name,
+					nativeAgentOption: sessionOptions.get('agent'),
 					isBuiltin: sentOptions?.modeInfo?.isBuiltin,
 				}, {
 					sentBeforeDiscovery: false,
 					instructions: 'Instructions for reviewer',
 					agent: 'reviewer',
+					nativeAgentOption: 'reviewer',
 					isBuiltin: false,
 				});
 			});
