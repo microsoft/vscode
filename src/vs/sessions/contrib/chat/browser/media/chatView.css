@@ -38,17 +38,6 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content {
-	box-sizing: border-box;
-	padding: var(--vscode-spacing-size120);
-	background: color-mix(in srgb, var(--session-view-background) 86%, transparent);
-	-webkit-backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
-	backdrop-filter: blur(var(--vscode-spacing-size160)) saturate(1.08);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 70%, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	box-shadow: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size240) color-mix(in srgb, var(--vscode-widget-shadow) 18%, transparent);
-}
-
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
@@ -73,6 +62,25 @@
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
+/* The edit input takes the place of the request bubble, so it needs the same opaque base under the translucent bubble tint. */
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-input-part.editing .chat-input-container,
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-request.editing .interactive-input-part .chat-input-container {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+/* The checkpoint and fork rows sit straight on the wallpaper: their controls are
+ * transparent at rest and only :hover supplies a fill. Back each row's toolbar and
+ * its sibling text with one opaque plate — the move the editor-instance restore row
+ * already makes in chat.css — so the controls stay transparent and their existing
+ * hover fill composites over it. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-label-text,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-dot-separator {
+	background-color: var(--session-view-background);
 }
 
 .agent-sessions-workbench .interactive-session {

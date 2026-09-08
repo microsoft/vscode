@@ -974,7 +974,12 @@
 		"--vscode-window-inactiveBorder",
 		"--vscode-chat-voiceGlowBaseColor",
 		"--vscode-chat-voiceListeningGlow",
-		"--vscode-chat-voiceSpeakingGlow"
+		"--vscode-chat-voiceSpeakingGlow",
+		"--vscode-statusBar-inactiveBackground",
+		"--vscode-modernPanel-border",
+		"--vscode-modernUI-shellBackground",
+		"--vscode-modernUI-inactiveShellBackground",
+		"--vscode-modernSash-gripForeground"
 	],
 	"others": [
 		"--action-widget-close-start-opacity",
