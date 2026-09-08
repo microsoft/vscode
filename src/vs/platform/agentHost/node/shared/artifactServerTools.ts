@@ -111,7 +111,7 @@ function artifactDisplayInputs(args: unknown): readonly IArtifactDisplayInput[] 
 		return [];
 	}
 	const input = args as Record<string, unknown>;
-	const items = input['items'];
+	const items = input.items;
 	if (!Array.isArray(items)) {
 		return [input];
 	}

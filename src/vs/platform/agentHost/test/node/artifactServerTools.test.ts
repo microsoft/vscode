@@ -41,6 +41,7 @@ suite('Artifact Server Tools', () => {
 		const items = addDefinition?.inputSchema?.properties?.items as {
 			readonly type?: string;
 			readonly minItems?: number;
+			readonly description?: string;
 			readonly items?: { readonly properties?: Record<string, object>; readonly required?: readonly string[] };
 		} | undefined;
 
@@ -48,9 +49,7 @@ suite('Artifact Server Tools', () => {
 			required: addDefinition?.inputSchema?.required,
 			type: items?.type,
 			minItems: items?.minItems,
-			description: addDefinition?.inputSchema?.properties?.items && 'description' in addDefinition.inputSchema.properties.items
-				? addDefinition.inputSchema.properties.items.description
-				: undefined,
+			description: items?.description,
 			itemRequired: items?.items?.required,
 			uri: items?.items?.properties?.uri,
 		}, {

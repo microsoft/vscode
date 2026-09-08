@@ -316,7 +316,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}
 	});
 
-	serverToolTest('server tool: add_artifact_or_reference records a reference in session state', async function () {
+	serverToolTest('server tool: add_artifact_or_reference records artifacts and references in one batch', async function () {
 		try {
 			const session = await createSession('artifact-add', false, () => setRootConfig({
 				[AgentHostArtifactToolsConfigKey]: true,
@@ -361,7 +361,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const { tool } = await driveServerTool(
 				session,
 				'turn-artifact-reject-session',
-				'Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".',
+				'Call add_artifact_or_reference exactly once with an items array containing one entry: type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".',
 				ArtifactServerToolName.AddArtifactOrReference,
 				{
 					success: false,
