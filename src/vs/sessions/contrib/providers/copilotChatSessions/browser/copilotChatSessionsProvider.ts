@@ -11,7 +11,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableFromPromise, observableSignal, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableFromEvent, observableFromPromise, observableSignal, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -269,8 +269,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	private readonly _status = observableValue(this, SessionStatus.Untitled);
 	readonly status: IObservable<SessionStatus> = this._status;
 
-	private readonly _permissionLevel = observableValue(this, ChatPermissionLevel.Default);
-	readonly permissionLevel: IObservable<ChatPermissionLevel> = this._permissionLevel;
+	private readonly _permissionLevelPreference = observableValue<string>(this, ChatPermissionLevel.Default);
+	readonly permissionLevel: IObservable<ChatPermissionLevel>;
 
 	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
@@ -337,6 +337,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get selectedModelId(): string | undefined { return this._modelId; }
+	get permissionLevelPreference(): string { return this._permissionLevelPreference.get(); }
 	get chatMode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
@@ -367,6 +368,11 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	) {
 		super();
 		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialAutomationSessionConfiguration?.sessionTemplate));
+		const policyRestricted = observableFromEvent(this, configurationService.onDidChangeConfiguration, () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false);
+		this.permissionLevel = derived(this, reader => {
+			const preference = this._permissionLevelPreference.read(reader);
+			return !policyRestricted.read(reader) && isChatPermissionLevel(preference) ? preference : ChatPermissionLevel.Default;
+		});
 		this.sessionId = toSessionId(providerId, resource);
 		this.providerId = providerId;
 		this.sessionType = AgentSessionProviders.Background;
@@ -533,8 +539,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._modeObservable.set({ id: modeId, kind: modeKind }, undefined);
 	}
 
-	setPermissionLevel(level: ChatPermissionLevel): void {
-		this._permissionLevel.set(level, undefined);
+	setPermissionLevel(level: string): void {
+		this._permissionLevelPreference.set(level, undefined);
 	}
 
 	setTitle(title: string): void {
@@ -1796,7 +1802,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			} else {
 				delete config[SessionConfigKey.Mode];
 			}
-			config[SessionConfigKey.AutoApprove] = session.permissionLevel.get();
+			config[SessionConfigKey.AutoApprove] = session.permissionLevelPreference;
 		} else {
 			if (config[SessionConfigKey.Mode] === undefined && initialConfiguration?.mode !== undefined) {
 				config[SessionConfigKey.Mode] = initialConfiguration.mode;
@@ -1828,16 +1834,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		throw new Error('CopilotChatSessionsProvider does not support quick chats');
 	}
 
-	/**
-	 * Resolves the initial permission level for a brand-new session from
-	 * `chat.permissions.default`, clamped to `Default` when enterprise policy
-	 * disables global auto-approval.
-	 */
+	/** The initial permission preference for a brand-new session. */
 	private _defaultPermissionLevel(): ChatPermissionLevel {
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		if (policyRestricted) {
-			return ChatPermissionLevel.Default;
-		}
 		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
 		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
 	}
@@ -1869,7 +1867,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 		}
 		const permissionLevel = template?.config?.[SessionConfigKey.AutoApprove] ?? configuration.permissionLevel;
-		if (!(session instanceof RemoteNewSession) && isChatPermissionLevel(permissionLevel)) {
+		if (session instanceof CopilotCLISession && typeof permissionLevel === 'string') {
 			session.setPermissionLevel(permissionLevel);
 		}
 	}
