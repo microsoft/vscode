@@ -8,11 +8,14 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -21,6 +24,7 @@ import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
+import { EDITOR_WORD_WRAP } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -32,7 +36,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { SessionsDiffViewModeContext } from '../../editor/common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 
@@ -153,6 +157,11 @@ const agentsDiffEditorActive = ContextKeyExpr.or(
 	agentsMultiDiffEditorActive
 );
 
+const agentsMultiDiffEditorsActive = ContextKeyExpr.or(
+	agentsChangesEditorActive,
+	agentsMultiDiffEditorActive
+);
+
 const singlePaneChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, SinglePaneLayoutEnabledContext);
 const singlePaneTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, SinglePaneLayoutEnabledContext);
 
@@ -206,6 +215,57 @@ const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
 	),
 	MainEditorAreaVisibleContext
 );
+
+const singlePaneMultiDiffEditorTitleVisible = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		singlePaneChangesEditorTitle,
+		singlePaneMultiDiffEditorTitle,
+	),
+	MainEditorAreaVisibleContext
+);
+
+class ToggleSessionsDiffWordWrapAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.toggleDiffWordWrap';
+
+	constructor() {
+		super({
+			id: ToggleSessionsDiffWordWrapAction.ID,
+			title: localize2('agentSessions.diffWordWrap', "Word Wrap"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: singlePaneMultiDiffEditorTitleVisible,
+			}, {
+				id: MenuId.EditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, SinglePaneLayoutEnabledContext.negate()),
+			}],
+			toggled: ContextKeyExpr.or(
+				ContextKeyExpr.equals(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'on'),
+				ContextKeyExpr.and(
+					ContextKeyExpr.equals(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit'),
+					EDITOR_WORD_WRAP,
+				),
+			),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const codeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor()
+			?? accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const wordWrap = accessor.get(IDiffEditorOptionsService).wordWrap.get();
+		const inheritedWordWrap = accessor.get(IConfigurationService).getValue<'off' | 'on' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap');
+		const isWordWrapEnabled = codeEditor
+			? codeEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1
+			: wordWrap === 'on' || wordWrap === 'inherit' && inheritedWordWrap !== 'off';
+		await accessor.get(IDiffEditorOptionsService).setWordWrap(isWordWrapEnabled ? 'off' : 'on');
+	}
+}
+
+registerAction2(ToggleSessionsDiffWordWrapAction);
 
 /** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {

@@ -110,6 +110,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	 */
 	public setRenderSideBySide(renderSideBySide: boolean, options?: { readonly useInlineViewWhenSpaceIsLimited?: boolean }): void {
 		this._diffLayoutOptions.set({
+			...this._diffLayoutOptions.get(),
 			renderSideBySide,
 			useInlineViewWhenSpaceIsLimited: options?.useInlineViewWhenSpaceIsLimited ?? false,
 		}, undefined);
@@ -126,6 +127,13 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public toggleRenderSideBySide(): void {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
+	}
+
+	public setDiffWordWrap(diffWordWrap: 'off' | 'on' | 'inherit'): void {
+		this._diffLayoutOptions.set({
+			...this._diffLayoutOptions.get(),
+			diffWordWrap,
+		}, undefined);
 	}
 
 	/** Reserves empty space below the last diff entry. */

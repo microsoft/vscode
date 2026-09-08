@@ -15,10 +15,11 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
+import { SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { EDITOR_WORD_WRAP } from '../../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -257,6 +258,72 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	test('Word Wrap is an always-visible toggle only for multi-diff editors in both Agents layouts', () => {
+		const getItem = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentSessions.toggleDiffWordWrap');
+		const singlePane = getItem(Menus.SessionsEditorTitle);
+		const classic = getItem(MenuId.EditorTitle);
+
+		assert.ok(singlePane);
+		assert.ok(classic);
+		const singlePaneWhen = singlePane.when?.serialize() ?? '';
+		const classicWhen = classic.when?.serialize() ?? '';
+		const onContext = new Context(1, null);
+		onContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'on');
+		onContext.setValue(EDITOR_WORD_WRAP.key, false);
+		const offContext = new Context(1, null);
+		offContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'off');
+		offContext.setValue(EDITOR_WORD_WRAP.key, true);
+		const inheritedOnContext = new Context(1, null);
+		inheritedOnContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit');
+		inheritedOnContext.setValue(EDITOR_WORD_WRAP.key, true);
+		const inheritedOffContext = new Context(1, null);
+		inheritedOffContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit');
+		inheritedOffContext.setValue(EDITOR_WORD_WRAP.key, false);
+		assert.deepStrictEqual({
+			singlePaneTitle: typeof singlePane.command.title === 'string' ? singlePane.command.title : singlePane.command.title.value,
+			singlePaneGroup: singlePane.group,
+			singlePaneOrder: singlePane.order,
+			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
+			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
+			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
+			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
+			singlePaneHasExperimentGate: singlePaneWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
+			classicTitle: typeof classic.command.title === 'string' ? classic.command.title : classic.command.title.value,
+			classicHasSessionsGate: classicWhen.includes(IsSessionsWindowContext.key),
+			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
+			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
+			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
+			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
+			classicHasExperimentGate: classicWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
+			checkedWhenOn: singlePane.command.toggled?.evaluate(onContext),
+			checkedWhenOff: singlePane.command.toggled?.evaluate(offContext),
+			checkedWhenInheritedOn: singlePane.command.toggled?.evaluate(inheritedOnContext),
+			checkedWhenInheritedOff: singlePane.command.toggled?.evaluate(inheritedOffContext),
+		}, {
+			singlePaneTitle: 'Word Wrap',
+			singlePaneGroup: '1_diff',
+			singlePaneOrder: 20,
+			singlePaneHasTextDiffGate: false,
+			singlePaneHasChangesGate: true,
+			singlePaneHasMultiDiffGate: true,
+			singlePaneHasLayoutGate: true,
+			singlePaneHasExperimentGate: false,
+			classicTitle: 'Word Wrap',
+			classicHasSessionsGate: true,
+			classicHasTextDiffGate: false,
+			classicHasChangesGate: true,
+			classicHasMultiDiffGate: true,
+			classicHasLayoutGate: true,
+			classicHasExperimentGate: false,
+			checkedWhenOn: true,
+			checkedWhenOff: false,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		});
+	});
+
 	test('preferred diff view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
@@ -326,6 +393,10 @@ suite('Changes View Actions', () => {
 
 	test('Changes accessibility help describes the classic diff action', () => {
 		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
+	});
+
+	test('Changes accessibility help describes Word Wrap', () => {
+		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('view mode toggles are moved to the editor header layout overflow for non-text single-file diffs', () => {

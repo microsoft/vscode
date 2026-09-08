@@ -157,6 +157,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		this._multiDiffEditorWidget?.setViewMode(mode);
 	}
 
+	setDiffEditorWordWrap(wordWrap: 'off' | 'on' | 'inherit'): void {
+		this._multiDiffEditorWidget?.setDiffWordWrap(wordWrap);
+	}
+
 	resetDiffEditorWidthBasedLayout(): void {
 		this._multiDiffEditorWidget?.resetWidthBasedLayout();
 	}
