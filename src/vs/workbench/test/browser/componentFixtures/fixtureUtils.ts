@@ -264,6 +264,7 @@ import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark
 import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
 import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
 import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_black.json' with { type: 'json' };
+import hc_light from '../../../../../../extensions/theme-defaults/themes/hc_light.json' with { type: 'json' };
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
@@ -287,6 +288,7 @@ const themeJsonModules: Record<string, string> = {
 	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
 	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
 	'/extensions/theme-defaults/themes/hc_black.json': toThemeJsonText(hc_black),
+	'/extensions/theme-defaults/themes/hc_light.json': toThemeJsonText(hc_light),
 	'/extensions/theme-defaults/themes/light_modern.json': toThemeJsonText(light_modern),
 	'/extensions/theme-defaults/themes/light_plus.json': toThemeJsonText(light_plus),
 	'/extensions/theme-defaults/themes/light_vs.json': toThemeJsonText(light_vs),
@@ -328,6 +330,7 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
+const lightHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_light.json', ThemeTypeSelector.HC_LIGHT);
 
 function createBuiltInFileIconTheme(id: BuiltInComponentFixtureFileIconTheme, extensionName: string): FileIconThemeData {
 	const location = fileIconThemeResources[id];
@@ -357,6 +360,7 @@ const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme, 
 const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme, scopeThemingParticipants: false } as const satisfies ComponentFixtureThemeVariant;
 const additionalThemeVariants = {
 	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme, scopeThemingParticipants: true },
+	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme, scopeThemingParticipants: true },
 } as const satisfies Record<string, ComponentFixtureAdditionalThemeVariant>;
 export type ComponentFixtureAdditionalTheme = keyof typeof additionalThemeVariants;
 

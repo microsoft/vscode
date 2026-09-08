@@ -32,8 +32,8 @@ import { getAppNodeModulesPath } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
+	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
-	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -184,7 +184,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 					initial.userDataPath,
 					live,
 					{
-						timeoutMs: getNewAgentHostRegistrationTimeoutMs(cliInstallation.installed),
+						timeoutMs: COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 						token: tokenSource.token,
 						progress: elapsedMs => this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register... (${Math.floor(elapsedMs / 1000)} seconds elapsed)`),
 					},
@@ -387,10 +387,12 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
-		this._shellEnvironment ??= this._resolveUserShellEnvironment().catch(error => {
-			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
-			return process.env;
-		});
+		this._shellEnvironment ??= this._resolveUserShellEnvironment()
+			.then(environment => ({ ...process.env, ...environment }))
+			.catch(error => {
+				this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
+				return process.env;
+			});
 		return this._shellEnvironment;
 	}
 

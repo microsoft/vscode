@@ -5,10 +5,9 @@
 
 /* Overrides for the new-chat-in-session view to match VS Code chat input styling */
 
-/* Position the input at the bottom of the view */
+/* Keep the composer vertically centered like the new-session view. */
 .new-chat-in-session .new-chat-widget-container,
 .new-chat-in-session .new-chat-widget-container.revealed {
-	justify-content: flex-end;
 	padding: 0;
 }
 
@@ -16,6 +15,7 @@
 .new-chat-in-session .new-chat-widget-content {
 	width: 100%;
 	max-width: 950px;
+	position: relative;
 	/* Left-align (rather than centering with `margin: 0 auto`) so the input's
 	 * left edge — and therefore the attach (+) button — stays anchored as the
 	 * viewport narrows past max-width. */

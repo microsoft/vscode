@@ -42,6 +42,7 @@ const AGENT_HOST_REPLY = 'MOCKED_AGENT_HOST_RESPONSE';
 const AGENT_HOST_MODEL = 'gpt-5.3-codex';
 const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement';
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
+const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
 const AGENT_HOST_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sandbox';
 const AGENT_HOST_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SANDBOX_RESPONSE';
@@ -54,6 +55,27 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 // AgentHost suite by {@link setupAgentHostSuite}.
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
+
+function probeLinuxDocker(): { readonly available: boolean; readonly reason?: string } {
+	const result = cp.spawnSync('docker', ['info', '--format', '{{.OSType}}'], {
+		encoding: 'utf8',
+		timeout: 15_000,
+		windowsHide: true,
+	});
+	const operatingSystem = result.stdout?.trim().toLowerCase() ?? '';
+	if (result.status === 0 && operatingSystem === 'linux') {
+		return { available: true };
+	}
+	const stderr = result.stderr?.trim() ?? '';
+	return {
+		available: false,
+		reason: result.error?.message
+			?? (stderr || undefined)
+			?? (operatingSystem
+				? `Docker daemon reports '${operatingSystem}' containers`
+				: `docker info exited with code ${result.status ?? 'unknown'}`),
+	};
+}
 
 export function setup(logger: Logger) {
 
@@ -215,6 +237,108 @@ export function setup(logger: Logger) {
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+	});
+
+	const linuxDocker = probeLinuxDocker();
+	const runDevContainerSuite = linuxDocker.available || process.platform === 'linux';
+	if (!linuxDocker.available) {
+		logger.log(process.platform === 'linux'
+			? `Linux Docker probe failed: ${linuxDocker.reason}`
+			: `Skipping Agents Window (Dev Container AgentHost): ${linuxDocker.reason}`);
+	}
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container AgentHost)', () => {
+		if (process.platform === 'linux') {
+			before(() => assert.ok(linuxDocker.available, `Expected a reachable Linux Docker daemon: ${linuxDocker.reason}`));
+		}
+
+		const devContainer = setupAgentHostSuite(logger, {
+			serverLabel: 'Dev Container AgentHost',
+			mockServerHost: '0.0.0.0',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(DEV_CONTAINER_SCENARIO_ID, new ScenarioBuilder().emit('OK').build());
+			},
+			settings: {
+				'chat.agentHost.devContainer.enabled': true,
+				'chat.remoteAgentHostsEnabled': true,
+			},
+			prepareWorkspace: workspacePath => {
+				const configDirectory = path.join(workspacePath, '.devcontainer');
+				const mockServerUrl = `http://vscode-smoke.test:${devContainer.mockServer.port}`;
+				fs.mkdirSync(configDirectory, { recursive: true });
+				fs.writeFileSync(path.join(configDirectory, 'devcontainer.json'), JSON.stringify({
+					name: 'Agents Window Smoke',
+					image: 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04',
+					remoteUser: 'vscode',
+					runArgs: ['--add-host=vscode-smoke.test:host-gateway'],
+					containerEnv: {
+						COPILOT_API_URL: mockServerUrl,
+						COPILOT_DEBUG_GITHUB_API_URL: mockServerUrl,
+						GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+						VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
+						VSCODE_SMOKE_TEST_PROXY_HEADER: 'dev-container',
+					},
+					postCreateCommand: [
+						'set -e',
+						'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
+						'mkdir -p ~/.vscode-cli-insider',
+						'curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-${cli_arch}/insider" | tar xz -C ~/.vscode-cli-insider',
+						'chmod +x ~/.vscode-cli-insider/code-insiders',
+					].join(' && '),
+				}, null, 2));
+			},
+			cleanupWorkspace: workspacePath => {
+				fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
+				const containerIds = cp.execFileSync('docker', [
+					'ps',
+					'-aq',
+					'--filter',
+					`label=devcontainer.local_folder=${workspacePath}`,
+				], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+				if (containerIds.length > 0) {
+					cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
+				}
+			},
+		});
+
+		it('Starts a session in a Dev Container', async function () {
+			this.timeout(10 * 60 * 1000);
+			cp.execFileSync('docker', ['info'], { stdio: 'pipe' });
+			const app = this.app as Application;
+
+			try {
+				const requestsBefore = devContainer.mockServer.requestCount();
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				await app.workbench.agentsWindow.selectDevContainer();
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
+				assert.ok(
+					devContainer.mockServer.requestCount() > requestsBefore,
+					'expected the mock LLM server to receive the Dev Container Agent Host request'
+				);
+
+				const ahpFrames = await waitForLogContent(
+					() => readAhpFrames(path.join(devContainer.logsPath, 'ahp')),
+					/"transport":"devcontainer"/,
+					30_000,
+				);
+				assert.match(ahpFrames, /"vscode\.clientConnectionKind":"dev_container"/);
+				assert.match(ahpFrames, /"transport":"devcontainer"/);
+
+				const rendererLogs = await waitForLogContent(
+					() => readRendererLogs(devContainer.logsPath),
+					/\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/,
+					30_000,
+				);
+				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+			} catch (error) {
+				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
 			}
 		});
@@ -513,11 +637,15 @@ interface IAgentHostSuiteContext {
  */
 function setupAgentHostSuite(logger: Logger, config: {
 	readonly serverLabel: string;
+	readonly mockServerHost?: string;
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
+	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
+	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
 	let logsPath: string;
+	let workspacePath: string | undefined;
 
 	before(async function () {
 		const { startServer, ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
@@ -526,7 +654,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 		registerScenario(AGENT_HOST_WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_WARMUP_REPLY).build());
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
-		mockServer = await startServer(0, mockServerStartOptions((msg: string) => logger.log(msg)));
+		mockServer = await startServer(0, {
+			...mockServerStartOptions((msg: string) => logger.log(msg)),
+			host: config.mockServerHost,
+		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
 	});
 
@@ -554,6 +685,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: getMockLlmServerUrl(mockServer),
 			},
 		}));
+		workspacePath = (this.app as Application).workspacePathOrFolder;
+		await config.prepareWorkspace?.(workspacePath);
 
 		// Pre-seed settings.json on disk into BOTH the default profile and the
 		// Agents profile so Agent Host startup observes the test configuration.
@@ -588,7 +721,11 @@ function setupAgentHostSuite(logger: Logger, config: {
 		await (this.app as Application).start();
 	});
 
-	installAppAfterHandler();
+	installAppAfterHandler(undefined, async () => {
+		if (workspacePath) {
+			await config.cleanupWorkspace?.(workspacePath);
+		}
+	});
 
 	before(async function () {
 		const app = this.app as Application;
@@ -640,4 +777,13 @@ function ahpJsonlFiles(ahpLogDir: string): string[] {
 /** Concatenates every AHP JSONL transcript in `ahpLogDir` into one string. */
 function readAhpFrames(ahpLogDir: string): string {
 	return ahpJsonlFiles(ahpLogDir).map(f => fs.readFileSync(path.join(ahpLogDir, f), 'utf8')).join('\n');
+}
+
+function readRendererLogs(logsPath: string): string {
+	return fs.existsSync(logsPath)
+		? fs.readdirSync(logsPath, { withFileTypes: true })
+			.filter(entry => entry.isDirectory() && /^window\d+$/.test(entry.name))
+			.map(entry => readFileIfExists(path.join(logsPath, entry.name, 'renderer.log')))
+			.join('\n')
+		: '';
 }

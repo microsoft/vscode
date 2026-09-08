@@ -49,7 +49,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -311,6 +312,7 @@ function createTestPicker(
 		exists: async () => true,
 	}),
 	actionWidgetService?: IActionWidgetService,
+	dialogService: IDialogService = new TestDialogService(),
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -328,6 +330,7 @@ function createTestPicker(
 	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, fileDialogService);
+	instantiationService.stub(IDialogService, dialogService);
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, {
@@ -1307,6 +1310,141 @@ suite('WorkspacePicker - Connection Status', () => {
 		providersService.setProviders([copilotProvider, agentHostProvider]);
 
 		assertSelectedProvider(picker, 'default-copilot', 'User selection is preserved across late provider registration');
+	});
+});
+
+suite('WorkspacePicker - Path validation', () => {
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const alreadySelected of [false, true]) {
+		test(`rejects and removes a missing local directory ${alreadySelected ? 'that is already selected' : 'before changing selection'}`, async () => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			const provider = createMockProvider('local-1');
+			providersService.setProviders([provider]);
+			const existingFolder = URI.file('/local/existing');
+			const missingFolder = URI.file('/local/missing');
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, [
+				{ uri: existingFolder, providerId: provider.id, checked: true },
+				{ uri: missingFolder, providerId: provider.id, checked: false },
+			]);
+			const removed: string[] = [];
+			const workspacesService = upcastPartial<IWorkspacesService>({
+				getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+				onDidChangeRecentlyOpened: Event.None,
+				removeRecentlyOpened: async folders => { removed.push(...folders.map(folder => folder.toString())); },
+			});
+			const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+			const dialogs: { message: string; detail?: string }[] = [];
+			const trustRequests: string[] = [];
+			const picker = createTestPicker(
+				disposables, providersService, storage, undefined, DispatchingWorkspacePicker, {}, workspacesService, recentWorkspacesService,
+				{ canSelectWorkspace: async folder => { trustRequests.push(folder.toString()); return true; } },
+				upcastPartial<IFileService>({
+					onDidChangeFileSystemProviderRegistrations: Event.None,
+					hasProvider: () => true,
+					exists: async folder => !extUri.isEqual(folder, missingFolder),
+				}),
+				undefined,
+				upcastPartial<IDialogService>({ info: async (message, detail) => { dialogs.push({ message, detail }); } }),
+			) as DispatchingWorkspacePicker;
+			picker.setSelectedWorkspace(alreadySelected ? missingFolder : existingFolder);
+
+			const selected = await picker.dispatchFolder(missingFolder, provider.id);
+
+			assert.deepStrictEqual({
+				selected,
+				selectedFolder: picker.selectedFolderUri?.toString(),
+				recents: recentWorkspacesService.getRecentWorkspaces().map(recent => recent.workspace.uri.toString()),
+				removed,
+				dialogs,
+				trustRequests,
+			}, {
+				selected: false,
+				selectedFolder: alreadySelected ? undefined : existingFolder.toString(),
+				recents: [existingFolder.toString()],
+				removed: [missingFolder.toString()],
+				dialogs: [{ message: 'Path does not exist', detail: `The path '${missingFolder.fsPath}' does not exist on this computer.` }],
+				trustRequests: [],
+			});
+		});
+	}
+
+	test('does not check remote or virtual workspaces against the local filesystem', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('provider');
+		providersService.setProviders([provider]);
+		const checkedFolders: string[] = [];
+		const picker = createTestPicker(
+			disposables, providersService, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined,
+			{ restoreFromSessions: false },
+			upcastPartial<IFileService>({
+				onDidChangeFileSystemProviderRegistrations: Event.None,
+				hasProvider: () => true,
+				exists: async folder => { checkedFolders.push(folder.toString()); return false; },
+			}),
+		) as DispatchingWorkspacePicker;
+		const folders = [URI.parse('vscode-remote://ssh-remote+host/project'), URI.parse('github-remote://owner/repository')];
+		const selections: boolean[] = [];
+		for (const folder of folders) {
+			selections.push(await picker.dispatchFolder(folder, provider.id));
+		}
+
+		assert.deepStrictEqual({ selections, checkedFolders, selectedFolder: picker.selectedFolderUri?.toString() }, {
+			selections: [true, true],
+			checkedFolders: [],
+			selectedFolder: folders[1].toString(),
+		});
+	});
+
+	test('ignores a missing directory result after a newer workspace selection', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		providersService.setProviders([provider]);
+		const missingFolder = URI.file('/local/missing');
+		const existingFolder = URI.file('/local/existing');
+		const exists = new DeferredPromise<boolean>();
+		const checking = new DeferredPromise<void>();
+		const dialogs: string[] = [];
+		const trustRequests: string[] = [];
+		const picker = createTestPicker(
+			disposables, providersService, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined,
+			{ restoreFromSessions: false, canSelectWorkspace: async folder => { trustRequests.push(folder.toString()); return true; } },
+			upcastPartial<IFileService>({
+				onDidChangeFileSystemProviderRegistrations: Event.None,
+				hasProvider: () => true,
+				exists: async folder => {
+					if (extUri.isEqual(folder, missingFolder)) {
+						void checking.complete();
+						return exists.p;
+					}
+					return true;
+				},
+			}),
+			undefined,
+			upcastPartial<IDialogService>({ info: async message => { dialogs.push(message); } }),
+		) as DispatchingWorkspacePicker;
+
+		const staleSelection = picker.dispatchFolder(missingFolder, provider.id);
+		await checking.p;
+		const selected = await picker.dispatchFolder(existingFolder, provider.id);
+		await exists.complete(false);
+
+		assert.deepStrictEqual({
+			staleSelected: await staleSelection,
+			selected,
+			selectedFolder: picker.selectedFolderUri?.toString(),
+			dialogs,
+			trustRequests,
+		}, {
+			staleSelected: false,
+			selected: true,
+			selectedFolder: existingFolder.toString(),
+			dialogs: [],
+			trustRequests: [existingFolder.toString()],
+		});
 	});
 });
 
@@ -3236,6 +3374,7 @@ function createTestablePicker(
 	}));
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, new TestDialogService());
 	instantiationService.stub(IFileService, upcastPartial<IFileService>({
 		onDidChangeFileSystemProviderRegistrations: Event.None,
 		hasProvider: () => true,
@@ -4012,6 +4151,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 		instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 		instantiationService.stub(IFileDialogService, {});
+		instantiationService.stub(IDialogService, new TestDialogService());
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
 			onDidChangeFileSystemProviderRegistrations: Event.None,
 			hasProvider: () => true,

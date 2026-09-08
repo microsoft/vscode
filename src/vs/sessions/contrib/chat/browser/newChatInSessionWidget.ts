@@ -74,6 +74,7 @@ export class NewChatInSessionWidget extends Disposable {
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 			petHostPreferred: _options.petHostPreferred,
+			renderRepositoryControls: false,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 		}));

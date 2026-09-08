@@ -46,7 +46,7 @@ export interface IDevContainerAgentHostTarget {
 
 export const IDevContainerAgentHostService = createDecorator<IDevContainerAgentHostService>('devContainerAgentHostService');
 
-/** Coordinates Dev Container connectors with dynamic remote Sessions providers. */
+/** Coordinates Dev Container connectors with persistent remote Sessions providers. */
 export interface IDevContainerAgentHostService {
 	readonly _serviceBrand: undefined;
 

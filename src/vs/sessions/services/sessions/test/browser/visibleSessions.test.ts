@@ -580,23 +580,49 @@ suite('VisibleSessions', () => {
 			});
 		});
 
-		test('insertAt(undefined, ...) is a no-op when the empty slot already exists', () => {
+		for (const side of ['left', 'right'] as const) {
+			for (const activate of [false, true]) {
+				test(`moves the existing empty slot to the ${side} with activate=${activate}`, () => {
+					const model = createModel();
+					const A = stubSession('A');
+					const B = stubSession('B');
+					const C = stubSession('C');
+					model.restoreGrid([
+						{ session: A, sticky: true },
+						{ session: undefined, sticky: false },
+						{ session: B, sticky: true },
+						{ session: C, sticky: false },
+					], 2);
+
+					model.insertAt(undefined, side === 'left' ? 'A' : 'C', side, activate);
+
+					assert.deepStrictEqual(snapshot(model), {
+						visible: side === 'left' ? [undefined, 'A', 'B', 'C'] : ['A', 'B', 'C', undefined],
+						active: activate ? undefined : 'B',
+						sticky: ['A', 'B'],
+					});
+				});
+			}
+		}
+
+		test('moving the empty slot makes it the most-recent non-sticky slot', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const B = stubSession('B');
+			const C = stubSession('C');
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: undefined, sticky: false },
+				{ session: B, sticky: false },
+			], 0);
 
-			model.setActive(A);
-			model.toggleStickiness(A);
-			model.setActive(B);
-			model.toggleStickiness(B);     // [A, B] sticky:[A, B]
-			model.insertAt(undefined, 'A', 'right'); // [A, undefined, B] active becomes empty slot
-			model.setActive(B);                       // re-activate B
-			model.insertAt(undefined, 'B', 'right'); // no-op — empty slot already exists
+			model.insertAt(undefined, 'B', 'right', false);
+			model.setActive(C);
 
 			assert.deepStrictEqual(snapshot(model), {
-				visible: ['A', undefined, 'B'],
-				active: 'B',
-				sticky: ['A', 'B'],
+				visible: ['A', 'B', 'C'],
+				active: 'C',
+				sticky: ['A'],
 			});
 		});
 	});
