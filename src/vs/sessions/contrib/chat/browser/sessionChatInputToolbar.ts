@@ -28,7 +28,7 @@ import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js
 import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility, type ISessionChatPillMenuEntry } from '../common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionBackgroundActivitiesControl, sessionSubagentsPillOptions } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl, sessionBrowsersPillOptions } from './sessionBrowsersControl.js';
@@ -128,6 +128,7 @@ export class SessionChatInputToolbar extends Disposable {
 		}
 		return this._findOwningSession(chat.resource, reader);
 	});
+	private readonly _isSubagentChat: IObservable<boolean> = derived(this, reader => this._chat.read(reader)?.origin?.kind === ChatOriginKind.Tool);
 
 	/** The current turn's diff stats. */
 	private readonly _diffStats: IObservable<IDiffStats>;
@@ -181,7 +182,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
 		this._customizationSections = sessionCustomizations.sections;
 
-		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || turnStatusPillsEnabled.read(reader));
+		const pillsEnabled = derived(reader => this._debugData.read(reader) !== undefined || (turnStatusPillsEnabled.read(reader) && !this._isSubagentChat.read(reader)));
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			artifacts: this._artifactSections,
