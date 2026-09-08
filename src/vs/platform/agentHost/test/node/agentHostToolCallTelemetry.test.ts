@@ -39,7 +39,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
-import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -114,6 +114,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let telemetry: CapturingTelemetryService;
+	let clientConnectionService: AgentHostClientConnectionService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -156,6 +157,16 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	function completeTurn(turnId: string): void {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+	}
+
+	function registerClientConnection(clientId: string, connected: boolean): void {
+		const source: IAgentHostClientConnectionSource = {
+			hasSeenClient: candidate => candidate === clientId,
+			isClientConnected: candidate => connected && candidate === clientId,
+			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
+			requestWorkspaceTrust: async () => false,
+		};
+		disposables.add(clientConnectionService.registerSource(source));
 	}
 
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
@@ -245,6 +256,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			whenIdle: async () => { },
 		};
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
@@ -257,7 +269,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
-			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+			[IAgentHostClientConnectionService, clientConnectionService],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
 				requestSessionWorkspaceUpdate: () => { },
@@ -714,8 +726,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
+				toolCallId: 'tc-confirm',
 				toolId: 'write',
 				toolSourceKind: 'agentHost',
+				executorClientConnectionState: undefined,
 				stalledTimeMs: true,
 			},
 		}]);
@@ -745,7 +759,42 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			await timeout(5 * 60 * 1000);
 		});
 
-		assert.deepStrictEqual(stalledEvents().map(e => e.data.blockerKind), [SessionInputRequestKind.ToolClientExecution]);
+		assert.deepStrictEqual(stalledEvents(), [{
+			eventName: 'agentHost.toolCallStalled',
+			data: {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-client-stall',
+				toolId: 'run_tests',
+				toolSourceKind: 'client',
+				executorClientConnectionState: 'unknown',
+				stalledTimeMs: true,
+			},
+		}]);
+	});
+
+	test('reports a disconnected client tool executor', async () => {
+		registerClientConnection('client-1', false);
+
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-1');
+
+			toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-disconnected',
+				invocationMessage: 'Run tests',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await timeout(5 * 60 * 1000);
+		});
+
+		assert.strictEqual(stalledEvents()[0].data.executorClientConnectionState, 'disconnected');
 	});
 
 	test('does not emit after a client tool completes or its turn is cancelled', async () => {
@@ -781,6 +830,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	});
 
 	test('emits when a stalled client tool later completes', async () => {
+		registerClientConnection('client-1', true);
+
 		await runWithFakedTimers({}, async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -805,8 +856,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-recovered',
 				toolId: 'run_tests',
 				toolSourceKind: 'client',
+				executorClientConnectionState: 'connected',
 				result: 'success',
 				totalTimeMs: true,
 				timeAfterStallMs: true,
