@@ -9,6 +9,7 @@ import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../browser/ui/actionbar/actionViewItems.js';
 import { ToggleMenuAction, ToolBar } from '../../../../browser/ui/toolbar/toolbar.js';
 import { Action, IAction } from '../../../../common/actions.js';
+import { Emitter } from '../../../../common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class FixedWidthActionViewItem extends BaseActionViewItem {
@@ -51,6 +52,29 @@ suite('ToolBar', () => {
 
 	teardown(() => {
 		container.remove();
+	});
+
+	test('reports changed item content without rebuilding the toolbar', () => {
+		const changed = store.add(new Emitter<void>());
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			actionViewItemProvider: action => new class extends FixedWidthActionViewItem {
+				readonly onDidChangeContent = changed.event;
+			}(action, 50)
+		}));
+		toolbar.setActions([store.add(new Action('dynamic', 'Dynamic'))]);
+		const element = toolbar.getItemElement(0)!;
+		const item = toolbar.getItemViewItem(0);
+		const widths: number[] = [];
+		store.add(toolbar.onDidChangeItemContent(() => widths.push(toolbar.getItemsWidth())));
+		element.style.width = '150px';
+		changed.fire();
+		assert.deepStrictEqual({
+			widths,
+			sameElement: toolbar.getItemElement(0) === element,
+			sameItem: toolbar.getItemViewItem(0) === item,
+		}, { widths: [150], sameElement: true, sameItem: true });
+		toolbar.setActions([]);
+		assert.strictEqual(changed.hasListeners(), false);
 	});
 
 	test('keeps the last primary action shrinkable when overflow is inserted', () => {

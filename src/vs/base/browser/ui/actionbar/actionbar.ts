@@ -9,13 +9,15 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from './ac
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from '../../../common/actions.js';
-import { Emitter } from '../../../common/event.js';
+import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 
 export interface IActionViewItem extends IDisposable {
+	/** Fires after rendered content changes in a way that may affect the item's size. */
+	readonly onDidChangeContent?: Event<void>;
 	action: IAction;
 	actionRunner: IActionRunner;
 	setActionContext(context: unknown): void;
@@ -108,6 +110,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
 	get onWillRun() { return this._onWillRun.event; }
+
+	private readonly _onDidChangeItemContent = this._register(new Emitter<void>());
+	readonly onDidChangeItemContent = this._onDidChangeItemContent.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -369,9 +374,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 				item = new ActionViewItem(this.context, action, viewItemOptions);
 			}
 
+			const disposables = new DisposableStore();
+			this.viewItemDisposables.set(item, disposables);
+
 			// Prevent native context menu on actions
 			if (!this.options.allowContextMenu) {
-				this.viewItemDisposables.set(item, DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+				disposables.add(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 					DOM.EventHelper.stop(e, true);
 				}));
 			}
@@ -379,6 +387,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
+			if (item.onDidChangeContent) {
+				disposables.add(item.onDidChangeContent(() => this._onDidChangeItemContent.fire()));
+			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
