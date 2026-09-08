@@ -201,15 +201,55 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
 				ariaLabel: tab.getAttribute('aria-label'),
+				tabIndex: tab.tabIndex,
 			})),
 			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed' },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed' },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0 },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1 },
 			],
 			hasMetadataRow: false,
 		});
+	});
+
+	test('arrow, Home, and End keys move focus and activate chat tabs', () => {
+		const { bar, container, sessionsService, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			tabs[0].focus();
+			const rightArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true });
+			tabs[0].dispatchEvent(rightArrow);
+			const leftArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true });
+			tabs[1].dispatchEvent(leftArrow);
+			const end = new KeyboardEvent(EventType.KEY_UP, { key: 'End', keyCode: 35, bubbles: true, cancelable: true });
+			tabs[0].dispatchEvent(end);
+			const home = new KeyboardEvent(EventType.KEY_UP, { key: 'Home', keyCode: 36, bubbles: true, cancelable: true });
+			tabs[1].dispatchEvent(home);
+			const startBoundaryArrow = new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true });
+			tabs[0].dispatchEvent(startBoundaryArrow);
+
+			assert.deepStrictEqual({
+				openedChats: sessionsService.openedChats.map(resource => resource.toString()),
+				focusedTab: bar.element.contains(mainWindow.document.activeElement) ? mainWindow.document.activeElement?.getAttribute('data-chat-resource') : undefined,
+				rightArrowDefaultPrevented: rightArrow.defaultPrevented,
+				leftArrowDefaultPrevented: leftArrow.defaultPrevented,
+				endDefaultPrevented: end.defaultPrevented,
+				homeDefaultPrevented: home.defaultPrevented,
+				startBoundaryArrowDefaultPrevented: startBoundaryArrow.defaultPrevented,
+			}, {
+				openedChats: ['test-chat://secondary', 'test-chat://main', 'test-chat://secondary', 'test-chat://main'],
+				focusedTab: 'test-chat://main',
+				rightArrowDefaultPrevented: true,
+				leftArrowDefaultPrevented: true,
+				endDefaultPrevented: true,
+				homeDefaultPrevented: true,
+				startBoundaryArrowDefaultPrevented: false,
+			});
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('does not render New Chat in the tab bar', () => {

@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
@@ -295,7 +295,7 @@ export class ChatCompositeBar extends Disposable {
 		const delegate = this._delegate;
 		const session = delegate?.session;
 		const tab = $('.chat-composite-bar-tab.modern-ui-editor-tab');
-		tab.tabIndex = 0;
+		tab.tabIndex = -1;
 		tab.setAttribute('role', 'tab');
 		tab.draggable = true;
 		// Expose the bound chat resource for diagnostics / test automation.
@@ -399,10 +399,33 @@ export class ChatCompositeBar extends Disposable {
 			this._delegate?.openChat(chat.resource);
 		}));
 
-		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
+		this._tabDisposables.add(addDisposableListener(tab, EventType.KEY_UP, e => {
+			if (e.target !== tab) {
+				return;
+			}
+
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				EventHelper.stop(e, true);
 				this._delegate?.openChat(chat.resource);
+			} else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.Home, KeyCode.End].some(keyCode => event.equals(keyCode))) {
+				let tabIndex = this._tabs.indexOf(chatTab);
+				if (event.equals(KeyCode.LeftArrow)) {
+					tabIndex--;
+				} else if (event.equals(KeyCode.RightArrow)) {
+					tabIndex++;
+				} else if (event.equals(KeyCode.Home)) {
+					tabIndex = 0;
+				} else {
+					tabIndex = this._tabs.length - 1;
+				}
+
+				const targetTab = this._tabs[tabIndex];
+				if (targetTab) {
+					EventHelper.stop(e, true);
+					this._delegate?.openChat(targetTab.chat.resource);
+					targetTab.element.focus();
+				}
 			}
 		}));
 
@@ -631,6 +654,7 @@ export class ChatCompositeBar extends Disposable {
 			const isActive = tab.chat.resource.toString() === activeChatId;
 			tab.element.classList.toggle('active', isActive);
 			tab.element.setAttribute('aria-selected', String(isActive));
+			tab.element.tabIndex = isActive ? 0 : -1;
 			if (isActive) {
 				tab.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 			}
