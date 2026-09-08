@@ -11,6 +11,7 @@ import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -306,6 +307,20 @@ suite('Dev Container Agent Host Main Service', () => {
 		const service = store.add(new TestDevContainerAgentHostMainService('', false, new Error('shell environment timeout')));
 
 		assert.strictEqual(await service.resolveShellEnvironment(), process.env);
+	});
+
+	test('merges the resolved shell environment with the inherited environment', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, { VSCODE_TEST_VALUE: 'resolved' }));
+
+		const environment = await service.resolveShellEnvironment();
+
+		assert.deepStrictEqual({
+			path: getCaseInsensitive(environment, 'PATH'),
+			testValue: environment.VSCODE_TEST_VALUE,
+		}, {
+			path: getCaseInsensitive(process.env, 'PATH'),
+			testValue: 'resolved',
+		});
 	});
 
 	test('reuses a standalone endpoint and exposes its relay', async () => {
