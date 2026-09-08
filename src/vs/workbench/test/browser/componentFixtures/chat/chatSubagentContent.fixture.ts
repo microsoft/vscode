@@ -25,7 +25,7 @@ import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatO
 import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isResponseVM } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -37,7 +37,7 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running'): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking', readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -68,7 +68,10 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
-	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);
+	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', state === 'thinking' ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off);
+	if (state === 'thinking') {
+		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
+	}
 	configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
 	const action = instantiationService.createInstance(
 		MenuItemAction,
@@ -103,7 +106,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	const renderer = disposableStore.add(instantiationService.createInstance(
 		ChatListItemRenderer,
 		upcastPartial<ChatEditorOptions>({}),
-		{ noHeader: true, noFooter: true, restorable: false },
+		{ noHeader: true, noFooter: true, restorable: false, readOnly },
 		{
 			getListLength: () => 1,
 			onDidScroll: () => ({ dispose() { } }),
@@ -126,6 +129,28 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		}
 		renderer.renderElement(node, 0, template);
 	}));
+	if (state === 'thinking') {
+		publisher.publish([{ kind: 'systemNotification', content: new MarkdownString('Background agent `Factorial 1` is complete') }]);
+		publisher.publish([{ kind: 'thinking', id: 'before', value: '**Processing agent notifications**\nReview the first result.' }]);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Read first agent result', pastTenseMessage: 'Read first agent result' },
+			{ id: 'read-agent', displayName: 'Read agent', modelDescription: 'Read agent', source: ToolDataSource.Internal },
+			'read-first', undefined, {},
+		);
+		await tool.didExecuteTool(undefined);
+		publisher.publish([tool]);
+		publisher.publish([{ kind: 'thinking', id: 'coordinating', value: '**Coordinating parallel tool use**\nWait for the other results.' }]);
+		for (const number of [5, 4, 3, 2]) {
+			publisher.publish([{ kind: 'systemNotification', content: new MarkdownString(`Background agent \`Factorial ${number}\` is complete`) }]);
+		}
+		publisher.publish([{ kind: 'thinking', id: 'after', value: '**Reading completed agents**\nReview all remaining results below their completion notices.' }]);
+		publisher.publish([new ChatToolInvocation(
+			{ invocationMessage: 'Read remaining agent results' },
+			{ id: 'read-agent', displayName: 'Read agent', modelDescription: 'Read agent', source: ToolDataSource.Internal },
+			'read-remaining', undefined, {},
+		)]);
+		return;
+	}
 	publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('Starting two read-only reviews. Other work can continue while they initialize.') }]);
 	const launches: ChatToolInvocation[] = [];
 	for (const [index, description] of ['Review child chat lifecycle', 'Review state and history'].entries()) {
@@ -214,4 +239,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
 	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
+	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),
+	ReadOnlyThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', true) }),
+	CollapsedThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', false, ThinkingDisplayMode.Collapsed) }),
 });

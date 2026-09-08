@@ -758,6 +758,34 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	test('restores reasoning on either side of a completion notification in order', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Review the results' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0' } },
+			{ type: 'assistant.message', data: { messageId: 'before', content: '', reasoningText: 'Before notification' } },
+			{
+				type: 'system.notification',
+				data: {
+					content: 'Agent completed',
+					kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'after', content: '', reasoningText: 'After notification' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(turns.map(turn => turn.responseParts.map(part =>
+			part.kind === ResponsePartKind.Reasoning || part.kind === ResponsePartKind.SystemNotification
+				? { kind: part.kind, content: part.content }
+				: { kind: part.kind }
+		)), [[
+			{ kind: ResponsePartKind.Reasoning, content: 'Before notification' },
+			{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Completed reviewer` is complete' },
+			{ kind: ResponsePartKind.Reasoning, content: 'After notification' },
+		]]);
+	});
+
 	test('does not restore a passive notification outside an assistant turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Check for instructions' } },
