@@ -290,7 +290,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			return labeledSessions[0].resource;
 		}
 
-		const labeledChatModels = this.chatService.chatModels.get().filter((model: IChatModel) =>
+		const labeledChatModels = [...this.chatService.chatModels.get()].filter(model =>
 			model.title?.trim().toLocaleLowerCase() === normalizedSessionId
 		);
 		return labeledChatModels.length === 1 ? labeledChatModels[0].sessionResource : undefined;
