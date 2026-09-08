@@ -191,7 +191,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// Track live subscriptions so fireAction can route to them. A subscription
 	// may hold a SessionState (for session channels) or a ChatState (for the
 	// per-session default chat channel).
-	private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
+	private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; error?: Error; emitter: Emitter<SessionState | ChatState>; onDidError: Emitter<Error>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
 	private readonly _chatInteractivities = new Map<string, ChatInteractivity>();
 
 	private _nextId = 1;
@@ -306,6 +306,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._liveSubscriptions.has(resource);
 	}
 
+	fireSubscriptionError(resource: string, error: Error): void {
+		const entry = this._liveSubscriptions.get(resource);
+		if (!entry) {
+			throw new Error(`No live subscription for ${resource}`);
+		}
+		entry.error = error;
+		entry.onDidError.fire(error);
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
@@ -379,6 +388,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			return { object: this._buildPendingErrorSub<T>(pendingEntry), dispose: () => { } };
 		}
 		const emitter = new Emitter<T>();
+		const onDidError = new Emitter<Error>();
 		const onWillApply = new Emitter<ActionEnvelope>();
 		const onDidApply = new Emitter<ActionEnvelope>();
 
@@ -389,11 +399,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					get value() { return error; },
 					get verifiedValue() { return undefined; },
 					onDidChange: emitter.event,
+					onDidError: onDidError.event,
 					onWillApplyAction: onWillApply.event,
 					onDidApplyAction: onDidApply.event,
 				},
 				dispose: () => {
 					emitter.dispose();
+					onDidError.dispose();
 					onWillApply.dispose();
 					onDidApply.dispose();
 				},
@@ -425,14 +437,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 
 		// Register in live subscriptions so fireAction can route to it
-		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState | ChatState>, onWillApply, onDidApply };
+		const entry = { state: initialState, emitter: emitter as unknown as Emitter<SessionState | ChatState>, onDidError, onWillApply, onDidApply };
 		this._liveSubscriptions.set(resourceStr, entry);
 
 		const self = this;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
+			get value() { return self._liveSubscriptions.get(resourceStr)?.error ?? self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
 			onDidChange: emitter.event,
+			onDidError: onDidError.event,
 			onWillApplyAction: entry.onWillApply.event,
 			onDidApplyAction: entry.onDidApply.event,
 		};
@@ -441,6 +454,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			dispose: () => {
 				this._liveSubscriptions.delete(resourceStr);
 				emitter.dispose();
+				onDidError.dispose();
 				onWillApply.dispose();
 				onDidApply.dispose();
 			},
@@ -457,9 +471,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		return {
-			get value() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			get value() { return self._liveSubscriptions.get(resource.toString())?.error ?? self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
 			onDidChange: entry.emitter.event as unknown as Event<T>,
+			onDidError: entry.onDidError.event,
 			onWillApplyAction: entry.onWillApply.event,
 			onDidApplyAction: entry.onDidApply.event,
 		} satisfies IAgentSubscription<T>;
@@ -13924,6 +13939,83 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
+
+		for (const completed of [false, true]) {
+			test(`clears ${completed ? 'completed' : 'active'} subagent availability after a hydrated subscription errors`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const parentSession = parseDefaultChatUri(session);
+				assert.ok(parentSession);
+				const toolCallId = 'tc-parent-task';
+				const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+				agentHostService.sessionStates.set(childChatUri, makeChildState(childChatUri, 'initial-child-tool'));
+				fire({ type: 'chat/toolCallStart', session, turnId, toolCallId, toolName: 'task', displayName: 'Task' } as ChatAction);
+				fire({ type: 'chat/toolCallReady', session, turnId, toolCallId, invocationMessage: 'Reviewing', confirmed: 'not-needed' } as ChatAction);
+				fire({ type: 'chat/toolCallComplete', session, turnId, toolCallId, result: { success: true, pastTenseMessage: 'Delegated task' } } as ChatAction);
+				await timeout(0);
+				const parent = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === toolCallId);
+				assert.ok(parent);
+				let presentation: { available: boolean | undefined; active: boolean | undefined } | undefined;
+				disposables.add(autorun(reader => {
+					parent.state.read(reader);
+					const data = parent.toolSpecificData;
+					if (data?.kind === 'subagent') {
+						presentation = { available: data.isChatAvailable, active: data.isActive };
+					}
+				}));
+				if (completed) {
+					agentHostService.fireAction({
+						channel: childChatUri,
+						action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn-1', duration: 1000 },
+						serverSeq: 100,
+						origin: undefined,
+					});
+					await timeout(0);
+				}
+				const beforeError = presentation;
+				const subscription = agentHostService.getSubscriptionUnmanaged<ChatState>(StateComponents.Chat, URI.parse(childChatUri));
+				assert.ok(subscription);
+				let stateChanges = 0;
+				disposables.add(subscription.onDidChange(() => stateChanges++));
+				agentHostService.fireSubscriptionError(childChatUri, new ProtocolError(AHP_NOT_FOUND, `Resource not found: ${childChatUri}`));
+				const afterError = {
+					presentation,
+					subscribed: agentHostService.hasLiveSubscription(childChatUri),
+					stateChanges,
+					timingStopped: parent.toolSpecificData?.kind === 'subagent' && parent.toolSpecificData.duration !== undefined,
+				};
+
+				agentHostService.sessionStates.set(childChatUri, makeChildState(childChatUri, 'recovered-child-tool'));
+				agentHostService.fireAction({
+					channel: parentSession,
+					action: {
+						type: ActionType.SessionChatAdded,
+						summary: {
+							resource: childChatUri,
+							title: 'Recovered reviewer',
+							status: SessionStatus.InProgress,
+							modifiedAt: new Date().toISOString(),
+							origin: { kind: ChatOriginKind.Tool, chat: session, toolCallId },
+						},
+					},
+					serverSeq: 101,
+					origin: undefined,
+				});
+				await timeout(0);
+				const recovered = {
+					presentation,
+					forwardedTool: collected.flat().some(part => part.kind === 'toolInvocation' && part.toolCallId === 'recovered-child-tool'),
+				};
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+
+				assert.deepStrictEqual({ beforeError, afterError, recovered }, {
+					beforeError: { available: true, active: !completed },
+					afterError: { presentation: { available: false, active: false }, subscribed: false, stateChanges: 0, timingStopped: true },
+					recovered: { presentation: { available: true, active: true }, forwardedTool: true },
+				});
+			}));
+		}
 
 		for (const startsPending of [false, true]) {
 			test(`retries a ${startsPending ? 'pending' : 'hydrated'} failed subagent subscription when its discovery content arrives`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

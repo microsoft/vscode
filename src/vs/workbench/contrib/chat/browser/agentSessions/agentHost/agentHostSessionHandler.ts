@@ -5074,10 +5074,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
+		const onSubscriptionError = (error: unknown) => {
+			if (subagentContext.observations.get(parentToolCallId) !== disposables) {
+				return;
+			}
+			disposables.isChatAvailable = false;
+			const data = parentInvocation.toolSpecificData;
+			if (data?.kind === 'subagent') {
+				data.isChatAvailable = false;
+				data.isActive = false;
+				delete data.activity;
+				if (data.duration === undefined && data.startedAt !== undefined) {
+					data.duration = Math.max(0, Date.now() - data.startedAt);
+				}
+			}
+			subagentContext.observations.deleteAndDispose(parentToolCallId);
+			parentInvocation.notifyToolSpecificDataChanged();
+			this._logService.warn(`[AgentHost] Failed to subscribe to subagent chat: ${childChatUri}`, error);
+		};
+
 		try {
 			const childSub = this._ensureSessionSubscription(parentSessionUri);
 			const childChatSub = this._ensureChatSubscription(parentSessionUri, childChatUri);
 			disposables.add(toDisposable(() => this._releaseChatSessionSubscriptions(parentSessionUri, childChatUri)));
+			if (childChatSub.onDidError) {
+				disposables.add(childChatSub.onDidError(onSubscriptionError));
+			}
 
 			if (childChatSub.value === undefined) {
 				await this._whenSubscriptionHydrated(childChatSub, cts.token);
@@ -5168,9 +5190,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			));
 		} catch (err) {
-			// Remove from observed set so a later state change can retry
-			subagentContext.observations.deleteAndDispose(parentToolCallId);
-			this._logService.warn(`[AgentHost] Failed to subscribe to subagent chat: ${childChatUri}`, err);
+			onSubscriptionError(err);
 		}
 	}
 
