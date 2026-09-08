@@ -12,10 +12,11 @@ import { autorun } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IGitHubService } from '../../github/common/githubService.js';
+import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeSessionOverrides, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeSessionOverrides, AgentMergeSessionState, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, defaultAgentMergeConfiguration, evaluateAgentMerge, readAgentMergeSessionState, resolveAgentMergeConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -29,7 +30,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentMergeTurnContext } from './agentMergeTools.js';
+import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
@@ -56,6 +57,14 @@ interface IAnnouncedAgentMergeConfiguration {
 	readonly overrides: AgentMergeSessionOverrides | undefined;
 }
 
+interface IDeferredWorkflowRerun {
+	readonly headSha: string;
+	readonly options: GitHubWorkflowRerunOptions;
+	readonly checkIds: ReadonlySet<string>;
+	/** Retain handled check IDs until the check snapshot catches up with the rerun. */
+	settled: boolean;
+}
+
 class AgentMergeRuntime extends Disposable {
 
 	readonly subscription = this._register(new MutableDisposable<PullRequestSubscription>());
@@ -64,6 +73,7 @@ class AgentMergeRuntime extends Disposable {
 	readonly abortController = new AbortController();
 	readonly evaluationScheduler: RunOnceScheduler;
 	readonly backstopScheduler: RunOnceScheduler;
+	readonly deferredWorkflowReruns = new Map<string, IDeferredWorkflowRerun>();
 	ref: PullRequestRef | undefined;
 	/**
 	 * Whether this runtime already tried to recompute git state that reported
@@ -86,6 +96,7 @@ class AgentMergeRuntime extends Disposable {
 		this.backstopScheduler = this._register(new RunOnceScheduler(evaluate, backstopInterval));
 		this._register(toDisposable(() => this.cancellation.dispose(true)));
 		this._register(toDisposable(() => this.abortController.abort(new Error('Agent Merge stopped'))));
+		this._register(toDisposable(() => this.deferredWorkflowReruns.clear()));
 	}
 }
 
@@ -301,6 +312,10 @@ export class AgentMergeController extends Disposable {
 			this._reconcileInjectedConfiguration(session, agentMerge);
 		}
 		let runtime = this._runtimes.get(session);
+		if (runtime?.deferredWorkflowReruns.size && !this._getConfiguration(agentMerge).fixCI) {
+			this._logService.info(`[AgentMergeController] Discarding deferred workflow reruns because CI repair was disabled: session=${session}`);
+			runtime.deferredWorkflowReruns.clear();
+		}
 		if (!runtime) {
 			runtime = new AgentMergeRuntime(session, () => this._queueEvaluation(session));
 			this._runtimes.set(session, runtime);
@@ -501,7 +516,8 @@ export class AgentMergeController extends Disposable {
 		if (!this._isCurrentRuntime(session, runtime)) {
 			return;
 		}
-		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark);
+		const deferredCheckIds = this._pruneDeferredWorkflowReruns(session, runtime, snapshot);
+		const gate = evaluateAgentMerge(snapshot, configuration, target.commentWatermark, deferredCheckIds);
 		this._logGateResult(session, gate);
 		if (gate.kind !== 'indeterminate') {
 			runtime.indeterminate = undefined;
@@ -520,7 +536,10 @@ export class AgentMergeController extends Disposable {
 				this._disable(session, agentMerge, agentMergeDisableReasons.pullRequestClosed());
 				return;
 			case 'noWork':
-				runtime.backstopScheduler.schedule();
+				await this._processDeferredWorkflowReruns(session, runtime, ref, target, snapshot.core.value!.headSha);
+				if (this._isCurrentRuntime(session, runtime)) {
+					runtime.backstopScheduler.schedule();
+				}
 				return;
 			case 'prompt': {
 				if (!this._canRepairFork(snapshot)) {
@@ -556,6 +575,17 @@ export class AgentMergeController extends Disposable {
 					snapshot,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
+					deferredCheckIds,
+					initialDeferredCheckIds: new Set(deferredCheckIds),
+					deferWorkflowRerun: (options, checkIds, running) => {
+						const deferred = this._deferWorkflowRerun(context, runtime, options, checkIds, running);
+						if (deferred) {
+							for (const id of checkIds) {
+								deferredCheckIds.add(id);
+							}
+						}
+						return deferred;
+					},
 				};
 				if (!this._isCurrentRuntime(session, runtime)
 					|| !this._isTargetStillCurrent(session, target)
@@ -589,6 +619,111 @@ export class AgentMergeController extends Disposable {
 				this._logService.info(`[AgentMergeController] Starting native merge readiness verification: session=${session}, configuredMethod=${configuration.mergeMethod}`);
 				await this._merge(session, runtime, ref, snapshot, configuration, agentMerge);
 				return;
+		}
+	}
+
+	private _deferWorkflowRerun(context: IAgentMergeTurnContext, runtime: AgentMergeRuntime, options: GitHubWorkflowRerunOptions, checkIds: readonly string[], running: boolean): boolean {
+		const current = readAgentMergeSessionState(this._stateManager.getSessionState(context.session)?.config?.values);
+		if (!this._isCurrentRuntime(context.session, runtime) || this.getTurnContext(context.session) !== context
+			|| !current?.enabled || !this._getConfiguration(current).fixCI || !current.target
+			|| !this._isTargetStillCurrent(context.session, current.target)
+			|| runtime.subscription.value?.resource.snapshot.get().core.value?.headSha !== context.headSha) {
+			this._logService.warn(`[AgentMergeController] Rejected deferred workflow rerun after authorization or target changed: session=${context.session}`);
+			throw new Error('CI repair is no longer authorized for this Agent Merge turn or pull request head.');
+		}
+		const previous = runtime.deferredWorkflowReruns.get(options.runId);
+		if (!running && !previous) {
+			return false;
+		}
+		const sameAttempt = previous?.headSha === context.headSha && previous.options.expectedRunAttempt === options.expectedRunAttempt;
+		runtime.deferredWorkflowReruns.set(options.runId, {
+			headSha: context.headSha,
+			options: {
+				...options,
+				failedJobsOnly: options.failedJobsOnly !== false && (!sameAttempt || previous.options.failedJobsOnly !== false),
+			},
+			checkIds: new Set([...(previous?.checkIds ?? []), ...checkIds]),
+			settled: sameAttempt && previous.settled,
+		});
+		return true;
+	}
+
+	private _pruneDeferredWorkflowReruns(session: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): Set<string> {
+		const headSha = snapshot.core.value?.headSha;
+		const checks = snapshot.checks.status === 'ready' && snapshot.checks.complete && snapshot.checks.value?.headSha && snapshot.checks.value.headSha === headSha
+			? classifyAgentMergeRequiredChecks(snapshot.checks.value) : undefined;
+		const deferredCheckIds = new Set<string>();
+		for (const [runId, request] of runtime.deferredWorkflowReruns) {
+			if ((headSha && request.headSha !== headSha)
+				|| (checks?.kind === 'ready' && !checks.failed.some(check => request.checkIds.has(check.id)))) {
+				this._logService.info(`[AgentMergeController] Discarding stale workflow rerun: session=${session}, run=${runId}, headChanged=${request.headSha !== headSha}`);
+				runtime.deferredWorkflowReruns.delete(runId);
+			} else {
+				for (const id of request.checkIds) {
+					deferredCheckIds.add(id);
+				}
+			}
+		}
+		return deferredCheckIds;
+	}
+
+	private async _processDeferredWorkflowReruns(session: string, runtime: AgentMergeRuntime, ref: PullRequestRef, target: AgentMergeTarget, headSha: string): Promise<void> {
+		const pending = [...runtime.deferredWorkflowReruns.values()].filter(request => !request.settled);
+		if (pending.length === 0) {
+			return;
+		}
+		const runs = await this._gitHubService.mutations.listWorkflowRuns(ref, headSha, runtime.abortController.signal);
+		for (const request of pending) {
+			const current = readAgentMergeSessionState(this._stateManager.getSessionState(session)?.config?.values);
+			const snapshot = runtime.subscription.value?.resource.snapshot.get();
+			if (!this._isCurrentRuntime(session, runtime) || !current?.enabled || !this._getConfiguration(current).fixCI
+				|| !this._isTargetStillCurrent(session, target) || current.target?.pullRequestUrl !== target.pullRequestUrl
+				|| this._stateManager.hasActiveTurn(session) || snapshot?.core.status !== 'ready'
+				|| !snapshot.core.complete || snapshot.core.value?.state !== 'open' || snapshot.core.value.headSha !== request.headSha
+				|| !sameRef(snapshot.ref, ref)
+				|| runtime.deferredWorkflowReruns.get(request.options.runId) !== request) {
+				this._logService.debug(`[AgentMergeController] Deferred rerun interrupted by changed session state: session=${session}`);
+				return;
+			}
+			const deferredCheckIds = this._pruneDeferredWorkflowReruns(session, runtime, snapshot);
+			if (evaluateAgentMerge(snapshot, this._getConfiguration(current), target.commentWatermark, deferredCheckIds).kind !== 'noWork'
+				|| runtime.deferredWorkflowReruns.get(request.options.runId) !== request) {
+				this._logService.debug(`[AgentMergeController] Reevaluating changed checks before deferred rerun: session=${session}`);
+				this._schedule(session, 0);
+				return;
+			}
+			const run = runs.find(run => run.id === request.options.runId && run.headSha === request.headSha);
+			if (!run) {
+				this._logService.warn(`[AgentMergeController] Deferred workflow run is no longer available: session=${session}, run=${request.options.runId}`);
+				runtime.deferredWorkflowReruns.delete(request.options.runId);
+				this._schedule(session, 0);
+				continue;
+			}
+			if (run.runAttempt > request.options.expectedRunAttempt) {
+				request.settled = true;
+				this._logService.info(`[AgentMergeController] Deferred workflow was already rerun: session=${session}, run=${run.id}, currentAttempt=${run.runAttempt}`);
+				continue;
+			}
+			if (run.runAttempt < request.options.expectedRunAttempt || run.status?.toUpperCase() !== 'COMPLETED' || !run.conclusion) {
+				this._logService.debug(`[AgentMergeController] Waiting to rerun workflow: session=${session}, run=${run.id}, status=${run.status}, currentAttempt=${run.runAttempt}`);
+				continue;
+			}
+			if (!isFailedConclusion(run.conclusion)) {
+				request.settled = true;
+				this._logService.info(`[AgentMergeController] Deferred workflow no longer needs a rerun: session=${session}, run=${run.id}, conclusion=${run.conclusion}`);
+				continue;
+			}
+			try {
+				const result = await this._gitHubService.mutations.rerunWorkflow(ref, request.options, runtime.abortController.signal);
+				request.settled = result.outcome !== 'indeterminate';
+				this._logService.info(`[AgentMergeController] Deferred workflow rerun requested: session=${session}, run=${run.id}, outcome=${result.outcome}`);
+			} finally {
+				// Failed or unconfirmed mutations return to the ordinary, budgeted repair flow.
+				if (!request.settled && runtime.deferredWorkflowReruns.get(run.id) === request) {
+					runtime.deferredWorkflowReruns.delete(run.id);
+					this._schedule(session, 0);
+				}
+			}
 		}
 	}
 
@@ -647,6 +782,10 @@ export class AgentMergeController extends Disposable {
 		if (runtime.ref && sameRef(runtime.ref, ref) && runtime.subscription.value) {
 			this._logService.trace(`[AgentMergeController] Reusing pull request subscription: session=${session}`);
 			return runtime.subscription.value;
+		}
+		if (runtime.deferredWorkflowReruns.size) {
+			this._logService.info(`[AgentMergeController] Discarding deferred workflow reruns because the GitHub account or target changed: session=${session}`);
+			runtime.deferredWorkflowReruns.clear();
 		}
 		runtime.ref = ref;
 		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
