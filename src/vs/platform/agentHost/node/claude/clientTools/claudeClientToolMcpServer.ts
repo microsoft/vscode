@@ -28,21 +28,23 @@ const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
  * `extra._meta["claudecode/toolUseId"]` and delegates to `awaitResult`,
  * which is expected to return a promise that settles when the workbench
  * echoes a completion (typically via a parked deferred owned by the
- * session). Keeping that plumbing behind a callback lets this factory
- * stay ignorant of how the host tracks in-flight tool calls.
+ * session). The handler also hands `awaitResult` the tool name and the
+ * runtime's own arguments, which are authoritative over anything streamed.
+ * Keeping that plumbing behind a callback lets this factory stay ignorant of
+ * how the host tracks in-flight tool calls.
  *
  * Pure factory — no SDK loading, no I/O.
  */
 export async function buildClientToolMcpServer(
 	snapshot: readonly ToolDefinition[],
-	awaitResult: (toolUseId: string) => Promise<CallToolResult>,
+	awaitResult: (toolUseId: string, toolName: string, args: unknown) => Promise<CallToolResult>,
 	sdk: IClaudeAgentSdkService
 ): Promise<McpSdkServerConfigWithInstance> {
 	const tools = await Promise.all(snapshot.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),
-		async (_args, extra) => {
+		async (args, extra) => {
 			const toolUseId = extractToolUseId(extra);
 			if (toolUseId === undefined) {
 				return {
@@ -53,7 +55,7 @@ export async function buildClientToolMcpServer(
 					isError: true,
 				};
 			}
-			return awaitResult(toolUseId);
+			return awaitResult(toolUseId, def.name, args);
 		}
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_CLIENT_MCP_SERVER_NAME, tools });

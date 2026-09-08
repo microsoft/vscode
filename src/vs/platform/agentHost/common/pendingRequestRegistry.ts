@@ -30,12 +30,22 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 */
 	private readonly _earlyResults = new Map<string, TResult>();
 
-	/** Atomically park a deferred and optional metadata, then invoke `fire` to prevent synchronous responses racing registration. */
+	/**
+	 * Atomically park a deferred and optional metadata, then invoke `fire` so a
+	 * synchronous response cannot race registration.
+	 *
+	 * A duplicate call for a still-parked key awaits that request and does not
+	 * fire again, because only one response is produced and it must settle both.
+	 */
 	registerAndFire(key: string, fire: () => void, ...metadata: MetadataArgument<TMeta>): Promise<TResult> {
 		if (this._earlyResults.has(key)) {
 			const buffered = this._earlyResults.get(key) as TResult;
 			this._earlyResults.delete(key);
 			return Promise.resolve(buffered);
+		}
+		const existing = this._entries.get(key);
+		if (existing && !existing.deferred.isSettled) {
+			return existing.deferred.p;
 		}
 		const deferred = new DeferredPromise<TResult>();
 		this._entries.set(key, { deferred, metadata: metadata[0] as TMeta });
@@ -155,14 +165,20 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 * supplied value — that is right for the permission-deny path where a
 	 * "deny" is itself a successful answer, but wrong for cancellation
 	 * where the awaited consumer must observe an error to unwind.
+	 *
+	 * Pass `keepBufferedResults` when the requester will come back and re-park
+	 * the same keys (a rebind), so an answer that already arrived is not thrown
+	 * away and re-asked for.
 	 */
-	rejectAll(error: Error): void {
+	rejectAll(error: Error, keepBufferedResults = false): void {
 		for (const [, entry] of this._entries) {
 			if (!entry.deferred.isSettled) {
 				entry.deferred.error(error);
 			}
 		}
 		this._entries.clear();
-		this._earlyResults.clear();
+		if (!keepBufferedResults) {
+			this._earlyResults.clear();
+		}
 	}
 }

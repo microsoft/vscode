@@ -835,7 +835,7 @@ export class ClaudeAgentSession extends Disposable {
 		serverToolHost: IAgentServerToolHost | undefined,
 	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined }> {
 		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration());
-		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
+		const clientServers = await buildClientMcpServers(this.toolDiff, (id, name, args) => this._awaitClientToolResult(id, name, args), this._sdkService);
 		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(resource.toString());
 		const serverToolServer = serverToolHost && serverToolDefinitions?.length
 			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService, serverToolDefinitions)
@@ -1124,7 +1124,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * resolved server-side entries from the rebuilt `Query`.
 	 */
 	private async _rebindForSyncedState(): Promise<void> {
-		this._pendingClientToolCalls.rejectAll(new CancellationError());
+		// Keep buffered results: the SDK re-parks the same ids after the rebind.
+		this._pendingClientToolCalls.rejectAll(new CancellationError(), true);
 		await this._requirePipeline().rebindForRestart();
 		this._onDidCustomizationsChange.fire();
 	}
@@ -1372,6 +1373,24 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._clientCustomizationEnablement.delete(clientId)) {
 			this._rebuildClientCustomizationEnablement();
 		}
+	}
+
+	/**
+	 * Park the SDK's client-tool invocation until the workbench echoes a result,
+	 * announcing the invocation as it parks. A result buffered before the SDK
+	 * asked for it short-circuits without announcing anything.
+	 */
+	private _awaitClientToolResult(toolUseId: string, toolName: string, args: unknown): Promise<CallToolResult> {
+		// A tool called inside a subagent is routed by the spawn that owns it.
+		const parentToolCallId = this.subagents.getParentSpawn(toolUseId)?.toolUseId;
+		return this._pendingClientToolCalls.registerAndFire(toolUseId, () => this._onDidSessionProgress.fire({
+			kind: 'client_tool_invoked',
+			chat: this._chatChannelUri,
+			toolCallId: toolUseId,
+			toolName,
+			toolInput: JSON.stringify(args ?? {}),
+			...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
+		}));
 	}
 
 	/**

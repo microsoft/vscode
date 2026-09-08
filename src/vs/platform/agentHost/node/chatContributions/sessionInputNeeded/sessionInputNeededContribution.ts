@@ -125,7 +125,11 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 		}
 
 		const contributor = toolCall?.contributor;
-		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+		// A provider that drives client tool execution admits each call itself.
+		const awaitingAdmission = !!toolCall
+			&& this._providerService.getProviderForSession(parseRequiredSessionUriFromChatUri(chatUri))?.drivesClientToolExecution === true
+			&& readToolCallMeta(toolCall).clientToolAdmitted !== true;
+		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client && !awaitingAdmission) {
 			this._setSessionInputNeeded(chatUri, {
 				id: clientExecutionId,
 				kind: SessionInputRequestKind.ToolClientExecution,
