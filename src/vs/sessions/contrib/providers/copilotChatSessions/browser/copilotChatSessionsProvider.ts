@@ -759,8 +759,8 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
 	}
-	setPermissionLevel(level: ChatPermissionLevel): void {
-		throw new Error('Method not implemented.');
+	setPermissionLevel(_level: ChatPermissionLevel): void {
+		// Remote sessions do not support client-side permission selection.
 	}
 
 	// -- New session configuration methods --
