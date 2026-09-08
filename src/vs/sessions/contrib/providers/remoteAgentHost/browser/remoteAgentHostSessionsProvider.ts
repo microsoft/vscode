@@ -231,12 +231,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
-		if (this._sessionSchemeAlias || this._defaultChangesetKind) {
-			this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
-				sessionSchemeAlias: this._sessionSchemeAlias,
-				defaultChangesetKind: this._defaultChangesetKind,
-			}));
-		}
+		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+			sessionSchemeAlias: this._sessionSchemeAlias,
+			defaultChangesetKind: this._defaultChangesetKind,
+		}));
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.autoConnect = config.autoConnect;
