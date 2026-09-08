@@ -6,14 +6,16 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { AgentHostModeSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostModeSynchronizer.js';
+import { findAgentHostMode, getAgentHostModeUri } from '../../../browser/agentSessions/agentHost/agentHostModeUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
@@ -177,5 +179,24 @@ suite('AgentHostModeSynchronizer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(setChatModeCalls, []);
+	});
+
+	test('resolves a raw remote agent URI against its wrapped chat mode', () => {
+		const rawUri = URI.parse('file:///remote/data.md');
+		const wrappedUri = toAgentHostUri(rawUri, 'remote-host');
+		const mode = {
+			...createCustomMode(),
+			id: wrappedUri.toString(),
+			uri: constObservable(wrappedUri),
+		};
+		const modes = createModes(() => [mode], Event.None);
+
+		assert.deepStrictEqual({
+			resolvedMode: findAgentHostMode(modes, rawUri.toString()),
+			protocolUri: getAgentHostModeUri(mode)?.toString(),
+		}, {
+			resolvedMode: mode,
+			protocolUri: rawUri.toString(),
+		});
 	});
 });

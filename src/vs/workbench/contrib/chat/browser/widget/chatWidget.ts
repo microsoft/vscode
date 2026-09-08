@@ -2732,7 +2732,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			logChangesToStateModel(this.viewModel?.model?.inputModel, `ChatWidget.setModel to empty, old ${this.viewModel?.sessionResource.toString()}`, undefined, currentInputModel, this.logService);
 			// Flush any unsent draft to the outgoing input model before we drop our
 			// reference to it, so the host's `willDisposeModel` persistence sees it.
-			this.inputPart.flushInputStateToModel();
+			this.inputPart.unbindInputModel();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}

@@ -7,8 +7,9 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +18,8 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenModelPickerAction, registerChatExecuteActions, ToggleAgentModeActionId } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -155,6 +157,63 @@ suite('GetHandoffsAction', () => {
 
 		const result = await runCommandAsync<ICustomAgentInfo[]>(handler, instantiationService, { sourceCustomAgent: 'nonexistent' });
 		assert.deepStrictEqual(result, []);
+	});
+});
+
+suite('ToggleChatModeAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+	let chatExecuteActions: DisposableStore;
+
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies an explicit selection that matches the visible fallback', async () => {
+		const mode = createMockMode({ id: ChatModeKind.Agent, kind: ChatModeKind.Agent, isBuiltin: true });
+		const modes = await new MockChatModeService({ builtin: [mode], custom: [] }).getLocalModes();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const calls: Array<{ readonly modeId: string; readonly storeSelection: boolean; readonly isUserInitiated: boolean }> = [];
+		const input = new class extends mock<ChatInputPart>() {
+			override get currentChatModesObs() { return constObservable(modes); }
+			override get currentModeObs() { return constObservable(mode); }
+			override get currentModeKind() { return mode.kind; }
+			override setChatMode(modeId: string, storeSelection: boolean, isUserInitiated: boolean): void {
+				calls.push({ modeId, storeSelection, isUserInitiated });
+			}
+		};
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly input = input;
+		};
+		const widgetService = new class extends MockChatWidgetService {
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				return resource.toString() === sessionResource.toString() ? widget : undefined;
+			}
+		};
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IChatWidgetService, widgetService);
+
+		const handler = CommandsRegistry.getCommand(ToggleAgentModeActionId)?.handler;
+		assert.ok(handler);
+
+		await runCommandAsync<void>(handler, instantiationService, { modeId: mode.id, sessionResource });
+
+		assert.deepStrictEqual(calls, [{ modeId: mode.id, storeSelection: true, isUserInitiated: true }]);
 	});
 });
 

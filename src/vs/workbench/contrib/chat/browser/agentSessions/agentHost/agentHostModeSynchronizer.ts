@@ -14,10 +14,11 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
-import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
+import { ChatMode, IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import type { IChatModeChangeEvent } from '../../widget/input/chatInputPart.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { findAgentHostMode } from './agentHostModeUtils.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
@@ -127,7 +128,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 			return;
 		}
 
-		const mode = this._findMode(modes, agentUri);
+		const mode = findAgentHostMode(modes, agentUri);
 		if (!mode || widget.input.currentModeObs.get().id === mode.id) {
 			return;
 		}
@@ -138,13 +139,6 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		} finally {
 			this._updatingWidgets.delete(widget);
 		}
-	}
-
-	private _findMode(modes: IChatModes, modeId: string): IChatMode | undefined {
-		return modes.findModeById(modeId) ?? modes.custom.find(mode => {
-			const uri = mode.uri?.get();
-			return uri && fromAgentHostUri(uri).toString() === modeId;
-		});
 	}
 
 	private _agentUriFromMode(mode: IChatMode): string | undefined {
