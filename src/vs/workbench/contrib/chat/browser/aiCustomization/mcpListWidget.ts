@@ -56,7 +56,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
@@ -1757,27 +1757,22 @@ export class McpListWidget extends Disposable {
 	private renderMcpListActions(entry: IMcpInstalledEntry, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void {
 		const label = getMcpEntryLabel(entry);
 		let enabled = this.isInstalledEntryEnabled(entry);
-		const switchElement = DOM.append(actions, $('button.plugin-enable-switch')) as HTMLButtonElement;
-		switchElement.type = 'button';
-		switchElement.setAttribute('role', 'switch');
-		DOM.append(switchElement, $('.plugin-enable-switch-thumb'));
+		const toggle = disposables.add(new Switch({ ariaLabel: label, checked: enabled }));
+		DOM.append(actions, toggle.domNode);
 		const update = () => {
 			enabled = this.isInstalledEntryEnabled(entry);
 			const blockedByPlugin = getMcpDisabledReason(entry)?.source === 'plugin';
 			const toggleLabel = enabled ? localize('disableMcpServerAria', "Disable {0}", label) : localize('enableMcpServerAria', "Enable {0}", label);
 			const accessibleLabel = blockedByPlugin ? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label) : toggleLabel;
-			switchElement.disabled = blockedByPlugin;
-			switchElement.classList.toggle('checked', enabled);
-			switchElement.setAttribute('aria-checked', String(enabled));
-			switchElement.setAttribute('aria-label', accessibleLabel);
-			switchElement.title = accessibleLabel;
+			toggle.disabled = blockedByPlugin;
+			toggle.checked = enabled;
+			toggle.setAriaLabel(accessibleLabel);
 			updateTabbability();
 		};
 		update();
-		disposables.add(DOM.addDisposableGenericMouseDownListener(switchElement, event => DOM.EventHelper.stop(event, true)));
-		disposables.add(DOM.addDisposableListener(switchElement, 'click', event => {
-			DOM.EventHelper.stop(event, true);
-			enabled = !enabled;
+		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+		disposables.add(toggle.onChange(checked => {
+			enabled = checked;
 			this.setInstalledEntryEnabled(entry, enabled);
 			update();
 			status(enabled ? localize('mcpServerEnabledStatus', "{0} enabled.", label) : localize('mcpServerDisabledStatus', "{0} disabled.", label));
@@ -1809,7 +1804,7 @@ export class McpListWidget extends Disposable {
 		const heights = layoutVirtualizedSections(content, this.sectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.entries.length * MCP_SECTION_ITEM_HEIGHT,
-			minimumHeight: MCP_SECTION_ITEM_HEIGHT,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.entries, () => MCP_SECTION_ITEM_HEIGHT),
 		})));
 		for (let index = 0; index < this.sectionLists.length; index++) {
 			const section = this.sectionLists[index];
