@@ -8,6 +8,14 @@ import { extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, normalizePath } f
 import { URI } from '../../../base/common/uri.js';
 
 /**
+ * Name of the `.git`-nested worktrees container used when the repository root
+ * is the user's home directory (see {@link getWorktreesRoot}). Exported so
+ * {@link ../node/shared/worktreeIsolation.js}'s repository-root recovery can
+ * recognize this layout without duplicating the literal.
+ */
+export const HOME_DIRECTORY_WORKTREES_CONTAINER_NAME = 'vscode-worktrees';
+
+/**
  * The `<repo>.worktrees` sibling directory where per-session isolated worktrees
  * are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.
  *
@@ -35,7 +43,7 @@ export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI 
 	// difference between the repository root and `os.homedir()` doesn't cause
 	// the home-directory case below to be missed.
 	if (homeDirectory && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.normalizePath(repositoryRoot), extUriBiasedIgnorePathCase.normalizePath(homeDirectory))) {
-		return URI.joinPath(repositoryRoot, '.git', 'vscode-worktrees');
+		return URI.joinPath(repositoryRoot, '.git', HOME_DIRECTORY_WORKTREES_CONTAINER_NAME);
 	}
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
 }

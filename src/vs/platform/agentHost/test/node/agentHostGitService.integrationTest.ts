@@ -29,6 +29,7 @@ import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvid
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { HOME_DIRECTORY_WORKTREES_CONTAINER_NAME } from '../../common/worktreePaths.js';
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -1198,6 +1199,66 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('a worktree nested under .git (the home-directory fallback layout) is invisible to git status and ls-files', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+
+		// Mirrors getWorktreesRoot(repositoryRoot, repositoryRoot) - the layout
+		// worktreeIsolation.ts uses when the repository root is the user's home
+		// directory, since a sibling of the repo would require write access to
+		// the home directory's parent (e.g. /home).
+		const worktreesRoot = join(dir, '.git', HOME_DIRECTORY_WORKTREES_CONTAINER_NAME);
+		const wtPathA = join(worktreesRoot, 'branch-a');
+		const wtPathB = join(worktreesRoot, 'branch-b');
+
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPathA),
+				commitish: 'main',
+				newBranchName: 'agents/branch-a',
+				track: false,
+			});
+
+			// An ordinary untracked file in the nested worktree: if this container
+			// were a plain subdirectory of the working tree (as in an earlier draft
+			// of this fix), it would show up here.
+			await fs.writeFile(join(wtPathA, 'untracked.txt'), 'from branch-a');
+			assert.strictEqual(
+				cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				'',
+				'a worktree nested under .git must not appear in git status of the base repository',
+			);
+
+			// A gitignored file in the nested worktree, matching a broad include
+			// pattern: this is exactly the "ingest previous worktrees" risk a
+			// prior review flagged for a container living inside the working tree.
+			await fs.writeFile(join(dir, '.gitignore'), '.env\n');
+			await fs.writeFile(join(wtPathA, '.env'), 'SECRET_FROM_BRANCH_A');
+			assert.strictEqual(
+				cp.execFileSync('git', ['ls-files', '--others', '--ignored', '--exclude-standard'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				'',
+				'.env under a .git-nested worktree must not be enumerated by the same git command copyWorktreeIncludeFiles uses',
+			);
+
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPathB),
+				commitish: 'main',
+				newBranchName: 'agents/branch-b',
+				track: false,
+			});
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPathB), ['.env'], () => { });
+
+			const leaked = await fs.readFile(join(wtPathB, '.env'), 'utf8').catch(() => undefined);
+			assert.strictEqual(leaked, undefined, "branch-a's .env must not leak into branch-b via include-file copying");
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPathA), { force: true }); } catch { /* best-effort cleanup */ }
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPathB), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(worktreesRoot);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/branch-a'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/branch-b'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 });
