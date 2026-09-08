@@ -5,7 +5,7 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
@@ -26,6 +26,7 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService, type IToolValidationResult } from '../../../../tools/common/toolsService';
 import { renderPromptElement } from '../../base/promptRenderer';
 import { ChatToolCalls } from '../toolCalling';
+import { URI } from 'vscode-uri';
 
 class CapturingChatHookService implements IChatHookService {
 	declare readonly _serviceBrand: undefined;
@@ -327,7 +328,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		};
 
 		const conversation = { sessionId: 'session-123' } as unknown as Conversation;
-		const sessionResource = vscode.Uri.parse('vscode-chat://session/session-123');
+		const sessionResource = URI.parse('vscode-chat://session/session-123');
 		const promptContext: IBuildPromptContext = {
 			query: 'test',
 			history: [],
