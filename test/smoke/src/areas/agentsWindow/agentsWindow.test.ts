@@ -56,6 +56,27 @@ const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 const AGENT_HOST_WARMUP_SCENARIO_ID = 'smoke-hello-agent-host-warmup';
 const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
+function probeLinuxDocker(): { readonly available: boolean; readonly reason?: string } {
+	const result = cp.spawnSync('docker', ['info', '--format', '{{.OSType}}'], {
+		encoding: 'utf8',
+		timeout: 15_000,
+		windowsHide: true,
+	});
+	const operatingSystem = result.stdout.trim().toLowerCase();
+	if (result.status === 0 && operatingSystem === 'linux') {
+		return { available: true };
+	}
+	const stderr = result.stderr.trim();
+	return {
+		available: false,
+		reason: result.error?.message
+			?? (stderr || undefined)
+			?? (operatingSystem
+				? `Docker daemon reports '${operatingSystem}' containers`
+				: `docker info exited with code ${result.status ?? 'unknown'}`),
+	};
+}
+
 export function setup(logger: Logger) {
 
 	describe('Agents Window (local AgentHost)', () => {
@@ -221,9 +242,18 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	const isMacOSCI = process.platform === 'darwin'
-		&& (process.env.CI?.toLowerCase() === 'true' || process.env.TF_BUILD?.toLowerCase() === 'true');
-	(isMacOSCI ? describe.skip : describe)('Agents Window (Dev Container AgentHost)', () => {
+	const linuxDocker = probeLinuxDocker();
+	const runDevContainerSuite = linuxDocker.available || process.platform === 'linux';
+	if (!linuxDocker.available) {
+		logger.log(process.platform === 'linux'
+			? `Linux Docker probe failed: ${linuxDocker.reason}`
+			: `Skipping Agents Window (Dev Container AgentHost): ${linuxDocker.reason}`);
+	}
+	(runDevContainerSuite ? describe : describe.skip)('Agents Window (Dev Container AgentHost)', () => {
+		if (process.platform === 'linux') {
+			before(() => assert.ok(linuxDocker.available, `Expected a reachable Linux Docker daemon: ${linuxDocker.reason}`));
+		}
+
 		const devContainer = setupAgentHostSuite(logger, {
 			serverLabel: 'Dev Container AgentHost',
 			mockServerHost: '0.0.0.0',
