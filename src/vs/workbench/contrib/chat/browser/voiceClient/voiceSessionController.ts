@@ -320,6 +320,19 @@ export interface IVoiceSessionController {
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
 
+export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
+
+/** Whether a chat input owns the current Voice Mode session. */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+	if (hasDraftTarget) {
+		return false;
+	}
+	if (targetSession) {
+		return !!sessionResource && isEqual(targetSession, sessionResource);
+	}
+	return inputFocused;
+}
+
 export class VoiceSessionController extends Disposable implements IVoiceSessionController {
 
 	declare readonly _serviceBrand: undefined;
@@ -2019,15 +2032,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (text !== rawText && e.args) {
 					e.args['text'] = text;
 				}
-				if (e.args?.['new_session'] === true) {
-					// Pin this submission to the new target so it outranks any
-					// stale focus-change pin.
-					this._setPinnedSubmitSession(undefined);
-					this.newSessionAsTarget();
-					if (text.trim()) {
-						this._setPinnedSubmitSession(this._targetSession.get());
-					}
-				}
+				const createNewSession = e.args?.['new_session'] === true;
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -2043,9 +2048,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 					this.voiceClientService.sendToolResult(e.callId, result);
 				};
-				const sendPromise = shouldSend
-					? this._sendTranscriptionToChat(text)
-					: Promise.resolve(false);
+				const sendPromise = this._prepareNewSessionTarget(createNewSession, text).then(result => {
+					if (result === 'failed') {
+						return false;
+					}
+					if (result === 'sent' || !shouldSend) {
+						return true;
+					}
+					return this._sendTranscriptionToChat(text);
+				});
 				sendPromise.then(sent => {
 					if (!sent) {
 						this._clearAwaitingReply();
@@ -3686,6 +3697,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
 			return accepted;
 		}
+	}
+
+	private async _prepareNewSessionTarget(createNewSession: boolean, text: string): Promise<VoiceNewSessionPreparationResult> {
+		if (!createNewSession) {
+			return 'prepared';
+		}
+
+		this._setPinnedSubmitSession(undefined);
+		if (CommandsRegistry.getCommand('_chat.voice.prepareNewSession')) {
+			try {
+				return await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text) ?? 'failed';
+			} catch (error) {
+				this.logService.error('Failed to prepare a host session for Voice Mode:', error);
+				return 'failed';
+			}
+		}
+
+		this.newSessionAsTarget();
+		if (text.trim()) {
+			this._setPinnedSubmitSession(this._targetSession.get());
+		}
+		return 'prepared';
 	}
 
 	/**
@@ -6478,17 +6511,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 						: s.status === AgentSessionStatus.Completed ? 'idle'
 							: 'unknown';
-				// If this idle transition is deferred until the model loads, keep
-				// reporting the prior state so the backend doesn't narrate a
-				// premature, summary-less completion. See _pendingIdleNarration.
-				// If we already cached a summary while the model was resident we
-				// can narrate now, so don't hold in that case.
-				if (fallbackState === 'idle' && this._pendingIdleNarration.has(sessionIdStr) && !this._lastResponseSummaryById.has(sessionIdStr)) {
-					const prev = this._prevSessionStates.get(sessionIdStr);
-					if (prev?.state) {
-						fallbackState = prev.state;
-					}
-				}
 				// A confirmation whose model isn't resident has no detail yet; report `thinking` (and load the model) so the backend's state tracking doesn't briefly show a detail-less confirmation. Narration follows once the detail renders.
 				if (fallbackState === 'waiting_for_confirmation') {
 					this._ensureModelLoaded(s.resource);

@@ -10,11 +10,16 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
+import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
@@ -67,6 +72,17 @@ const voiceControlRenderings: Record<VoiceControlState, IVoiceControlRendering> 
 	voiceDisconnect: { icon: Codicon.debugDisconnectCompact, containerClasses: ['voice-active'] },
 };
 
+function createFixtureChatViewModel(sessionResource: URI): IChatViewModel {
+	const model = new class extends mock<IChatModel>() {
+		override readonly sessionResource = sessionResource;
+		override readonly lastRequestObs = constObservable(undefined);
+	}();
+	return new class extends mock<IChatViewModel>() {
+		override readonly sessionResource = sessionResource;
+		override readonly model = model;
+	}();
+}
+
 export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
@@ -90,6 +106,8 @@ export interface ChatInputFixtureOptions {
 	readonly resizeWidths?: readonly number[];
 	/** Supplies models so the picker renders provider icons. */
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Renders the production Copilot Agent Host mode and permissions pickers. */
+	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	/**
@@ -104,9 +122,10 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], voiceControl, notification, pet = false } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, voiceControl, notification, pet = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
+	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
 
 	// Sprite sheets are resolved against the file root.
 	if (pet) {
@@ -117,7 +136,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification });
+			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
 			if (chatPetService) {
 				reg.defineInstance(IChatPetService, chatPetService);
 			}
@@ -187,7 +206,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	}
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
+	if (agentHostSessionConfig) {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostModePickerAction.ID, title: 'Agent Mode' }, group: 'navigation', order: 0.7 });
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostAutoApprovePickerAction.ID, title: 'Auto-Approve' }, group: 'navigation', order: 0.8 });
+	} else {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
+	}
 
 	const options: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -199,7 +223,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		isSessionsWindow,
 		// The sandbox toggle is specific to the local harness, so present the
 		// input as the local session type when exercising the sandboxed state.
-		sessionTypePickerDelegate: sandboxingEnabled ? { getActiveSessionProvider: () => SessionType.Local } : undefined,
+		sessionTypePickerDelegate: agentHostSessionConfig
+			? { getActiveSessionProvider: () => SessionType.AgentHostCopilot }
+			: sandboxingEnabled
+				? { getActiveSessionProvider: () => SessionType.Local }
+				: undefined,
 	};
 	const styles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -210,7 +238,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
 	const mockWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
-		override readonly viewModel = undefined;
+		override readonly viewModel = sessionResource ? createFixtureChatViewModel(sessionResource) : undefined;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};

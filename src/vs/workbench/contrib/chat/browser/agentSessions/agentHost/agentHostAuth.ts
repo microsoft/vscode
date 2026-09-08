@@ -405,7 +405,7 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
-	scopes: readonly string[],
+	scopes: readonly string[] | undefined,
 	token: string,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
@@ -438,6 +438,26 @@ export async function authenticateProtectedResources(
 		for (const resource of agent.protectedResources ?? []) {
 			await authenticateProtectedResourceWithServices(authenticationService, logService, resource, options);
 		}
+	}
+}
+
+export async function authenticateAgentProtectedResourcesWithToken(
+	agents: readonly AgentInfo[],
+	token: string,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+): Promise<void> {
+	for (const agent of agents) {
+		await authenticateProtectedResourcesWithToken(agent.protectedResources ?? [], token, options);
+	}
+}
+
+export async function authenticateProtectedResourcesWithToken(
+	protectedResources: readonly ProtectedResourceMetadata[],
+	token: string,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+): Promise<void> {
+	for (const resource of protectedResources) {
+		await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported, token);
 	}
 }
 

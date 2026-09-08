@@ -17,7 +17,7 @@ export interface IIssueHoverData {
 	readonly repo: string;
 	readonly number: number;
 	readonly repositoryHref: string;
-	readonly issue: IGitHubIssue | undefined;
+	readonly issue: IGitHubIssue;
 	readonly onDidClickRepository?: () => void;
 }
 
@@ -39,14 +39,14 @@ export function createIssueHoverElement(data: IIssueHoverData): HTMLElement {
 		};
 	}
 
-	const date = formatIssueDate(data.issue?.createdAt);
+	const date = formatIssueDate(data.issue.createdAt);
 	if (date) {
 		append(header, $('span.sessions-issue-hover-date', undefined, localize('agentSessions.issueHover.onDate', "on {0}", date)));
 	}
 
-	append(hoverElement, $('.sessions-issue-hover-title', undefined, data.issue?.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number)));
+	append(hoverElement, $('.sessions-issue-hover-title', undefined, data.issue.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number)));
 
-	const body = data.issue?.body.trim() || localize('agentSessions.issueHover.bodyFallback', "No description provided.");
+	const body = data.issue.body.trim() || localize('agentSessions.issueHover.bodyFallback', "No description provided.");
 	const description = append(hoverElement, $('.sessions-issue-hover-description'));
 	append(description, $('.sessions-issue-hover-description-content', undefined, body));
 

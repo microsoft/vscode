@@ -167,9 +167,8 @@ Production and targeted graph tests still resolve the real implementations.
 
 ### `AgentServiceCallbackAdapter`
 
-**Why it exists:** `AgentSideEffects` and changeset retention are constructed
-before `AgentService`, while first-send preparation, chat attachment hydration,
-and changeset eviction are still owned by `AgentService`.
+**Why it exists:** several composition-owned collaborators are constructed
+before `AgentService` but still invoke behavior that it owns.
 
 Cross-cutting turn behavior now belongs in `IAgentHostChatContributions`; do not
 add callbacks for behavior expressible through its lifecycle hooks.
@@ -177,11 +176,8 @@ add callbacks for behavior expressible through its lifecycle hooks.
 **Do not extend it by default:** a new callback usually means another
 responsibility should move to a narrower owning service.
 
-**Exit condition:** extract first-send preparation, chat attachment hydration,
-and changeset eviction so consumers inject those owners directly. Contributions
-reduce the cross-cutting behavior that those services must own, but the remaining
-callback queries and commands need service owners rather than contribution
-hooks. Then delete the adapter and binder contract.
+**Exit condition:** move the remaining callback operations to injectable owners,
+then delete the adapter and binder contract.
 
 ### Post-DI service registrations
 
@@ -193,10 +189,9 @@ callbacks or objects.
 **Do not add another post-DI registration.** Ordinary services belong in the
 descriptor lists or the pre-DI foundation.
 
-**Exit condition:** the turn-preparation, chat-restoration, and changeset
-retention extractions remove the callback cycles. Register the remaining
-services before constructing `InstantiationService`, with `IAgentService` as a
-descriptor.
+**Exit condition:** remove the remaining callback cycles, then register the
+remaining services before constructing `InstantiationService`, with
+`IAgentService` as a descriptor.
 
 ### Chat contribution host bridge
 

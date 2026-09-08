@@ -150,7 +150,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsService.activeSession.read(reader);
-			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader)) {
+			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
+			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
+			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader) || !remoteHostAvailable) {
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
@@ -163,15 +165,23 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			const session = this._sessionsService.activeSession.read(reader);
 			const isArchived = session?.isArchived.read(reader);
 			const worktreePending = session?.worktreePending?.read(reader);
+			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
+			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
+			const remoteHostPermanentlyUnavailable = remoteConnectionStatus?.kind === 'disconnected' || remoteConnectionStatus?.kind === 'incompatible';
+			const preserveActiveTerminalState = !remoteHostPermanentlyUnavailable
+				&& !remoteHostAvailable
+				&& this._activeSessionId === session?.sessionId;
 			if (session && !isArchived && this._archivedSessionIds.delete(session.sessionId)) {
 				this._invalidateTerminalOperations(session.sessionId);
 			}
-			if (session?.loading.read(reader) || isArchived || worktreePending) {
-				if (session && (isArchived || worktreePending)) {
+			if (session?.loading.read(reader) || isArchived || worktreePending || !remoteHostAvailable) {
+				if (session && (isArchived || worktreePending || !remoteHostAvailable)) {
 					this._invalidateTerminalOperations(session.sessionId);
 				}
-				this._activeKey = undefined;
-				this._activeSessionId = undefined;
+				if (!preserveActiveTerminalState) {
+					this._activeKey = undefined;
+					this._activeSessionId = undefined;
+				}
 				return;
 			}
 			this._onActiveSessionChanged(session);
@@ -287,6 +297,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!session) {
 			return this._ensureTerminal(cwd, focus, session);
 		}
+		if (!this._isSessionRemoteHostAvailable(session)) {
+			return [];
+		}
 
 		const generation = this._getTerminalOperationGeneration(session.sessionId);
 		this._beginTerminalOperation(session.sessionId);
@@ -350,7 +363,13 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			|| this._getTerminalOperationGeneration(session.sessionId) !== generation
 			|| this._archivedSessionIds.has(session.sessionId)
 			|| session.isArchived.get()
-			|| session.worktreePending?.get() === true;
+			|| session.worktreePending?.get() === true
+			|| !this._isSessionRemoteHostAvailable(session);
+	}
+
+	private _isSessionRemoteHostAvailable(session: ISession): boolean {
+		const status = session.remoteConnectionStatus?.get();
+		return status === undefined || status.kind === 'connected';
 	}
 
 	private _getTerminalOperationGeneration(sessionId: string): number {

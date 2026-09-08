@@ -456,6 +456,7 @@ import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
 import './browser/parts/sessionsParts.js';
 import './browser/parts/customViewGridParts.js';
+import './services/sessions/browser/sessionsWindowUsageService.js';
 import './services/sessions/browser/sessionsService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/customView/browser/customViewService.js';

@@ -503,8 +503,11 @@
 		"editor.selectionBackground": "#C9D0D9",
 		"minimap.selectionHighlight": "#C9D0D9",
 		"panel.background": "#F5F5F5",
+		"panelSection.border": "#C9D0D9",
+		"panelSectionHeader.border": "#C9D0D9",
 		"sideBar.background": "#F2F2F2",
 		"sideBarSectionHeader.background": "#ede8ef",
+		"sideBarSectionHeader.border": "#C9D0D9",
 		"editorLineNumber.foreground": "#6D705B",
 		"editorCursor.foreground": "#54494B",
 		"inputOption.activeBorder": "#adafb7",
@@ -519,6 +522,7 @@
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
 		"tab.lastPinnedBorder": "#c9d0d9",
 		"statusBar.background": "#705697",
+		"statusBar.inactiveBackground": "#715D91",
 		"welcomePage.tileBackground": "#f0f0f7",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
@@ -528,6 +532,7 @@
 		"activityBar.foreground": "#705697",
 		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
+		"titleBar.inactiveBackground": "#D6CFE2",
 		"button.background": "#705697",
 		"editorGroup.dropBackground": "#C9D0D988",
 		"inputValidation.infoBorder": "#4ec1e5",
@@ -544,6 +549,7 @@
 		"editorIndentGuide.activeBackground": "#777777b0",
 		// modern ui
 		"surface.border": "#00000000",
+		"modernSash.gripForeground": "#705697",
 	},
 	"semanticHighlighting": true
 }

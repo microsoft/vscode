@@ -34,6 +34,7 @@ import {
 	toParsedAgent,
 	toParsedSkill,
 	parsePlugin,
+	readSkills,
 	PluginFormat,
 } from '../../common/pluginParsers.js';
 import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../common/agentPluginParser.js';
@@ -206,6 +207,34 @@ suite('pluginParsers', () => {
 			});
 		});
 
+		test('preserves VS Code OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauth: { clientId: 'vscode-client-id' },
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'vscode-client-id' },
+				dev: undefined,
+			});
+		});
+
+		test('normalizes Copilot SDK OAuth client configuration', () => {
+			assert.deepStrictEqual(normalizeMcpServerConfiguration({
+				type: 'http',
+				url: 'https://mcp.slack.com/mcp',
+				oauthClientId: 'sdk-client-id',
+			}), {
+				type: McpServerType.REMOTE,
+				url: 'https://mcp.slack.com/mcp',
+				headers: undefined,
+				oauth: { clientId: 'sdk-client-id' },
+				dev: undefined,
+			});
+		});
+
 		test('infers remote type from url without explicit type', () => {
 			const result = normalizeMcpServerConfiguration({ url: 'https://example.com' });
 			assert.ok(result);
@@ -343,6 +372,36 @@ suite('pluginParsers', () => {
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${lowercase}');
+		});
+	});
+
+	suite('readSkills', () => {
+		const store = new DisposableStore();
+		let fileService: FileService;
+
+		setup(() => {
+			fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		});
+		teardown(() => store.clear());
+
+		test('deduplicates skill names unless the caller opts out', async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const directory = URI.joinPath(root, 'skills');
+			const firstSkill = URI.joinPath(directory, 'first', 'SKILL.md');
+			const lastSkill = URI.joinPath(directory, 'last', 'SKILL.md');
+			await Promise.all([firstSkill, lastSkill].map(resource => fileService.writeFile(resource, VSBuffer.fromString('---\nname: shared\n---\nA skill.'))));
+
+			const defaultSkills = await readSkills(root, [directory], fileService, { childDirectoriesOnly: true });
+			const allSkills = await readSkills(root, [directory], fileService, { childDirectoriesOnly: true, deduplicateByName: false });
+
+			assert.deepStrictEqual({
+				defaultNames: defaultSkills.map(skill => skill.name),
+				allUris: allSkills.map(skill => skill.uri.toString()).sort(),
+			}, {
+				defaultNames: ['shared'],
+				allUris: [firstSkill.toString(), lastSkill.toString()],
+			});
 		});
 	});
 
