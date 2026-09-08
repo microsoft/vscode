@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -91,6 +92,12 @@ function typeFilter(widget: ActionListWidget<ITestActionItem>, value: string): v
 	assert.ok(widget.filterInput);
 	widget.filterInput.value = value;
 	widget.filterInput.dispatchEvent(new Event('input'));
+}
+
+function dispatchKeyDown(target: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
+	const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+	target.dispatchEvent(event);
+	return event;
 }
 
 function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] {
@@ -369,6 +376,230 @@ suite('ActionListWidget', () => {
 		pending.complete([action('stale-result')]);
 		await timeout(0);
 		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
+	});
+
+	suite('combobox filtering', () => {
+		test('initializes the query and exposes the active result to assistive technology', () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('alpha'), action('beta'), action('alpine')],
+				listOptions: {
+					initialFilterValue: 'al',
+					filterPlaceholder: 'Search models',
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			const activeResult = document.getElementById(input.getAttribute('aria-activedescendant') ?? '');
+			const controlledList = document.getElementById(input.getAttribute('aria-controls') ?? '');
+
+			assert.deepStrictEqual({
+				value: input.value,
+				rows: getVisibleRowText(widget),
+				inputFocused: document.activeElement === input,
+				role: input.getAttribute('role'),
+				label: input.getAttribute('aria-label'),
+				autocomplete: input.getAttribute('aria-autocomplete'),
+				expanded: input.getAttribute('aria-expanded'),
+				listRole: controlledList?.getAttribute('role'),
+				activeResult: activeResult?.textContent,
+			}, {
+				value: 'al',
+				rows: ['alpha', 'alpine'],
+				inputFocused: true,
+				role: 'combobox',
+				label: 'Search models',
+				autocomplete: 'list',
+				expanded: 'true',
+				listRole: 'listbox',
+				activeResult: 'alpha',
+			});
+		});
+
+		test('arrow navigation skips disabled rows and separators without leaving the input', () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('alpha'), separator('Models'), { ...action('beta'), disabled: true }, action('gamma')],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true, initialFilterValue: 'a' },
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			input.setSelectionRange(0, 1);
+
+			const states = [
+				{ key: 'ArrowDown', keyCode: 40 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'ArrowDown', keyCode: 40 },
+			].map(key => {
+				const event = dispatchKeyDown(input, key);
+				const activeResult = document.getElementById(input.getAttribute('aria-activedescendant') ?? '');
+				return {
+					result: widget.getFocusedElement()?.label,
+					inputFocused: document.activeElement === input,
+					selection: [input.selectionStart, input.selectionEnd],
+					activeResult: activeResult?.textContent,
+					defaultPrevented: event.defaultPrevented,
+				};
+			});
+
+			assert.deepStrictEqual(states, ['gamma', 'alpha', 'gamma', 'alpha'].map(result => ({
+				result,
+				inputFocused: true,
+				selection: [0, 1],
+				activeResult: result,
+				defaultPrevented: true,
+			})));
+		});
+
+		test('typing can refine the query after navigation and Enter accepts the new result', () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second'), action('third')],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+				onSelect: item => selected.push(item.id),
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			dispatchKeyDown(input, { key: 'ArrowDown', keyCode: 40 });
+			typeFilter(widget, 'thi');
+			dispatchKeyDown(input, { key: 'Enter', keyCode: 13 });
+
+			assert.deepStrictEqual({
+				value: input.value,
+				inputFocused: document.activeElement === input,
+				rows: getVisibleRowText(widget),
+				selected,
+			}, { value: 'thi', inputFocused: true, rows: ['third'], selected: ['third'] });
+		});
+
+		test('empty and disabled results cannot accept a stale selection', () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), { ...action('disabled'), disabled: true }],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+				onSelect: item => selected.push(item.id),
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			const states = ['missing', 'disabled'].map(query => {
+				typeFilter(widget, query);
+				dispatchKeyDown(input, { key: 'ArrowDown', keyCode: 40 });
+				dispatchKeyDown(input, { key: 'ArrowUp', keyCode: 38 });
+				dispatchKeyDown(input, { key: 'Enter', keyCode: 13 });
+				return {
+					inputFocused: document.activeElement === input,
+					activeResult: input.getAttribute('aria-activedescendant'),
+					focused: widget.getFocusedElement(),
+					selected: [...selected],
+				};
+			});
+
+			assert.deepStrictEqual(states, ['missing', 'disabled'].map(() => ({
+				inputFocused: true, activeResult: null, focused: undefined, selected: [],
+			})));
+		});
+
+		test('unrelated shortcuts still reach the workbench keybinding handler', () => {
+			const widget = createActionListWidget(disposables, {
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			const filterContainer = widget.filterContainer;
+			assert.ok(input && filterContainer);
+			const received: string[] = [];
+			disposables.add(addDisposableListener(filterContainer, 'keydown', (event: KeyboardEvent) => received.push(event.key)));
+			const events = [
+				{ key: 'P', keyCode: 80, ctrlKey: true, shiftKey: true },
+				{ key: 'P', keyCode: 80, metaKey: true, shiftKey: true },
+				{ key: 'Enter', keyCode: 13, ctrlKey: true },
+			].map(init => dispatchKeyDown(input, init));
+
+			assert.deepStrictEqual({
+				received,
+				prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+			}, { received: ['P', 'P', 'Enter'], prevented: [] });
+		});
+
+		for (const filterAsCombobox of [undefined, true]) {
+			test(`retaining filter focus is opt-in: ${filterAsCombobox}`, () => {
+				const widget = createActionListWidget(disposables, {
+					items: [action('first'), action('second')],
+					listOptions: { filterAsCombobox, focusFilterOnOpen: true },
+				});
+				widget.focus();
+				widget.focusNext();
+
+				assert.deepStrictEqual({
+					focused: widget.getFocusedElement()?.label,
+					inputFocused: document.activeElement === widget.filterInput,
+					role: widget.filterInput?.getAttribute('role'),
+				}, {
+					focused: 'second',
+					inputFocused: !!filterAsCombobox,
+					role: filterAsCombobox ? 'combobox' : null,
+				});
+			});
+		}
+	});
+
+	test('typing requests a filter instead of performing list type navigation when opted in', () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('alpha'), action('beta')],
+			listOptions: { showFilter: false, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list');
+		assert.ok(list);
+		const event = dispatchKeyDown(list, { key: 'b', keyCode: 66 });
+
+		assert.deepStrictEqual({
+			typed,
+			focused: widget.getFocusedElement()?.label,
+			defaultPrevented: event.defaultPrevented,
+		}, { typed: ['b'], focused: 'alpha', defaultPrevented: true });
+	});
+
+	test('type-to-filter leaves shortcuts, composition, and embedded controls alone', () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			listOptions: { showFilter: false, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list');
+		assert.ok(list);
+		const events = [
+			{ key: ' ', keyCode: 32 },
+			{ key: 'b', keyCode: 66, ctrlKey: true },
+			{ key: 'b', keyCode: 66, metaKey: true },
+			{ key: 'b', keyCode: 66, altKey: true },
+			{ key: 'b', keyCode: 66, isComposing: true },
+		].map(init => dispatchKeyDown(list, init));
+
+		for (const tag of ['input', 'textarea', 'button', 'a']) {
+			const control = document.createElement(tag);
+			widget.domNode.appendChild(control);
+			events.push(dispatchKeyDown(control, { key: 'b', keyCode: 66 }));
+		}
+		const editable = document.createElement('div');
+		editable.contentEditable = 'true';
+		widget.domNode.appendChild(editable);
+		const text = editable.appendChild(document.createElement('span'));
+		events.push(dispatchKeyDown(text, { key: 'b', keyCode: 66 }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		events.push(dispatchKeyDown(panel, { key: 'b', keyCode: 66 }));
+
+		assert.deepStrictEqual({
+			typed,
+			prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+		}, { typed: [], prevented: [] });
 	});
 
 	test('batches row width writes before reading layout', () => {
