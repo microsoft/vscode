@@ -2841,7 +2841,7 @@ suite('CopilotChatSessionsProvider', () => {
 					mode: undefined,
 					permissionLevel: ChatPermissionLevel.Default,
 					captured: {
-						sessionTemplate: { config: { ...config, providerOption } },
+						sessionTemplate: { config: { ...config, providerOption, useSandbox: false } },
 						modelId: undefined,
 						mode: config.mode,
 						permissionLevel: config.autoApprove,
@@ -2875,11 +2875,31 @@ suite('CopilotChatSessionsProvider', () => {
 				}, {
 					useSandbox,
 					sentPermissionLevel: ChatPermissionLevel.Default,
-					config: { mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.AutoApprove },
+					config: { mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.AutoApprove, useSandbox },
 				});
 			});
 		}
 
+		test('does not enable unsupported Cloud worktree or branch configuration', async () => {
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration: {} });
+			await provider.setIsolationMode(sessionInfo.sessionId, 'worktree');
+			await provider.setBranch(sessionInfo.sessionId, 'feature/saved');
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				supportsWorktree: CopilotCloudSessionType.supportsWorktreeConfiguration ?? false,
+				isolationMode: session.isolationMode.get(),
+				branch: session.branch.get(),
+				config: captured?.sessionTemplate?.config,
+			}, {
+				supportsWorktree: false,
+				isolationMode: undefined,
+				branch: undefined,
+				config: { autoApprove: ChatPermissionLevel.Default, useSandbox: false },
+			});
+		});
 	});
 
 	suite('Automation custom agent restoration', () => {
@@ -3306,7 +3326,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// `repoNwo` has to strip back down to `owner/repo`.
 		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
 
-		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined } = {}) {
+		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; cloudSendResult?: ChatSendResult } = {}) {
 			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
 			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
@@ -3315,8 +3335,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const notifications: string[] = [];
 			const provider = createProviderForSendTests(disposables, model, async (_resource, message) => {
 				cloudSends.push(message);
-				// Never settles: these tests only assert which path the send took.
-				return new Promise<ChatSendResult>(() => { });
+				// Leave routing-only requests pending unless the test provides a result.
+				return opts.cloudSendResult ?? new Promise<ChatSendResult>(() => { });
 			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications });
 
 			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
@@ -3401,6 +3421,52 @@ suite('CopilotChatSessionsProvider', () => {
 				name: 'Models',
 				items: [{ id: itemId, name: backendModelId, modelMetadata: { id: backendModelId, name: backendModelId } }],
 			}];
+		}
+
+		for (const useSandbox of [false, true]) {
+			for (const enabled of [false, true]) {
+				test(`restores Automation Sandbox=${useSandbox} independently of the composer with the feature ${enabled ? 'enabled' : 'disabled'}`, async () => {
+					const provisioned = provisionedSession();
+					const { provider, provisionRequests, cloudSends } = createSandboxProvider({
+						enabled,
+						provision: async () => provisioned,
+						cloudSendResult: { kind: 'rejected', reason: 'Cloud request recorded' },
+					});
+					const original = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id, {
+						automationConfiguration: { sessionTemplate: { config: { futureCloudOption: true } } },
+					});
+					provider.getSession(original.sessionId)!.setUseSandbox(useSandbox);
+					const saved = await provider.getAutomationSessionConfiguration(original.sessionId);
+					provider.deleteNewSession(original.sessionId);
+					const ordinary = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+					provider.getSession(ordinary.sessionId)!.setUseSandbox(!useSandbox);
+
+					const restored = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id, { automationConfiguration: saved });
+					const restoredUseSandbox = provider.getSession(restored.sessionId)?.useSandbox.get();
+					const recaptured = await provider.getAutomationSessionConfiguration(restored.sessionId);
+					const laterOrdinary = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+					const send = provider.sendRequest(restored.sessionId, restored.mainChat.get().resource, { query: 'fix it' });
+					if (useSandbox && enabled) {
+						await send;
+					} else {
+						await assert.rejects(send, /Cloud request recorded/);
+					}
+
+					assert.deepStrictEqual({
+						restoredUseSandbox,
+						recapturedConfig: recaptured?.sessionTemplate?.config,
+						ordinaryUseSandbox: provider.getSession(laterOrdinary.sessionId)?.useSandbox.get(),
+						provisionRequests,
+						cloudSends,
+					}, {
+						restoredUseSandbox: useSandbox,
+						recapturedConfig: { futureCloudOption: true, autoApprove: ChatPermissionLevel.Default, useSandbox },
+						ordinaryUseSandbox: !useSandbox,
+						provisionRequests: useSandbox && enabled ? [{ repoNwo: 'osortega/simple-server', prompt: 'fix it' }] : [],
+						cloudSends: useSandbox && enabled ? [] : ['fix it'],
+					});
+				});
+			}
 		}
 
 		test('carries the composer model into the sandbox before the first turn', async () => {
