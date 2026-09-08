@@ -936,6 +936,21 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}, /No server package found/);
 		});
 
+		test('unsupported package registry type should throw error', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: 'unsupported' as RegistryType,
+					transport: { type: TransportType.STDIO },
+					identifier: 'test-package',
+					version: '1.0.0'
+				}]
+			};
+
+			assert.throws(() => {
+				service.getMcpServerConfigurationFromManifest(manifest, manifest.packages![0].registryType);
+			}, /Unsupported MCP server package registry type: unsupported/);
+		});
+
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{

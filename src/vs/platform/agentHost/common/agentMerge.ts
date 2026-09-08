@@ -341,8 +341,18 @@ export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchNa
 	return [lines[0], '', ...lines.slice(1).map(line => `- ${line}`)].join('\n');
 }
 
-/** The transcript notice shown when effective Agent Merge behavior changes. */
-export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration): string | undefined {
+/**
+ * Whether a configuration change was made for one session alone, or to the
+ * defaults every session follows.
+ */
+export type AgentMergeConfigurationChangeScope = 'session' | 'global';
+
+/**
+ * The transcript notice shown when effective Agent Merge behavior changes. The
+ * scope is named up front because the same change reads very differently
+ * depending on whether it was made for this session or for all of them.
+ */
+export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration, scope: AgentMergeConfigurationChangeScope): string | undefined {
 	const changes: string[] = [];
 	if (previous.addressReviews !== current.addressReviews) {
 		changes.push(current.addressReviews
@@ -372,8 +382,17 @@ export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfigu
 			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
 	}
 	return changes.length > 0
-		? [localize('agentMerge.notice.configuration.changed', "Agent Merge settings changed."), '', ...changes.map(change => `- ${change}`)].join('\n')
+		? [agentMergeConfigurationChangedHeading(scope), '', ...changes.map(change => `- ${change}`)].join('\n')
 		: undefined;
+}
+
+function agentMergeConfigurationChangedHeading(scope: AgentMergeConfigurationChangeScope): string {
+	switch (scope) {
+		case 'session':
+			return localize('agentMerge.notice.configuration.changed.session', "Agent Merge settings changed for this session.");
+		case 'global':
+			return localize('agentMerge.notice.configuration.changed.global', "Agent Merge default settings changed for all sessions.");
+	}
 }
 
 function agentMergeMergeBehaviorNotice(mergePullRequest: AgentMergeMergePullRequest): string {

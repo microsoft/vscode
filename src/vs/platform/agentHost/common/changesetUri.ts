@@ -129,6 +129,17 @@ export const enum ChangesetKind {
 	Unknown = 'unknown',
 }
 
+/** Changeset kinds that can represent a session's default changes view. */
+export type DefaultChangesetKind = ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
+
+/** Selects the configured default changeset, falling back to the first catalogue entry. */
+export function selectDefaultChangeset<T extends Pick<Changeset, 'changeKind'>>(
+	changesets: readonly T[] | undefined,
+	defaultKind: DefaultChangesetKind = ChangesetKind.Branch,
+): T | undefined {
+	return changesets?.find(changeset => changeset.changeKind === defaultKind) ?? changesets?.[0];
+}
+
 /** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
 const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
 

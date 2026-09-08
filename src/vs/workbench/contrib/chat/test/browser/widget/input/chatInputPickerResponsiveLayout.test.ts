@@ -463,27 +463,52 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
-	test('keeps the primary picker icon anchored when its label disappears', () => {
+	test('centers compact primary and secondary picker icons', () => {
 		host.style.setProperty('--vscode-spacing-size60', '6px');
+		host.style.setProperty('--vscode-spacing-size80', '8px');
 		host.classList.add('interactive-session');
-		const toolbar = dom.append(host, dom.$('.chat-input-toolbar'));
-		const item = dom.append(toolbar, dom.$('.chat-input-picker-item'));
-		const actionLabel = dom.append(item, dom.$('a.action-label'));
-		const icon = dom.append(actionLabel, dom.$('span.codicon'));
-		icon.style.width = '16px';
-		icon.style.height = '16px';
-		const pickerLabel = dom.append(actionLabel, dom.$('span.chat-input-picker-label'));
-		pickerLabel.textContent = 'Picker';
+		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 
-		const expandedOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
-		item.classList.add('compact');
-		actionLabel.classList.add('icon-only');
-		pickerLabel.remove();
-		const compactOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
+		const renderPicker = (toolbarClass: string, itemClass: string) => {
+			const toolbar = dom.append(host, dom.$(`.${toolbarClass}`));
+			const item = dom.append(toolbar, dom.$(`.${itemClass}`));
+			const actionLabel = dom.append(item, dom.$('a.action-label'));
+			const icon = dom.append(actionLabel, dom.$('span.codicon'));
+			const pickerLabel = dom.append(actionLabel, dom.$('span.chat-input-picker-label'));
+			pickerLabel.textContent = 'Picker';
 
-		assert.deepStrictEqual({ expandedOffset, compactOffset }, {
-			expandedOffset: 6,
-			compactOffset: 6,
+			const expandedOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
+			actionLabel.classList.add('icon-only');
+			pickerLabel.remove();
+			const actionBounds = actionLabel.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			return {
+				expandedOffset,
+				action: { width: actionBounds.width, height: actionBounds.height },
+				icon: {
+					width: iconBounds.width,
+					height: iconBounds.height,
+					x: iconBounds.left - actionBounds.left,
+					y: iconBounds.top - actionBounds.top,
+				},
+			};
+		};
+
+		assert.deepStrictEqual({
+			primary: renderPicker('chat-input-toolbar', 'chat-input-picker-item'),
+			secondary: renderPicker('chat-secondary-input-toolbar', 'chat-sessionPicker-item'),
+		}, {
+			primary: {
+				expandedOffset: 6,
+				action: { width: 22, height: 22 },
+				icon: { width: 12, height: 12, x: 5, y: 5 },
+			},
+			secondary: {
+				expandedOffset: 8,
+				action: { width: 22, height: 22 },
+				icon: { width: 12, height: 12, x: 5, y: 5 },
+			},
 		});
 	});
+
 });

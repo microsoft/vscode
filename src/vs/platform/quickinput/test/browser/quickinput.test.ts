@@ -19,7 +19,7 @@ import { TestThemeService } from '../../../theme/test/common/testThemeService.js
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { QuickPick } from '../../browser/quickInput.js';
+import { backButton, QuickPick } from '../../browser/quickInput.js';
 import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
@@ -163,6 +163,28 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			{ display: '', closing: false, inert: false, visible: true },
 			{ display: 'none', closing: false, inert: false, visible: false },
 		]);
+	});
+
+	test('title bar is hidden when empty', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const titleBar = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
+		const states: string[] = [];
+		const recordState = () => states.push(titleBar.style.display);
+
+		quickpick.show();
+		recordState();
+
+		quickpick.title = 'Title';
+		recordState();
+
+		quickpick.title = undefined;
+		quickpick.buttons = [backButton];
+		recordState();
+
+		quickpick.buttons = [];
+		recordState();
+
+		assert.deepStrictEqual(states, ['none', '', '', 'none']);
 	});
 
 	test('overlay picker aligns its input with the anchor and bypasses motion', () => {

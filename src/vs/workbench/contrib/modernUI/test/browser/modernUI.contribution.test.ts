@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
+import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Pane } from '../../../../../base/browser/ui/splitview/paneview.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -19,10 +23,10 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
@@ -32,8 +36,10 @@ import { WorkbenchState } from '../../../../../platform/workspace/common/workspa
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { generateColorThemeCSS } from '../../../../services/themes/browser/colorThemeCss.js';
 import '../../../../browser/media/floatingPanels.css';
+import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
+import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
@@ -489,6 +495,114 @@ suite('ModernUIContribution', () => {
 			followingHorizontalPaneBorderLeftWidth: '1px',
 			followingHorizontalPaneBorderLeftColor: 'rgb(255, 0, 0)',
 		});
+	});
+
+	test('falls back to the surface border for pane header separators', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-surface-border', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const sideBarPaneView = appendElement(appendElement(root, 'part sidebar'), 'monaco-pane-view');
+		const firstSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(firstSideBarPane.element);
+		const followingSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(followingSideBarPane.element);
+
+		const panelPaneView = appendElement(appendElement(root, 'part panel'), 'monaco-pane-view');
+		const firstPanelPane = store.add(new ModernUITestPane());
+		appendElement(panelPaneView, 'split-view-view').appendChild(firstPanelPane.element);
+		const followingPanelPane = store.add(new ModernUITestPane());
+		appendElement(panelPaneView, 'split-view-view').appendChild(followingPanelPane.element);
+
+		const targetWindow = getWindow(root);
+		assert.deepStrictEqual({
+			sideBarHeaderSeparatorColor: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!, '::before').backgroundColor,
+			panelHeaderSeparatorColor: targetWindow.getComputedStyle(followingPanelPane.draggableElement!, '::before').backgroundColor,
+		}, {
+			sideBarHeaderSeparatorColor: 'rgb(18, 52, 86)',
+			panelHeaderSeparatorColor: 'rgb(18, 52, 86)',
+		});
+	});
+
+	test('provides opaque default colors for high contrast pane dividers', () => {
+		const getDividerState = (theme: ColorThemeData) => {
+			const dividerColors = [
+				theme.getColor(SIDE_BAR_SECTION_HEADER_BORDER),
+				theme.getColor(PANEL_SECTION_HEADER_BORDER),
+				theme.getColor(PANEL_SECTION_BORDER),
+			];
+
+			return {
+				areDefined: dividerColors.map(color => color !== undefined),
+				areOpaque: dividerColors.map(color => color?.isOpaque()),
+			};
+		};
+
+		assert.deepStrictEqual({
+			hcDark: getDividerState(ColorThemeData.createUnloadedTheme('hc-black')),
+			hcLight: getDividerState(ColorThemeData.createUnloadedTheme('hc-light')),
+		}, {
+			hcDark: {
+				areDefined: [true, true, true],
+				areOpaque: [true, true, true],
+			},
+			hcLight: {
+				areDefined: [true, true, true],
+				areOpaque: [true, true, true],
+			},
+		});
+	});
+
+	test('respects customized high contrast pane dividers', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui hc-black';
+		root.style.setProperty('--vscode-contrastBorder', '#6FC3DF');
+		root.style.setProperty('--vscode-sideBarSectionHeader-border', '#6F7783');
+		root.style.setProperty('--vscode-panelSectionHeader-border', '#6F7783');
+		root.style.setProperty('--vscode-panelSection-border', '#6F7783');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const sideBarPaneView = appendElement(appendElement(root, 'part sidebar'), 'monaco-pane-view');
+		const firstSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(firstSideBarPane.element);
+		const followingSideBarPane = store.add(new ModernUITestPane());
+		appendElement(sideBarPaneView, 'split-view-view').appendChild(followingSideBarPane.element);
+
+		const panelPaneView = appendElement(appendElement(root, 'part panel'), 'monaco-pane-view');
+		const firstPanelPane = store.add(new ModernUITestPane());
+		appendElement(panelPaneView, 'split-view-view').appendChild(firstPanelPane.element);
+		const followingPanelPane = store.add(new ModernUITestPane());
+		appendElement(panelPaneView, 'split-view-view').appendChild(followingPanelPane.element);
+
+		const horizontalPanelPane = store.add(new ModernUITestPane());
+		horizontalPanelPane.orientation = Orientation.HORIZONTAL;
+		horizontalPanelPane.style({
+			dropBackground: undefined,
+			headerForeground: undefined,
+			headerBackground: undefined,
+			headerBorder: undefined,
+			leftBorder: 'var(--vscode-panelSection-border)',
+		});
+		appendElement(panelPaneView, 'split-view-view').appendChild(horizontalPanelPane.element);
+
+		const targetWindow = getWindow(root);
+		const getDividerColors = () => ({
+			sideBarHeaderSeparatorColor: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!, '::before').backgroundColor,
+			panelHeaderSeparatorColor: targetWindow.getComputedStyle(followingPanelPane.draggableElement!, '::before').backgroundColor,
+			horizontalPanelSeparatorColor: targetWindow.getComputedStyle(horizontalPanelPane.element).borderLeftColor,
+		});
+		const dark = getDividerColors();
+		root.classList.replace('hc-black', 'hc-light');
+		const light = getDividerColors();
+		const expected = {
+			sideBarHeaderSeparatorColor: 'rgb(111, 119, 131)',
+			panelHeaderSeparatorColor: 'rgb(111, 119, 131)',
+			horizontalPanelSeparatorColor: 'rgb(111, 119, 131)',
+		};
+		assert.deepStrictEqual({ dark, light }, { dark: expected, light: expected });
 	});
 
 	test('toggles uppercase view headers without relayout', async () => {
@@ -965,6 +1079,212 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('keeps floating rail overlays anchored to the viewport', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.height = '200px';
+		root.style.display = 'inline-flex';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'part activitybar left');
+		const content = appendElement(activityBar, 'content');
+		const menubar = appendElement(content, 'menubar compact');
+		const menuButton = appendElement(menubar, 'menubar-menu-button open');
+		const menu = appendElement(menuButton, 'menubar-menu-items-holder monaco-menu-container');
+		menu.style.top = '120px';
+		menu.style.left = '240px';
+		menu.style.width = '200px';
+		menu.style.height = '160px';
+
+		const activityBarBounds = activityBar.getBoundingClientRect();
+		const menuBounds = menu.getBoundingClientRect();
+		const menuBarStyle = getWindow(menubar).getComputedStyle(menubar);
+
+		assert.deepStrictEqual({
+			position: getWindow(menu).getComputedStyle(menu).position,
+			menuBarHeight: menubar.clientHeight,
+			menuBarComputedHeight: menuBarStyle.height,
+			menuBarDisplay: menuBarStyle.display,
+			menuBarPaddingTop: menuBarStyle.paddingTop,
+			top: menuBounds.top,
+			left: menuBounds.left,
+			width: menuBounds.width,
+			leavesRail: menuBounds.left > activityBarBounds.right,
+		}, {
+			position: 'fixed',
+			menuBarHeight: 39,
+			menuBarComputedHeight: '39px',
+			menuBarDisplay: 'flex',
+			menuBarPaddingTop: '3px',
+			top: 120,
+			left: 240,
+			width: 200,
+			leavesRail: true,
+		});
+	});
+
+	for (const { name, classes, gap } of [
+		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8 },
+		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4 },
+		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0 },
+		{ name: 'classic layout', classes: '', gap: 0 },
+	]) {
+		test(`keeps compact application menu spacing independent of the activity rail in ${name}`, async () => {
+			const root = document.createElement('div');
+			root.className = `monaco-workbench ${classes}`;
+			root.style.height = '400px';
+			root.style.setProperty('--activity-bar-width', '36px');
+			root.style.setProperty('--activity-bar-action-height', '36px');
+			root.style.setProperty('--activity-bar-action-gap', `${gap}px`);
+			root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+			root.style.setProperty('--vscode-spacing-size20', '2px');
+			root.style.setProperty('--vscode-spacing-size40', '4px');
+			root.style.setProperty('--vscode-spacing-size60', '6px');
+			root.style.setProperty('--vscode-spacing-size80', '8px');
+			document.body.appendChild(root);
+			const disposables = new DisposableStore();
+			store.add(combinedDisposable(disposables, toDisposable(() => root.remove())));
+
+			const activityBar = appendElement(root, `part activitybar left${name === 'compact activity bar' ? ' compact' : ''}`);
+			const content = appendElement(activityBar, 'content');
+			const menubar = appendElement(content, 'menubar');
+			const rail = disposables.add(new ActionBar(appendElement(content, 'composite-bar'), { orientation: ActionsOrientation.VERTICAL }));
+			rail.push([
+				disposables.add(new Action('explorer', 'Explorer')),
+				disposables.add(new Action('search', 'Search')),
+			]);
+			const actions = [
+				disposables.add(new Action('undo', 'Undo')),
+				disposables.add(new Action('redo', 'Redo')),
+				new Separator(),
+				disposables.add(new Action('cut', 'Cut')),
+				disposables.add(new Action('copy', 'Copy')),
+			];
+			const menuBar = new MenuBar(menubar, {
+				visibility: 'compact',
+				compactMode: { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
+			}, unthemedMenuStyles);
+			disposables.add(combinedDisposable(toDisposable(() => menuBar.blur()), menuBar));
+			menuBar.push([
+				{ label: 'Edit', actions },
+				{ label: 'View', actions: [] },
+				{ label: 'Help', actions: [] },
+			]);
+			menuBar.update();
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(getWindow(root), () => resolve())));
+			menuBar.toggleFocus();
+			menubar.querySelector<HTMLElement>('.menubar-menu-button')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+
+			const applicationMenu = menubar.querySelector<HTMLElement>('.monaco-menu');
+			assert.ok(applicationMenu);
+			applicationMenu.querySelector<HTMLElement>('.action-menu-item')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			const submenu = applicationMenu.querySelector<HTMLElement>('.monaco-submenu .monaco-menu');
+			assert.ok(submenu);
+
+			const referenceHost = appendElement(root, 'reference-menu');
+			disposables.add(new Menu(referenceHost, actions, {}, unthemedMenuStyles));
+			const referenceMenu = referenceHost.querySelector<HTMLElement>('.monaco-menu')!;
+			const menuGeometry = (menu: HTMLElement) => {
+				const items = [...menu.querySelector('.actions-container')!.children];
+				const top = items[0].getBoundingClientRect().top;
+				return items.map(item => ({
+					height: item.getBoundingClientRect().height,
+					offset: item.getBoundingClientRect().top - top,
+					marginTop: getWindow(menu).getComputedStyle(item).marginTop,
+				}));
+			};
+			const applicationRows = menuGeometry(applicationMenu);
+			const railItems = content.querySelectorAll<HTMLElement>('.composite-bar .action-item');
+			assert.deepStrictEqual({
+				railGap: getWindow(root).getComputedStyle(railItems[1]).marginTop,
+				applicationMargins: applicationRows.map(row => row.marginTop),
+				applicationRowStep: applicationRows[1].offset,
+				submenu: menuGeometry(submenu),
+			}, {
+				railGap: `${gap}px`,
+				applicationMargins: ['0px', '0px', '0px'],
+				applicationRowStep: 24,
+				submenu: menuGeometry(referenceMenu),
+			});
+		});
+	}
+
+	test('styles focused and open compact application menu states', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--activity-bar-action-height', '36px');
+		root.style.setProperty('--vscode-codiconFontSize', '16px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-menubar-selectionBorder', '#123456');
+		root.style.setProperty('--vscode-modernActivityBarItem-hoverBackground', '#234567');
+		root.style.setProperty('--vscode-modernActivityBarItem-hoverForeground', '#345678');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeBackground', '#456789');
+		root.style.setProperty('--vscode-modernActivityBarItem-activeForeground', '#56789a');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const activityBar = appendElement(root, 'part activitybar left');
+		const content = appendElement(activityBar, 'content');
+		const menubar = appendElement(content, 'menubar compact');
+		const menuButton = appendElement(menubar, 'menubar-menu-button');
+		menuButton.tabIndex = 0;
+		const target = appendElement(menuButton, 'menubar-menu-title toolbar-toggle-more');
+		const targetWindow = getWindow(target);
+		const targetStyles = () => {
+			const style = targetWindow.getComputedStyle(target);
+			return {
+				buttonBackgroundColor: targetWindow.getComputedStyle(menuButton).backgroundColor,
+				backgroundColor: style.backgroundColor,
+				color: style.color,
+				outlineColor: style.outlineColor,
+				outlineStyle: style.outlineStyle,
+				outlineWidth: style.outlineWidth,
+			};
+		};
+
+		// The headless runner cannot activate :focus; .open exercises the shared focus/open selectors.
+		menuButton.classList.add('open');
+		const focusAndOpen = targetStyles();
+		root.classList.add('hc-black');
+		root.style.setProperty('--vscode-menubar-selectionBorder', '#abcdef');
+		const highContrastFocusAndOpen = targetStyles();
+
+		assert.deepStrictEqual({
+			fontSize: targetWindow.getComputedStyle(target).fontSize,
+			focusAndOpen,
+			highContrastFocusAndOpen,
+		}, {
+			fontSize: '16px',
+			focusAndOpen: {
+				buttonBackgroundColor: 'rgba(0, 0, 0, 0)',
+				backgroundColor: 'rgb(69, 103, 137)',
+				color: 'rgb(86, 120, 154)',
+				outlineColor: 'rgb(18, 52, 86)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+			},
+			highContrastFocusAndOpen: {
+				buttonBackgroundColor: 'rgba(0, 0, 0, 0)',
+				backgroundColor: 'rgb(69, 103, 137)',
+				color: 'rgb(86, 120, 154)',
+				outlineColor: 'rgb(171, 205, 239)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+			},
+		});
+	});
+
 	test('uses the editor surface border color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -1009,6 +1329,57 @@ suite('ModernUIContribution', () => {
 			registeredDefault: SURFACE_BORDER,
 			activityBarBorder: 'rgb(18, 52, 86)',
 			sideBarBorder: 'rgb(101, 67, 33) rgb(101, 67, 33) rgb(101, 67, 33) rgba(0, 0, 0, 0)',
+		});
+	});
+
+	test('uses the modern panel border color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--vscode-modernPanel-border', '#123456');
+		root.style.setProperty('--vscode-surface-border', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const panel = appendElement(grid, 'part panel bottom');
+		const contribution = colorRegistry.getColors().find(color => color.id === MODERN_PANEL_BORDER);
+		const panelBorder = getWindow(panel).getComputedStyle(panel).borderColor;
+
+		root.classList.add('modern-ui-compact');
+
+		assert.deepStrictEqual({
+			registeredDefault: contribution?.defaults,
+			panelBorder,
+			compactPanelStroke: getWindow(panel).getComputedStyle(panel).getPropertyValue('--modern-ui-floating-card-stroke-color'),
+		}, {
+			registeredDefault: SURFACE_BORDER,
+			panelBorder: 'rgb(18, 52, 86)',
+			compactPanelStroke: '#123456',
+		});
+	});
+
+	test('uses the modern UI shell background color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui floating-panels';
+		root.style.setProperty('--vscode-modernUI-shellBackground', '#123456');
+		root.style.setProperty('--vscode-titleBar-activeBackground', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const contribution = colorRegistry.getColors().find(color => color.id === MODERN_UI_SHELL_BACKGROUND);
+		const inactiveContribution = colorRegistry.getColors().find(color => color.id === MODERN_UI_INACTIVE_SHELL_BACKGROUND);
+
+		assert.deepStrictEqual({
+			registeredDefault: contribution?.defaults,
+			registeredInactiveDefault: inactiveContribution?.defaults,
+			workbenchBackground: getWindow(root).getComputedStyle(root).backgroundColor,
+			gridBackground: getWindow(grid).getComputedStyle(grid).backgroundColor,
+		}, {
+			registeredDefault: TITLE_BAR_ACTIVE_BACKGROUND,
+			registeredInactiveDefault: TITLE_BAR_INACTIVE_BACKGROUND,
+			workbenchBackground: 'rgb(18, 52, 86)',
+			gridBackground: 'rgb(18, 52, 86)',
 		});
 	});
 
@@ -1149,6 +1520,41 @@ suite('ModernUIContribution', () => {
 		}, {
 			verticalGrip: 'none',
 			horizontalGrip: 'none',
+		});
+	});
+
+	test('sash grips use the modern sash grip color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui';
+		root.style.setProperty('--vscode-modernSash-gripForeground', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const verticalSash = appendElement(root, 'monaco-sash vertical');
+		const horizontalSash = appendElement(root, 'monaco-sash horizontal');
+		const targetWindow = getWindow(root);
+		const verticalStyle = targetWindow.getComputedStyle(verticalSash, '::after');
+		const horizontalStyle = targetWindow.getComputedStyle(horizontalSash, '::after');
+		const contribution = colorRegistry.getColors().find(color => color.id === MODERN_SASH_GRIP_FOREGROUND);
+
+		assert.deepStrictEqual({
+			registeredDefaults: contribution?.defaults,
+			verticalDot: verticalStyle.backgroundColor,
+			// The outer two dots are drawn with `box-shadow` and so read `currentColor`.
+			verticalShadowColor: horizontalStyle.color,
+			horizontalDot: horizontalStyle.backgroundColor,
+			restingOpacity: verticalStyle.opacity,
+		}, {
+			registeredDefaults: {
+				dark: transparent(foreground, 0.4),
+				light: transparent(foreground, 0.4),
+				hcDark: foreground,
+				hcLight: foreground,
+			},
+			verticalDot: 'rgb(18, 52, 86)',
+			verticalShadowColor: 'rgb(18, 52, 86)',
+			horizontalDot: 'rgb(18, 52, 86)',
+			restingOpacity: '1',
 		});
 	});
 
@@ -1550,32 +1956,53 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('persists tab actions when action space is reserved', () => {
+	test('persists reserved tab actions and hides unreserved actions in contrast themes', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+		theme.setCustomColors({ [activeContrastBorder]: '#FFFFFF' });
+
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.active-contrast-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui-tabs';
+		root.className = 'active-contrast-theme monaco-workbench modern-ui-tabs';
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
 		const content = appendElement(appendElement(root, 'part editor'), 'content');
-		const createTab = (groupClassName: string, titleClassName: string): HTMLElement => {
-			const title = appendElement(appendElement(content, groupClassName), titleClassName);
-			const tab = appendElement(appendElement(title, 'tabs-container'), 'tab');
+		const createTab = (parent: HTMLElement, groupClassName: string, titleClassName: string, tabClassName = 'tab'): HTMLElement => {
+			const title = appendElement(appendElement(parent, groupClassName), titleClassName);
+			const tabsAndActionsContainer = appendElement(title, 'tabs-and-actions-container');
+			const tab = appendElement(appendElement(tabsAndActionsContainer, 'tabs-container'), tabClassName);
 			return appendElement(appendElement(tab, 'tab-actions'), 'action-label');
 		};
 
-		const reservedActive = createTab('editor-group-container active', 'title tab-actions-reserve-space');
-		const reservedInactiveGroup = createTab('editor-group-container', 'title tab-actions-reserve-space');
-		const transientActive = createTab('editor-group-container active', 'title');
+		const reservedActive = createTab(content, 'editor-group-container active', 'title tab-actions-reserve-space', 'tab active');
+		const reservedInactiveGroup = createTab(content, 'editor-group-container', 'title tab-actions-reserve-space');
+		const transientActive = createTab(content, 'editor-group-container active', 'title', 'tab active');
+
+		const highContrastRoot = document.createElement('div');
+		highContrastRoot.className = 'active-contrast-theme hc-black monaco-workbench modern-ui-tabs';
+		document.body.appendChild(highContrastRoot);
+		store.add(toDisposable(() => highContrastRoot.remove()));
+		const highContrastContent = appendElement(appendElement(highContrastRoot, 'part editor'), 'content');
+		const highContrastReservedActive = createTab(highContrastContent, 'editor-group-container active', 'title tab-actions-reserve-space', 'tab active');
+		const highContrastTransientActive = createTab(highContrastContent, 'editor-group-container active', 'title', 'tab active');
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
 			reservedActive: { opacity: targetWindow.getComputedStyle(reservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(reservedActive.parentElement!).pointerEvents },
 			reservedInactiveGroup: { opacity: targetWindow.getComputedStyle(reservedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(reservedInactiveGroup.parentElement!).pointerEvents },
 			transientActive: { opacity: targetWindow.getComputedStyle(transientActive).opacity, pointerEvents: targetWindow.getComputedStyle(transientActive.parentElement!).pointerEvents },
+			highContrastReservedActive: { opacity: targetWindow.getComputedStyle(highContrastReservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastReservedActive.parentElement!).pointerEvents },
+			highContrastTransientActive: { opacity: targetWindow.getComputedStyle(highContrastTransientActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastTransientActive.parentElement!).pointerEvents },
 		}, {
 			reservedActive: { opacity: '1', pointerEvents: 'auto' },
 			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			transientActive: { opacity: '0', pointerEvents: 'none' },
+			highContrastReservedActive: { opacity: '1', pointerEvents: 'auto' },
+			highContrastTransientActive: { opacity: '0', pointerEvents: 'none' },
 		});
 	});
 
