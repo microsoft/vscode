@@ -72,17 +72,20 @@ suite('Terminal full output - adapter to resource', () => {
 				await assert.rejects(() => fixture.provider.readFile(fixture.resource), error => error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND);
 				assert.deepStrictEqual({
 					preview: data.terminalCommandOutput?.text,
+					resourceName: fixture.resource.path.split('/').at(-1),
 					beforeOpen,
 					text,
 					readonly: fixture.fileService.hasCapability(fixture.resource, FileSystemProviderCapabilities.Readonly),
 					reads: fixture.reads.map(uri => uri.toString()),
 				}, {
 					preview: 'BEGIN\r\n',
+					resourceName: data.terminalCommandOutput?.fullOutput?.name,
 					beforeOpen: 0,
 					text: fullText,
 					readonly: true,
 					reads: [artifactA.toString(), artifactA.toString()],
 				});
+				assert.match(data.terminalCommandOutput?.fullOutput?.name ?? '', /^build-[a-z0-9]{5}\.txt$/);
 			});
 		}
 	}

@@ -3495,12 +3495,13 @@ export namespace ChatResponseResource {
 		return createScopedUri(sessionResource, `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''));
 	}
 
-	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, reference: { readonly uri: UriComponents; readonly nonce?: string }): URI {
+	export function createTerminalOutputUri(sessionResource: URI, toolCallId: string, reference: { readonly uri: UriComponents; readonly name?: string; readonly nonce?: string }): URI {
 		const query = new URLSearchParams({ uri: URI.revive(reference.uri).toString() });
 		if (reference.nonce !== undefined) {
 			query.set('nonce', reference.nonce);
 		}
-		return createScopedUri(sessionResource, `/terminal/${encodeURIComponent(toolCallId)}/full-output.txt`, query.toString());
+		const name = reference.name?.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^[.-]+/, '').slice(0, 64) ?? '';
+		return createScopedUri(sessionResource, `/terminal/${encodeURIComponent(toolCallId)}/${name || 'terminal-output.txt'}`, query.toString());
 	}
 
 	function createScopedUri(sessionResource: URI, path: string, query?: string): URI {
@@ -3514,7 +3515,7 @@ export namespace ChatResponseResource {
 
 	export function parseTerminalOutputUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string } {
 		const parts = uri.path.split('/');
-		if (uri.scheme !== scheme || parts.length !== 4 || parts[1] !== 'terminal' || !parts[2] || parts[3] !== 'full-output.txt') {
+		if (uri.scheme !== scheme || parts.length !== 4 || parts[1] !== 'terminal' || !parts[2] || !parts[3]) {
 			return undefined;
 		}
 		let toolCallId: string;

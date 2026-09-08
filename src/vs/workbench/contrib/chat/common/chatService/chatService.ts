@@ -657,6 +657,7 @@ export interface IChatVoiceProgressPart {
 
 export interface IChatTerminalOutputReference {
 	readonly uri: UriComponents;
+	readonly name?: string;
 	readonly sizeHint?: number;
 	readonly contentType?: string;
 	readonly nonce?: string;

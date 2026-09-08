@@ -5,10 +5,10 @@
 
 import { getWindow } from '../../../../base/browser/dom.js';
 import { Sequencer } from '../../../../base/common/async.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IBuffer, IBufferRange, ILinkProvider, IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXtermTerminal } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
@@ -780,6 +780,72 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 }
 
+interface ITerminalSnapshotNotice {
+	readonly text: string;
+	readonly linkText: string;
+	activate(): Promise<void>;
+}
+
+function sanitizeSnapshotNoticeText(text: string): string {
+	// Paths may contain control characters; only our own VT sequences may affect the terminal.
+	return text.replace(/[\x00-\x1f\x7f-\x9f]/g, char => `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`);
+}
+
+function renderSnapshotNotice(notice: ITerminalSnapshotNotice): string {
+	return `\x1b]8;;\x07\x1b[0m${sanitizeSnapshotNoticeText(notice.text)}\r\n`;
+}
+
+function findSnapshotTextRange(buffer: IBuffer, text: string): IBufferRange | undefined {
+	let logicalText = '';
+	let positions: { readonly x: number; readonly y: number; readonly endX: number }[] = [];
+	const find = (): IBufferRange | undefined => {
+		const index = logicalText.indexOf(text);
+		if (index === -1) {
+			return undefined;
+		}
+		const start = positions[index];
+		const end = positions[index + text.length - 1];
+		return start && end ? { start: { x: start.x, y: start.y }, end: { x: end.endX, y: end.y } } : undefined;
+	};
+
+	for (let y = 0; y < buffer.length; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			continue;
+		}
+		if (!line.isWrapped && logicalText) {
+			const range = find();
+			if (range) {
+				return range;
+			}
+			logicalText = '';
+			positions = [];
+		}
+		const rowText: string[] = [];
+		const rowPositions: { readonly x: number; readonly y: number; readonly endX: number }[] = [];
+		for (let x = 0; x < line.length; x++) {
+			const cell = line.getCell(x);
+			if (!cell || cell.getWidth() === 0) {
+				continue;
+			}
+			const chars = cell.getChars() || ' ';
+			for (let index = 0; index < chars.length; index++) {
+				rowText.push(chars[index]);
+				rowPositions.push({ x: x + 1, y: y + 1, endX: x + Math.max(cell.getWidth(), 1) });
+			}
+		}
+		if (!buffer.getLine(y + 1)?.isWrapped) {
+			while (rowText.at(-1) === ' ') {
+				rowText.pop();
+				rowPositions.pop();
+			}
+		}
+		logicalText += rowText.join('');
+		positions.push(...rowPositions);
+	}
+	return find();
+}
+
 /**
  * Mirrors a terminal output snapshot into a detached terminal instance.
  * Used when the terminal has been disposed of but we still want to show the output.
@@ -797,6 +863,8 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _lastRenderedLineCount: number | undefined;
 	private _lastRenderedMaxColumnWidth: number | undefined;
 	private _lastRenderedText = '';
+	private _resizedSinceLastWrite = false;
+	private _notice: ITerminalSnapshotNotice | undefined;
 	private readonly _onDidChangeRowHeightEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeRowHeight: Event<void> = this._onDidChangeRowHeightEmitter.event;
 	private _renderListenerInstalled = false;
@@ -817,6 +885,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
+			linkProvider: this._createNoticeLinkProvider(),
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const storedBackground = this._getTheme()?.background;
@@ -857,6 +926,35 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
 		this._output = output;
 		this._outputVersion++;
+	}
+
+	public setNotice(notice: ITerminalSnapshotNotice | undefined): void {
+		this._notice = notice;
+		this._outputVersion++;
+	}
+
+	private _createNoticeLinkProvider(): ILinkProvider {
+		return {
+			provideLinks: (bufferLineNumber, callback) => {
+				const notice = this._notice;
+				const raw = this._resolvedTerminal && getMirrorRaw(this._resolvedTerminal);
+				if (!notice || !raw) {
+					callback(undefined);
+					return;
+				}
+				const range = findSnapshotTextRange(raw.buffer.active, sanitizeSnapshotNoticeText(notice.linkText));
+				if (!range || bufferLineNumber < range.start.y || bufferLineNumber > range.end.y) {
+					callback(undefined);
+					return;
+				}
+				callback([{
+					range,
+					text: notice.linkText,
+					decorations: { pointerCursor: true, underline: false },
+					activate: () => void notice.activate().catch(onUnexpectedError),
+				}]);
+			}
+		};
 	}
 
 	public async attach(container: HTMLElement): Promise<void> {
@@ -915,12 +1013,12 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			// Native resize reflow re-wraps the rendered content in place; rewriting the
 			// snapshot here instead would flash a cleared frame on every resize
 			terminal.xterm.resize(cols, ChatTerminalMirrorMetrics.MirrorRowCount);
+			this._resizedSinceLastWrite = true;
 			if (!this._lastRenderedText) {
 				return undefined;
 			}
-			// Same rule as _render: a truncated snapshot's buffer under-represents the real
-			// output, so its explicit lineCount must survive the resize
-			const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, this._output?.truncated ? this._output.lineCount : undefined);
+			// Keep stored counts for truncated output, but measure annotated previews from the buffer.
+			const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, !this._notice && this._output?.truncated ? this._output.lineCount : undefined);
 			this._lastRenderedLineCount = lineCount;
 			if (this._shouldComputeMaxColumnWidth(lineCount)) {
 				this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
@@ -945,11 +1043,12 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		if (this._container) {
 			this._applyTheme(this._container);
 		}
-		const text = output.text ?? '';
+		const notice = this._notice;
+		const text = (output.text ?? '') + (notice
+			? `${output.text ? (output.text.endsWith('\n') ? '\r\n' : '\r\n\r\n') : ''}${renderSnapshotNotice(notice)}`
+			: '');
 		if (!text) {
-			if (this._lastRenderedText) {
-				await new Promise<void>(resolve => terminal.xterm.write('\x1b[2J\x1b[3J\x1b[H', resolve));
-			}
+			await new Promise<void>(resolve => terminal.xterm.write(`${this._lastRenderedText ? '\x1b[2J\x1b[3J\x1b[H' : ''}\x1b[?25l`, resolve));
 			const lineCount = output.lineCount ?? 0;
 			this._renderedVersion = outputVersion;
 			this._lastRenderedText = '';
@@ -957,19 +1056,22 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			this._lastRenderedMaxColumnWidth = 0;
 			return { lineCount, maxColumnWidth: 0 };
 		}
-		const write = text.startsWith(this._lastRenderedText)
-			? text.slice(this._lastRenderedText.length)
-			: `\x1b[2J\x1b[3J\x1b[H${text}`;
+		// Native cursor-line reflow leaves the cursor column stale; redraw only when new text arrives.
+		let write = '';
+		if (text !== this._lastRenderedText) {
+			write = !this._resizedSinceLastWrite && text.startsWith(this._lastRenderedText)
+				? text.slice(this._lastRenderedText.length)
+				: `\x1b[2J\x1b[3J\x1b[H${text}`;
+		}
 		if (write) {
-			await new Promise<void>(resolve => terminal.xterm.write(write, resolve));
+			await new Promise<void>(resolve => terminal.xterm.write(`${write}\x1b[?25l`, resolve));
+			this._resizedSinceLastWrite = false;
 		}
 		if (this._store.isDisposed) {
 			return undefined;
 		}
-		// A persisted lineCount reflects the wrap width of the source terminal, which can differ
-		// from this mirror's cols after a width layout. Only trust it for truncated output,
-		// where the text under-represents the real row count.
-		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.truncated ? output.lineCount : undefined);
+		// An annotated preview's height includes its notice, not the unshown output's stored count.
+		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, !notice && output.truncated ? output.lineCount : undefined);
 		this._renderedVersion = outputVersion;
 		this._lastRenderedText = text;
 		this._lastRenderedLineCount = lineCount;

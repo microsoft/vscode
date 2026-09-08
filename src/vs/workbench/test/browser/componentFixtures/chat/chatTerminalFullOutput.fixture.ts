@@ -14,6 +14,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { toAgentHostContentUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -42,6 +43,8 @@ interface ITerminalFullOutputFixtureOptions {
 	readonly hasFullOutput: boolean;
 	readonly expanded: boolean;
 	readonly collapsible?: boolean;
+	readonly fullOutputPath?: string;
+	readonly intention?: string;
 }
 
 async function renderTerminalFullOutput(context: ComponentFixtureContext, options: ITerminalFullOutputFixtureOptions): Promise<void> {
@@ -63,6 +66,10 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 				override readonly whenConnected = Promise.resolve();
 				override async createDetachedTerminal(detachedOptions: IDetachedXTermOptions) {
 					const fake = createFakeDetachedTerminal(XTermBaseCtor, detachedOptions, terminalFont);
+					fake.raw.options.fontFamily = terminalFont.fontFamily;
+					fake.raw.options.fontSize = terminalFont.fontSize;
+					fake.raw.options.letterSpacing = terminalFont.letterSpacing;
+					fake.raw.options.lineHeight = terminalFont.lineHeight;
 					fake.raw.options.theme = {
 						background: (context.theme.getColor('terminal.background') ?? context.theme.getColor('panel.background'))?.toString(),
 						foreground: (context.theme.getColor('terminal.foreground') ?? context.theme.getColor('foreground'))?.toString(),
@@ -141,13 +148,14 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 
 	const sessionResource = URI.parse('chat-session://fixture/terminal-full-output');
 	const fullOutput = options.hasFullOutput ? {
-		uri: URI.parse('ahp-content://fixture/terminal-output'),
+		uri: toAgentHostContentUri(URI.file(options.fullOutputPath ?? '/tmp/terminal-output.txt'), 'local', { alwaysWrap: true }),
 		nonce: 'fixture-version',
 	} : undefined;
 	const terminalData: IChatTerminalToolInvocationData = {
 		kind: 'terminal',
 		commandLine: { original: 'find src -name "*.ts" | sort' },
 		language: 'shellscript',
+		intention: options.intention,
 		isPty: false,
 		terminalCommandState: { exitCode: 0 },
 		terminalCommandOutput: {
@@ -231,7 +239,7 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A completed terminal command shows a short preview in an expanded terminal output box, with a labeled Open Full Output action in a separate footer below the preview.'],
+		expectedVisualDescriptions: ['The nested executed-command block contains the preview and a plain Output truncated message with /tmp/terminal-output.txt. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Show Full Output; no text button appears beside the outer Generate row.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true }),
 	}),
 	'Expanded no full output': defineComponentFixture({
@@ -240,21 +248,26 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	}),
 	'Expanded empty preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['An expanded terminal output box says that a preview is not available and shows a labeled Open Full Output action in a separate footer below the message.'],
+		expectedVisualDescriptions: ['With no preview text, the nested executed-command block contains a plain truncation and saved-location message for /tmp/terminal-output.txt. Its header shows the local-terminal open-in-product icon for Show Full Output; no text button, underline, footer, or cursor appears.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', hasFullOutput: true, expanded: true }),
 	}),
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['In a narrow terminal command card, the expanded preview stays inside the card and the Open Full Output footer action remains fully visible without overlapping terminal content.'],
-		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true }),
+		expectedVisualDescriptions: ['In a narrow terminal card, the truncation message and saved path wrap as plain terminal text. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
+		render: context => renderTerminalFullOutput(context, { width: 280, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true, intention: 'List source files', fullOutputPath: '/var/tmp/agent-session-1234567890/1788891000000-copilot-tool-output-12345-11111111-1111-4111-8111-111111111111.txt' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
-		expectedVisualDescriptions: ['A completed terminal command is collapsed; no terminal preview or Open Full Output footer is visible.'],
+		expectedVisualDescriptions: ['The command output is collapsed while the bordered executed-command block remains visible. The same square open-in-product icon used by local terminal cards stays in that block’s command header.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: false }),
 	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['An expanded completed terminal command has a collapsible header, aligned preview lines, and a labeled Open Full Output footer outside the scrollable preview.'],
+		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains a plain truncation/saved-path message without a dotted underline or cursor.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: 'src/main.ts\nsrc/terminal.ts\n…', hasFullOutput: true, expanded: true, collapsible: true }),
+	}),
+	'Long truncated preview': defineComponentFixture({
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by a plain truncation/saved-path message with no dotted underline or cursor. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
+		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, hasFullOutput: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
 	}),
 });

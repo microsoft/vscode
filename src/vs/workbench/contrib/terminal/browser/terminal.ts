@@ -22,7 +22,7 @@ import { IEditableData } from '../../../common/views.js';
 import { ITerminalStatusList } from './terminalStatusList.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
-import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, IMarker as IXtermMarker } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange, ILinkProvider, IMarker as IXtermMarker } from '@xterm/xterm';
 import { ScrollPosition } from './xterm/markNavigationAddon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { GroupIdentifier } from '../../../common/editor.js';
@@ -441,6 +441,7 @@ export interface IDetachedXTermOptions {
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
+	linkProvider?: ILinkProvider;
 }
 
 /**

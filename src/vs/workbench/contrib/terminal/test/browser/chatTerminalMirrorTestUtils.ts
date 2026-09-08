@@ -15,7 +15,11 @@ import type { IDetachedTerminalInstance, IDetachedXTermOptions } from '../../bro
  * a custom font to model renderer metrics that differ from the configuration estimate.
  */
 export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: IDetachedXTermOptions, font: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 10, charHeight: 14 }) {
-	const raw = new RawCtor({ cols: options.cols, rows: options.rows });
+	const raw = new RawCtor({ cols: options.cols, rows: options.rows, allowProposedApi: true });
+	const linkProvider = options.linkProvider;
+	if (linkProvider) {
+		raw.registerLinkProvider(linkProvider);
+	}
 	const counters = { resizeCalls: 0, writeCalls: 0 };
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const instance = {
@@ -38,5 +42,5 @@ export function createFakeDetachedTerminal(RawCtor: typeof Terminal, options: ID
 		attachToElement: () => { },
 		dispose: () => raw.dispose()
 	} as unknown as IDetachedTerminalInstance;
-	return { raw, counters, instance };
+	return { raw, counters, instance, linkProvider };
 }

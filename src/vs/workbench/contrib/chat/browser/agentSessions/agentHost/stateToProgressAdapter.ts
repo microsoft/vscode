@@ -7,6 +7,7 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
+import { hash } from '../../../../../../base/common/hash.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
@@ -1473,9 +1474,18 @@ function getTerminalOutput(tc: ToolCallState, connectionAuthority: string) {
 			fullOutput: {
 				...fullOutput,
 				uri: toAgentHostContentUri(URI.parse(fullOutput.uri), connectionAuthority, { alwaysWrap: true }),
+				name: createTerminalOutputName(tc),
 			}
 		} : {}),
 	};
+}
+
+function createTerminalOutputName(tc: ToolCallState): string {
+	const source = tc.intention ?? getTerminalInput(tc) ?? tc.displayName ?? tc.toolName;
+	const words = source.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+	const stem = words.slice(0, 4).join('-').slice(0, 32).replace(/-+$/g, '') || 'terminal-output';
+	const suffix = (hash(tc.toolCallId) >>> 0).toString(36).padStart(5, '0').slice(-5);
+	return `${stem}-${suffix}.txt`;
 }
 
 function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalCommandOutput'], b: IChatTerminalToolInvocationData['terminalCommandOutput']): boolean {
@@ -1483,6 +1493,7 @@ function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalComman
 		&& a?.truncated === b?.truncated
 		&& isEqual(URI.revive(a?.fullOutput?.uri), URI.revive(b?.fullOutput?.uri))
 		&& a?.fullOutput?.nonce === b?.fullOutput?.nonce
+		&& a?.fullOutput?.name === b?.fullOutput?.name
 		&& a?.fullOutput?.contentType === b?.fullOutput?.contentType
 		&& a?.fullOutput?.sizeHint === b?.fullOutput?.sizeHint;
 }

@@ -3094,10 +3094,12 @@ suite('stateToProgressAdapter', () => {
 					const response = history.find(item => item.type === 'response');
 					const serialized = response?.parts.find(part => part.kind === 'toolInvocationSerialized');
 					assert.ok(serialized?.kind === 'toolInvocationSerialized');
+					const name = liveOutput?.fullOutput?.name;
+					assert.match(name ?? '', /^npm-test-[a-z0-9]{5}\.txt$/);
 					const expected = {
 						text: preview?.replace(/\r?\n/g, '\r\n') ?? '',
 						truncated: true,
-						fullOutput: { ...fullOutput, uri: toAgentHostContentUri(URI.parse(fullOutput.uri), authority, { alwaysWrap: true }) },
+						fullOutput: { ...fullOutput, uri: toAgentHostContentUri(URI.parse(fullOutput.uri), authority, { alwaysWrap: true }), name },
 					};
 					assert.deepStrictEqual({
 						live: liveOutput,
@@ -3107,6 +3109,41 @@ suite('stateToProgressAdapter', () => {
 				});
 			}
 		}
+
+		test('uses short, stable, command-derived names that distinguish repeated large outputs', () => {
+			const make = (toolCallId: string) => getSerializedTerminalData(toolCallStateToInvocation(createToolCallState({
+				toolCallId,
+				toolName: 'bash',
+				toolInput: 'node -e "process.stdout.write(data)"',
+				intention: 'Generate oversized stdout for display test',
+				_meta: { toolKind: 'terminal' },
+				content: [{
+					type: ToolResultContentType.Terminal,
+					resource: `agenthost-terminal:/${toolCallId}`,
+					title: 'Bash',
+					isPty: false,
+					result: { truncated: true, fullOutput: { uri: `shell-output:/${toolCallId}` } },
+				}],
+			})).toJSON()).terminalCommandOutput?.fullOutput?.name;
+			const first = make('tool-call-one');
+			const repeated = make('tool-call-one');
+			const second = make('tool-call-two');
+			assert.deepStrictEqual({
+				first,
+				repeated,
+				second,
+				unique: first !== second,
+				readable: [first, second].every(name => /^generate-oversized-stdout-for-[a-z0-9]{5}\.txt$/.test(name ?? '')),
+				maxLength: Math.max(first?.length ?? 0, second?.length ?? 0),
+			}, {
+				first,
+				repeated: first,
+				second,
+				unique: true,
+				readable: true,
+				maxLength: 39,
+			});
+		});
 
 		test('retains completion prose for old truncated SDK shell output without a reference', () => {
 			const tc = createCompletedToolCall({

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from '@xterm/xterm';
+import type { ILink, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../amdX.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -762,6 +762,98 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			const { resizeCalls, writeCalls } = { ...fakes[0].counters };
 			await mirror.layout(1224);
 			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
+		});
+
+		test('appending after cursor-line reflow does not overwrite the middle of the preview', async () => {
+			const text = 'x'.repeat(501);
+			const mirror = createSnapshotMirror({ text });
+			await mirror.render();
+			await mirror.layout(920);
+			mirror.setOutput({ text: `${text}TAIL` });
+			await mirror.render();
+			const raw = fakes[0].raw;
+			const buffer = raw.buffer.active;
+			const rendered = Array.from({ length: buffer.length }, (_, y) => buffer.getLine(y)?.translateToString(true) ?? '').join('');
+			deepStrictEqual({ cols: raw.cols, rendered }, { cols: 90, rendered: `${text}TAIL` });
+		});
+
+		test('read-only snapshots hide the input cursor even when output asks to show it', async () => {
+			const mirror = createSnapshotMirror({ text: `${'x'.repeat(501)}\x1b[?25h` });
+			await mirror.render();
+			await mirror.layout(920);
+			strictEqual(fakes[0].raw.modes.showCursor, false);
+			mirror.setOutput({ text: '' });
+			await mirror.render();
+			strictEqual(fakes[0].raw.modes.showCursor, false);
+		});
+
+		test('inline notices are terminal buffer content and escape control characters in their label', async () => {
+			const mirror = createSnapshotMirror({ text: 'preview' });
+			mirror.setNotice({ text: 'Saved to: /tmp/a\x1b[2J\x07.txt', linkText: '/tmp/a\x1b[2J\x07.txt', activate: async () => { } });
+			await mirror.render();
+			await mirror.layout(220);
+			const raw = fakes[0].raw;
+			const rendered = Array.from({ length: raw.buffer.active.length }, (_, y) => raw.buffer.active.getLine(y)?.translateToString(true) ?? '').join('');
+			deepStrictEqual({ rendered, cursor: raw.modes.showCursor }, {
+				rendered: 'previewSaved to: /tmp/a\\x1b[2J\\x07.txt',
+				cursor: false,
+			});
+		});
+
+		test('inline notice height reflects the displayed buffer rather than a persisted output line count', async () => {
+			const mirror = createSnapshotMirror({ text: 'preview', truncated: true, lineCount: 42 });
+			mirror.setNotice({ text: 'Full output saved to: /tmp/output', linkText: '/tmp/output', activate: async () => { } });
+			const rendered = await mirror.render();
+			const resized = await mirror.layout(920);
+			deepStrictEqual({ rendered: rendered?.lineCount, resized: resized?.lineCount }, { rendered: 3, resized: 3 });
+		});
+
+		test('notices have no underline or embedded hyperlink and preserve other link handlers', async () => {
+			const mirror = createSnapshotMirror({ text: 'preview\x1b]8;;https://example.com\x07\x1b[4m' });
+			const raw = fakes[0].raw;
+			const handler = { allowNonHttpProtocols: false, activate: () => { } };
+			raw.options.linkHandler = handler;
+			mirror.setNotice({ text: 'Full output saved to: /tmp/output', linkText: '/tmp/output', activate: async () => { } });
+			await mirror.render();
+			const cell = raw.buffer.active.getLine(2)?.getCell(0);
+			deepStrictEqual({ text: cell?.getChars(), underline: cell?.isUnderline(), unchangedHandler: raw.options.linkHandler === handler }, {
+				text: 'F', underline: 0, unchangedHandler: true,
+			});
+		});
+
+		test('notice path link overrides the standard file link without an idle underline', async () => {
+			const mirror = createSnapshotMirror({ text: 'preview' });
+			let activations = 0;
+			const path = '/tmp/very-long-directory/full-output.txt';
+			mirror.setNotice({
+				text: `Output truncated. Full output saved to: ${path}`,
+				linkText: path,
+				activate: async () => { activations++; },
+			});
+			await mirror.render();
+			await mirror.layout(220);
+			const provider = fakes[0].linkProvider;
+			strictEqual(provider !== undefined, true);
+			if (!provider) {
+				return;
+			}
+			const linksByLine = await Promise.all(Array.from({ length: fakes[0].raw.buffer.active.length }, (_, index) => new Promise<ILink[]>(resolve => {
+				provider.provideLinks(index + 1, value => resolve(value ?? []));
+			})));
+			const links = linksByLine.find(links => links.length) ?? [];
+			strictEqual(links.length, 1);
+			deepStrictEqual({
+				text: links[0].text,
+				decorations: links[0].decorations,
+				multiLine: links[0].range.start.y < links[0].range.end.y,
+			}, {
+				text: path,
+				decorations: { pointerCursor: true, underline: false },
+				multiLine: true,
+			});
+			links[0].activate(new MouseEvent('click'), links[0].text);
+			await Promise.resolve();
+			strictEqual(activations, 1);
 		});
 
 		test('ignores non-positive widths', async () => {
