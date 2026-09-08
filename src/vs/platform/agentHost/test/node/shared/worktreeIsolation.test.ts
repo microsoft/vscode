@@ -189,14 +189,15 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('getWorktreesRoot nests inside the repository when it is the home directory', () => {
+	test('getWorktreesRoot nests under .git when the repository root is the home directory', () => {
 		const home = URI.file('/home/alice');
 
 		// Repository root *is* the home directory: a sibling directory would be
 		// `/home/alice.worktrees`, which requires write access to `/home` that a
-		// non-root user does not have on a standard FHS layout. Nest inside the
-		// home directory instead.
-		assert.strictEqual(getWorktreesRoot(home, home).fsPath, URI.file('/home/alice/.worktrees').fsPath);
+		// non-root user does not have on a standard FHS layout. Nest under `.git`
+		// instead - writable (git requires it), and never walked by `git ls-files`,
+		// so it cannot dirty `git status` or leak into the gitignored-file copy step.
+		assert.strictEqual(getWorktreesRoot(home, home).fsPath, URI.file('/home/alice/.git/vscode-worktrees').fsPath);
 
 		// Any other repository root keeps deriving a sibling, home directory or not.
 		assert.strictEqual(getWorktreesRoot(URI.file('/home/alice/src/vscode'), home).fsPath, URI.file('/home/alice/src/vscode.worktrees').fsPath);
@@ -214,7 +215,7 @@ suite('WorktreeIsolation', () => {
 		const repoRootDifferentCase = URI.file('/home/Alice');
 
 		const expected = (isWindows || isMacintosh)
-			? URI.file('/home/Alice/.worktrees').fsPath
+			? URI.file('/home/Alice/.git/vscode-worktrees').fsPath
 			: URI.file('/home/Alice.worktrees').fsPath;
 		assert.strictEqual(getWorktreesRoot(repoRootDifferentCase, home).fsPath, expected);
 	});

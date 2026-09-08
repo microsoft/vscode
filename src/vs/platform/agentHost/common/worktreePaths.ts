@@ -22,7 +22,12 @@ import { URI } from '../../../base/common/uri.js';
  * no permission to create. Callers that know the home directory (currently
  * only the node agent host; the browser trust gate has no such notion and
  * keeps the sibling behavior) pass it as `homeDirectory` so this falls back to
- * a writable location nested inside the home directory instead.
+ * a location under `.git` instead: writable (git itself requires `.git` to be
+ * writable), and — unlike a plain subdirectory of the repository's working
+ * tree — never walked by `git ls-files`, so it cannot dirty `git status` or
+ * have a previous session's worktree content swept up by the agent host's
+ * gitignored-file copy step (which lists ignored-but-untracked files under
+ * `repositoryRoot` and would otherwise recurse into it).
  */
 export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI {
 	// Local file-scheme paths from the OS: compare with the platform's own case
@@ -30,7 +35,7 @@ export function getWorktreesRoot(repositoryRoot: URI, homeDirectory?: URI): URI 
 	// difference between the repository root and `os.homedir()` doesn't cause
 	// the home-directory case below to be missed.
 	if (homeDirectory && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.normalizePath(repositoryRoot), extUriBiasedIgnorePathCase.normalizePath(homeDirectory))) {
-		return URI.joinPath(repositoryRoot, '.worktrees');
+		return URI.joinPath(repositoryRoot, '.git', 'vscode-worktrees');
 	}
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
 }
