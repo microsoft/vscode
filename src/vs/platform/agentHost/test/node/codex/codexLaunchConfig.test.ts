@@ -83,20 +83,26 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
-	test('uses platform-valid protected paths and a private writable temp root', () => {
+	test('uses filesystem restrictions supported by each platform sandbox', () => {
 		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
 		const macProfile = codexPermissionProfileOverrides('darwin')[1];
-		const windowsProfile = codexPermissionProfileOverrides('win32')[1];
+		const windowsProfiles = codexPermissionProfileOverrides('win32');
+		const windowsProfile = windowsProfiles[1];
 		assert.deepStrictEqual({
-			linux: [linuxProfile.includes('"/etc/passwd*" = "deny"'), linuxProfile.includes('/private/etc/passwd')],
-			mac: [macProfile.includes('"/etc/passwd*" = "deny"'), macProfile.includes('"/private/etc/passwd*" = "deny"')],
-			windows: [windowsProfile.includes('/etc/passwd')],
+			linux: [linuxProfile.includes('glob_scan_max_depth = 1'), linuxProfile.includes('"/etc/passwd*" = "deny"'), linuxProfile.includes('/private/etc/passwd')],
+			mac: [macProfile.includes('glob_scan_max_depth'), macProfile.includes('"/etc/passwd*" = "deny"'), macProfile.includes('"/private/etc/passwd*" = "deny"')],
+			windows: windowsProfiles,
 			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
 		}, {
-			linux: [true, false],
-			mac: [true, true],
-			windows: [false],
-			temp: [[true, true], [true, true], [true, true]],
+			linux: [true, true, false],
+			mac: [false, true, true],
+			windows: [
+				'default_permissions="vscode-workspace"',
+				'permissions.vscode-workspace={ extends = ":workspace", network = { enabled = false } }',
+				'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
+				'permissions.vscode-workspace-read-only={ extends = ":read-only" }',
+			],
+			temp: [[true, true], [true, true], [false, false]],
 		});
 	});
 

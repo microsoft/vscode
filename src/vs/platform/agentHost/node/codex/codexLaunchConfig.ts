@@ -19,18 +19,24 @@ export function codexPermissionProfileOverrides(platform: NodeJS.Platform = proc
 		: platform === 'darwin'
 			? ['/etc/passwd*', '/private/etc/passwd*']
 			: ['/etc/passwd*'];
-	const fileSystemEntries = [
-		`":root" = "deny"`,
-		`":minimal" = "read"`,
-		...protectedSystemPathPatterns.map(pattern => `${JSON.stringify(pattern)} = "deny"`),
-		`":tmpdir" = "write"`,
-		`":slash_tmp" = "deny"`,
-	].join(', ');
+	const fileSystemOverride = platform === 'win32'
+		? ''
+		: `, filesystem = { ${[
+			...(platform === 'linux' ? ['glob_scan_max_depth = 1'] : []),
+			`":root" = "deny"`,
+			`":minimal" = "read"`,
+			...protectedSystemPathPatterns.map(pattern => `${JSON.stringify(pattern)} = "deny"`),
+			`":tmpdir" = "write"`,
+			`":slash_tmp" = "deny"`,
+		].join(', ')} }`;
+	const readOnlyProfile = platform === 'win32'
+		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
+		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
 	return [
 		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace", filesystem = { ${fileSystemEntries} }, network = { enabled = false } }`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace"${fileSystemOverride}, network = { enabled = false } }`,
 		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`,
+		readOnlyProfile,
 	];
 }
 
