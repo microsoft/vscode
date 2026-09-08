@@ -726,7 +726,7 @@
     },
     {
       "name": "create_session",
-      "description": "Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session's workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle.",
+      "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -736,7 +736,7 @@
               "currentSession",
               "independent"
             ],
-            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks. Use `independent` only for a separate deliverable that needs its own workspace and top-level lifecycle."
+            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree."
           },
           "prompt": {
             "type": "string",
@@ -745,6 +745,10 @@
           "workspace": {
             "type": "string",
             "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`."
+          },
+          "worktree": {
+            "type": "boolean",
+            "description": "Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session's isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`."
           },
           "title": {
             "type": "string",

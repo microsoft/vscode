@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -709,8 +710,9 @@ suite('SessionServerTools', () => {
 	for (const scheme of ['file', 'vscode-remote']) {
 		for (const worktree of [false, true, undefined]) {
 			test(`create_session resolves ${scheme} linked worktree roots only with worktree=false (value=${worktree})`, async () => {
-				const project = URI.from({ scheme, authority: scheme === 'file' ? '' : 'ssh-remote+example', path: '/workspace/repo' });
-				const existingWorktree = project.with({ path: '/worktrees/existing' });
+				const drive = scheme === 'file' && isWindows ? '/c:' : '';
+				const project = URI.from({ scheme, authority: scheme === 'file' ? '' : 'ssh-remote+example', path: `${drive}/workspace/repo` });
+				const existingWorktree = project.with({ path: `${drive}/worktrees/existing` });
 				let created: IAgentCreateSessionConfig | undefined;
 				const accessor = createAccessor({
 					listSessions: async () => [{
