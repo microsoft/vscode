@@ -6396,6 +6396,35 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('runtime discovery after enabling legacy migration does not claim unopened legacy sessions', async () => {
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				// Migration OFF previously completed an empty import; enabling it uses runtime discovery.
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new DirectImportAgent('copilot'));
+				const sessions = Array.from({ length: 3 }, (_, index) => AgentSession.uri('copilot', `migtest-discovery-${index}`));
+				const discovered = sessions.map(session => ({
+					...metadata(session, withSessionEhcliAdoptable(undefined)),
+					external: false,
+				}));
+
+				await (svc as unknown as {
+					_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				})._registerDiscoveredChats(agent, discovered);
+
+				assert.deepStrictEqual({
+					centralAdoptable: await Promise.all(sessions.map(async session =>
+						readSessionEhcliAdoptable(catalogDataOf(await database.getSessionV2(session.toString()))?._meta))),
+					localDatabaseIds: perSession.databaseIds(),
+					adoptionCalls: agent.adoptionCalls,
+				}, {
+					centralAdoptable: [true, true, true],
+					localDatabaseIds: [],
+					adoptionCalls: 0,
+				});
+			});
+
 			test('discovery exclusion persistence failure does not suppress successful registrations', async () => {
 				class FailingExclusionDatabase extends TransientRegistryWriteDatabase {
 					async markSessionsV2ExcludedBatch(): Promise<void> {

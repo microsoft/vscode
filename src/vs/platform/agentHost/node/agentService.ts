@@ -2300,10 +2300,12 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 					const effectiveExternal = effectiveIdentity.external;
 					registryChanged = true;
-					const syncResult = await this._catalogSyncService.synchronizeWithFactory(
-						session,
-						database => this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true, database),
-					);
+					const requestFactory = (database: AgentHostCatalogDatabaseReference | undefined) =>
+						this._buildImportedCatalogSyncRequest(provider, sessionMetadata, effectiveExternal, true, database);
+					// Legacy discovery must not claim local storage before explicit adoption.
+					const syncResult = readSessionEhcliAdoptable(sessionMetadata._meta)
+						? await this._catalogSyncService.synchronizeMigrationWithFactory(session, requestFactory)
+						: await this._catalogSyncService.synchronizeWithFactory(session, requestFactory);
 					if (syncResult.status === 'pending') {
 						this._logService.warn(`[AgentService] Discovered session ${session.toString()} remains incomplete: ${syncResult.reason}`);
 					}
