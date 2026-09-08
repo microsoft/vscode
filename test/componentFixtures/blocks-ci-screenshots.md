@@ -18,6 +18,12 @@
 #### chat/aiCustomizations/aiCustomizationManagementEditor/AgentsTabNarrow/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/434f2391aef8effb83aff552b661470f3670c7c3702542d89505e2e9d241c293)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/CodexSkillMissingDescriptionHover/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/349ef8d7c5a1ad8aaf435477e6cfc218869cb172cf5563311873098c4100174b)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/CodexSkillMissingDescriptionHover/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/dec7e16b34e29d8f54d01b3242b29271f95a723a11894ff9bbe5f102e5674037)
+
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ConfiguredLocationsMigration/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/986c78e1106531a602d60146888015e5d3eff8a65f9a6b735ba882e514de0897)
 
@@ -89,6 +95,12 @@
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PromptMigration/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7005ffecdf2a3de59a92cb43509bca635bab77c1544fb7b9c8a35cab8b8352e0)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/SessionsCodexSkillMissingDescriptionHover/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/349ef8d7c5a1ad8aaf435477e6cfc218869cb172cf5563311873098c4100174b)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/SessionsCodexSkillMissingDescriptionHover/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/dec7e16b34e29d8f54d01b3242b29271f95a723a11894ff9bbe5f102e5674037)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ToolsTab/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/42faa6cedc95315e848fef1bda477bc2317ca82b8f834ed43a2a92e2c083e429)
