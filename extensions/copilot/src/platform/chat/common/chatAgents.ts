@@ -27,7 +27,14 @@ export const editsAgentName = 'editsAgent';
 export const CHAT_PARTICIPANT_ID_PREFIX = 'github.copilot.';
 
 export function getChatParticipantIdFromName(name: string): string {
-	 
+ 
+	if (!name || name === '') {
+		return '';
+	}
+	if (name.startsWith(CHAT_PARTICIPANT_ID_PREFIX)) {
+		return name;
+	}
+ 
 	if (!/^[a-zA-Z0-9_\-]+$/.test(name)) {
 		throw new Error(`Invalid participant name: ${name}`);
 	}
@@ -35,10 +42,17 @@ export function getChatParticipantIdFromName(name: string): string {
 }
 
 export function getChatParticipantNameFromId(id: string): string {
-	// Beklenen prefix ile başlamıyorsa güvenli bir şekilde orijinal ID'yi döndür veya hata fırlat
+	if (!id) {
+		return '';
+	}
 	const prefixRegex = /^github\.copilot\./;
 	if (!prefixRegex.test(id)) {
 		return id; 
 	}
-	return id.replace(prefixRegex, '');
+ 
+	const namePart = id.replace(prefixRegex, '');
+	if (!namePart || !/^[a-zA-Z0-9_\-]+$/.test(namePart)) {
+		throw new Error(`Invalid participant ID format: ${id}`);
+	}
+	return namePart;
 }
