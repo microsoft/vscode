@@ -10,7 +10,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/e
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, derivedWithSetter, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -154,15 +154,15 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 			const sideBySide = !!sash;
 			if (sideBySide) {
-				const sashLeft = sash.sashLeft.read(reader);
 				const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+				const gutterEdges = this._sashLayout.getGutterEdges(gutterWidth, reader);
 
 				originalLeft = 0;
-				originalWidth = sashLeft - gutterWidth - movedBlocksLinesWidth;
+				originalWidth = gutterEdges.left - movedBlocksLinesWidth;
 
-				gutterLeft = sashLeft - gutterWidth;
+				gutterLeft = gutterEdges.left;
 
-				modifiedLeft = sashLeft;
+				modifiedLeft = gutterEdges.right;
 				modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
 			} else {
 				gutterLeft = 0;
@@ -325,6 +325,22 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		this._sashLayout = new SashLayout(this._options, dimensions);
 
+		this._gutter = derivedDisposable(this, reader => {
+			return this._options.shouldRenderGutterMenu.read(reader)
+				? this._instantiationService.createInstance(
+					readHotReloadableExport(DiffEditorGutter, reader),
+					this.elements.root,
+					this._diffModel,
+					this._editors,
+					this._options,
+					this._sashLayout,
+					this._boundarySashes,
+				)
+				: undefined;
+		});
+
+		const gutterWidth = derived(this, reader => this._gutter.read(reader)?.width.read(reader) ?? 0);
+
 		this._sash = derivedDisposable(this, reader => {
 			const showSash = this._options.renderSideBySide.read(reader);
 			this.elements.root.classList.toggle('side-by-side', showSash);
@@ -333,7 +349,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				dimensions,
 				this._options.enableSplitViewResizing,
 				this._boundarySashes,
-				this._sashLayout.sashLeft,
+				derivedWithSetter(this,
+					reader => this._sashLayout.getGutterEdges(gutterWidth.read(reader), reader).right,
+					(v, tx) => this._sashLayout.sashLeft.set(v - gutterWidth.read(undefined) / 2, tx),
+				),
 				() => this._sashLayout.resetSash(),
 			);
 		}).recomputeInitiallyAndOnChange(this._store);
@@ -419,20 +438,6 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(toDisposable(() => {
 			this._codeEditorService.removeDiffEditor(this);
 		}));
-
-		this._gutter = derivedDisposable(this, reader => {
-			return this._options.shouldRenderGutterMenu.read(reader)
-				? this._instantiationService.createInstance(
-					readHotReloadableExport(DiffEditorGutter, reader),
-					this.elements.root,
-					this._diffModel,
-					this._editors,
-					this._options,
-					this._sashLayout,
-					this._boundarySashes,
-				)
-				: undefined;
-		});
 
 		this._register(recomputeInitiallyAndOnChange(this._layoutInfo));
 

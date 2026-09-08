@@ -19,6 +19,15 @@ export class SashLayout {
 
 	private readonly _sashRatio = observableValue<number | undefined>(this, undefined);
 
+	public getGutterEdges(gutterWidth: number, reader: IReader | undefined): { left: number; right: number } {
+		const sashLeft = this.sashLeft.read(reader);
+		const contentWidth = this.dimensions.width.read(reader);
+		return {
+			left: Math.floor(sashLeft - gutterWidth / 2),
+			right: contentWidth - Math.floor(contentWidth - sashLeft - gutterWidth / 2),
+		};
+	}
+
 	public resetSash(): void {
 		this._sashRatio.set(undefined, undefined);
 	}
@@ -32,8 +41,8 @@ export class SashLayout {
 	/** @pure */
 	private _computeSashLeft(desiredRatio: number, reader: IReader | undefined): number {
 		const contentWidth = this.dimensions.width.read(reader);
-		const midPoint = Math.floor(this._options.splitViewDefaultRatio.read(reader) * contentWidth);
-		const sashLeft = this._options.enableSplitViewResizing.read(reader) ? Math.floor(desiredRatio * contentWidth) : midPoint;
+		const midPoint = this._options.splitViewDefaultRatio.read(reader) * contentWidth;
+		const sashLeft = this._options.enableSplitViewResizing.read(reader) ? desiredRatio * contentWidth : midPoint;
 
 		const MINIMUM_EDITOR_WIDTH = 100;
 		if (contentWidth <= MINIMUM_EDITOR_WIDTH * 2) {

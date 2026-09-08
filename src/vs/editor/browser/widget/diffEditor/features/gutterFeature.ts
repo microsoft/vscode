@@ -115,8 +115,8 @@ export class DiffEditorGutter extends Disposable {
 				this._options.enableSplitViewResizing,
 				this._boundarySashes,
 				derivedWithSetter(
-					this, reader => this._sashLayout.sashLeft.read(reader) - width,
-					(v, tx) => this._sashLayout.sashLeft.set(v + width, tx)
+					this, reader => this._sashLayout.getGutterEdges(width, reader).left,
+					(v, tx) => this._sashLayout.sashLeft.set(v + width / 2, tx)
 				),
 				() => this._sashLayout.resetSash(),
 			);
