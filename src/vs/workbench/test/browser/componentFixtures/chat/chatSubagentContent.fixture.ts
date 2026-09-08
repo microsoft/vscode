@@ -29,7 +29,7 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'running' | 'unavailable'): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running'): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 360;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -98,7 +98,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/review',
 		agentName: 'code-review',
 		isChatAvailable: state === 'running',
-		isActive: state !== 'unavailable',
+		isActive: state !== 'initializing',
 	};
 	const invocation = new ChatToolInvocation(
 		{ invocationMessage: 'Delegating review', toolSpecificData: data },
@@ -107,7 +107,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		undefined,
 		undefined,
 	);
-	await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Background review started.' }] });
+	await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background. You will be notified when it completes.' }] });
 	const part = disposableStore.add(instantiationService.createInstance(
 		ChatSubagentContentPart,
 		'review',
@@ -133,6 +133,6 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
+	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
-	Unavailable: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'unavailable') }),
 });

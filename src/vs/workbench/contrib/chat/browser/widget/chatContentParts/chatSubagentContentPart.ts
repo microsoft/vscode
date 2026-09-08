@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
-import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -146,7 +145,6 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 */
 	private _openChatToolbar: WorkbenchToolBar | undefined;
 	private _openChatToolbarContainer: HTMLElement | undefined;
-	private readonly _openChatActionListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _openChatActionViewRegistration = this._register(new MutableDisposable());
 
 	// Confirmation auto-expand tracking
@@ -306,7 +304,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
-		this._trackOpenChatActions();
+		this._updateOpenChatOnlyMode();
 		return true;
 	}
 
@@ -320,36 +318,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		return undefined;
 	}
 
-	private _trackOpenChatActions(): void {
-		const store = new DisposableStore();
-		const itemCount = this._openChatToolbar?.getItemsLength() ?? 0;
-		for (let index = 0; index < itemCount; index++) {
-			const action = this._openChatToolbar?.getItemAction(index);
-			if (action instanceof Action) {
-				store.add(action.onDidChange(() => this._updateOpenChatOnlyMode()));
-			}
-		}
-		this._openChatActionListeners.value = store;
-		this._updateOpenChatOnlyMode();
-	}
-
 	private _updateOpenChatOnlyMode(): void {
 		if (!this._collapseButton) {
 			return;
 		}
-		let openChatOnly = false;
-		if (this._openChatToolbar) {
-			const itemCount = this._openChatToolbar.getItemsLength();
-			openChatOnly = this._shouldUseOpenChatPresentation() && !!this._getChatResource();
-			if (!this.isActive && IChatToolInvocation.isComplete(this._subagentToolInvocation)) {
-				for (let index = 0; index < itemCount; index++) {
-					if (!this._openChatToolbar.getItemAction(index)?.enabled) {
-						openChatOnly = false;
-						break;
-					}
-				}
-			}
-		}
+		const openChatOnly = !!this._openChatToolbar && this._shouldUseOpenChatPresentation() && !!this._getChatResource();
 		this.domNode.classList.toggle('chat-subagent-open-chat-only', openChatOnly);
 		if (openChatOnly || this._shouldReserveOpenChatPresentation()) {
 			dom.hide(this._collapseButton.element);
@@ -837,21 +810,15 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			this._titleFileWidgetStore.clear();
 			this.titleDetailContainer = undefined;
 
-			const showOutputLabel = this._shouldUseOpenChatPresentation() && !!this._getChatResource() && !!this._openChatToolbar;
-			const title = showOutputLabel ? localize('chat.subagent.output', "Subagent output") : shimmerText;
-			if (showOutputLabel) {
-				labelElement.textContent = title;
-			} else {
-				const prefixSpan = $('span');
-				prefixSpan.textContent = `${prefix}:`;
-				labelElement.appendChild(prefixSpan);
+			const prefixSpan = $('span');
+			prefixSpan.textContent = `${prefix}:`;
+			labelElement.appendChild(prefixSpan);
 
-				const descSpan = $('span.chat-thinking-title-detail-text');
-				descSpan.textContent = ` ${this.description}`;
-				labelElement.appendChild(descSpan);
-			}
+			const descSpan = $('span.chat-thinking-title-detail-text');
+			descSpan.textContent = ` ${this.description}`;
+			labelElement.appendChild(descSpan);
 
-			this.setAriaLabel(title);
+			this.setAriaLabel(shimmerText);
 			return;
 		}
 

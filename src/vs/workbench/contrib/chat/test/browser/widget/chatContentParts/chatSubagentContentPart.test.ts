@@ -24,6 +24,7 @@ import { IChatHookPart, IChatMarkdownContent, IChatSubagentToolInvocationData, I
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -404,15 +405,6 @@ suite('ChatSubagentContentPart', () => {
 
 	function getOpenChatContext(part: ChatSubagentContentPart): IOpenSubagentChatContext | undefined {
 		return (part as unknown as { _openChatToolbar?: { actionBar?: { context?: IOpenSubagentChatContext } } })._openChatToolbar?.actionBar?.context;
-	}
-
-	function setOpenChatOnlyMode(part: ChatSubagentContentPart, enabled: boolean): void {
-		const toolbar = (part as unknown as { _openChatToolbar?: { getItemsLength(): number; getItemAction(index: number): Action | undefined } })._openChatToolbar;
-		assert.ok(toolbar);
-		const action = store.add(new Action('openSubagent', 'Open Subagent', '', enabled));
-		toolbar.getItemsLength = () => 1;
-		toolbar.getItemAction = () => action;
-		(part as unknown as { _updateOpenChatOnlyMode(): void })._updateOpenChatOnlyMode();
 	}
 
 	suite('Basic rendering', () => {
@@ -1016,18 +1008,23 @@ suite('ChatSubagentContentPart', () => {
 			const launching = snapshot();
 			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
 			const launched = snapshot();
+			data.isActive = false;
+			state.set({ ...state.get() }, undefined);
+			const awaitingStart = snapshot();
 			part.trackToolState(createMockToolInvocation({
 				toolCallId: 'child-search',
 				toolId: 'search',
 				invocationMessage: 'Search the codebase',
 				stateType: IChatToolInvocation.StateKind.Executing,
 			}));
+			data.isActive = true;
 			data.isChatAvailable = true;
 			state.set({ ...state.get() }, undefined);
 
-			assert.deepStrictEqual({ launching, launched, hydrated: snapshot() }, {
+			assert.deepStrictEqual({ launching, launched, awaitingStart, hydrated: snapshot() }, {
 				launching: { visible: true, enabled: false, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Working on it...' },
 				launched: { visible: true, enabled: false, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Working on it...' },
+				awaitingStart: { visible: true, enabled: false, richOnly: true, legacyHeaderDisplay: 'none', activity: '' },
 				hydrated: { visible: true, enabled: true, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Search the codebase' },
 			});
 		});
@@ -1087,8 +1084,6 @@ suite('ChatSubagentContentPart', () => {
 					chatResource: 'ahp-chat://subagent/test/tool-call',
 				}
 			}), createMockRenderContext(false));
-			setOpenChatOnlyMode(part, true);
-
 			const collapseButton = getCollapseButton(part);
 			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
 			assert.ok(collapseButton);
@@ -1157,7 +1152,8 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('should preserve the collapsible surface when the open-chat action is unavailable', () => {
+		test('should preserve the collapsible surface when the rich renderer is unavailable', () => {
+			actionViewItemService.setProviderAvailable(false);
 			const part = createPart(createMockToolInvocation({
 				stateType: IChatToolInvocation.StateKind.Completed,
 				toolSpecificData: {
@@ -1167,8 +1163,6 @@ suite('ChatSubagentContentPart', () => {
 					isActive: false,
 				}
 			}), createMockRenderContext(false));
-			setOpenChatOnlyMode(part, false);
-
 			const collapseButton = getCollapseButton(part);
 			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
 			assert.ok(collapseButton);
@@ -1184,43 +1178,57 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('should preserve the completed tool result when no subagent chat became available', () => {
-			actionViewItemService.actionViewItemFactory = (action, options, service) =>
-				service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
-			const part = createPart(createMockToolInvocation({
-				stateType: IChatToolInvocation.StateKind.Completed,
-				toolSpecificData: {
+		for (const serialized of [false, true]) {
+			test(`should hide the background launch acknowledgment in rich ${serialized ? 'serialized' : 'live'} subagents`, async () => {
+				actionViewItemService.actionViewItemFactory = (action, options, service) =>
+					service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
+				const acknowledgment = 'Agent started in background. You will be notified when it completes.';
+				const data: IChatSubagentToolInvocationData = {
 					kind: 'subagent',
 					description: 'Delegated review',
 					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
 					isChatAvailable: false,
 					isActive: false,
-				},
-			}), createMockRenderContext(false, URI.parse('agent-host-copilot:/session')));
-			const pill = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-widget');
-			assert.ok(pill);
-			const collapseButton = getCollapseButton(part);
-			assert.ok(collapseButton);
-			collapseButton.click();
+					result: acknowledgment,
+				};
+				const invocation = new ChatToolInvocation(
+					{ invocationMessage: 'Delegating review', toolSpecificData: data },
+					{ id: 'task', displayName: 'Delegate task', modelDescription: 'Delegate a task', source: ToolDataSource.Internal },
+					'tool-call', undefined, undefined,
+				);
+				await invocation.didExecuteTool({ content: [{ kind: 'text', value: acknowledgment }] });
+				const toolInvocation = serialized ? invocation.toJSON() : invocation;
+				const context = createMockRenderContext(false, URI.parse('agent-host-copilotcli:/session'));
+				const part = createPart(toolInvocation, context);
+				const pill = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-widget');
+				const collapseButton = getCollapseButton(part);
+				const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+				assert.ok(pill && collapseButton && animationContainer);
+				const rich = {
+					pillVisible: mainWindow.getComputedStyle(pill).display !== 'none',
+					navigationDisabled: pill.getAttribute('aria-disabled'),
+					collapseButtonDisplay: mainWindow.getComputedStyle(collapseButton).display,
+					animationDisplay: mainWindow.getComputedStyle(animationContainer).display,
+					acknowledgmentRendered: part.domNode.textContent?.includes(acknowledgment),
+				};
 
-			assert.deepStrictEqual({
-				richHeaderVisible: mainWindow.getComputedStyle(pill).display !== 'none',
-				collapseButtonHidden: collapseButton.style.display === 'none',
-				collapseButtonLabel: collapseButton.textContent,
-				collapseButtonAriaLabel: collapseButton.ariaLabel,
-				chatAvailable: getOpenChatContext(part)?.isChatAvailable,
-				active: getOpenChatContext(part)?.isActive,
-				resultVisible: part.domNode.textContent?.includes('test result'),
-			}, {
-				richHeaderVisible: true,
-				collapseButtonHidden: false,
-				collapseButtonLabel: 'Subagent output',
-				collapseButtonAriaLabel: 'Subagent output',
-				chatAvailable: false,
-				active: false,
-				resultVisible: true,
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+				const inlinePart = createPart(toolInvocation, context);
+				const inlineButton = getCollapseButton(inlinePart);
+				assert.ok(inlineButton);
+				inlineButton.click();
+				assert.deepStrictEqual({ rich, inlineAcknowledgmentRendered: inlinePart.domNode.textContent?.includes(acknowledgment) }, {
+					rich: {
+						pillVisible: true,
+						navigationDisabled: 'true',
+						collapseButtonDisplay: 'none',
+						animationDisplay: 'none',
+						acknowledgmentRendered: false,
+					},
+					inlineAcknowledgmentRendered: true,
+				});
 			});
-		});
+		}
 
 		test('should publish the model and newest child tool intent to the open-chat pill', () => {
 			const part = createPart(createMockToolInvocation({
