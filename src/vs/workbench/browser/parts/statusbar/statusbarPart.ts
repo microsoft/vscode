@@ -16,7 +16,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, getWindowId, isHTMLElement, $ } from '../../../../base/browser/dom.js';
+import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
@@ -168,11 +168,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	private readonly compactEntriesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
-	private isInactive = false;
+	private activeWindowId: number | undefined;
 
 	constructor(
 		id: string,
-		targetWindow: CodeWindow,
+		private readonly targetWindow: CodeWindow,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -217,18 +217,26 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			}
 		)));
 
-		this.registerListeners(getWindowId(targetWindow));
+		this.registerListeners();
 	}
 
-	private registerListeners(targetWindowId: number): void {
+	private registerListeners(): void {
 
 		// Entry visibility changes
 		this._register(this.onDidChangeEntryVisibility(() => this.updateCompactEntries()));
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
-		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== targetWindowId)));
+		const updateStyles = () => {
+			if (this.element) {
+				this.updateStyles();
+			}
+		};
+		this._register(this.hostService.onDidChangeFocus(updateStyles));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			updateStyles();
+		}));
 
 		// Floating panels changes the reserved bottom padding (and therefore the
 		// part height) for the main status bar only: signal the grid that the size
@@ -243,15 +251,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		}));
 	}
 
-	private setInactive(inactive: boolean): void {
-		if (this.isInactive === inactive) {
-			return;
-		}
-
-		this.isInactive = inactive;
-		if (this.element) {
-			this.updateStyles();
-		}
+	protected hasWindowFocus(): boolean {
+		return this.targetWindow.document.hasFocus();
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -727,7 +728,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// The inactive background is a resting state only: a style override (e.g. while debugging)
 		// and the no folder background both communicate state and must stay visible when inactive.
-		const inactiveBackground = this.isInactive && !styleOverride?.background && hasFolder ? this.getColor(STATUS_BAR_INACTIVE_BACKGROUND) : undefined;
+		const isWindowActive = this.activeWindowId === undefined ? this.hasWindowFocus() : this.activeWindowId === this.targetWindow.vscodeWindowId;
+		const isInactive = !this.hostService.hasFocus || !isWindowActive;
+		const inactiveBackground = isInactive && !styleOverride?.background && hasFolder ? this.getColor(STATUS_BAR_INACTIVE_BACKGROUND) : undefined;
 		const backgroundColor = inactiveBackground || this.getColor(background) || '';
 		container.style.backgroundColor = backgroundColor;
 		container.style.boxShadow = this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() && !isHighContrast(this.theme.type) && backgroundColor

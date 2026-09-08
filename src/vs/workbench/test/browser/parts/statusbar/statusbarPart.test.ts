@@ -18,12 +18,19 @@ import { TestContextMenuService, TestHostService, TestLayoutService } from '../.
 import { mock } from '../../../../../base/test/common/mock.js';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('StatusbarPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class TestMainStatusbarPart extends MainStatusbarPart {
 		updateStylesCalls = 0;
+		windowHasFocus = true;
+
+		protected override hasWindowFocus(): boolean {
+			return this.windowHasFocus;
+		}
 
 		override updateStyles(): void {
 			this.updateStylesCalls++;
@@ -52,6 +59,78 @@ suite('StatusbarPart', () => {
 			affectsConfiguration: candidate => candidate === key,
 		});
 	}
+
+	function createFocusTestPart(hostService: TestHostService, windowHasFocus: boolean): { part: TestMainStatusbarPart; container: HTMLElement } {
+		const configurationService = new TestConfigurationService();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() { });
+		const part = store.add(new TestMainStatusbarPart(
+			instantiationService,
+			new TestThemeService(new TestColorTheme({
+				[STATUS_BAR_BACKGROUND]: '#111111',
+				[STATUS_BAR_INACTIVE_BACKGROUND]: '#222222',
+			})),
+			new TestContextService(),
+			store.add(new TestStorageService()),
+			new TestLayoutService(),
+			new TestContextMenuService(),
+			store.add(new ContextKeyService(configurationService)),
+			configurationService,
+			hostService,
+		));
+		part.windowHasFocus = windowHasFocus;
+		const container = document.createElement('div');
+		part.create(container);
+		return { part, container };
+	}
+
+	test('initializes the inactive background before receiving focus events', () => {
+		const hostService = new TestHostService();
+		hostService.setFocus(false);
+		const unfocusedHost = createFocusTestPart(hostService, false);
+		const unfocusedWindow = createFocusTestPart(new TestHostService(), false);
+
+		assert.deepStrictEqual({
+			unfocusedHost: unfocusedHost.container.style.backgroundColor,
+			unfocusedWindow: unfocusedWindow.container.style.backgroundColor,
+		}, {
+			unfocusedHost: 'rgb(34, 34, 34)',
+			unfocusedWindow: 'rgb(34, 34, 34)',
+		});
+	});
+
+	test('keeps window-specific backgrounds when the host regains focus', () => {
+		const activeWindowEmitter = store.add(new Emitter<number>());
+		const hostService = new class extends TestHostService {
+			override readonly onDidChangeActiveWindow = activeWindowEmitter.event;
+		}();
+		const main = createFocusTestPart(hostService, true);
+		const backgrounds = () => main.container.style.backgroundColor;
+		const initially = backgrounds();
+
+		hostService.setFocus(false);
+		const blurred = backgrounds();
+		hostService.setFocus(true);
+		const returnedToMain = backgrounds();
+
+		activeWindowEmitter.fire(mainWindow.vscodeWindowId + 1);
+		const switchedToAuxiliary = backgrounds();
+		hostService.setFocus(false);
+		hostService.setFocus(true);
+		const returnedToAuxiliary = backgrounds();
+		activeWindowEmitter.fire(mainWindow.vscodeWindowId);
+		const switchedBackToMain = backgrounds();
+
+		assert.deepStrictEqual({ initially, blurred, returnedToMain, switchedToAuxiliary, returnedToAuxiliary, switchedBackToMain }, {
+			initially: 'rgb(17, 17, 17)',
+			blurred: 'rgb(34, 34, 34)',
+			returnedToMain: 'rgb(17, 17, 17)',
+			switchedToAuxiliary: 'rgb(34, 34, 34)',
+			returnedToAuxiliary: 'rgb(34, 34, 34)',
+			switchedBackToMain: 'rgb(17, 17, 17)',
+		});
+	});
 
 	test('configuration changes update styles only after the part is created', () => {
 		const configurationService = new TestConfigurationService();

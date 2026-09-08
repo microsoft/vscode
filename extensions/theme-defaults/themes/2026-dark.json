@@ -258,8 +258,6 @@
 		"chat.requestBubbleBackground": "#ffffff13",
 		"chat.requestBubbleHoverBackground": "#ffffff22",
 		"chat.inputWorkingBorderColor1": "#297AA0",
-		"chat.inputWorkingBorderColor2": "#1C546F",
-		"chat.inputWorkingBorderColor3": "#5BA8CC",
 		"editorCommentsWidget.rangeBackground": "#488FAE26",
 		"editorCommentsWidget.rangeActiveBackground": "#488FAE46",
 		"charts.foreground": "#CCCCCC",

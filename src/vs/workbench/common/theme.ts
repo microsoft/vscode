@@ -308,7 +308,7 @@ export const STATUS_BAR_INACTIVE_BACKGROUND = registerColor('statusBar.inactiveB
 	light: null,
 	hcDark: null,
 	hcLight: null,
-}, localize('statusBarInactiveBackground', "Status bar background color when the window is inactive. If not set, the current status bar background is used."));
+}, localize('statusBarInactiveBackground', "Status bar background color when a workspace or folder is opened and the window is inactive. Debugging and other background overrides take precedence. If not set, the current status bar background is used."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',

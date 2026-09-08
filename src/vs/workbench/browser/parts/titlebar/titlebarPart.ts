@@ -293,8 +293,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: TitlebarStyle;
-
-	private isInactive: boolean = false;
+	private activeWindowId: number | undefined;
 
 	private readonly isAuxiliary: boolean;
 	private isCompact = false;
@@ -307,7 +306,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	constructor(
 		id: string,
-		targetWindow: CodeWindow,
+		private readonly targetWindow: CodeWindow,
 		private readonly editorGroupsContainer: IEditorGroupsContainer,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -340,26 +339,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
-		this.registerListeners(getWindowId(targetWindow));
+		this.registerListeners();
 	}
 
-	private registerListeners(targetWindowId: number): void {
-		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+	private registerListeners(): void {
+		this._register(this.hostService.onDidChangeFocus(() => this.updateStyles()));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			this.updateStyles();
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
-	}
-
-	private onBlur(): void {
-		this.isInactive = true;
-
-		this.updateStyles();
-	}
-
-	private onFocus(): void {
-		this.isInactive = false;
-
-		this.updateStyles();
 	}
 
 	private onEditorPartConfigurationChange({ oldPartOptions, newPartOptions }: IEditorPartOptionsChangeEvent): void {
@@ -840,7 +830,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Part container
 		if (this.element) {
-			if (this.isInactive) {
+			const isWindowActive = this.activeWindowId === undefined ? this.targetWindow.document.hasFocus() : this.activeWindowId === this.targetWindow.vscodeWindowId;
+			const isInactive = !this.hostService.hasFocus || !isWindowActive;
+			if (isInactive) {
 				this.element.classList.add('inactive');
 			} else {
 				this.element.classList.remove('inactive');
@@ -853,8 +845,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// the background color is the workbench background.
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
 			};
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || '';
-			const shellBackground = this.getColor(this.isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND, makeOpaque) || titleBackground;
+			const titleBackground = this.getColor(isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || this.getColor(TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || '';
+			const shellBackground = this.getColor(isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND, makeOpaque) || this.getColor(MODERN_UI_SHELL_BACKGROUND, makeOpaque) || titleBackground;
 			this.element.style.backgroundColor = titleBackground;
 			this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-shell-background', shellBackground);
 
@@ -868,7 +860,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('light');
 			}
 
-			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
+			const titleForeground = this.getColor(isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
 			this.element.style.color = titleForeground || '';
 
 			const titleBorder = !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? undefined : this.getColor(TITLE_BAR_BORDER);

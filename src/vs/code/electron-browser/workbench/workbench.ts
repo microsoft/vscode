@@ -5,6 +5,8 @@
 
 /* eslint-disable no-restricted-globals */
 
+import { getPartsSplashColors } from './partsSplash.js';
+
 (async function () {
 
 	// Add a perf entry right from the top
@@ -52,14 +54,10 @@
 		let baseTheme;
 		let shellBackground;
 		let shellForeground;
+		const splashColors = data ? getPartsSplashColors(data, window.document.hasFocus(), !!configuration.workspace) : undefined;
 		if (data) {
 			baseTheme = data.baseTheme;
-			const modernUIShellBackground = window.document.hasFocus()
-				? data.colorInfo.modernUIShellBackground
-				: data.colorInfo.modernUIInactiveShellBackground ?? data.colorInfo.modernUIShellBackground;
-			shellBackground = data.layoutInfo?.modernUI === true
-				? modernUIShellBackground ?? data.colorInfo.titleBarBackground ?? data.colorInfo.editorBackground
-				: data.colorInfo.editorBackground;
+			shellBackground = splashColors?.background;
 			shellForeground = data.colorInfo.foreground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
@@ -263,7 +261,7 @@
 				titleDiv.style.height = `${layoutInfo.titleBarHeight}px`;
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
-				titleDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.titleBarBackground}`;
+				titleDiv.style.backgroundColor = splashColors?.titleBarBackground ?? '';
 				(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 
@@ -465,15 +463,7 @@
 				statusDiv.style.height = `${layoutInfo.statusBarHeight}px`;
 				statusDiv.style.bottom = '0';
 				statusDiv.style.left = '0';
-				if (modernUI) {
-					statusDiv.style.backgroundColor = 'transparent';
-				} else if (configuration.workspace && !window.document.hasFocus() && colorInfo.statusBarInactiveBackground) {
-					statusDiv.style.backgroundColor = colorInfo.statusBarInactiveBackground;
-				} else if (configuration.workspace && colorInfo.statusBarBackground) {
-					statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
-				} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
-					statusDiv.style.backgroundColor = colorInfo.statusBarNoFolderBackground;
-				}
+				statusDiv.style.backgroundColor = splashColors?.statusBarBackground ?? '';
 				splash.appendChild(statusDiv);
 
 				if (!modernUI && colorInfo.statusBarBorder) {

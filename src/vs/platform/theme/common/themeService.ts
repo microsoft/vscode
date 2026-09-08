@@ -226,6 +226,7 @@ export interface IPartsSplash {
 		foreground: string | undefined;
 		editorBackground: string | undefined;
 		titleBarBackground: string | undefined;
+		titleBarInactiveBackground?: string;
 		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
 		activityBarBorder: string | undefined;

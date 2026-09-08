@@ -52,12 +52,6 @@
 	background-color: var(--vscode-panelSectionHeader-border, var(--vscode-panel-border, var(--vscode-surface-border)));
 }
 
-:is(.hc-black, .hc-light).modern-ui .monaco-pane-view {
-	--vscode-sideBarSectionHeader-border: var(--vscode-contrastBorder);
-	--vscode-panelSectionHeader-border: var(--vscode-contrastBorder);
-	--vscode-panelSection-border: var(--vscode-contrastBorder);
-}
-
 /*
  * The first section in a vertical stack has no separator above it. Horizontally
  * arranged panes are the only section in their column, so their left pane border

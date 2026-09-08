@@ -550,7 +550,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('uses the contrast border for high contrast pane dividers', () => {
+	test('respects customized high contrast pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui hc-black';
 		root.style.setProperty('--vscode-contrastBorder', '#6FC3DF');
@@ -584,15 +584,20 @@ suite('ModernUIContribution', () => {
 		appendElement(panelPaneView, 'split-view-view').appendChild(horizontalPanelPane.element);
 
 		const targetWindow = getWindow(root);
-		assert.deepStrictEqual({
+		const getDividerColors = () => ({
 			sideBarHeaderSeparatorColor: targetWindow.getComputedStyle(followingSideBarPane.draggableElement!, '::before').backgroundColor,
 			panelHeaderSeparatorColor: targetWindow.getComputedStyle(followingPanelPane.draggableElement!, '::before').backgroundColor,
 			horizontalPanelSeparatorColor: targetWindow.getComputedStyle(horizontalPanelPane.element).borderLeftColor,
-		}, {
-			sideBarHeaderSeparatorColor: 'rgb(111, 195, 223)',
-			panelHeaderSeparatorColor: 'rgb(111, 195, 223)',
-			horizontalPanelSeparatorColor: 'rgb(111, 195, 223)',
 		});
+		const dark = getDividerColors();
+		root.classList.replace('hc-black', 'hc-light');
+		const light = getDividerColors();
+		const expected = {
+			sideBarHeaderSeparatorColor: 'rgb(111, 119, 131)',
+			panelHeaderSeparatorColor: 'rgb(111, 119, 131)',
+			horizontalPanelSeparatorColor: 'rgb(111, 119, 131)',
+		};
+		assert.deepStrictEqual({ dark, light }, { dark: expected, light: expected });
 	});
 
 	test('toggles uppercase view headers without relayout', async () => {
