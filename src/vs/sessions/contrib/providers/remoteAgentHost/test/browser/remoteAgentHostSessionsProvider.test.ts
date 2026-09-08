@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -113,7 +114,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return uri;
 	}
 
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(_request: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -432,6 +433,60 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			{ id: CopilotCLISessionType.id, label: 'Copilot [My Host]' },
 			{ id: 'openai', label: 'OpenAI [My Host]' },
 		]);
+	});
+
+	test('resolves worktree branches on the selected remote host for every agent', async () => {
+		const agentIds = ['copilotcli', 'claude', 'codex', 'custom'];
+		connection.setAgents(agentIds.map(provider => ({ provider, displayName: provider, description: '', models: [] })));
+		const provider = createProvider(disposables, connection);
+		const folderUri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
+		const resolveRequests: Parameters<IAgentConnection['resolveSessionConfig']>[0][] = [];
+		const completionRequests: Parameters<IAgentConnection['sessionConfigCompletions']>[0][] = [];
+		connection.resolveSessionConfig = async request => {
+			resolveRequests.push(request);
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+						branch: { type: 'string', title: 'Branch', enumDynamic: true },
+					},
+				},
+				values: { isolation: 'folder', branch: 'remote-head' },
+			};
+		};
+		connection.sessionConfigCompletions = async request => {
+			completionRequests.push(request);
+			return {
+				items: ['remote-head', 'release']
+					.filter(name => !request.query || name.includes(request.query))
+					.map(value => ({ value, label: value })),
+			};
+		};
+		const results = [];
+		for (const agentId of agentIds) {
+			const options = await provider.getWorktreeOptions(folderUri, agentId, CancellationToken.None);
+			results.push({
+				supportsWorktree: options?.supportsWorktree,
+				currentBranch: options?.currentBranch,
+				branches: options?.branches,
+				search: await options?.loadBranches?.('release', CancellationToken.None),
+			});
+		}
+
+		assert.deepStrictEqual({
+			capabilities: provider.sessionTypes.map(type => type.supportsWorktreeConfiguration),
+			results,
+			resolveRequests,
+			completionRequests,
+		}, {
+			capabilities: agentIds.map(() => true),
+			results: agentIds.map(() => ({ supportsWorktree: true, currentBranch: 'remote-head', branches: ['remote-head', 'release'], search: ['release'] })),
+			resolveRequests: agentIds.map(provider => ({ provider, workingDirectory: folderUri, config: { isolation: 'folder' } })),
+			completionRequests: agentIds.flatMap(provider => [undefined, 'release'].map(query => ({
+				provider, workingDirectory: folderUri, config: { isolation: 'folder', branch: 'remote-head' }, property: 'branch', query,
+			}))),
+		});
 	});
 
 	test('session-type labels omit host suffix on web', () => {
