@@ -3559,7 +3559,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
-				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				// Isolation is host-owned; the workspace schema determines the available choices.
+				supportsWorktreeConfiguration: true,
 				authRequirement: resolveAgentAuthRequirement(agent),
 				initializationOnSelection: setupAgents.has(agent.provider) ? {
 					canInitializeWithoutGitHub: agent.provider === CODEX_AGENT_PROVIDER_ID && hasSignedInCodexAccount,
