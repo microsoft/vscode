@@ -71,6 +71,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.modelPicker.tiers', "In the tabbed model picker, the selected model's details open beside the list. Moving between model rows updates the details immediately without selecting a model. The card stays visible when the pointer leaves a row. Press Right Arrow from a model row to focus its details, and Left Arrow to return. When Auto routing tiers are available, the tiers remain visible while Auto is off. Use arrow keys to move between tiers, then Enter or Space to choose a tier and turn Auto on. Turning Auto off preserves the selected tier."));
+		content.push(localize('chat.modelPicker.search', "Type while the model list is focused to search across all providers. In the search field, use Up and Down Arrow to navigate results, Enter to select a model, and Escape to close the picker. Left and Right Arrow move the text cursor."));
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files. Focus an additions and deletions label and press Enter or Space to open the changes in a diff editor.'));
 	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'agentView') {

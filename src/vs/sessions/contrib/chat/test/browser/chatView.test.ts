@@ -599,6 +599,48 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the checkpoint and fork controls opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		const appendCheckpointRows = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const checkpoint = dom.append(session, dom.$('.checkpoint-container'));
+			const restore = dom.append(session, dom.$('.checkpoint-restore-container'));
+			return {
+				checkpointToolbar: dom.append(checkpoint, dom.$('.monaco-toolbar')),
+				label: dom.append(restore, dom.$('span.checkpoint-label-text')),
+				separator: dom.append(restore, dom.$('span.checkpoint-dot-separator')),
+				restoreToolbar: dom.append(restore, dom.$('.monaco-toolbar')),
+			};
+		};
+		const background = appendCheckpointRows(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
+		const plain = appendCheckpointRows(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const fill = (element: HTMLElement) => dom.getWindow(element).getComputedStyle(element).backgroundColor;
+		assert.deepStrictEqual({
+			checkpointToolbar: fill(background.checkpointToolbar),
+			label: fill(background.label),
+			separator: fill(background.separator),
+			restoreToolbar: fill(background.restoreToolbar),
+			plainCheckpointToolbar: fill(plain.checkpointToolbar),
+			plainLabel: fill(plain.label),
+			plainSeparator: fill(plain.separator),
+			plainRestoreToolbar: fill(plain.restoreToolbar),
+		}, {
+			checkpointToolbar: 'rgb(32, 32, 32)',
+			label: 'rgb(32, 32, 32)',
+			separator: 'rgb(32, 32, 32)',
+			restoreToolbar: 'rgb(32, 32, 32)',
+			plainCheckpointToolbar: 'rgba(0, 0, 0, 0)',
+			plainLabel: 'rgba(0, 0, 0, 0)',
+			plainSeparator: 'rgba(0, 0, 0, 0)',
+			plainRestoreToolbar: 'rgba(0, 0, 0, 0)',
+		});
+	});
+
 	test('applies a borderless translucent side fade to the complete assistant response', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');

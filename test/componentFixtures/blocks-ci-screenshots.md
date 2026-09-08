@@ -36,6 +36,12 @@
 #### chat/aiCustomizations/aiCustomizationManagementEditor/HooksEmptyWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5b8ca93b243eeef6a6a74eb1481c879dde79e372bcf18b654b16d3e08f785751)
 
+#### chat/aiCustomizations/aiCustomizationManagementEditor/McpMigration/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/282c31651cacb49dde60c5e6565ae593a53f84a331bbeceb4299e8cc929c55ba)
+
+#### chat/aiCustomizations/aiCustomizationManagementEditor/McpMigration/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9dabe0d32b05a7361893edc57abb70de2d56b988987a79f5fc967bc0196a80dc)
+
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServerDetailNarrow/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/fcf65cf63da613b5e1057641c6a837279409733028d4c994890f7b1d8c514ca5)
 

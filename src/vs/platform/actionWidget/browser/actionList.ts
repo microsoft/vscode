@@ -17,6 +17,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
@@ -580,6 +581,15 @@ export interface IActionListOptions {
 	 */
 	readonly filterPlaceholder?: string;
 
+	/** Initial text for the filter input. */
+	readonly initialFilterValue?: string;
+
+	/** Keep focus in the filter while navigating and accepting results, using combobox semantics. */
+	readonly filterAsCombobox?: boolean;
+
+	/** Reveals a filter when printable text is typed in a list without a filter input. */
+	readonly onType?: (text: string) => void;
+
 	/**
 	 * Optional actions shown in the filter row, to the right of the input.
 	 */
@@ -782,6 +792,7 @@ export class ActionListWidget<T> extends Disposable {
 		super();
 		this._visibleMenuItems = items;
 		this._initialFocusItemId = this._options?.initialFocusItemId;
+		this._filterText = this._options?.showFilter ? this._options.initialFilterValue ?? '' : '';
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -882,7 +893,7 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(),
 		], {
 			keyboardSupport: false,
-			typeNavigationEnabled: !this._options?.showFilter,
+			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -970,8 +981,47 @@ export class ActionListWidget<T> extends Disposable {
 				this._filterInput.type = 'text';
 				this._filterInput.className = 'action-list-filter-input';
 				this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
+				this._filterInput.value = this._filterText;
 				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
 				filterRow.appendChild(this._filterInput);
+
+				if (this._options.filterAsCombobox) {
+					const listElement = this._list.getHTMLElement();
+					listElement.id = this._list.domId;
+					this._filterInput.setAttribute('role', 'combobox');
+					this._filterInput.setAttribute('aria-label', this._filterInput.placeholder);
+					this._filterInput.setAttribute('aria-autocomplete', 'list');
+					this._filterInput.setAttribute('aria-expanded', 'true');
+					this._filterInput.setAttribute('aria-controls', listElement.id);
+					this._register(this._list.onDidChangeFocus(() => this._updateFilterActiveDescendant()));
+					this._register(dom.addDisposableListener(this._filterInput, 'focus', () => this._updateFilterActiveDescendant()));
+					this._register(dom.addDisposableListener(this._filterInput, 'blur', () => this._updateFilterActiveDescendant()));
+					this._register(dom.addStandardDisposableListener(this._filterInput, 'keydown', e => {
+						const isComposing = this._imeSessionInProgress || e.browserEvent.isComposing || e.keyCode === KeyCode.KEY_IN_COMPOSITION;
+						if (isComposing || e.keyCode === KeyCode.LeftArrow || e.keyCode === KeyCode.RightArrow || e.keyCode === KeyCode.Home || e.keyCode === KeyCode.End) {
+							e.stopPropagation();
+							return;
+						}
+						const isNavigation = e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.DownArrow;
+						if (!isNavigation && e.keyCode !== KeyCode.Enter) {
+							return;
+						}
+						if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+							if (isNavigation) {
+								e.stopPropagation();
+							}
+							return;
+						}
+						dom.EventHelper.stop(e, true);
+						if (e.keyCode === KeyCode.UpArrow) {
+							this.focusPrevious();
+						} else if (e.keyCode === KeyCode.DownArrow) {
+							this.focusNext();
+						} else {
+							this.acceptSelected();
+						}
+					}));
+				}
 
 				const filterActions = this._options?.filterActions ?? [];
 				if (filterActions.length > 0) {
@@ -1110,18 +1160,25 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		}));
 
-		// When the list has focus and user types a printable character,
-		// forward it to the filter input so search begins automatically.
-		if (this._filterInput) {
+		if (this._filterInput || this._options?.onType) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-				if (this._filterInput && !dom.isActiveElement(this._filterInput)
+				const target = e.target;
+				if ((this._options?.onType || this._options?.filterAsCombobox) && dom.isHTMLElement(target)
+					&& (dom.isEditableElement(target) || target.closest('button, a, [contenteditable="true"], .action-list-submenu-panel'))) {
+					return;
+				}
+				if ((!this._filterInput || !dom.isActiveElement(this._filterInput))
 					&& !e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-					this._filterInput.focus();
-					this._filterInput.value = e.key;
-					this._filterText = e.key;
-					this._applyOrUpdateFilter();
 					e.preventDefault();
 					e.stopPropagation();
+					if (this._filterInput) {
+						this._filterInput.focus();
+						this._filterInput.value = e.key;
+						this._filterText = e.key;
+						this._applyOrUpdateFilter();
+					} else {
+						this._options?.onType?.(e.key);
+					}
 				}
 			}));
 		}
@@ -1380,6 +1437,18 @@ export class ActionListWidget<T> extends Disposable {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
+	private _updateFilterActiveDescendant(): void {
+		if (!this._filterInput) {
+			return;
+		}
+		const [focused] = this._list.getFocus();
+		if (dom.isActiveElement(this._filterInput) && focused !== undefined) {
+			this._filterInput.setAttribute('aria-activedescendant', this._list.getElementID(focused));
+		} else {
+			this._filterInput.removeAttribute('aria-activedescendant');
+		}
+	}
+
 	focus(): void {
 		if (this._filterInput && this._options?.focusFilterOnOpen) {
 			this._filterInput.focus();
@@ -1514,6 +1583,10 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		} finally {
 			this._suppressHover = false;
+			if (this._options?.filterAsCombobox) {
+				// The focused row may be unchanged when the filter regains DOM focus.
+				this._updateFilterActiveDescendant();
+			}
 		}
 	}
 
@@ -1681,6 +1754,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusPrevious() {
+		if (this._focusFilterResult('previous')) {
+			return;
+		}
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
 			// An item is already highlighted; advance from it instead of jumping to last
@@ -1718,6 +1794,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusNext() {
+		if (this._focusFilterResult('next')) {
+			return;
+		}
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
 			// An item is already highlighted; advance from it instead of jumping to first
@@ -1749,6 +1828,22 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._list.reveal(focused[0]);
 		}
+	}
+
+	private _focusFilterResult(direction: 'previous' | 'next'): boolean {
+		if (!this._options?.filterAsCombobox || !this._filterInput || !dom.isActiveElement(this._filterInput)) {
+			return false;
+		}
+		if (direction === 'previous') {
+			this._list.focusPrevious(1, true, undefined, this.focusCondition);
+		} else {
+			this._list.focusNext(1, true, undefined, this.focusCondition);
+		}
+		const [focused] = this._list.getFocus();
+		if (focused !== undefined) {
+			this._list.reveal(focused);
+		}
+		return true;
 	}
 
 	collapseFocusedSection() {
