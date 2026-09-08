@@ -1061,7 +1061,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	detachFromElement(): void {
 		this._wrapperElement.remove();
 		this._container = undefined;
-		this._dndObserver.clear();
 	}
 
 	attachToElement(container: HTMLElement): void {
@@ -1086,7 +1085,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.refresh();
 
 		setTimeout(() => {
-			if (this._store.isDisposed || this._container !== container) {
+			if (this._store.isDisposed) {
 				return;
 			}
 			this._initDragAndDrop(container);

@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { MAX_TRACKED_SESSIONS, MAX_TYPED_FILES_PER_SESSION, SESSIONS_KEY, SessionsLifecycleTracker } from '../../browser/sessionsLifecycleTracker.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -23,6 +23,7 @@ interface ICreateSessionOptions {
 	changes?: readonly ISessionFileChange[];
 	changesSummary?: ISessionChangesSummary;
 	isExternal?: IObservable<boolean>;
+	artifacts?: readonly ISessionArtifact[];
 }
 
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
@@ -42,6 +43,7 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, opts.changes ?? []),
 		changesSummary: opts.changesSummary !== undefined ? observableValue(`changesSummary-${id}`, opts.changesSummary as ISessionChangesSummary | undefined) : undefined,
+		artifacts: opts.artifacts !== undefined ? observableValue(`artifacts-${id}`, opts.artifacts) : undefined,
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -85,12 +87,15 @@ function createFolder(uri: URI, opts: { readonly workTreeUri?: URI; readonly wit
 }
 
 function createPullRequestRef(number: number, state: GitHubPullRequestState | 'draft'): IGitHubPullRequestRef {
+	const resolvedState = state === 'draft' ? GitHubPullRequestState.Open : state;
 	return {
 		owner: 'microsoft',
 		repo: 'vscode',
 		number,
 		uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
 		icon: computePullRequestIcon(state),
+		state: resolvedState,
+		liveState: resolvedState,
 	};
 }
 
@@ -538,6 +543,72 @@ suite('SessionsLifecycleTracker', () => {
 		}, {
 			pullRequestCount: 1,
 			pullRequestStatus: 'draft',
+		});
+	});
+
+	test('summary counts artifacts, references, and each resolved pull request artifact state', () => {
+		const workspaceUri = URI.parse('file:///repo');
+		const pullRequests = [
+			createPullRequestRef(1, GitHubPullRequestState.Merged),
+			createPullRequestRef(2, GitHubPullRequestState.Open),
+			createPullRequestRef(3, 'draft'),
+			createPullRequestRef(4, GitHubPullRequestState.Closed),
+			{
+				owner: 'microsoft',
+				repo: 'vscode',
+				number: 5,
+				uri: URI.parse('https://github.com/microsoft/vscode/pull/5'),
+				icon: computePullRequestIcon(GitHubPullRequestState.Open),
+			},
+		];
+		const gitHubInfo: IGitHubInfo = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequests,
+		};
+		const workspace = createWorkspace(workspaceUri, [createFolder(workspaceUri, { gitHubInfo })]);
+		const pullRequestArtifacts = pullRequests.map<ISessionArtifact>(pullRequest => ({
+			id: `pr-${pullRequest.number}`,
+			kind: SessionArtifactKind.PullRequest,
+			label: `Pull request ${pullRequest.number}`,
+			isArtifact: true,
+			link: pullRequest.uri,
+			isGitHub: true,
+		}));
+		const artifacts: readonly ISessionArtifact[] = [
+			...pullRequestArtifacts,
+			{ id: 'issue-1', kind: SessionArtifactKind.Issue, label: 'Issue 1', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/1'), isGitHub: true },
+			{ id: 'issue-2', kind: SessionArtifactKind.Issue, label: 'Issue 2', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/2'), isGitHub: true },
+			{ id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: true, commitHash: 'abc123' },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.parse('file:///repo/plan.md') },
+			{ id: 'website', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
+			{ id: 'pr-reference', kind: SessionArtifactKind.PullRequest, label: 'PR reference', isArtifact: false, link: pullRequests[0].uri, isGitHub: true },
+			{ id: 'issue-reference', kind: SessionArtifactKind.Issue, label: 'Issue reference', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/3'), isGitHub: true },
+			{ id: 'file-reference', kind: SessionArtifactKind.File, label: 'File reference', isArtifact: false, uri: URI.parse('file:///repo/readme.md') },
+		];
+		const session = createSession('s1', { workspace, artifacts });
+
+		tracker.recordNewChatRequestSent(session);
+		const summary = tracker.finalize(session.sessionId, 'archived', session);
+
+		assert.deepStrictEqual({
+			pullRequestArtifactMergedCount: summary?.pullRequestArtifactMergedCount,
+			pullRequestArtifactOpenCount: summary?.pullRequestArtifactOpenCount,
+			pullRequestArtifactDraftCount: summary?.pullRequestArtifactDraftCount,
+			pullRequestArtifactClosedCount: summary?.pullRequestArtifactClosedCount,
+			issueArtifactCount: summary?.issueArtifactCount,
+			otherArtifactCount: summary?.otherArtifactCount,
+			artifactCount: summary?.artifactCount,
+			referenceCount: summary?.referenceCount,
+		}, {
+			pullRequestArtifactMergedCount: 1,
+			pullRequestArtifactOpenCount: 1,
+			pullRequestArtifactDraftCount: 1,
+			pullRequestArtifactClosedCount: 1,
+			issueArtifactCount: 2,
+			otherArtifactCount: 3,
+			artifactCount: 10,
+			referenceCount: 3,
 		});
 	});
 
