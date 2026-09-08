@@ -40,7 +40,6 @@ const exactPaths = new Set([
 	'product.json',
 	'scripts/test-agent-host-e2e.ts',
 	'scripts/test-agent-host-e2e-child.ps1',
-	'scripts/test-integration-with-agent-host-e2e.ts',
 	'scripts/test-integration.sh',
 	'scripts/test-integration.bat',
 	'scripts/test.sh',

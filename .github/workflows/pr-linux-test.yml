@@ -399,19 +399,12 @@ jobs:
             compile-extension:vscode-test-resolver
 
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected == 'true' }}
-        timeout-minutes: 20
-        run: node scripts/test-integration-with-agent-host-e2e.ts --tfs "Integration Tests"
-        env:
-          DISPLAY: ":10"
-
-      - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected != 'true' }}
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
-          VSCODE_SKIP_AGENT_HOST_E2E: '1'
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)

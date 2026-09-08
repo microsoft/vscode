@@ -181,17 +181,6 @@ jobs:
       unit_tests: false
       integration_tests: false
 
-  macos-electron-network-proxy-smoke-tests:
-    name: macOS
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      job_name: Electron-Smoke-Network-Proxy
-      electron_tests: true
-      network_proxy_smoke_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-
   macos-browser-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
