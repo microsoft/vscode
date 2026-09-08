@@ -1118,6 +1118,28 @@ suite('Automation branch picker', () => {
 		});
 	}
 
+	test('allows a saved worktree target to opt back into Folder when its workspace no longer supports worktrees', async () => {
+		const { container, model } = createItem({
+			state: createFormState({ isolationMode: 'worktree', branch: 'release' }),
+			getWorktreeOptions: async () => ({ supportsWorktree: false, currentBranch: 'main', branches: ['main'] }),
+		});
+		await timeout(0);
+		const before = { mode: model.isolationMode, branch: model.persistedBranch };
+		container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
+		const after = { mode: model.isolationMode, branch: model.persistedBranch };
+		container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
+
+		assert.deepStrictEqual({
+			before,
+			after,
+			cannotReenable: model.isolationMode,
+		}, {
+			before: { mode: 'worktree', branch: undefined },
+			after: { mode: 'workspace', branch: undefined },
+			cannotReenable: 'workspace',
+		});
+	});
+
 	test('retries provider branch failures without falling back to local Git', async () => {
 		let attempts = 0;
 		const { container, actionWidgetService, getOpenRepositoryAttempts } = createItem({
