@@ -147,7 +147,7 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
 			chatService,
-			new class extends mock<ILanguageModelToolsService> { },
+			new class extends mock<ILanguageModelToolsService>() { },
 		);
 		const calls: URI[] = [];
 		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
