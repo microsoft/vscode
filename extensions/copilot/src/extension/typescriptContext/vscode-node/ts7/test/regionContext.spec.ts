@@ -19,12 +19,12 @@ import { TS7RegionContextProvider } from '../regionContextProvider';
 suite('TypeScript 7 region context', () => {
 	let api: API;
 
-	let fixtures: string;
-	let projectDirectory: string;
-	let configFile: string;
-	let fileName: string;
-	let structuralEntitiesFile: string;
-	let structuralEntitiesSource: string;
+	let fixtures!: string;
+	let projectDirectory!: string;
+	let configFile!: string;
+	let fileName!: string;
+	let structuralEntitiesFile!: string;
+	let structuralEntitiesSource!: string;
 
 	beforeAll(() => {
 		api = new API({ cwd: process.cwd() });
