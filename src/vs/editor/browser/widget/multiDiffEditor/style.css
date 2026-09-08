@@ -420,6 +420,7 @@
 
 			&::before,
 			&::after {
+				display: none;
 				content: none;
 			}
 
