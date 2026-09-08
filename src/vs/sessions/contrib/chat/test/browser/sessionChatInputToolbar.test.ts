@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { constObservable, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -15,15 +16,20 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
-import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats } from '../../browser/sessionChatInputToolbar.js';
+import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
+import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 
 suite('SessionChatInputToolbar', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses session-scoped changes rather than the last turn', () => {
 		const session = upcastPartial<IActiveSession>({
@@ -182,5 +188,96 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedHover: undefined,
 			},
 		});
+	});
+
+	test('hides the pills in a subagent chat', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			title: constObservable('Main chat'),
+			status: constObservable(SessionStatus.InProgress),
+		});
+		const subagentChat = upcastPartial<IChat>({
+			resource: URI.parse('chat:subagent'),
+			title: constObservable('Subagent'),
+			status: constObservable(SessionStatus.InProgress),
+			origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
+		});
+		const forkedChat = upcastPartial<IChat>({
+			resource: URI.parse('chat:fork'),
+			title: constObservable('Fork'),
+			status: constObservable(SessionStatus.InProgress),
+			origin: { kind: ChatOriginKind.Fork, parentChat: chat.resource },
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat, subagentChat, forkedChat]),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable([]),
+			changes: constObservable([{
+				modifiedUri: URI.file('/session-change.ts'),
+				insertions: 10,
+				deletions: 4,
+			}]),
+		});
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		}));
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		visibility.toggle(SessionChatPillKind.Subagents);
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([]),
+			activeSession: constObservable(undefined),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const read = () => ({
+			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
+			visible: toolbar.visible,
+		});
+
+		toolbar.setSession(session, chat);
+		const main = read();
+		toolbar.setSession(session, subagentChat);
+		const subagent = read();
+		toolbar.setSession(session, forkedChat);
+
+		assert.deepStrictEqual({ main, subagent, fork: read() }, {
+			main: { pills: ['1 File', 'Subagent'], visible: true },
+			subagent: { pills: [], visible: false },
+			fork: { pills: ['1 File'], visible: true },
+		});
+	});
+
+	test('exposes live and cached pull request states without treating a closed draft as open', () => {
+		const ref: IGitHubPullRequestRef = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 1,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+		};
+		const pullRequests: readonly IResolvedSessionPullRequest[] = [
+			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
+			{ ref, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Closed, isDraft: true }), icon: Codicon.gitPullRequestDraft, status: {} },
+			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: {} },
+			{ ref: { ...ref, liveState: 'closed', state: 'open' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
+			{ ref: { ...ref, state: 'merged' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
+			{ ref, pullRequest: undefined, icon: Codicon.gitPullRequestDone, status: {} },
+			{ ref, pullRequest: undefined, icon: undefined, status: {} },
+		];
+		const entries = buildSessionPullRequestSections(
+			pullRequests,
+			undefined,
+			upcastPartial<ICommandService>({}),
+			upcastPartial<IClipboardService>({}),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ISessionsService>({}),
+		).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => entry.pullRequestState), ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open']);
 	});
 });

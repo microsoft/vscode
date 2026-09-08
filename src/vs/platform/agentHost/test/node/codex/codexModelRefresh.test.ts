@@ -229,7 +229,6 @@ suite('CodexAgent model refresh', () => {
 				await firstRefreshStarted.complete();
 				await releaseFirstRefresh.p;
 			}
-			return false;
 		};
 
 		agent['_activate']();

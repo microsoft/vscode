@@ -29,7 +29,7 @@ suite('SessionChangesEditorInput', () => {
 		override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
-		override readonly activeSessionChangeCountObs = constObservable(0);
+		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 	};
 
 	test('releases resolved multi-diff models without disposing restorable input state', async () => {
@@ -205,7 +205,7 @@ suite('SessionChangesEditorInput', () => {
 		};
 		const resource = URI.parse('test-changes:session');
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
-			override readonly activeSessionChangeCountObs = derived(reader => changes.read(reader).length);
+			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
 		};
 		const input = disposables.add(new SessionChangesEditorInput(
 			resource,

@@ -39,7 +39,7 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -242,7 +242,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -307,6 +307,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 		defaultChangesetKind: overrides?.defaultChangesetKind,
 		devContainerWorktreeScope: overrides?.devContainerWorktreeScope,
+		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
 	};
 
 	const baseCtor = overrides?.ctor ?? RemoteAgentHostSessionsProvider;
@@ -481,6 +482,39 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				{ kind: 'incompatible' },
 			],
 		});
+	});
+
+	test('keeps initial connections read-only but permits self-healing reconnects', () => {
+		const provider = createProvider(disposables, connection, { readOnlyWhenDisconnected: true });
+		provider.seedSessions([createSession('sandbox-session')]);
+		const chat = provider.getSessions()[0].mainChat.get();
+		const statuses = [
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.reconnecting,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.incompatible('Protocol version mismatch', ['1']),
+			RemoteAgentHostConnectionStatus.connected,
+		];
+		const interactivity = statuses.map(status => {
+			provider.setConnectionStatus(status);
+			return { status: status.kind, interactivity: chat.interactivity.get() };
+		});
+
+		assert.deepStrictEqual(interactivity, [
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connecting', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connected', interactivity: ChatInteractivity.Full },
+			{ status: 'reconnecting', interactivity: ChatInteractivity.Full },
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connecting', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'disconnected', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'incompatible', interactivity: ChatInteractivity.ReadOnly },
+			{ status: 'connected', interactivity: ChatInteractivity.Full },
+		]);
 	});
 
 	test('does not present an active chat as busy while its remote host is unavailable', () => {

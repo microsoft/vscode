@@ -8,6 +8,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -44,6 +45,7 @@ import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { Menus } from '../../../../browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -85,6 +87,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
 	readonly migrationCount?: number;
+	readonly withChatBackground?: boolean;
 }
 
 class AutoModelFixtureMenuService extends FixtureMenuService {
@@ -122,6 +125,24 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 }
 
 /**
+ * Wraps the composer in the `.part.sessionspart` host the Agents window uses and
+ * paints the real codicon wallpaper into it, so the fixture shows the composer
+ * the way it reads once a chat background is set.
+ */
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+	const part = dom.append(container, dom.$('.part.sessionspart'));
+	part.style.position = 'relative';
+	part.style.width = '100%';
+	part.style.height = '100%';
+	// The part carries the opaque base, as it does in the Agents window, so the
+	// session view above it can stay transparent and let the wallpaper through.
+	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
+	renderer.setBackground({ kind: 'codicons' });
+	return part;
+}
+
+/**
  * Renders the whole new-session composer (`NewChatView` → `NewChatWidget`) inside
  * a `.session-view` so the draft-comments banner sits above the input the way it
  * does in the Agents window.
@@ -151,6 +172,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		primaryToolbarWidth,
 		phoneLayout = false,
 		migrationCount = 0,
+		withChatBackground = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -330,10 +352,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const sessionView = dom.append(container, dom.$('.session-view.is-active'));
+	const sessionView = dom.append(withChatBackground ? createChatBackgroundPart(container, disposableStore) : container, dom.$('.session-view.is-active'));
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	if (!withChatBackground) {
+		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
 	sessionViewContent.style.width = '100%';
@@ -410,6 +434,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left above the chat input. Customize is aligned separately to the right edge of the input, with a yellow migration indicator and no chevron.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 3 }),
+	}),
+	NewSessionChatBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The new-session composer sits directly on the codicon wallpaper with no card behind it. The workspace pills, the input area and the bottom-row controls each carry their own opaque surface and a thin border, and the wallpaper shows through the gaps between them.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
 	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
