@@ -421,7 +421,7 @@ export type ISessionTurnFileChange = ISessionFileChange & {
  * want the branch diff — regardless of the changeset currently selected in the
  * Changes view — can locate it in {@link ISession.changesets} by id.
  */
-export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+export const BRANCH_CHANGES_CHANGESET_ID = 'branch';
 
 /**
  * Well-known id of the changeset that holds uncommitted working-tree changes.
@@ -429,6 +429,12 @@ export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
  * Must match the agent host provider's `ChangesetKind.Uncommitted` value.
  */
 export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
+
+/**
+ * Well-known id of the changeset that holds the cumulative changes for the
+ * entire session.
+ */
+export const SESSION_CHANGES_CHANGESET_ID = 'session';
 
 /**
  * Well-known id of the changeset that holds the diff made during the session's
@@ -447,8 +453,6 @@ export interface ISessionChangeset {
 	readonly label: string;
 	/** Optional description for the changeset. */
 	readonly description?: string;
-	/** Optional category for the changeset. */
-	readonly category?: string;
 	/** Whether the changeset is enabled. */
 	readonly isEnabled: IObservable<boolean>;
 	/**
@@ -925,6 +929,8 @@ export interface ISessionWorkspaceBrowseAction {
 	 * execution workspace.
 	 */
 	readonly attachesContext?: boolean;
+	/** Whether this action can select a repository to attach as prompt context. */
+	readonly supportsContextAttachment?: boolean;
 	/**
 	 * Execute the browse action and return the selected workspace, or undefined
 	 * if cancelled. The current execution workspace is provided so context

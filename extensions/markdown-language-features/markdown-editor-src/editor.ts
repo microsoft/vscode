@@ -248,11 +248,14 @@ class Editor extends Disposable {
 	#createView(host: HTMLElement, content: string): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
+		const iframeBootstrapUrl = new URL(location.href);
+		// Nested frames must use the empty webview bootstrap, not the restricted index.html entrypoint.
+		iframeBootstrapUrl.pathname = '/fake.html';
 		const embeddedCodeEditorFactory = this._register(new VirtualizedIframeEmbeddedEditorFactory({
 			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
 			scriptNonce,
 			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
-			iframeBootstrapUrl: location.href,
+			iframeBootstrapUrl: iframeBootstrapUrl.href,
 			onAmbiguous: (language, providers) => this.#vscode.postMessage({
 				type: 'codeBlockEditorDiagnostic',
 				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,

@@ -61,7 +61,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -1636,10 +1636,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: true, shellLogs: true },
+				include: { events: true, processLogs: true, previousProcessLogLimit: 1, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: true, shellLogs: false },
+				include: { events: false, processLogs: true, previousProcessLogLimit: 1, shellLogs: false },
 			}],
 		});
 	});
@@ -5657,6 +5657,27 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
 		});
 
+		test('revokes elevated permission modes when policy changes', async () => {
+			const results: PermissionMode[][] = [];
+			for (const autoApprove of ['assisted', 'autoApprove']) {
+				const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: autoApprove },
+				});
+				await session.syncPermissionMode('turn-start');
+				session.resetTurnState('active-turn');
+				setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, true);
+
+				fireRootConfigChange();
+				await timeout(0);
+				results.push([...mockSession.permissionModeSetCalls]);
+			}
+
+			assert.deepStrictEqual(results, [
+				['assisted', 'manual'],
+				['allow-all', 'manual'],
+			]);
+		});
+
 		test('aborts when a live permission mode update fails', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -6762,6 +6783,36 @@ Use the attached image as context.
 				actionsAfterCompletion: [ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
 				subagentSignals: [],
 				droppedResponseLogged: true,
+			});
+		});
+
+		test('traces dropped in-flight tool completions after cancellation without reporting an error', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'late-tool',
+				toolName: 'bash',
+				arguments: { command: 'echo late' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			await session.abort();
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'late-tool',
+				success: true,
+				result: { content: 'late result' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const lateCompletionPattern = /tool\.execution_complete emitted after cancellation/i;
+			assert.deepStrictEqual({
+				actions: getActions(signals).map(action => action.type),
+				errorCount: logService.errors.filter(error => lateCompletionPattern.test(String(error.first))).length,
+				traceCount: logService.traces.filter(trace => lateCompletionPattern.test(trace.message)).length,
+			}, {
+				actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady],
+				errorCount: 0,
+				traceCount: 1,
 			});
 		});
 
@@ -9316,6 +9367,135 @@ Use the attached image as context.
 					},
 				},
 			]);
+		});
+
+		test('completes a resumed subagent when its stop hook identifies the agent only in the input', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			const completion = {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				durationMs: 1,
+				totalTokens: 0,
+				totalToolCalls: 0,
+			};
+			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Review the follow-up',
+				source: 'agent-parent',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'agent-stop',
+				hookType: 'agentStop',
+				success: true,
+			});
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+
+			const completions = () => signals
+				.filter(signal => signal.kind === 'subagent_completed')
+				.map(signal => signal.toolCallId);
+			const beforeHookEnd = completions();
+
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+			const afterHookEnd = completions();
+			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				beforeHookEnd,
+				afterHookEnd,
+				afterDuplicateCompletion: completions(),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+				parentCompleted: signals.some(signal => isAction(signal, ActionType.ChatTurnComplete)),
+			}, {
+				beforeHookEnd: ['tc-subagent'],
+				afterHookEnd: ['tc-subagent', 'tc-subagent'],
+				afterDuplicateCompletion: ['tc-subagent', 'tc-subagent'],
+				resumed: ['tc-subagent'],
+				parentCompleted: false,
+			});
+		});
+
+		test('ignores subagent stop hook inputs without a string agent ID', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+
+			const inputs: SessionEventPayload<'hook.start'>['data']['input'][] = [
+				undefined, null, true, 1, 'agent-1', [], {}, { agentId: 1 }, { agentId: null }, { agentId: ['agent-1'] },
+			];
+			for (const input of inputs) {
+				mockSession.fire('hook.start', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					input,
+				});
+				mockSession.fire('hook.end', {
+					hookInvocationId: 'subagent-stop',
+					hookType: 'subagentStop',
+					success: true,
+				});
+			}
+
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+		});
+
+		test('matches overlapping subagent stop hooks to their own agents', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+
+			for (const id of ['first', 'second']) {
+				mockSession.fire('subagent.started', {
+					toolCallId: `tc-${id}`,
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: `agent-${id}` });
+				mockSession.fire('hook.start', {
+					hookInvocationId: `stop-${id}`,
+					hookType: 'subagentStop',
+					input: { agentId: `agent-${id}` },
+				});
+			}
+
+			for (const id of ['second', 'first']) {
+				mockSession.fire('hook.end', {
+					hookInvocationId: `stop-${id}`,
+					hookType: 'subagentStop',
+					success: true,
+				});
+			}
+			mockSession.fire('user.message', { content: 'Another turn' }, { agentId: 'agent-first' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'stop-first',
+				hookType: 'subagentStop',
+				success: true,
+			});
+
+			assert.deepStrictEqual(
+				signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				['tc-second', 'tc-first'],
+			);
 		});
 
 		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {

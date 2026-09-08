@@ -124,7 +124,13 @@ export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResp
 	return haystack.includes('vision_attachment_not_accessible') || (haystack.includes('attachment') && haystack.includes('not accessible'));
 }
 
-export type ChatFetchError =
+/**
+ * CAPI's `X-Copilot-Service-Request-Id` from the response that produced this result. Joins the
+ * client-side event with CAPI's server-side logs, traces and Sentry reports.
+ */
+type WithCopilotServiceRequestId = { copilotServiceRequestId?: string };
+
+export type ChatFetchError = WithCopilotServiceRequestId & (
 	/**
 	 * We requested conversation, but the message was deemed off topic by the intent classifier.
 	 */
@@ -194,16 +200,17 @@ export type ChatFetchError =
 	 * The `statefulMarker` present in the request was invalid or expired. The
 	 * request may be retried without that marker to resubmit it anew.
 	 */
-	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined };
+	| { type: ChatFetchResponseType.InvalidStatefulMarker; reason: string; reasonDetail?: string; requestId: string; serverRequestId: string | undefined }
+);
 
-export type ChatFetchRetriableError<T> =
-	/**
-	 * We requested conversation, the response was filtered by RAI, but we want to retry.
-	 */
-	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
+export type ChatFetchRetriableError<T> = WithCopilotServiceRequestId &
+/**
+ * We requested conversation, the response was filtered by RAI, but we want to retry.
+ */
+{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
-export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
+export type FetchSuccess<T> = WithCopilotServiceRequestId &
+{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 

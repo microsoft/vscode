@@ -128,6 +128,9 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	show(anchor: HTMLElement, context: ITabbedModelPickerContext): void {
+		if (!this._widget.isVisible) {
+			this._activeDestination = undefined;
+		}
 		this._anchor = anchor;
 		this._context = context;
 		if (context.selectedModelId && !this._isAutoSelected(context)) {
@@ -136,7 +139,7 @@ export class TabbedModelPicker extends Disposable {
 		this._showCurrent();
 	}
 
-	private _showCurrent(): void {
+	private _showCurrent(initialFilterValue?: string): void {
 		const context = this._context;
 		const anchor = this._anchor;
 		if (!context || !anchor) {
@@ -161,6 +164,7 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
+			showCheckedItemHover: !this._isAutoSelected(context),
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			// Recomputed on every render so a tab switch reflects the current Auto state.
@@ -185,9 +189,16 @@ export class TabbedModelPicker extends Disposable {
 					items,
 					listOptions: withChatInputPickerMotion({
 						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
+						persistentHover: true,
 						showFilter: this._searchVisible,
 						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 						focusFilterOnOpen: this._searchVisible,
+						initialFilterValue,
+						filterAsCombobox: true,
+						onType: text => {
+							this._searchVisible = true;
+							this._showCurrent(text);
+						},
 						headerText: current.cacheBreakHint?.text,
 						headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
 						headerLink: current.cacheBreakHint?.link,
@@ -197,8 +208,7 @@ export class TabbedModelPicker extends Disposable {
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
-						// Rows lose their chevron while Auto is on, so hold the gutter open.
-						reserveSubmenuSpace: 'always',
+						reserveSubmenuSpace: false,
 					}),
 				};
 			},
@@ -219,7 +229,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 				onHide: () => { },
 			},
-			accessibilityProvider: getModelPickerAccessibilityProvider(),
+			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
 		});
 	}
 
@@ -366,9 +376,9 @@ export class TabbedModelPicker extends Disposable {
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.
 		const autoEnabled = this._isAutoSelected(context);
-		// Built when the panel first opens: only one card is ever visible, so building
-		// one per row would render the whole list's worth of markdown and controls.
-		const createCard = () => this._cards.add(new ModelCard({
+		// Build each card lazily and reuse it while browsing this list.
+		let card: ModelCard | undefined;
+		const createCard = () => (card ??= this._cards.add(new ModelCard({
 			model,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
@@ -398,7 +408,7 @@ export class TabbedModelPicker extends Disposable {
 				}
 				this._widget.hide();
 			},
-		})).element;
+		}))).element;
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -410,7 +420,7 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: autoEnabled ? undefined : { content: createCard, expandable: true, panelClassName: 'chat-model-card-panel' },
+			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true },
 			tooltip: action.tooltip,
 		};
 	}

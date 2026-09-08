@@ -12,6 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -489,6 +491,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 			mainWindow.document.body.appendChild(origin);
 			disposables.add({ dispose: () => origin.remove() });
