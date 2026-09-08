@@ -46,10 +46,19 @@ The `link` field contains the URL to the GitHub Actions job. Extract the **run I
 https://github.com/microsoft/vscode/actions/runs/<RUN_ID>/job/<JOB_ID>
 ```
 
-If checks are still `IN_PROGRESS`, wait for them to complete before downloading logs:
+Before waiting on any `IN_PROGRESS` check, inspect its check-run output and classify it. A pending check may be a policy gate rather than running CI:
+
 ```bash
-gh pr checks --watch --fail-fast
+HEAD=$(gh pr view --json headRefOid --jq .headRefOid)
+gh api "repos/microsoft/vscode/commits/$HEAD/check-runs" \
+  --jq '.check_runs[] | select(.status != "completed") | {name, status, details_url, title: .output.title, summary: .output.summary}'
 ```
+
+- **Workflow/job check**: its details URL points to an Actions run or job. It may be useful to wait briefly if its result is needed for the task.
+- **Policy/approval gate**: its output says it is awaiting collaborator approvals, labels, mergeability, or another human action. This is not a CI failure. Report the required action and do **not** wait for it.
+- **External asynchronous service** (for example a requested code review): submit the request once, verify that it was accepted, and stop. Do not poll for completion; resume when the user asks again or the host provides a completion notification.
+
+Do not use unbounded `gh pr checks --watch` as the default. Prefer a one-shot status query. If a short wait is genuinely useful, bound it to a few minutes and return control when the bound expires rather than continuing to poll indefinitely.
 
 ---
 
@@ -245,10 +254,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
    git commit -m "fix: <description>"
    git push
    ```
-5. Watch CI again:
-   ```bash
-   gh pr checks --watch --fail-fast
-   ```
+5. Query CI status again with `gh pr checks --json name,state,link,bucket`. Classify each pending check before waiting. Never wait on approval/policy gates, and do not start an unbounded watch.
 
 ---
 
@@ -259,7 +265,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 | Find PR for branch | `gh pr view --json number,url` |
 | List all checks | `gh pr checks --json name,state,bucket` |
 | List failed checks only | `gh pr checks --json name,state,link,bucket --jq '.[] \| select(.bucket == "fail")'` |
-| Watch checks until done | `gh pr checks --watch --fail-fast` |
+| Inspect pending check details | `gh api "repos/microsoft/vscode/commits/$HEAD/check-runs"` |
 | Failed jobs in a run | `gh run view <RUN_ID> --json jobs --jq '.jobs[] \| select(.conclusion == "failure") \| {name, id: .databaseId}'` |
 | View failed step logs | `gh run view <RUN_ID> --job <JOB_ID> --log-failed` (requires full run to complete) |
 | Download job log via API | `gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"` (works while run is in progress) |
