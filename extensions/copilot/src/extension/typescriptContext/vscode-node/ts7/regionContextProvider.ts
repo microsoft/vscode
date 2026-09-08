@@ -391,6 +391,10 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		if (node.initializer === undefined) {
 			return undefined;
 		}
+
+		if (ts.isVariableDeclaration(node) && !ts.isIdentifier(node.name)) {
+			return undefined;
+		}
 		const initializer = ts.skipOuterExpressions(node.initializer);
 		let kind: string;
 		if (ts.isArrowFunction(initializer)) {
