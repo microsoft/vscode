@@ -2926,10 +2926,7 @@ export class AgentService extends Disposable implements IAgentService {
 			config = { ...config, importConversation: { ...config.importConversation, turns: importedTurns } };
 		}
 
-		// Resolve host-owned isolation before provider creation. Providers such as
-		// Codex may schedule eager prewarming from createSession; marking a
-		// client-chosen worktree session pending first prevents that prewarm from
-		// materializing in the picked folder before the host creates the worktree.
+		// Providers must see pending isolation before creation can schedule eager prewarming.
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
 		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
@@ -3445,15 +3442,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
-		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
-		if (requestedSessionId) {
-			this._worktree.notePending(requestedSessionId);
+		const session = config?.session ?? this._mintSessionUri(provider);
+		const pendingSessionId = deferWorktreeCreation ? AgentSession.id(session) : undefined;
+		if (pendingSessionId) {
+			this._worktree.notePending(pendingSessionId);
 		}
 
 		let created: IAgentCreateSessionResult | undefined;
 		try {
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const session = config?.session ?? this._mintSessionUri(provider);
 			const defaultChatUri = URI.parse(buildDefaultChatUri(session));
 			const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session };
 			const result = await provider.chats.createChat(defaultChatUri, this._chatContext(session, defaultChatUri), this._toCreateChatOptions(boundConfig));
@@ -3464,9 +3461,6 @@ export class AgentService extends Disposable implements IAgentService {
 				...(result?.provisional ? { provisional: true } : {}),
 				...(result ? { chat: result } : {}),
 			};
-			if (deferWorktreeCreation && created.provisional) {
-				this._worktree.notePending(AgentSession.id(created.session));
-			}
 			await this._persistDefaultChatBacking(created);
 			return created;
 		} catch (err) {
@@ -3475,9 +3469,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			throw err;
 		} finally {
-			const returnedPendingSessionId = created?.provisional ? AgentSession.id(created.session) : undefined;
-			if (requestedSessionId && requestedSessionId !== returnedPendingSessionId) {
-				this._worktree.clearPending(requestedSessionId);
+			if (pendingSessionId && !created?.provisional) {
+				this._worktree.clearPending(pendingSessionId);
 			}
 		}
 	}
@@ -3493,6 +3486,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
+		} finally {
+			this._worktree.clearPending(AgentSession.id(session));
 		}
 	}
 
