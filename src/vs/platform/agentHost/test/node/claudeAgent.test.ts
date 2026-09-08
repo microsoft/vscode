@@ -52,7 +52,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -88,6 +88,9 @@ import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptReso
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { InterruptedTurnContribution, OPEN_TURN_METADATA_KEY } from '../../node/chatContributions/interruptedTurn/interruptedTurnContribution.js';
 
 // #region Test fakes
 
@@ -8291,6 +8294,39 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			sessionId,
 			options: { includeSystemMessages: true },
 		});
+	});
+
+	test('restore after an interrupted turn marks the trailing turn as an error', async () => {
+		const database = new TestSessionDatabase();
+		const { agent, sdk, instantiationService } = createTestContext(disposables, { database });
+		const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(new NullLogService(), instantiationService));
+		disposables.add(contributions.registerContribution(InterruptedTurnContribution));
+		const sessionId = 'phase13-interrupted';
+		const sessionUri = AgentSession.uri(agent.id, sessionId);
+		const chat = defaultChatUri(sessionUri);
+		await bindDefaultChat(agent, sessionUri);
+		contributions.didDispatchAction({
+			channel: chat.toString(),
+			session: sessionUri.toString(),
+			action: { type: ActionType.ChatTurnStarted, turnId: 'host-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hi', origin: { kind: MessageKind.User } } },
+		});
+		await tick();
+		// The host died here: the transcript holds the prompt and a partial reply but no result.
+		sdk.sessionMessagesById.set(sessionId, [
+			{ ...makeUserSessionMessage('u1', 'hi'), timestamp: '2025-01-01T00:00:01.000Z' } as SessionMessage,
+			{ ...makeAssistantSessionMessage('a1', 'partial'), timestamp: '2025-01-01T00:00:02.000Z' } as SessionMessage,
+		]);
+
+		const providerTurns = await agent.chats.getMessages(chat, chatContext(chat));
+		const turns = await contributions.hydrateTurns({ session: sessionUri.toString(), chat: chat.toString() }, providerTurns);
+
+		assert.deepStrictEqual(providerTurns.map(turn => [turn.id, turn.state]), [['u1', TurnState.Complete]]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, state: turn.state, lastPart: turn.responseParts.at(-1) })), [{
+			id: 'u1',
+			state: TurnState.Error,
+			lastPart: { kind: ResponsePartKind.Error, error: { errorType: 'executionInterrupted', message: 'The agent was interrupted before this request finished.' } },
+		}]);
+		assert.strictEqual(await database.getMetadata(OPEN_TURN_METADATA_KEY), '');
 	});
 
 	test('getMessages resolves a released peer-chat subagent through the exact source backing', async () => {

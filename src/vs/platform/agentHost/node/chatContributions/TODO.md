@@ -12,9 +12,9 @@ different hooks; registration order only breaks ties.
 ## Standing caveats
 
 - A contribution on `onDidDispatchAction` must filter tightly, because the hook fires for
-  every dispatched action. `sessionInputNeeded` and `persistedTurnUsage` both re-check
-  `isAhpChatChannel` + `isChatAction`, reproducing the guard their code sat behind in
-  `AgentSideEffects`. All three contributions on this hook also skip rejected actions,
+  every dispatched action. `sessionInputNeeded`, `persistedTurnUsage`, and `interruptedTurn`
+  re-check `isAhpChatChannel` + `isChatAction`, reproducing the guard their code sat behind
+  in `AgentSideEffects`. All four contributions on this hook also skip rejected actions,
   except that `sessionFlags` still persists config values for one, matching the behavior
   it was extracted from.
 - `TurnEndReason` intentionally omits `AgentHostTurnFailureStage`: error-hook dispatch comes
