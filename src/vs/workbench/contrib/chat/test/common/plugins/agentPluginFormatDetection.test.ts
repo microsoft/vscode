@@ -11,6 +11,7 @@ import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -22,7 +23,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
-import { AbstractAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { AbstractAgentPluginDiscovery, CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPluginServiceImpl.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { AGENT_PLUGIN_MCP_SCHEMA, AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -81,6 +82,12 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 	}
 }
 
+class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery {
+	refreshPlugins(): Promise<void> {
+		return this._refreshPlugins();
+	}
+}
+
 suite('AgentPlugin format detection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
@@ -121,6 +128,16 @@ suite('AgentPlugin format detection', () => {
 		));
 	}
 
+	function createCopilotCliDiscovery(): TestCopilotCliAgentPluginDiscovery {
+		return store.add(new TestCopilotCliAgentPluginDiscovery(
+			fileService,
+			{ userHome: async () => pluginUri('/home/testuser') } as Partial<IPathService> as IPathService,
+			logService,
+			instantiationService.get(IWorkspaceContextService),
+			{} as IDialogService,
+		));
+	}
+
 	function getDiscoveredPlugins(discovery: TestPluginDiscovery) {
 		const plugins = discovery.plugins.get();
 		assert.ok(plugins, 'Expected plugin discovery to have completed');
@@ -142,6 +159,46 @@ suite('AgentPlugin format detection', () => {
 
 		assert.strictEqual(discovery.plugins.get(), undefined);
 	});
+
+	test('Copilot CLI discovery avoids plugin watchers and transaction directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const pluginRoot = '/home/testuser/.copilot/installed-plugins/marketplace/plugin';
+		const transactionRoot = '/home/testuser/.copilot/installed-plugins/marketplace/.plugin.tmp-123-0';
+		await writeFile(`${pluginRoot}/plugin.json`, JSON.stringify({ name: 'Installed Plugin' }));
+		await writeFile(`${pluginRoot}/commands/old.md`, '# Old');
+		await writeFile(`${transactionRoot}/plugin.json`, JSON.stringify({ name: 'Transaction Plugin' }));
+
+		const watchedResources: URI[] = [];
+		const originalCreateWatcher = fileService.createWatcher.bind(fileService);
+		fileService.createWatcher = (resource, options) => {
+			watchedResources.push(resource);
+			return originalCreateWatcher(resource, options);
+		};
+
+		try {
+			const discovery = createCopilotCliDiscovery();
+			discovery.start(mockEnablementModel);
+			await discovery.refreshPlugins();
+			const initialPlugins = discovery.plugins.get() ?? [];
+
+			await fileService.del(pluginUri(pluginRoot), { recursive: true });
+			await writeFile(`${pluginRoot}/plugin.json`, JSON.stringify({ name: 'Replacement Plugin' }));
+			await writeFile(`${pluginRoot}/commands/new.md`, '# New');
+			await discovery.refreshPlugins();
+			const replacementPlugins = discovery.plugins.get() ?? [];
+
+			assert.deepStrictEqual({
+				initialLabels: initialPlugins.map(plugin => plugin.label),
+				replacementLabels: replacementPlugins.map(plugin => plugin.label),
+				watchedInsidePlugin: watchedResources.filter(resource => resource.path.startsWith(pluginRoot)).map(resource => resource.path),
+			}, {
+				initialLabels: ['Installed Plugin'],
+				replacementLabels: ['Replacement Plugin'],
+				watchedInsidePlugin: [],
+			});
+		} finally {
+			fileService.createWatcher = originalCreateWatcher;
+		}
+	}));
 
 	test('refreshes removability for cached plugin entries', async () => {
 		const uri = pluginUri('/plugins/removability');

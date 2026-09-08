@@ -234,6 +234,7 @@ interface IPluginManifest {
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	readonly watchContents?: boolean;
 	/** Repository root that serves as the boundary for component path resolution. */
 	readonly repositoryUri?: URI;
 	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
@@ -301,7 +302,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove, source.watchContents !== false, version);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -331,14 +332,14 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => Promise<boolean>) | undefined, watchContents: boolean, version: number): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
 			if (!this._isCurrentRefresh(version)) {
 				return existing.plugin;
 			}
-			if (existing.format.format !== format.format) {
+			if (!watchContents || existing.format.format !== format.format) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
@@ -389,10 +390,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const dirs = resolvePluginComponentDirs(uri, format, prop, defaultPath, section, repositoryUri);
-				for (const d of dirs) {
-					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
-					reader.store.add(watcher);
-					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				if (watchContents) {
+					for (const d of dirs) {
+						const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+						reader.store.add(watcher);
+						reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+					}
 				}
 
 				return { kind: 'dirs', dirs: dirs } as const;
@@ -456,19 +459,21 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const agentManifestUri = joinPath(uri, 'plugin.json');
-		const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
-		store.add(rootWatcher);
-		store.add(rootWatcher.onDidChange(change => {
-			if (change.affects(agentManifestUri)) {
-				void readManifest();
-			}
-		}));
+		if (watchContents) {
+			const rootWatcher = this._fileService.createWatcher(uri, { recursive: false, excludes: [] });
+			store.add(rootWatcher);
+			store.add(rootWatcher.onDidChange(change => {
+				if (change.affects(agentManifestUri)) {
+					void readManifest();
+				}
+			}));
+		}
 		store.add(this._fileService.onDidRunOperation(event => {
 			if (isEqual(event.resource, agentManifestUri)) {
 				void readManifest();
 			}
 		}));
-		if (!isEqual(manifestUri, agentManifestUri)) {
+		if (watchContents && !isEqual(manifestUri, agentManifestUri)) {
 			const manifestWatcher = this._fileService.createWatcher(manifestUri, { recursive: false, excludes: [] });
 			store.add(manifestWatcher);
 			store.add(manifestWatcher.onDidChange(() => readManifest()));
@@ -983,12 +988,13 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			}
 
 			for (const pluginDir of marketplaceStat.children) {
-				if (!pluginDir.isDirectory) {
+				if (!pluginDir.isDirectory || pluginDir.name.startsWith('.')) {
 					continue;
 				}
 				sources.push({
 					uri: pluginDir.resource,
 					fromMarketplace: undefined,
+					watchContents: false,
 					remove: () => this._promptRemove(pluginDir.resource),
 				});
 			}
