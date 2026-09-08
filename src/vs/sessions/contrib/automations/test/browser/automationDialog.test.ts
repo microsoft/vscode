@@ -37,11 +37,48 @@ import { GitRefType, IGitRepository, IGitService } from '../../../../../workbenc
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationTargetHint, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
+
+suite('Automation target guidance', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const cloud: IProviderSessionType = {
+		providerId: 'cloud-provider',
+		sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub },
+	};
+	const local: IProviderSessionType = {
+		providerId: 'local-provider',
+		sessionType: { id: 'local-agent', label: 'Local', icon: Codicon.terminal, authRequirement: SessionTypeAuthRequirement.GitHub },
+	};
+
+	test('explains missing targets and the workspace dependency of a single available agent', () => {
+		const cloudTarget = { ...createFormState(), providerId: cloud.providerId, sessionTypeId: cloud.sessionType.id };
+		const localTarget = { ...createFormState(), providerId: local.providerId, sessionTypeId: local.sessionType.id };
+		assert.deepStrictEqual({
+			unselected: getAutomationTargetHint({ ...localTarget, folderUri: undefined }, []),
+			cloud: getAutomationTargetHint(cloudTarget, [cloud]),
+			local: getAutomationTargetHint(localTarget, [local]),
+			quickChat: getAutomationTargetHint({ ...localTarget, isQuickChat: true, folderUri: undefined }, [local]),
+			unavailable: getAutomationTargetHint(localTarget, []),
+			multiple: getAutomationTargetHint(localTarget, [cloud, local]),
+			retainedUnavailableAgent: getAutomationTargetHint(cloudTarget, [local]),
+			retainedUnavailableProvider: getAutomationTargetHint({ ...localTarget, providerId: 'unavailable' }, [local]),
+		}, {
+			unselected: 'Choose a workspace or No workspace to see which agents can run this automation.',
+			cloud: 'Only Cloud is available for this workspace. Change the workspace to use a different agent.',
+			local: 'Only Local is available for this workspace. Change the workspace to use a different agent.',
+			quickChat: 'Only Local is available without a workspace. Choose a workspace to use a different agent.',
+			unavailable: 'No agents are currently available for this target.',
+			multiple: undefined,
+			retainedUnavailableAgent: undefined,
+			retainedUnavailableProvider: undefined,
+		});
+	});
+});
 
 function dispatchKey(target: HTMLElement, type: 'keydown' | 'keyup', key: string, shiftKey = false): KeyboardEvent {
 	const event = new KeyboardEvent(type, { key, bubbles: true, cancelable: true, shiftKey });

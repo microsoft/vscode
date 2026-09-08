@@ -17,6 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from './sessionCustomizations.js';
@@ -76,7 +77,7 @@ function getGitHubRepositoryHoverData(owner: string, repo: string, openerService
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
 		const title = pullRequest?.title ?? ref.title;
 		const label = title
@@ -84,9 +85,10 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
 		const resolvedIcon = icon ?? computePullRequestIcon('open');
 		const attention = getPullRequestAttention(resolvedIcon, status);
-		const state = pullRequest?.isDraft
+		const pullRequestState = pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
+		const state = pullRequestState === 'open' && pullRequest?.isDraft
 			? 'draft'
-			: pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
+			: pullRequestState;
 		const stateDescription = state === 'draft'
 			? localize('sessionChatPills.pullRequestDraft', "draft")
 			: attention ?? (
@@ -101,6 +103,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			label,
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
+			pullRequestState: state,
 			toolbarActions: [toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy Pull Request URL"),
@@ -126,7 +129,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				}
 				void commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, { pullRequest: ref });
 			},
-		} satisfies IChatPillEntry;
+		} satisfies IChatPullRequestPillEntry;
 	});
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.pullRequests', "Pull Requests"), entries }] : [];
 }
@@ -345,7 +348,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
 				},
 			},
-			pullRequests: { sections: pullRequestSections, icon: pullRequestPresentation.icon },
+			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
 			issues: { sections: issueSections, icon: issueIcon },
 			artifacts: { sections: this._artifactSections },
 			references: { sections: this._referenceSections },

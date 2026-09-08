@@ -158,7 +158,8 @@
 	}
 
 	.monaco-list-row:hover,
-	.monaco-list-row.focused:not(.selected) {
+	.monaco-list-row.focused:not(.selected),
+	.monaco-list:focus-within .monaco-list-row.focused {
 		.session-title-toolbar {
 			display: block;
 		}

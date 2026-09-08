@@ -54,7 +54,7 @@ suite('Sessions - Chat View', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];
 		const view = Object.assign(Object.create(ChatView.prototype), {
-			_isPrimary: true,
+			_isPrimaryObs: observableValue(disposables, true),
 			_currentSessionObs: observableValue<ISession | undefined>(disposables, session),
 			_externalSessionBanner: { setSession: (value: ISession | undefined) => bannerSessions.push(value) },
 		}) as ChatView;
@@ -63,6 +63,20 @@ suite('Sessions - Chat View', () => {
 		view.setPrimary(true);
 
 		assert.deepStrictEqual(bannerSessions, [undefined, session]);
+	});
+
+	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
+		const isVisible = observableValue(disposables, false);
+		const forwarded: boolean[] = [];
+		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+			_isVisibleObs: isVisible,
+			_widget: { setVisible: () => forwarded.push(isVisible.get()) },
+		});
+
+		view.setVisible(true);
+		view.setVisible(false);
+
+		assert.deepStrictEqual({ forwarded, isVisible: isVisible.get() }, { forwarded: [false, true], isVisible: false });
 	});
 
 	test('forwards new chat visibility to the aquarium host', () => {

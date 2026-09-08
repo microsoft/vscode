@@ -30,6 +30,9 @@
 .automations-cards-header,
 .automations-cards-grid,
 .automations-cards-empty,
+.automations-cards-state,
+.automations-cards-partial-state,
+.automations-templates,
 .automations-history {
 	width: 100%;
 	max-width: 900px;
@@ -285,6 +288,166 @@
 	font-size: 12px;
 }
 
+/* Loading and error states */
+.automations-cards-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size400) var(--vscode-spacing-size200);
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.automations-cards-state-icon {
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-cards-error .automations-cards-state-icon {
+	color: var(--vscode-errorForeground);
+}
+
+.automations-cards-state-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.automations-cards-state-description {
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-cards-state-create-button {
+	margin-top: var(--vscode-spacing-size120);
+	max-width: 180px;
+}
+
+.automations-cards-partial-state {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-cards-partial-state-error {
+	border-color: var(--vscode-inputValidation-warningBorder);
+	background-color: var(--vscode-inputValidation-warningBackground);
+	color: var(--vscode-inputValidation-warningForeground);
+}
+
+.automations-cards-partial-state-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+/* Starter templates */
+.automations-templates {
+	width: 100%;
+	margin-top: var(--vscode-spacing-size240);
+	text-align: left;
+}
+
+.automations-templates-title {
+	margin: 0 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.automations-templates-description {
+	margin: 0 0 var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-templates-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+	grid-auto-rows: 1fr;
+	gap: var(--vscode-spacing-size120);
+	width: 100%;
+}
+
+.automations-template-card {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size40);
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.automations-template-card:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-template-card:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.automations-template-card-name {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-template-card-name-text {
+	flex: 1 1 0;
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-template-card-badge,
+.automations-template-card-schedule,
+.automations-template-card-prompt {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-template-card-badge {
+	flex-shrink: 0;
+}
+
+.automations-template-card-prompt {
+	display: -webkit-box;
+	overflow: hidden;
+	margin-top: var(--vscode-spacing-size20);
+	line-height: 1.4;
+	text-overflow: ellipsis;
+	word-break: break-word;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
 /* Run History */
 .automations-history {
 	margin-top: 32px;
@@ -349,6 +512,8 @@
 }
 
 .hc-black .automations-card,
-.hc-light .automations-card {
+.hc-light .automations-card,
+.hc-black .automations-template-card,
+.hc-light .automations-template-card {
 	border-color: var(--vscode-contrastBorder);
 }
