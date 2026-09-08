@@ -6,19 +6,26 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 
 suite('Sessions - Chat View', () => {
@@ -344,6 +351,39 @@ suite('Sessions - Chat View', () => {
 
 		assert.doesNotThrow(() => view.setVisible(false));
 		assert.strictEqual(isVisible.get(), false);
+	});
+
+	test('configures the peer chat composer without repository controls', () => {
+		let inputOptions: { readonly renderRepositoryControls?: boolean } | undefined;
+		const input = Object.assign(Object.create(NewChatInputWidget.prototype), { dispose: () => { } }) as NewChatInputWidget;
+		const instantiationService = new class extends mock<IInstantiationService>() {
+			override createInstance = ((ctor: unknown, options: { readonly renderRepositoryControls?: boolean }) => {
+				assert.strictEqual(ctor, NewChatInputWidget);
+				inputOptions = options;
+				return input;
+			}) as IInstantiationService['createInstance'];
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		}();
+		disposables.add(new NewChatInSessionWidget(
+			{},
+			instantiationService,
+			new class extends mock<ILogService>() { }(),
+			new class extends mock<ISessionsManagementService>() { }(),
+			sessionsService,
+			new class extends mock<IStorageService>() { }(),
+		));
+
+		assert.strictEqual(inputOptions?.renderRepositoryControls, false);
+	});
+
+	test('positions peer chat content for centered attachment growth', () => {
+		const widget = dom.append(document.body, dom.$('.new-chat-in-session'));
+		disposables.add(toDisposable(() => widget.remove()));
+		const content = dom.append(widget, dom.$('.new-chat-widget-content'));
+
+		assert.strictEqual(dom.getWindow(content).getComputedStyle(content).position, 'relative');
 	});
 
 	test('applies and clears background CSS on the sessions part', () => {

@@ -117,6 +117,7 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentMergeConfigKey.Enabled },
 		},
 		[AgentMergeSettingId.AddressReviews]: {

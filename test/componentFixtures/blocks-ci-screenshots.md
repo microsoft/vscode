@@ -138,6 +138,18 @@
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/LiveEyeLayering/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/28743055f10abdf3c0a7809b2b3e830b7a04dc65157febf48215eecdf8b03772)
 
+#### chat/chatQuestionCarousel/MarkdownLinks/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e3061e1c60eb3462157f40061bbfe1e326560f487924526f1a319a15781c14c5)
+
+#### chat/chatQuestionCarousel/MarkdownLinks/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/21b5b578031626635f59de46977bb89d8b5a52ca67549cbf39276a6c0c2550de)
+
+#### chat/chatQuestionCarousel/MarkdownLinks/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1e70224f8b2a92241ff8183ec48d7e57b56c40364984fd99a73abefba9a5d4ef)
+
+#### chat/chatQuestionCarousel/MarkdownLinks/LightHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/cdd864a3f817d8ae61c744ba12886716491dd00dc5e843a2ce57ffdb7966f7a5)
+
 #### chat/input/chatInput/CompactWithProviderIcon/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d49581cdd64a2c1fb30fd998d04b7a9b6ab72a7126cadb0495acdb2c30212ac2)
 
@@ -398,3 +410,21 @@
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/6a869c24b606e74a74331f03f693b8459e7ab2a92f77269b4b2ca49b880a4ffa)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f8767471201b45f1193d7df64a848809e6e7557a4973896a9722f78e17e40610)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/50440b966cd7c6cf462f584c7048f5a669b292463ae8914657281b048c1a6806)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_CompactDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1378229a45238eac02e9b4d12d2a37da63d58e9e81612a7a0c09da7bc5a11242)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c3cc700411e3faa1c62693702347277e25f5ce218bcaff3c8382978e4ebed96c)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d17288e25fd966b8dc7fe9300c1adcfe5c77b5b700ff6ffb4eea37e6d1a773ae)
+
+#### workbench/activityBarMenu/CompactActivityBarMenu_DefaultDensity/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2786fba1b7f0b41a26e238ea678ef381bd004d977f16abcb600239e142d1488e)
