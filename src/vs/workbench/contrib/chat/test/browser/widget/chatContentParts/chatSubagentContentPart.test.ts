@@ -66,6 +66,7 @@ class TestActionViewItemService implements IActionViewItemService {
 	private readonly _onDidChange = new Emitter<MenuId>();
 	readonly onDidChange = this._onDidChange.event;
 	private _providerAvailable = true;
+	actionViewItemFactory: IActionViewItemFactory | undefined;
 
 	get hasChangeListeners(): boolean {
 		return this._onDidChange.hasListeners();
@@ -87,7 +88,7 @@ class TestActionViewItemService implements IActionViewItemService {
 		if (!this._providerAvailable || menu !== MenuId.ChatSubagentContent || commandId !== CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID) {
 			return undefined;
 		}
-		return (action, options) => new TestOpenChatActionViewItem(action, options);
+		return this.actionViewItemFactory ?? ((action, options) => new TestOpenChatActionViewItem(action, options));
 	}
 }
 
@@ -923,14 +924,18 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('should keep an unavailable open-chat pill visually hidden until it can be opened', () => {
+		test('should keep rich activity visible while opening the subagent chat is unavailable', () => {
 			let runCount = 0;
 			const action = store.add(new Action('openSubagent', 'Open Subagent', undefined, true, () => { runCount++; }));
 			const viewItem = store.add(instantiationService.createInstance(
-				OpenSubagentChatActionViewItem,
+				TestOpenSubagentChatActionViewItem,
 				{
 					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
 					parentSessionResource: 'agent-host-copilotcli:/session',
+					title: 'Review child chat lifecycle',
+					isActive: true,
+					activeToolCallId: 'child-search',
+					activeToolLabel: 'Search the codebase',
 				},
 				action,
 				{},
@@ -943,15 +948,22 @@ suite('ChatSubagentContentPart', () => {
 			mainWindow.document.body.appendChild(toolbar);
 			disposables.add({ dispose: () => toolbar.remove() });
 			viewItem.render(container);
+			const pill = container.querySelector<HTMLElement>('.chat-subagent-pill-content');
+			assert.ok(pill);
+			pill.click();
 			const beforeReady = {
 				display: mainWindow.getComputedStyle(container).display,
 				enabled: viewItem.action.enabled,
 				ariaHidden: container.getAttribute('aria-hidden'),
+				ariaDisabled: container.getAttribute('aria-disabled'),
+				label: container.querySelector('.chat-subagent-pill-label')?.textContent,
+				activity: container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+				cursor: mainWindow.getComputedStyle(pill).cursor,
+				tooltip: viewItem.tooltip,
+				runCount,
 			};
 
 			ready.set(true, undefined);
-			const pill = container.querySelector<HTMLElement>('.chat-subagent-pill-content');
-			assert.ok(pill);
 			pill.click();
 
 			assert.deepStrictEqual({
@@ -963,8 +975,60 @@ suite('ChatSubagentContentPart', () => {
 					runCount,
 				},
 			}, {
-				beforeReady: { display: 'none', enabled: false, ariaHidden: 'true' },
+				beforeReady: {
+					display: 'inline-flex',
+					enabled: false,
+					ariaHidden: 'false',
+					ariaDisabled: 'true',
+					label: 'Review child chat lifecycle',
+					activity: 'Search the codebase',
+					cursor: 'default',
+					tooltip: 'Subagent chat is not available yet.\nActive tool: Search the codebase',
+					runCount: 0,
+				},
 				afterReady: { display: 'inline-flex', enabled: true, ariaHidden: 'false', runCount: 1 },
+			});
+		});
+
+		test('should retain the rich header when the launch completes before the child chat is available', () => {
+			actionViewItemService.actionViewItemFactory = (action, options, service) =>
+				service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Review child chat lifecycle',
+				agentName: 'code-review',
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				isActive: true,
+				isChatAvailable: false,
+			};
+			const state = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const parent = { ...createMockToolInvocation({ toolSpecificData: data }), state };
+			const part = createPart(parent, createMockRenderContext(false, URI.parse('agent-host-copilotcli:/session')));
+			const pill = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-widget');
+			assert.ok(pill);
+			const snapshot = () => ({
+				visible: mainWindow.getComputedStyle(pill).display !== 'none',
+				enabled: pill.getAttribute('aria-disabled') === 'false',
+				richOnly: part.domNode.classList.contains('chat-subagent-open-chat-only'),
+				legacyHeaderDisplay: getCollapseButton(part)?.style.display,
+				activity: pill.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+			});
+			const launching = snapshot();
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			const launched = snapshot();
+			part.trackToolState(createMockToolInvocation({
+				toolCallId: 'child-search',
+				toolId: 'search',
+				invocationMessage: 'Search the codebase',
+				stateType: IChatToolInvocation.StateKind.Executing,
+			}));
+			data.isChatAvailable = true;
+			state.set({ ...state.get() }, undefined);
+
+			assert.deepStrictEqual({ launching, launched, hydrated: snapshot() }, {
+				launching: { visible: true, enabled: false, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Working on it...' },
+				launched: { visible: true, enabled: false, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Working on it...' },
+				hydrated: { visible: true, enabled: true, richOnly: true, legacyHeaderDisplay: 'none', activity: 'Search the codebase' },
 			});
 		});
 
@@ -1095,10 +1159,12 @@ suite('ChatSubagentContentPart', () => {
 
 		test('should preserve the collapsible surface when the open-chat action is unavailable', () => {
 			const part = createPart(createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.Completed,
 				toolSpecificData: {
 					kind: 'subagent',
 					description: 'Test subagent description',
 					chatResource: 'ahp-chat://subagent/test/tool-call',
+					isActive: false,
 				}
 			}), createMockRenderContext(false));
 			setOpenChatOnlyMode(part, false);
@@ -1119,26 +1185,40 @@ suite('ChatSubagentContentPart', () => {
 		});
 
 		test('should preserve the completed tool result when no subagent chat became available', () => {
+			actionViewItemService.actionViewItemFactory = (action, options, service) =>
+				service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
 			const part = createPart(createMockToolInvocation({
 				stateType: IChatToolInvocation.StateKind.Completed,
 				toolSpecificData: {
 					kind: 'subagent',
 					description: 'Delegated review',
-					chatResource: 'ahp-chat://subagent/test/tool-call',
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
 					isChatAvailable: false,
 					isActive: false,
 				},
 			}), createMockRenderContext(false, URI.parse('agent-host-copilot:/session')));
-			setOpenChatOnlyMode(part, false);
+			const pill = part.domNode.querySelector<HTMLElement>('.chat-subagent-pill-widget');
+			assert.ok(pill);
+			const collapseButton = getCollapseButton(part);
+			assert.ok(collapseButton);
+			collapseButton.click();
 
 			assert.deepStrictEqual({
-				collapseButtonHidden: getCollapseButton(part)?.style.display === 'none',
+				richHeaderVisible: mainWindow.getComputedStyle(pill).display !== 'none',
+				collapseButtonHidden: collapseButton.style.display === 'none',
+				collapseButtonLabel: collapseButton.textContent,
+				collapseButtonAriaLabel: collapseButton.ariaLabel,
 				chatAvailable: getOpenChatContext(part)?.isChatAvailable,
 				active: getOpenChatContext(part)?.isActive,
+				resultVisible: part.domNode.textContent?.includes('test result'),
 			}, {
+				richHeaderVisible: true,
 				collapseButtonHidden: false,
+				collapseButtonLabel: 'Subagent output',
+				collapseButtonAriaLabel: 'Subagent output',
 				chatAvailable: false,
 				active: false,
+				resultVisible: true,
 			});
 		});
 

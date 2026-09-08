@@ -57,6 +57,10 @@
 	cursor: pointer;
 }
 
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.disabled .chat-subagent-pill-content {
+	cursor: default;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-label,
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label {
 	flex: 1;
@@ -249,7 +253,7 @@
 	}
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content:hover {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:not(.disabled) .chat-subagent-pill-content:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

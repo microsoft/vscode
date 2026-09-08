@@ -341,10 +341,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (this._openChatToolbar) {
 			const itemCount = this._openChatToolbar.getItemsLength();
 			openChatOnly = this._shouldUseOpenChatPresentation() && !!this._getChatResource();
-			for (let index = 0; index < itemCount; index++) {
-				if (!this._openChatToolbar.getItemAction(index)?.enabled) {
-					openChatOnly = false;
-					break;
+			if (!this.isActive && IChatToolInvocation.isComplete(this._subagentToolInvocation)) {
+				for (let index = 0; index < itemCount; index++) {
+					if (!this._openChatToolbar.getItemAction(index)?.enabled) {
+						openChatOnly = false;
+						break;
+					}
 				}
 			}
 		}
@@ -398,6 +400,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				...(parentResolvedModelId ? { parentResolvedModelId } : {}),
 				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon } : {}),
 			};
+			this._updateOpenChatOnlyMode();
 		}
 	}
 
@@ -473,6 +476,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(ChatConfiguration.SubagentsUseRichRendering)) {
 				this._updateOpenChatLink();
+				this.updateTitle();
 			}
 		}));
 		if (isResponseVM(context.element)) {
@@ -833,16 +837,21 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			this._titleFileWidgetStore.clear();
 			this.titleDetailContainer = undefined;
 
-			const prefixSpan = $('span');
-			prefixSpan.textContent = `${prefix}:`;
-			labelElement.appendChild(prefixSpan);
+			const showOutputLabel = this._shouldUseOpenChatPresentation() && !!this._getChatResource() && !!this._openChatToolbar;
+			const title = showOutputLabel ? localize('chat.subagent.output', "Subagent output") : shimmerText;
+			if (showOutputLabel) {
+				labelElement.textContent = title;
+			} else {
+				const prefixSpan = $('span');
+				prefixSpan.textContent = `${prefix}:`;
+				labelElement.appendChild(prefixSpan);
 
-			const descSpan = $('span.chat-thinking-title-detail-text');
-			descSpan.textContent = ` ${this.description}`;
-			labelElement.appendChild(descSpan);
+				const descSpan = $('span.chat-thinking-title-detail-text');
+				descSpan.textContent = ` ${this.description}`;
+				labelElement.appendChild(descSpan);
+			}
 
-			this._collapseButton.element.ariaLabel = shimmerText;
-			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			this.setAriaLabel(title);
 			return;
 		}
 
