@@ -2753,6 +2753,36 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		for (const useSandbox of [false, true]) {
+			test(`keeps legacy Cloud Sandbox=${useSandbox} behavior until its first template capture`, async () => {
+				let sentPermissionLevel: ChatPermissionLevel | undefined;
+				const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+					sentPermissionLevel = options?.modeInfo?.permissionLevel;
+					return { kind: 'rejected', reason: 'Request recorded' };
+				});
+				const ordinary = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+				provider.getSession(ordinary.sessionId)!.setUseSandbox(useSandbox);
+				const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, {
+					automationConfiguration: { mode: ChatModeKind.Ask, permissionLevel: ChatPermissionLevel.AutoApprove },
+				});
+				provider.setMode(sessionInfo.sessionId, ChatModeKind.Ask);
+				provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.AutoApprove);
+				const restoredUseSandbox = provider.getSession(sessionInfo.sessionId)?.useSandbox.get();
+				const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+				await assert.rejects(provider.sendRequest(sessionInfo.sessionId, sessionInfo.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+				assert.deepStrictEqual({
+					useSandbox: restoredUseSandbox,
+					sentPermissionLevel,
+					config: captured?.sessionTemplate?.config,
+				}, {
+					useSandbox,
+					sentPermissionLevel: ChatPermissionLevel.Default,
+					config: { mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.AutoApprove },
+				});
+			});
+		}
+
 	});
 
 	suite('Automation custom agent restoration', () => {
