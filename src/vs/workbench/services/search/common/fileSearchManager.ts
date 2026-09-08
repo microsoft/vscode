@@ -211,6 +211,7 @@ class FileSearchEngine {
 				parent: !fq.disregardParentIgnoreFiles,
 				global: !fq.disregardGlobalIgnoreFiles
 			},
+			ignoreFileNames: this.config.ignoreFileNames,
 			followSymlinks: !fq.ignoreSymlinks,
 		};
 	}

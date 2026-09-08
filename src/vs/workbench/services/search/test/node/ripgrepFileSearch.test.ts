@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import * as platform from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { fixDriveC, getAbsoluteGlob } from '../../node/ripgrepFileSearch.js';
+import { IFileQuery, IFolderQuery, QueryType } from '../../common/search.js';
+import { fixDriveC, getAbsoluteGlob, getRgArgs } from '../../node/ripgrepFileSearch.js';
 
 suite('RipgrepFileSearch - etc', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,5 +40,22 @@ suite('RipgrepFileSearch - etc', () => {
 			// absolute paths are not resolved further
 			['/', '/project/folder', '/project/folder'],
 		].forEach(testGetAbsGlob);
+	});
+
+	test('additional ignore files', () => {
+		const folderQuery: IFolderQuery = {
+			folder: URI.file('/some/folder'),
+			disregardIgnoreFiles: false,
+			disregardParentIgnoreFiles: false
+		};
+		const config: IFileQuery = {
+			type: QueryType.File,
+			folderQueries: [folderQuery],
+			ignoreFileNames: ['.customignore', '.ignore']
+		};
+		const args = getRgArgs(config, folderQuery, undefined, undefined, undefined, ['/some/folder/.customignore']);
+		const ignoreFileArg = args.indexOf('--no-ignore-vcs');
+
+		assert.deepStrictEqual(args.slice(ignoreFileArg, ignoreFileArg + 3), ['--no-ignore-vcs', '--ignore-file', '/some/folder/.customignore']);
 	});
 });

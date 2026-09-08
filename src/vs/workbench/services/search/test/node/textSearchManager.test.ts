@@ -13,11 +13,14 @@ import { ProviderResult, Range, TextSearchComplete2, TextSearchMatch2, TextSearc
 import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
 suite('NativeTextSearchManager', () => {
-	test('fixes encoding', async () => {
-		let correctEncoding = false;
+	test('passes search folder options', async () => {
+		let actualOptions: { encoding: string; ignoreFileNames: string[] | undefined } | undefined;
 		const provider: TextSearchProvider2 = {
 			provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
-				correctEncoding = options.folderOptions[0].encoding === 'windows-1252';
+				actualOptions = {
+					encoding: options.folderOptions[0].encoding,
+					ignoreFileNames: options.folderOptions[0].ignoreFileNames
+				};
 
 				return null;
 			}
@@ -28,6 +31,7 @@ suite('NativeTextSearchManager', () => {
 			contentPattern: {
 				pattern: 'a'
 			},
+			ignoreFileNames: ['.ignore', '.customignore'],
 			folderQueries: [{
 				folder: URI.file('/some/folder'),
 				fileEncoding: 'windows1252'
@@ -37,7 +41,7 @@ suite('NativeTextSearchManager', () => {
 		const m = new NativeTextSearchManager(query, provider);
 		await m.search(() => { }, CancellationToken.None);
 
-		assert.ok(correctEncoding);
+		assert.deepStrictEqual(actualOptions, { encoding: 'windows-1252', ignoreFileNames: ['.ignore', '.customignore'] });
 	});
 
 	test('handles result from unmatched folder gracefully via optional chaining', async () => {

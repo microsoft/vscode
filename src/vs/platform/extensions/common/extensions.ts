@@ -247,6 +247,7 @@ export interface IExtensionContributions {
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly ignoreFiles?: ReadonlyArray<string>;
 }
 
 export interface IExtensionCapabilities {
