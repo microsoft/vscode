@@ -10,11 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-
-function getArtifactLinkKey(link: URI): string {
-	return link.toString().replace(/\/+$/, '').toLowerCase();
-}
 
 function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
 	const state = pullRequest.liveState ?? pullRequest.state;
@@ -527,7 +524,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _updateArtifactCounts(entry: IStoredSessionStats, session: ISession): void {
-		const artifacts = session.recordedArtifacts?.get() ?? session.artifacts?.get();
+		const artifacts = session.artifacts?.get();
 		if (!artifacts) {
 			return;
 		}
@@ -537,7 +534,7 @@ export class SessionsLifecycleTracker extends Disposable {
 			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
 				const status = getResolvedPullRequestStatus(pullRequest);
 				if (status) {
-					pullRequestStatuses.set(getArtifactLinkKey(pullRequest.uri), status);
+					pullRequestStatuses.set(linkKey(pullRequest.uri.toString()), status);
 				}
 			}
 		}
@@ -567,7 +564,7 @@ export class SessionsLifecycleTracker extends Disposable {
 				continue;
 			}
 
-			const status = artifact.link ? pullRequestStatuses.get(getArtifactLinkKey(artifact.link)) : undefined;
+			const status = artifact.link ? pullRequestStatuses.get(linkKey(artifact.link.toString())) : undefined;
 			switch (status) {
 				case 'merged':
 					pullRequestArtifactMergedCount++;

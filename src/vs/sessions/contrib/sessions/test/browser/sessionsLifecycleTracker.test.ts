@@ -24,7 +24,6 @@ interface ICreateSessionOptions {
 	changesSummary?: ISessionChangesSummary;
 	isExternal?: IObservable<boolean>;
 	artifacts?: readonly ISessionArtifact[];
-	recordedArtifacts?: readonly ISessionArtifact[];
 }
 
 function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
@@ -45,7 +44,6 @@ function createSession(id: string, opts: ICreateSessionOptions = {}): ISession {
 		changes: observableValue(`changes-${id}`, opts.changes ?? []),
 		changesSummary: opts.changesSummary !== undefined ? observableValue(`changesSummary-${id}`, opts.changesSummary as ISessionChangesSummary | undefined) : undefined,
 		artifacts: opts.artifacts !== undefined ? observableValue(`artifacts-${id}`, opts.artifacts) : undefined,
-		recordedArtifacts: opts.recordedArtifacts !== undefined ? observableValue(`recordedArtifacts-${id}`, opts.recordedArtifacts) : undefined,
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -577,7 +575,7 @@ suite('SessionsLifecycleTracker', () => {
 			link: pullRequest.uri,
 			isGitHub: true,
 		}));
-		const recordedArtifacts: readonly ISessionArtifact[] = [
+		const artifacts: readonly ISessionArtifact[] = [
 			...pullRequestArtifacts,
 			{ id: 'issue-1', kind: SessionArtifactKind.Issue, label: 'Issue 1', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/1'), isGitHub: true },
 			{ id: 'issue-2', kind: SessionArtifactKind.Issue, label: 'Issue 2', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/2'), isGitHub: true },
@@ -588,8 +586,7 @@ suite('SessionsLifecycleTracker', () => {
 			{ id: 'issue-reference', kind: SessionArtifactKind.Issue, label: 'Issue reference', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/3'), isGitHub: true },
 			{ id: 'file-reference', kind: SessionArtifactKind.File, label: 'File reference', isArtifact: false, uri: URI.parse('file:///repo/readme.md') },
 		];
-		const artifacts = recordedArtifacts.filter(artifact => !artifact.isArtifact || (artifact.kind !== SessionArtifactKind.PullRequest && artifact.kind !== SessionArtifactKind.Issue));
-		const session = createSession('s1', { workspace, artifacts, recordedArtifacts });
+		const session = createSession('s1', { workspace, artifacts });
 
 		tracker.recordNewChatRequestSent(session);
 		const summary = tracker.finalize(session.sessionId, 'archived', session);
