@@ -395,7 +395,7 @@ suite('ProviderAutomationService', () => {
 
 	test('an unavailable remote catalogue does not block local automation operations', async () => {
 		const { service, providerStore, storage, automationStorage, addProvider } = createService();
-		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const remote = teardown.add(new MutableCatalogueAutomationStore('remote', storage, new NullLogService(), automationStorage));
 		remote.setCatalogueState('unavailable');
 		addProvider(upcastPartial<ISessionsProvider>({ id: 'remote', order: 1, automations: remote }));
 

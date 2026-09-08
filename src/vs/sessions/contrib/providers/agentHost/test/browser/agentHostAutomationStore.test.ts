@@ -2271,7 +2271,7 @@ suite('AgentHostAutomationStore', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const automationStorage = new TestAutomationStorageService(storage);
 		const storageKey = providerAutomationStorageKey('remote-agent-host');
-		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const legacy = disposables.add(new AutomationStore(storageKey, storage, new NullLogService(), automationStorage));
 		await legacy.createAutomation({
 			name: 'Legacy automation',
 			prompt: 'Review changes.',
@@ -2296,13 +2296,12 @@ suite('AgentHostAutomationStore', () => {
 		const connection = disposables.add(new TestAutomationConnection(true));
 		const storage = disposables.add(new InMemoryStorageService());
 		const automationStorage = new TestAutomationStorageService(storage);
-		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const legacy = disposables.add(new AutomationStore(providerAutomationStorageKey('local-agent-host'), storage, new NullLogService(), automationStorage));
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, storage);
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IAutomationStorageService, automationStorage);
 		const store = disposables.add(new ReconnectableAgentHostAutomationStore(
 			'local-agent-host',
