@@ -1788,21 +1788,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
 		const initialConfiguration = session.initialAutomationSessionConfiguration;
 		const initialTemplate = initialConfiguration?.sessionTemplate;
-		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];
-		const mode = session instanceof CopilotCLISession
-			? session.mode.get()?.id
-			: typeof initialMode === 'string' ? initialMode : undefined;
-		const initialPermissionLevel = initialConfiguration?.permissionLevel ?? initialTemplate?.config?.[SessionConfigKey.AutoApprove];
-		const permissionLevel = session instanceof RemoteNewSession && isChatPermissionLevel(initialPermissionLevel)
-			? initialPermissionLevel
-			: session.permissionLevel.get();
 		const config = { ...initialTemplate?.config };
-		if (mode) {
-			config[SessionConfigKey.Mode] = mode;
+		if (session instanceof CopilotCLISession) {
+			const mode = session.mode.get()?.id;
+			if (mode) {
+				config[SessionConfigKey.Mode] = mode;
+			} else {
+				delete config[SessionConfigKey.Mode];
+			}
+			config[SessionConfigKey.AutoApprove] = session.permissionLevel.get();
 		} else {
-			delete config[SessionConfigKey.Mode];
+			if (config[SessionConfigKey.Mode] === undefined && initialConfiguration?.mode !== undefined) {
+				config[SessionConfigKey.Mode] = initialConfiguration.mode;
+			}
+			if (config[SessionConfigKey.AutoApprove] === undefined) {
+				config[SessionConfigKey.AutoApprove] = initialConfiguration?.permissionLevel ?? session.permissionLevel.get();
+			}
 		}
-		config[SessionConfigKey.AutoApprove] = permissionLevel;
+		const configuredMode = config[SessionConfigKey.Mode];
+		const mode = typeof configuredMode === 'string' ? configuredMode : undefined;
+		const configuredPermissionLevel = config[SessionConfigKey.AutoApprove];
+		const permissionLevel = typeof configuredPermissionLevel === 'string' ? configuredPermissionLevel : undefined;
 		const agentUri = session.chatMode?.uri?.get();
 		const agent = agentUri
 			? { uri: agentUri.toString() }
