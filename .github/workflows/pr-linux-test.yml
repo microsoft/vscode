@@ -454,12 +454,29 @@ jobs:
         continue-on-error: true
         if: ${{ inputs.smoke_tests && always() }}
 
+      - name: Set up native policy smoke fixture
+        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        id: policy-fixture
+        run: |
+          set -e
+          sudo mkdir /etc/vscode
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          sudo chown "$(id -u):$(id -g)" /etc/vscode
+
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
+          VSCODE_SMOKE_TEST_POLICY: '1'
+
+      - name: Clean up native policy smoke fixture
+        if: ${{ always() && steps.policy-fixture.outputs.created == 'true' }}
+        run: |
+          set -e
+          sudo rm -f /etc/vscode/policy.json
+          sudo rmdir /etc/vscode
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.smoke_tests }}

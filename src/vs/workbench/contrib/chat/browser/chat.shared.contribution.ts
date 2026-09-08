@@ -294,6 +294,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses a tab per model provider and configures thinking effort and context from a detail card next to each model, instead of a separate configuration button."),
 			default: false,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		'chat.fontSize': {
 			type: 'number',
@@ -962,7 +963,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 		},
 		[ChatConfiguration.PasteAsAttachmentThreshold]: {
-			markdownDescription: nls.localize('chat.pasteAsAttachmentThreshold', "The number of characters a paste must exceed before it is added to the chat input as an attachment instead of being inserted inline. A paste must also span several lines, so a long single-line paste is always inserted inline. Set this to a very large number to always paste inline."),
+			markdownDescription: nls.localize('chat.pasteAsAttachmentThreshold', "The number of characters a paste must exceed before it is added to the chat input as an attachment instead of being inserted inline. Set this to a very large number to always paste inline."),
 			type: 'number',
 			minimum: 0,
 			default: 10000,

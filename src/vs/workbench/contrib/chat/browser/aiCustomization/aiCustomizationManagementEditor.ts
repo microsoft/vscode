@@ -101,7 +101,7 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
-import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
+import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
 import { IMcpService, IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
@@ -2161,7 +2161,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const heights = layoutVirtualizedSections(this.migrationListContainer, this.migrationSectionLists.map(section => ({
 			container: section.container,
 			contentHeight: section.items.length * MIGRATION_ITEM_HEIGHT,
-			minimumHeight: MIGRATION_ITEM_HEIGHT,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.items, () => MIGRATION_ITEM_HEIGHT),
 		})));
 		for (let index = 0; index < this.migrationSectionLists.length; index++) {
 			const section = this.migrationSectionLists[index];

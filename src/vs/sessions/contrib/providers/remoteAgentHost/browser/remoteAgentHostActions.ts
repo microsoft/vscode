@@ -643,7 +643,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			shortTitle: localize2('connectViaSSHShort', "SSH..."),
+			shortTitle: localize2('connectViaSSHShort', "SSH"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -1107,7 +1107,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
-			shortTitle: localize2('connectViaTunnelShort', "Tunnels..."),
+			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.cloud,
