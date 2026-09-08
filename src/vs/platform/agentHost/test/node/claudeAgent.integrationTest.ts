@@ -67,6 +67,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostMcpConnectorsService } from '../../node/agentHostMcpConnectorsService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
@@ -75,6 +76,7 @@ import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claud
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
+import { createTestMcpConnectorsService } from './testMcpConnectorsService.js';
 import {
 	makeContentBlockStartText,
 	makeContentBlockStartToolUse,
@@ -738,6 +740,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			[IAgentHostAuthenticationService, createTestAuthenticationService()],
+			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -878,6 +881,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			[IAgentHostAuthenticationService, createTestAuthenticationService()],
+			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -960,6 +964,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService()],
 			[IAgentHostAuthenticationService, createTestAuthenticationService()],
+			[IAgentHostMcpConnectorsService, createTestMcpConnectorsService()],
 			...claudeFileEnvServices(disposables),
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
