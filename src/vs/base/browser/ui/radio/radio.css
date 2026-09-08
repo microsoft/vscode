@@ -25,11 +25,11 @@
 	border-bottom-right-radius: 3px;
 }
 
-.monaco-custom-radio > .monaco-button:not(.active):not(:last-child) {
+.monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
 	border-right: none;
 }
 
-.monaco-custom-radio > .monaco-button.previous-active {
+.monaco-custom-radio:not(.segmented) > .monaco-button.previous-active {
 	border-left: none;
 }
 
@@ -93,6 +93,20 @@
 	white-space: nowrap;
 }
 
+/* Reserve the selected label's width without making unselected labels bold. */
+.monaco-custom-radio.segmented > .monaco-button > [data-label] {
+	display: inline-grid;
+	justify-items: center;
+}
+
+.monaco-custom-radio.segmented > .monaco-button > [data-label]::after {
+	content: attr(data-label);
+	height: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	visibility: hidden;
+	pointer-events: none;
+}
+
 .monaco-custom-radio.segmented > .monaco-button:hover:not(.active) {
 	color: var(--vscode-foreground);
 	background: transparent;
@@ -111,4 +125,8 @@
 .monaco-custom-radio.segmented > .monaco-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-custom-radio.segmented > .monaco-button:focus:not(:focus-visible) {
+	outline: none;
 }

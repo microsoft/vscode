@@ -36,8 +36,23 @@ export const enum NewSessionWorkspacePreselectionSource {
 	Unknown = 'unknown',
 }
 
+/**
+ * Reports an intermediate prompt-option state while {@link INewSessionPromptOptionsController.resolve}
+ * is still running, so options can be rendered before the controller has settled on its final set.
+ *
+ * Returns whether the state was rendered. Implementers may refuse a late update, for example while
+ * the user is already acting on the options on screen.
+ */
+export type NewSessionPromptOptionsProgress = (state: NewSessionPromptOptionsState) => boolean;
+
 export interface INewSessionPromptOptionsController {
-	resolve(token: CancellationToken): Promise<NewSessionPromptOptionsState>;
+	/**
+	 * Resolves the final prompt options. Single-shot per refresh.
+	 *
+	 * @param progress Optional sink for intermediate states. Implementers may ignore it; callers that
+	 * pass it must tolerate it never being invoked and must apply the returned state regardless.
+	 */
+	resolve(token: CancellationToken, progress?: NewSessionPromptOptionsProgress): Promise<NewSessionPromptOptionsState>;
 	onDidSelectOption(option: INewSessionPromptOption): void;
 	onDidClose(): void;
 }

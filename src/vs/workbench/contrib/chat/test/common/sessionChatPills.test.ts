@@ -83,6 +83,31 @@ suite('SessionChatPills', () => {
 		});
 	});
 
+	test('encapsulates PR filtering separately from hiding the whole pill', () => {
+		const visibility = disposables.add(new SessionChatPillVisibility(disposables.add(new TestStorageService())));
+		const states = ['open', 'draft', 'closed', 'merged', undefined] as const;
+		const initiallyShowAll = visibility.pullRequests.showAll.get();
+		visibility.pullRequests.setShowAll(false);
+		const filtered = {
+			pillVisible: visibility.isVisible(SessionChatPillKind.PullRequests, undefined),
+			states: states.map(state => visibility.pullRequests.isVisible(state, undefined)),
+		};
+		visibility.hide(SessionChatPillKind.PullRequests);
+		visibility.pullRequests.setShowAll(true);
+
+		assert.deepStrictEqual({
+			initiallyShowAll,
+			filtered,
+			pillVisibleAfterHide: visibility.isVisible(SessionChatPillKind.PullRequests, undefined),
+			statesAfterShowAll: states.map(state => visibility.pullRequests.isVisible(state, undefined)),
+		}, {
+			initiallyShowAll: true,
+			filtered: { pillVisible: true, states: [true, true, false, false, true] },
+			pillVisibleAfterHide: false,
+			statesAfterShowAll: [true, true, true, true, true],
+		});
+	});
+
 	test('changes cannot be hidden or toggled off', () => {
 		const visibility = disposables.add(new SessionChatPillVisibility(disposables.add(new TestStorageService())));
 		visibility.hide(SessionChatPillKind.Changes);

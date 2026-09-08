@@ -41,6 +41,8 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
@@ -51,8 +53,9 @@ interface IGitHubContextSelection {
 	readonly label: string;
 }
 
-interface IGitHubRepositoryQuickPickItem extends IQuickPickItem {
-	readonly repoId: string;
+interface IGitHubRepositoryPick extends IQuickPickItem {
+	readonly repoId?: string;
+	readonly folderUri?: URI;
 }
 
 /**
@@ -122,6 +125,7 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		@IGitService private readonly gitService: IGitService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		if (kind === 'issue') {
 			this.label = localize('chatContext.githubIssue', "Issue...");
@@ -139,20 +143,21 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
-		const repositories = this.getRepositories();
-		let repoId: string | undefined;
+		const repositories = await this.getRepositoryPicks();
+		let repository: IGitHubRepositoryPick | undefined;
 
 		if (repositories.length === 1) {
-			repoId = repositories[0];
+			repository = repositories[0];
 		} else if (repositories.length > 1) {
-			repoId = await this.pickRepository(repositories);
+			repository = await this.pickRepository(repositories);
 		}
 
-		if (repositories.length > 1 && !repoId) {
+		if (repositories.length > 1 && !repository) {
 			return undefined;
 		}
 
-		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repoId);
+		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
 		if (!selection) {
 			return undefined;
 		}
@@ -169,23 +174,61 @@ export class GitHubContextValuePick implements IChatContextValueItem {
 		};
 	}
 
-	protected async pickRepository(repositories: readonly string[]): Promise<string | undefined> {
-		const repository = await this.quickInputService.pick(
-			repositories.map((repoId): IGitHubRepositoryQuickPickItem => ({ label: repoId, repoId })),
-			{ placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository") }
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
+		return this.quickInputService.pick<IGitHubRepositoryPick>(
+			[...repositories],
+			{
+				canPickMany: false,
+				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
+			}
 		);
-		return repository?.repoId;
 	}
 
-	private getRepositories(): readonly string[] {
-		const repositories = new Set<string>();
-		for (const repository of this.gitService.repositories) {
+	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
+		const knownRepositories = Array.from(this.gitService.repositories);
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (workspaceFolders.length > 1) {
+			return workspaceFolders.map((folder): IGitHubRepositoryPick => {
+				const repository = knownRepositories.find(repository =>
+					isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folder.uri)
+				);
+				const info = repository && getGitHubRemoteInfo(repository.state.get());
+				return info ? {
+					label: folder.name,
+					description: `${info.owner}/${info.repo}`,
+					repoId: `${info.owner}/${info.repo}`,
+					folderUri: folder.uri,
+				} : {
+					label: folder.name,
+					folderUri: folder.uri,
+				};
+			});
+		}
+
+		const repositoryIds = new Set<string>();
+		for (const repository of knownRepositories) {
+			if (!repository) {
+				continue;
+			}
 			const info = getGitHubRemoteInfo(repository.state.get());
 			if (info) {
-				repositories.add(`${info.owner}/${info.repo}`);
+				repositoryIds.add(`${info.owner}/${info.repo}`);
 			}
 		}
-		return Array.from(repositories).sort();
+		return Array.from(repositoryIds)
+			.sort()
+			.map(repoId => ({ label: repoId, repoId }));
+	}
+
+	private getRepositoryId(folderUri: URI | undefined): string | undefined {
+		if (!folderUri) {
+			return undefined;
+		}
+		const repository = Array.from(this.gitService.repositories).find(repository =>
+			isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folderUri)
+		);
+		const info = repository && getGitHubRemoteInfo(repository.state.get());
+		return info ? `${info.owner}/${info.repo}` : undefined;
 	}
 }
 

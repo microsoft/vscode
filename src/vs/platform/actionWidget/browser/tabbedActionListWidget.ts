@@ -114,6 +114,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly widgetClassNames?: (activeTab: string) => readonly string[];
 	/** Tab whose contents fix the popup's height, so switching tabs scrolls instead of resizing. */
 	readonly sizingTab?: string;
+	/** Show the checked item's hover after the popup has been positioned. */
+	readonly showCheckedItemHover?: boolean;
 	/** Optional icon buttons rendered after the tabs. */
 	readonly tabBarActions?: readonly ITabBarAction[];
 	/**
@@ -152,8 +154,9 @@ export class TabbedActionListWidget extends Disposable {
 	/** Boxes and labels from the last render, so the next one can animate from them. */
 	private _previousTabBoxes: Map<string, ITabBox> | undefined;
 	private _previousTabTexts: ReadonlyMap<string, string> | undefined;
-	/** List height the popup keeps for this session, from {@link ITabbedActionListShowOptions.sizingTab}. */
+	/** Initial list height from {@link ITabbedActionListShowOptions.sizingTab}. */
 	private _fixedListHeight: number | undefined;
+	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
 
 	get isVisible(): boolean {
@@ -182,6 +185,7 @@ export class TabbedActionListWidget extends Disposable {
 			this._previousTabBoxes = undefined;
 			this._previousTabTexts = undefined;
 			this._fixedListHeight = undefined;
+			this._fixedPopupHeight = undefined;
 			this._hasMeasuredSizingTab = false;
 		}
 
@@ -210,6 +214,9 @@ export class TabbedActionListWidget extends Disposable {
 				const renderDisposables = new DisposableStore();
 
 				const widget = dom.append(container, dom.$('.action-widget'));
+				if (options.width !== undefined) {
+					widget.style.width = `${options.width}px`;
+				}
 				let widgetClassNames: readonly string[] = [];
 				const applyWidgetClassNames = () => {
 					const next = options.widgetClassNames?.(activeTab) ?? [];
@@ -321,8 +328,16 @@ export class TabbedActionListWidget extends Disposable {
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
 				this._refreshActiveList = () => {
+					const hadFocus = dom.isAncestorOfActiveElement(widget);
 					applyWidgetClassNames();
 					list.updateItems(options.createActionList(activeTab).items);
+					if (hadFocus && !dom.isAncestorOfActiveElement(widget)) {
+						if (emptyBody) {
+							radio.focusActiveItem();
+						} else {
+							list.focus();
+						}
+					}
 				};
 				renderDisposables.add(toDisposable(() => {
 					this._refreshActiveList = undefined;
@@ -343,8 +358,9 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}
 
+				let footer: HTMLElement | undefined;
 				if (options.renderFooter) {
-					const footer = dom.append(widget, dom.$('.tabbed-action-list-footer'));
+					footer = dom.append(widget, dom.$('.tabbed-action-list-footer'));
 					renderDisposables.add(options.renderFooter(footer, activeTab));
 				}
 
@@ -356,12 +372,29 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
-				const width = list.layout(0, this._fixedListHeight);
-				widget.style.width = `${options.width ?? width}px`;
-				// The list's own height is the clamped one, which the empty body has to match
-				// or it can make the popup taller than every other tab.
-				if (emptyBody && this._fixedListHeight !== undefined) {
-					emptyBody.style.minHeight = list.domNode.style.height;
+				const layout = () => {
+					const body = emptyBody ?? list.domNode;
+					const chromeHeight = widget.offsetHeight - body.offsetHeight;
+					const contentHeight = this._fixedPopupHeight === undefined
+						? this._fixedListHeight
+						: Math.max(0, this._fixedPopupHeight - chromeHeight);
+					const width = list.layout(0, contentHeight);
+					widget.style.width = `${options.width ?? width}px`;
+					if (emptyBody && this._fixedListHeight !== undefined) {
+						emptyBody.style.minHeight = list.domNode.style.height;
+					}
+					if (this._fixedListHeight !== undefined && this._fixedPopupHeight === undefined) {
+						this._fixedPopupHeight = widget.offsetHeight;
+					}
+				};
+				layout();
+
+				if (footer) {
+					const observer = renderDisposables.add(new dom.DisposableResizeObserver('TabbedActionListWidget.footer', () => {
+						layout();
+						this._contextViewService.layout();
+					}, dom.getWindow(footer)));
+					renderDisposables.add(observer.observe(footer, { box: 'border-box' }));
 				}
 				// Boxes are read before the animation starts, so they are the resting ones.
 				const tabBoxes = this._measureTabBoxes(radio, options.tabs);
@@ -463,6 +496,10 @@ export class TabbedActionListWidget extends Disposable {
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
 		}, undefined, false);
+
+		if (options.showCheckedItemHover) {
+			listRef?.showHoverForCheckedItem();
+		}
 
 		if (isSwap) {
 			this._swappingTab = false;

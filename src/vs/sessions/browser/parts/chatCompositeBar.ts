@@ -14,7 +14,7 @@ import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { Action } from '../../../base/common/actions.js';
+import { Action, Separator } from '../../../base/common/actions.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -37,7 +37,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 
@@ -474,6 +474,12 @@ export class ChatCompositeBar extends Disposable {
 			this._startTabEditing(chatTab);
 		}));
 
+		const copyLinkAction = this._tabDisposables.add(new Action(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, localize('copyChatLink', "Copy Link"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, { session, chat });
+			}
+		}));
+
 		// Delete permanently removes the chat (destructive). Only non-main chats
 		// can be deleted; the main chat lives and dies with its session.
 		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
@@ -505,14 +511,12 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
-					const actions = [];
-					if (capabilities.canRename) {
-						actions.push(renameAction);
-					}
-					if (capabilities.canDelete) {
-						actions.push(deleteAction);
-					}
-					return actions;
+					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					return Separator.join(
+						capabilities.canRename ? [renameAction] : [],
+						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
+						capabilities.canDelete ? [deleteAction] : [],
+					);
 				}
 			});
 		}));
