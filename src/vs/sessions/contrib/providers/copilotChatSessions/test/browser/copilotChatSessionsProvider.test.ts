@@ -17,7 +17,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -2450,14 +2450,111 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
 		});
 
-		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
+		test('clamps the effective default without rewriting its permission preference', async () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot, policyRestricted: true });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const session = provider.getSession(sessionInfo.sessionId);
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
 
-			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+			assert.deepStrictEqual({
+				effective: session?.permissionLevel.get(),
+				preference: captured?.sessionTemplate?.config?.autoApprove,
+			}, {
+				effective: ChatPermissionLevel.Default,
+				preference: ChatPermissionLevel.Autopilot,
+			});
+		});
+
+		for (const permissionLevel of [ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+			for (const canonical of [true, false]) {
+				test(`clamps restored ${canonical ? 'canonical' : 'legacy'} ${permissionLevel} before sending without changing the saved preference`, async () => {
+					const configurationService = makeConfig({ policyRestricted: true });
+					let sentPermissionLevel: ChatPermissionLevel | undefined;
+					const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+						sentPermissionLevel = options?.modeInfo?.permissionLevel;
+						return { kind: 'rejected', reason: 'Request recorded' };
+					}, { configurationService });
+					const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+						automationConfiguration: canonical
+							? { sessionTemplate: { config: { autoApprove: permissionLevel } }, permissionLevel: ChatPermissionLevel.Default }
+							: { permissionLevel },
+					});
+					const effective = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+					const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+					await assert.rejects(provider.sendRequest(sessionInfo.sessionId, sessionInfo.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+					assert.deepStrictEqual({
+						effective,
+						sentPermissionLevel,
+						preference: captured?.sessionTemplate?.config?.autoApprove,
+						legacyPreference: captured?.permissionLevel,
+					}, {
+						effective: ChatPermissionLevel.Default,
+						sentPermissionLevel: ChatPermissionLevel.Default,
+						preference: permissionLevel,
+						legacyPreference: permissionLevel,
+					});
+				});
+			}
+		}
+
+		test('updates effective approvals when policy changes while preserving intent until an explicit edit', async () => {
+			const policy = { policyRestricted: false };
+			const configurationService = makeConfig(policy);
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }), { configurationService });
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { config: { autoApprove: ChatPermissionLevel.Autopilot } } },
+			});
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			const effective: ChatPermissionLevel[] = [];
+			disposables.add(autorun(reader => { effective.push(session.permissionLevel.read(reader)); }));
+
+			const updatePolicy = (restricted: boolean) => {
+				policy.policyRestricted = restricted;
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === ChatConfiguration.GlobalAutoApprove,
+				}));
+			};
+			updatePolicy(true);
+			const restricted = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			updatePolicy(false);
+			const unrestricted = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.Default);
+			updatePolicy(true);
+			updatePolicy(false);
+			const edited = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				effective,
+				preferences: [restricted, unrestricted, edited].map(configuration => configuration?.sessionTemplate?.config?.autoApprove),
+			}, {
+				effective: [ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default],
+				preferences: [ChatPermissionLevel.Autopilot, ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default],
+			});
+		});
+
+		test('preserves an unknown approval preference until the user selects a supported level', async () => {
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { config: { autoApprove: 'future-approvals', providerOption: true } } },
+			});
+			const initialEffective = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+			const initial = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.AutoApprove);
+			const edited = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				initialEffective,
+				initialConfig: initial?.sessionTemplate?.config,
+				editedConfig: edited?.sessionTemplate?.config,
+			}, {
+				initialEffective: ChatPermissionLevel.Default,
+				initialConfig: { autoApprove: 'future-approvals', providerOption: true },
+				editedConfig: { autoApprove: ChatPermissionLevel.AutoApprove, providerOption: true },
+			});
 		});
 
 		test('falls back to Default when chat.permissions.default is unset', () => {
