@@ -61,7 +61,7 @@ import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { CustomizationMigrationHintTarget, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -2125,8 +2125,21 @@ suite('ChatService', () => {
 		const migrationHint = {
 			message: 'Found 3 customization files that could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
 		migrationService.computeMigrationHint.resolves(migrationHint);
+		const migrationTelemetry: { readonly category: string; readonly count: number }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'chat.customizationMigrationAssessment' && data) {
+					migrationTelemetry.push({
+						category: String(data.category),
+						count: Number(data.count),
+					});
+				}
+			}
+		});
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2206,6 +2219,7 @@ suite('ChatService', () => {
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
+			migrationTelemetry,
 			neverHint: getHintContent(0),
 			firstHint: getHintContent(1),
 			secondHint: getHintContent(2),
@@ -2216,6 +2230,11 @@ suite('ChatService', () => {
 		}, {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
+			migrationTelemetry: [
+				{ category: 'promptFiles', count: 3 },
+				{ category: 'promptFiles', count: 3 },
+				{ category: 'promptFiles', count: 3 },
+			],
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
@@ -2233,6 +2252,7 @@ suite('ChatService', () => {
 		migrationService.computeMigrationHint.resolves({
 			message: 'Found customization files that could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 
 		const mockSessionsService = new MockChatSessionsService();

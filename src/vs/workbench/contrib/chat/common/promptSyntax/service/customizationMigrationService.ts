@@ -87,6 +87,12 @@ export const enum CustomizationMigrationHintTarget {
 export interface ICustomizationMigrationHint {
 	readonly message: string;
 	readonly target: CustomizationMigrationHintTarget;
+	readonly counts: readonly ICustomizationMigrationCount[];
+}
+
+export interface ICustomizationMigrationCount {
+	readonly type: CustomizationMigrationType;
+	readonly count: number;
 }
 
 export interface ICustomizationMigrationService {
