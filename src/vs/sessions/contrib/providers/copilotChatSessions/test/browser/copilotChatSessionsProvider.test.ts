@@ -32,15 +32,15 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { type ChatSessionOptionsMap, ChatSessionStatus, type IChatSession, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { type IChatModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { type IAutomationSessionConfiguration, ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -418,11 +418,23 @@ class TestSandboxCopilotProvider extends CopilotChatSessionsProvider {
 	}
 }
 
+interface ICreateProviderForSendTestsOptions {
+	readonly onDidCommitSession?: Event<{ original: URI; committed: URI }>;
+	readonly configurationService?: TestConfigurationService;
+	readonly agentHostEnabled?: boolean;
+	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
+	readonly notifications?: string[];
+	readonly chatModeService?: IChatModeService;
+	readonly languageModelsService?: Partial<ILanguageModelsService>;
+	readonly chatSessionsService?: Partial<IChatSessionsService>;
+	readonly acquireOrLoadSession?: IChatService['acquireOrLoadSession'];
+}
+
 function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; chatModeService?: IChatModeService; languageModelsService?: Partial<ILanguageModelsService> },
+	opts?: ICreateProviderForSendTestsOptions,
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -451,9 +463,10 @@ function createProviderForSendTests(
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
 		onDidChangeOptionGroups: Event.None,
+		...opts?.chatSessionsService,
 	});
 	instantiationService.stub(IChatService, {
-		acquireOrLoadSession: async () => undefined,
+		acquireOrLoadSession: opts?.acquireOrLoadSession ?? (async () => undefined),
 		sendRequest: sendRequest,
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
 		setChatSessionTitle: () => { },
@@ -2550,6 +2563,54 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		test('round trips native fallback model options without taking ordinary composer defaults', async () => {
+			const modelMetadata: ILanguageModelChatMetadata = {
+				extension: new ExtensionIdentifier('test'),
+				id: 'model', name: 'Model', vendor: 'copilot', family: 'test', version: '1',
+				maxInputTokens: 1, maxOutputTokens: 1, isDefaultForLocation: {},
+				targetChatSessionType: CopilotCLISessionType.id,
+				configurationSchema: {
+					type: 'object',
+					properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' } },
+				},
+			};
+			let sentOptions: IChatSendRequestOptions | undefined;
+			const writes: Record<string, unknown>[] = [];
+			const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+				sentOptions = options;
+				return { kind: 'rejected', reason: 'Request recorded' };
+			}, {
+				languageModelsService: {
+					getLanguageModelIds: () => ['copilot/model'],
+					lookupLanguageModel: identifier => identifier === 'copilot/model' ? modelMetadata : undefined,
+					hasResolvedVendor: () => true,
+					getModelConfiguration: () => ({ thinkingLevel: 'high' }),
+					setModelConfiguration: async (_modelId, values) => { writes.push(values); },
+				},
+			});
+			const modelConfiguration = { thinkingLevel: 'low', futureOption: true };
+			const original = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { modelId: 'copilot/model', modelConfiguration } },
+			});
+			const captured = await provider.getAutomationSessionConfiguration(original.sessionId);
+			const session = provider.createNewSession(workspace, CopilotCLISessionType.id, { automationConfiguration: captured });
+			const recaptured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, session.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+			assert.deepStrictEqual({
+				captured: [captured, recaptured].map(configuration => ({
+					modelId: configuration?.sessionTemplate?.modelId,
+					modelConfiguration: configuration?.sessionTemplate?.modelConfiguration,
+				})),
+				sent: { modelId: sentOptions?.userSelectedModelId, modelConfiguration: sentOptions?.userSelectedModelConfiguration },
+				writes,
+			}, {
+				captured: [{ modelId: 'copilot/model', modelConfiguration }, { modelId: 'copilot/model', modelConfiguration }],
+				sent: { modelId: 'copilot/model', modelConfiguration: { thinkingLevel: 'low' } },
+				writes: [],
+			});
+		});
+
 		test('rejects Automation model configuration without a model before creating a fallback draft', () => {
 			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
 			assert.throws(() => provider.createNewSession(workspace, CopilotCLISessionType.id, {
@@ -2580,6 +2641,84 @@ suite('CopilotChatSessionsProvider', () => {
 				templateMode: mode,
 			});
 		});
+	});
+
+	suite('Automation cloud session configuration', () => {
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
+
+		for (const selection of ['canonical', 'legacy', 'explicit'] as const) {
+			for (const delayed of [false, true]) {
+				test(`applies the ${selection} model option with ${delayed ? 'late' : 'ready'} Cloud options before sending`, async () => {
+					const defaultModel = { id: 'default-model', name: 'Default Model', default: true };
+					const selectedModel = { id: 'selected-model', name: 'Selected Model' };
+					const modelGroup: IChatSessionProviderOptionGroup = { id: 'models', name: 'Models', items: [defaultModel, selectedModel] };
+					let optionGroups = delayed ? undefined : [modelGroup];
+					const optionsChanged = disposables.add(new Emitter<string>());
+					const sessionOptions: ChatSessionOptionsMap = new Map();
+					const sentOptionMaps: ChatSessionOptionsMap[] = [];
+					let sentModelId: string | undefined;
+					const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+						sentModelId = options?.userSelectedModelId;
+						sentOptionMaps.push(new Map(sessionOptions));
+						return { kind: 'rejected', reason: 'Request recorded' };
+					}, {
+						getOptionGroups: () => optionGroups,
+						chatSessionsService: {
+							onDidChangeOptionGroups: optionsChanged.event,
+							setSessionOption: (_resource, optionId, value) => {
+								sessionOptions.set(optionId, value);
+								return true;
+							},
+							getSessionOption: (_resource, optionId) => sessionOptions.get(optionId),
+							getOrCreateChatSession: async resource => {
+								sessionOptions.set('models', defaultModel);
+								if (delayed) {
+									optionGroups = [modelGroup];
+									optionsChanged.fire(AgentSessionProviders.Cloud);
+								}
+								return upcastPartial<IChatSession>({ sessionResource: resource });
+							},
+							updateSessionOptions: (_resource, updates) => {
+								for (const [key, value] of updates) {
+									sessionOptions.set(key, value);
+								}
+								return true;
+							},
+						},
+						acquireOrLoadSession: async () => new ImmortalReference(upcastPartial<IChatModel>({
+							inputModel: upcastPartial<IChatModel['inputModel']>({ setState: () => { } }),
+						})),
+					});
+					const automationConfiguration: IAutomationSessionConfiguration = selection === 'canonical'
+						? { sessionTemplate: { modelId: selectedModel.id }, modelId: defaultModel.id }
+						: selection === 'legacy' ? { modelId: selectedModel.id } : {};
+					const session = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration });
+					if (selection === 'explicit') {
+						provider.setModel(session.sessionId, session.mainChat.get().resource, selectedModel.id, ChatModelSource.Chosen);
+					}
+					const initialOption = sessionOptions.get('models');
+					const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+					const chat = await provider.createNewChat(session.sessionId);
+					const preparedOption = sessionOptions.get('models');
+					await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Request recorded/);
+
+					assert.deepStrictEqual({
+						initialOption,
+						preparedOption,
+						capturedModel: captured?.sessionTemplate?.modelId,
+						sentModelId,
+						sentModelOptions: sentOptionMaps.map(options => options.get('models')),
+					}, {
+						initialOption: delayed ? undefined : selectedModel,
+						preparedOption: selectedModel,
+						capturedModel: selectedModel.id,
+						sentModelId: selectedModel.id,
+						sentModelOptions: [selectedModel],
+					});
+				});
+			}
+		}
+
 	});
 
 	suite('Automation custom agent restoration', () => {

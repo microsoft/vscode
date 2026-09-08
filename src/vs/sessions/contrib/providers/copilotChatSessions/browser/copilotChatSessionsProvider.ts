@@ -740,6 +740,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		this._updateWhenClauseKeys();
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
 			this._updateWhenClauseKeys();
+			this._updateModelOption();
 			this._onDidChangeOptionGroups.fire();
 		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
@@ -782,6 +783,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._modelId = modelId;
+		this._updateModelOption();
 		// One update, and both halves of it: a model and where it came from are only meaningful as
 		// a pair, so naming a source for a model the observable never reports would leave the
 		// picker and the conversation disagreeing.
@@ -847,6 +849,14 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	}
 
 	// --- Internals ---
+
+	private _updateModelOption(): void {
+		const group = this._getOptionGroups()?.find(isModelOptionGroup);
+		const item = group?.items.find(item => item.id === this._modelId);
+		if (group && item) {
+			this.setOptionValue(group.id, item);
+		}
+	}
 
 	private _getOptionGroups(): IChatSessionProviderOptionGroup[] | undefined {
 		return this.chatSessionsService.getOptionGroupsForSessionType(this.target);
@@ -1957,15 +1967,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 			}
 			newSession.setModelId(modelId, source);
-			// Cloud sessions additionally persist the selection as the value of
-			// the `models` option group so the extension host honours it.
-			if (newSession instanceof RemoteNewSession) {
-				const { modelOption } = newSession.getModelOptionsSnapshot();
-				const item = modelOption?.group.items.find(i => i.id === modelId);
-				if (item) {
-					newSession.setOptionValue(modelOption!.group.id, item);
-				}
-			}
 			return;
 		}
 
