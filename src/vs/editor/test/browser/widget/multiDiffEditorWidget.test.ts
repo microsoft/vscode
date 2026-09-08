@@ -53,6 +53,7 @@ suite('MultiDiffEditorWidget', () => {
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
+				useCardUnchangedRegionControl: false,
 			},
 			compact: {
 				classNames: ['multiDiffEditor-compact'],
@@ -60,6 +61,7 @@ suite('MultiDiffEditorWidget', () => {
 				headerHeight: 32,
 				contentBottomPadding: 8,
 				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: false,
 			},
 			card: {
 				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
@@ -67,8 +69,99 @@ suite('MultiDiffEditorWidget', () => {
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: true,
 			},
 		});
+	});
+
+	test('card unchanged region control toggles while remaining visible', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const unchangedLines = Array.from({ length: 20 }, (_, index) => `const unchanged${index} = ${index};`).join('\n');
+		const originalUri = URI.parse('inmemory://original/card-control.js');
+		const modifiedUri = URI.parse('inmemory://modified/card-control.js');
+		const original = disposables.add(instantiateTextModel(instantiationService, `const value = 1;\n${unchangedLines}`, undefined, undefined, originalUri));
+		const modified = disposables.add(instantiateTextModel(instantiationService, `const value = 2;\n${unchangedLines}`, undefined, undefined, modifiedUri));
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
+			options: { accessibilitySupport: 'off' },
+		}, { dispose() { } });
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: MultiDiffEditorVariant.Card },
+		);
+		widget.layout(new Dimension(800, 600));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const([documentItem]) });
+
+		try {
+			await waitForState(viewModel.items, items => items.length === 1);
+			await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+			widget.setViewModel(viewModel);
+			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+			const editor = widget.getActiveControl()!;
+			const getControl = () => widget.getRootElement().querySelector<HTMLElement>('.diff-hidden-lines-card .center[role="button"]')!;
+			getControl().click();
+			const expandedControl = getControl();
+			const expandedState = {
+				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
+				isInWidget: widget.getRootElement().contains(expandedControl),
+				ariaExpanded: expandedControl.getAttribute('aria-expanded'),
+				text: expandedControl.querySelector('.card-content')?.textContent,
+			};
+			expandedControl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const collapsedControl = getControl();
+			const collapsedState = {
+				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
+				isInWidget: widget.getRootElement().contains(collapsedControl),
+				ariaExpanded: collapsedControl.getAttribute('aria-expanded'),
+				hasHiddenLinesLabel: collapsedControl.querySelector('.card-content')?.textContent?.includes('hidden lines'),
+			};
+			collapsedControl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+			assert.deepStrictEqual({
+				expandedState,
+				collapsedState,
+				expandedWithSpace: editor.allUnchangedRegionsShown.get(),
+			}, {
+				expandedState: {
+					allUnchangedRegionsShown: true,
+					isInWidget: true,
+					ariaExpanded: 'true',
+					text: 'Collapse unchanged lines',
+				},
+				collapsedState: {
+					allUnchangedRegionsShown: false,
+					isInWidget: true,
+					ariaExpanded: 'false',
+					hasHiddenLinesLabel: true,
+				},
+				expandedWithSpace: true,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			documentItem.dispose();
+		}
 	});
 
 	test('models bottom padding as trailing scroll content', () => {

@@ -22,6 +22,7 @@ export interface IMultiDiffEditorVariantConfiguration {
 	readonly headerHeight: number;
 	readonly contentBottomPadding: number;
 	readonly headerClickToCollapse: boolean;
+	readonly useCardUnchangedRegionControl: boolean;
 }
 
 export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorVariant): IMultiDiffEditorVariantConfiguration {
@@ -33,6 +34,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
+				useCardUnchangedRegionControl: false,
 			};
 		case MultiDiffEditorVariant.Compact:
 			return {
@@ -41,6 +43,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				headerHeight: 32,
 				contentBottomPadding: 8,
 				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: false,
 			};
 		case MultiDiffEditorVariant.Card:
 			return {
@@ -49,6 +52,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: true,
 			};
 	}
 }

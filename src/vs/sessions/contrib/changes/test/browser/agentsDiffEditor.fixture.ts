@@ -197,6 +197,7 @@ function createContextKeyService(): IContextKeyService {
 
 interface IAgentsDiffFixtureOptions {
 	readonly showSubmitOverlay?: boolean;
+	readonly showAllUnchangedRegions?: boolean;
 	readonly variant?: MultiDiffEditorVariant;
 }
 
@@ -310,6 +311,9 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 	if (editor) {
 		disposableStackStore.add(widget.getScopedInstantiationService().createInstance(AgentFeedbackEditorInputContribution, editor));
 	}
+	if (options.showAllUnchangedRegions) {
+		widget.getActiveControl()?.showAllUnchangedRegions();
+	}
 	const lineNumber = editor?.getDomNode()?.querySelector<HTMLElement>('.line-numbers');
 	lineNumber?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: lineNumber.getBoundingClientRect().left + 1, clientY: lineNumber.getBoundingClientRect().top + 1 }));
 	await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
@@ -356,6 +360,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	CardDiffWithFeedback: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderAgentsDiffEditor(context, { variant: MultiDiffEditorVariant.Card }),
+	}),
+	CardDiffWithExpandedUnchangedRegions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAgentsDiffEditor(context, { variant: MultiDiffEditorVariant.Card, showAllUnchangedRegions: true }),
 	}),
 	CompactDiffWithSubmitOverlay: defineComponentFixture({
 		labels: { kind: 'screenshot' },
