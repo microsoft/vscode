@@ -55,6 +55,15 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes read-only thinking previews and keyboard expansion', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			readOnlyPreview: help.includes('In read-only chats, thinking details preview while streaming and collapse when finished'),
+			settingOverride: help.includes('regardless of your thinking-style setting'),
+			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
+		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+	});
+
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
