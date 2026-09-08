@@ -76,11 +76,11 @@ describe('AutomodeService', () => {
 
 	/** Tiers are experiment-gated and off by default, so tier tests opt in. */
 	function enableTiers(): void {
-		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTiersEnabled, true]]));
+		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Shared.AutoModeTiersEnabled, true]]));
 	}
 
 	function setTierOverride(override: string): void {
-		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Advanced.AutoModeTierOverride, override]]));
+		configure(new Map<BaseConfig<unknown>, unknown>([[ConfigKey.Shared.AutoModeTierOverride, override]]));
 	}
 
 	function makeAutoResponse(body: unknown, status = 200) {
@@ -729,8 +729,8 @@ describe('AutomodeService', () => {
 			mockAuto(autoResponse('gpt-4o'));
 
 			configure(new Map<BaseConfig<unknown>, unknown>([
-				[ConfigKey.Advanced.AutoModeTiersEnabled, true],
-				[ConfigKey.Advanced.AutoModeTierOverride, 'turbo'],
+				[ConfigKey.Shared.AutoModeTiersEnabled, true],
+				[ConfigKey.Shared.AutoModeTierOverride, 'turbo'],
 			]));
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
@@ -750,10 +750,10 @@ describe('AutomodeService', () => {
 
 			let announced = 0;
 			const listener = automodeService.onDidChangeAutoModeTierSupport(() => announced++);
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, true);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTiersEnabled, true);
 			// An unrelated change must not re-announce.
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTierOverride, 'intelligence');
-			await configurationService.setConfig(ConfigKey.Advanced.AutoModeTiersEnabled, false);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTiersEnabled, false);
 			listener.dispose();
 
 			expect({

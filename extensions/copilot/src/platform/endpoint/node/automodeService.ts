@@ -362,7 +362,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	areAutoModeTiersSupported(): boolean {
-		return this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTiersEnabled);
+		return this._configurationService.getConfig(ConfigKey.Shared.AutoModeTiersEnabled);
 	}
 
 	/**
@@ -400,7 +400,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * pin below unreachable.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
-		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
+		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
 			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
