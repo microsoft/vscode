@@ -9,6 +9,7 @@ import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { AsyncIterableSource } from '../../../../util/vs/base/common/async';
+import { Schemas } from '../../../../util/vs/base/common/network';
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -104,7 +105,7 @@ relative/path/to/another_file.js:42
 		const documentId = DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString());
 		const document = new CurrentDocument(new StringText('def my_function'), new Position(1, 16));
 		const lines = AsyncIterUtils.fromArray([
-			'space folder/test.py:0',
+			'space%20folder/test.py:0',
 			'-def my_function',
 			'+def my_function():',
 			'+    pass',
@@ -134,6 +135,88 @@ relative/path/to/another_file.js:42
 			lineRange: '[2,2)',
 			newLines: ['    pass'],
 		}]);
+	});
+
+	it('progressively reveals an encoded active-document patch without changing its identity', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const documentId = DocumentId.create(URI.joinPath(workspaceRoot, 'space folder/Player.cs').toString());
+		const document = new CurrentDocument(new StringText('return value'), new Position(1, 13));
+		const { edits } = await consumeHandleResponse(
+			AsyncIterUtils.fromArray([
+				'space%20folder/Player.cs:0',
+				'-return value',
+				'+return value * value;',
+				'+// next line',
+			]),
+			document,
+			documentId,
+			workspaceRoot,
+			undefined,
+			new TestLogService(),
+			DuplicateAdditionsMode.Off,
+			true,
+		);
+
+		expect(edits.map(edit => ({
+			document: edit.targetDocument,
+			range: edit.edit.lineRange.toString(),
+			lines: edit.edit.newLines,
+		}))).toEqual([
+			{ document: documentId, range: '[1,2)', lines: ['return value * value;'] },
+			{ document: documentId, range: '[2,2)', lines: ['// next line'] },
+		]);
+	});
+
+	it('decodes cross-file patch targets exactly once, including notebook fragments', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const documentId = DocumentId.create(URI.joinPath(workspaceRoot, 'active.cs').toString());
+		const otherDocument = DocumentId.create(URI.joinPath(workspaceRoot, 'space folder/literal%20#name.cs').toString());
+		const notebookCell = DocumentId.create(URI.joinPath(workspaceRoot, 'notebook #1.ipynb').with({
+			scheme: Schemas.vscodeNotebookCell,
+			fragment: 'ch000001',
+		}).toString());
+		const { edits } = await consumeHandleResponse(
+			AsyncIterUtils.fromArray([
+				'space%20folder/literal%2520%23name.cs:0',
+				'+return value;',
+				'notebook%20%231.ipynb#ch000001:0',
+				'+print(value)',
+			]),
+			new CurrentDocument(new StringText('return value'), new Position(1, 13)),
+			documentId,
+			workspaceRoot,
+			undefined,
+			new TestLogService(),
+		);
+
+		expect(edits.map(edit => edit.targetDocument)).toEqual([otherDocument, notebookCell]);
+	});
+
+	it('logs malformed path encoding without discarding later valid patches', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const documentId = DocumentId.create(URI.joinPath(workspaceRoot, 'active.cs').toString());
+		const errors: (string | Error)[] = [];
+		const logger = new class extends TestLogService {
+			override error(error: string | Error): void {
+				errors.push(error);
+			}
+		};
+		const { edits } = await consumeHandleResponse(
+			AsyncIterUtils.fromArray([
+				'invalid%ZZ.cs:0',
+				'+return 0;',
+				'active.cs:0',
+				'+return 1;',
+			]),
+			new CurrentDocument(new StringText(''), new Position(1, 1)),
+			documentId,
+			workspaceRoot,
+			undefined,
+			logger,
+		);
+
+		expect({ targets: edits.map(edit => edit.targetDocument), errors: errors.length })
+			.toEqual({ targets: [documentId], errors: 1 });
 	});
 
 	it('discard a patch if no valid header', async () => {

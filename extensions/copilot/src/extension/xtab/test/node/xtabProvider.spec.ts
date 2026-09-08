@@ -540,7 +540,7 @@ describe('getPredictionContents', () => {
 		expect(result.endsWith(':')).toBe(true);
 	});
 
-	it.skipIf(!isWindows)('preserves spaces in a workspace-relative Windows path', () => {
+	it.skipIf(!isWindows)('encodes spaces in a workspace-relative Windows path', () => {
 		const lines = ['def my_function'];
 		const text = new StringText(lines.join('\n'));
 		const workspaceRoot = URI.file('C:\\workspace');
@@ -554,7 +554,26 @@ describe('getPredictionContents', () => {
 			new Edits(StringEdit, []),
 		);
 
-		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space folder/test.py:');
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space%20folder/test.py:');
+	});
+
+	it('uses an encoded path in the current-line prediction', () => {
+		const lines = ['Vector3 nextPosition ='];
+		const workspaceRoot = URI.file('/workspace');
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(URI.joinPath(workspaceRoot, 'Weekly Material/Week 8/Player.cs').toString()),
+			workspaceRoot,
+			LanguageId.create('csharp'),
+			lines,
+			LineEdit.empty,
+			new StringText(lines[0]),
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, {
+			doc,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		})).toBe('Weekly%20Material/Week%208/Player.cs:0\n-Vector3 nextPosition =\n+Vector3 nextPosition =');
 	});
 
 	it.skipIf(!isWindows)('normalizes the drive letter for a file-backed notebook cell', () => {
@@ -1967,7 +1986,7 @@ describe('XtabProvider integration', () => {
 			expect(streamingFetcher.callCount).toBe(3);
 		});
 
-		it('cross-file cursor jump with out-of-bounds predicted line → NoSuggestions without throwing', async () => {
+		it('decodes cross-file cursor targets before rejecting out-of-bounds lines', async () => {
 			const provider = createProvider();
 			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
@@ -1994,13 +2013,13 @@ describe('XtabProvider integration', () => {
 				requestId: 'req-cursor',
 				serverRequestId: 'srv-cursor',
 				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
-				value: '/test/other.ts:50',
+				value: '/test/other%20file%2520.ts:50',
 				resolvedModel: 'test-model',
 			});
 
 			// The cross-file jump target only has 5 lines, so the predicted line 50 is out of bounds.
 			const targetDoc = createTextDocumentData(
-				URI.file('/test/other.ts'),
+				URI.file('/test/other file%20.ts'),
 				Array.from({ length: 5 }, (_, i) => `other ${i}`).join('\n'),
 				'typescript',
 			).document;
@@ -2015,7 +2034,7 @@ describe('XtabProvider integration', () => {
 			// The out-of-bounds prediction must be rejected before any retry fetch happens, rather
 			// than constructing a CurrentDocument with an out-of-bounds cursor (which would throw).
 			expect(streamingFetcher.callCount).toBe(2);
-			expect(openSpy).toHaveBeenCalledOnce();
+			expect(openSpy.mock.calls.map(([uri]) => uri.toString())).toEqual([targetDoc.uri.toString()]);
 
 			openSpy.mockRestore();
 		});

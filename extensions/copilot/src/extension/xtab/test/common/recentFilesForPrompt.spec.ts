@@ -75,6 +75,15 @@ suite('Paged clipping - recently viewed files', () => {
 	const id = DocumentId.create('file:///src/first.txt');
 	const id2 = DocumentId.create('file:///src/second.txt');
 
+	test('encodes recent-file paths without conflating literal percent escapes', () => {
+		const { snippets } = buildSnippets(
+			[{ id: DocumentId.create(Uri.file('/src/space folder/literal%20.cs').toString()), content: nLines(2) }],
+			makeOpts({ maxTokens: 2000 }),
+		);
+
+		expect(snippets[0].split('\n')[1]).toBe('code_snippet_file_path: /src/space%20folder/literal%2520.cs');
+	});
+
 	test('can page correctly by lines of 2', () => {
 		const { snippets } = buildSnippets(
 			[{ id, content: nLines(4) }],

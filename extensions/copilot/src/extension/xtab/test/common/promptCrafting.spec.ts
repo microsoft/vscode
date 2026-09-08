@@ -617,15 +617,17 @@ describe('getUserPrompt', () => {
 		eagernessPrompt?: 'aggressionHighLow';
 		aggressivenessLevel?: AggressivenessLevel;
 		rejectedEditsMemory?: RejectedEditsMemoryMode;
+		documentUri?: Uri;
+		workspaceRoot?: Uri;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
-		const documentId = DocumentId.create('file:///test/file.ts');
+		const documentId = DocumentId.create(opts.documentUri?.toString() ?? 'file:///test/file.ts');
 		const currentDocument = new CurrentDocument(docText, new Position(opts.cursorLine, opts.cursorColumn));
 
 		const activeDoc = new StatelessNextEditDocument(
 			documentId,
-			undefined,
+			opts.workspaceRoot,
 			LanguageId.create('typescript'),
 			currentDocLines,
 			LineEdit.empty,
@@ -670,6 +672,24 @@ describe('getUserPrompt', () => {
 			undefined,
 		);
 	}
+
+	test('encodes document paths consistently in current-file and edit-history fields', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+			rejectedEditsMemory: RejectedEditsMemoryMode.DiffWithTags,
+			documentUri: Uri.file('/workspace/space folder/literal%20.ts'),
+			workspaceRoot: Uri.file('/workspace'),
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		expect(prompt.split('\n').filter(line => /^(current_file_path:|--- |\+\+\+ )/.test(line))).toEqual([
+			'current_file_path: space%20folder/literal%2520.ts',
+			'--- /workspace/space%20folder/literal%2520.ts',
+			'+++ /workspace/space%20folder/literal%2520.ts',
+		]);
+	});
 
 	test('PatchBased02 appends cursor_position snippet and does not wrap in backticks', () => {
 		const pieces = createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02 });

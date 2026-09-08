@@ -12,7 +12,6 @@ import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { createProxyXtabEndpoint } from '../../../platform/endpoint/node/proxyXtabEndpoint';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
-import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
@@ -46,7 +45,6 @@ import { DeferredPromise, raceCancellation, raceTimeout, timeout } from '../../.
 import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
-import { URI } from '../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { Position } from '../../../util/vs/editor/common/core/position';
@@ -65,7 +63,7 @@ import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
 import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
-import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
+import { countTokensForLines, resolveUniquePath, toUniquePath } from '../common/promptCraftingUtils';
 import { INeighborFileSnippet, ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
 import { PromptTags } from '../common/tags';
@@ -1368,10 +1366,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
 		}
 
-		const targetUri = isAbsolute(prediction.filePath)
-			? URI.file(prediction.filePath)
-			: URI.joinPath(workspaceRoot!, prediction.filePath);
-		const targetDocumentId = DocumentId.create(targetUri.toString());
+		const targetDocument = resolveUniquePath(prediction.filePath, workspaceRoot);
+		if (targetDocument.isError()) {
+			tracer.trace(`Predicted cross-file cursor jump error: ${targetDocument.err.message}`);
+			telemetry.setNextCursorLineError('crossFile:invalidTargetPath');
+			return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
+		}
+		const targetDocumentId = targetDocument.val;
+		const targetUri = targetDocumentId.toUri();
 		const nextCursorLineOneBased = prediction.lineNumber + 1;
 		const nextCursorPosition = new Position(nextCursorLineOneBased, 1);
 
