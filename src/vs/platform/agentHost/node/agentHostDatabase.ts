@@ -392,6 +392,8 @@ function sessionsV2BackfillKey(provider: AgentProvider, payloadVersion: number):
 const sessionsV2ExcludedKeyPrefix = 'sessionsV2Excluded:';
 const sessionsV2PayloadDirtyKeyPrefix = 'sessionsV2PayloadDirty:';
 const MODIFIED_TIME_UPDATE_BATCH_SIZE = 400;
+// Six parameters per row keep each statement below SQLite's legacy 999-variable limit.
+const SESSION_CHAT_INSERT_BATCH_SIZE = 150;
 const sessionChatCatalogLegacyMirrorKeyPrefix = 'sessionChatCatalogLegacyMirror:';
 
 function sessionsV2ExcludedProviderPrefix(provider: AgentProvider): string {
@@ -1277,17 +1279,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					VALUES (?, ?)
 					ON CONFLICT(session_uri) DO UPDATE SET revision = excluded.revision`, [session, revision]);
 				await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
-				for (const chat of chats) {
+				for (let offset = 0; offset < chats.length; offset += SESSION_CHAT_INSERT_BATCH_SIZE) {
+					const batch = chats.slice(offset, offset + SESSION_CHAT_INSERT_BATCH_SIZE);
 					await run(database, `INSERT INTO session_chats (
 						session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id
-					) VALUES (?, ?, ?, ?, ?, ?)`, [
+					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
 						session,
 						chat.chat,
 						chat.order,
 						chat.providerData ?? null,
 						chat.origin ?? null,
 						chat.inheritedTurnId ?? null,
-					]);
+					]));
 				}
 				await exec(database, 'COMMIT');
 				return { status: 'applied', revision };

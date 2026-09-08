@@ -375,6 +375,64 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('bulk inserts a large chat catalog with bounded SQL calls', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'session://bulk-chat-catalog';
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const rawDatabase = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const inserts: string[] = [];
+		const trace = (sql: string) => {
+			if (sql.startsWith('INSERT INTO session_chats (')) {
+				inserts.push(sql);
+			}
+		};
+		rawDatabase.on('trace', trace);
+		const chats = Array.from({ length: 1001 }, (_, order) => ({
+			chat: `ahp-chat://peer-${order}`,
+			order,
+			...(order % 2 === 0 ? { providerData: `backing '${order}'`, origin: '{"kind":"user"}', inheritedTurnId: `turn-${order}` } : {}),
+		}));
+		try {
+			const replacement = await database.replaceSessionChatCatalog(session, chats, undefined);
+			const catalog = await database.getSessionChatCatalog(session);
+			assert.deepStrictEqual({
+				replacement,
+				catalog,
+				insertStatements: inserts.length,
+			}, {
+				replacement: { status: 'applied', revision: 1 },
+				catalog: { revision: 1, legacyMirroredRevision: 0, chats },
+				insertStatements: 7,
+			});
+		} finally {
+			rawDatabase.removeListener('trace', trace);
+		}
+	});
+
+	test('rolls back every chat batch and its revision when a later insert fails', async () => {
+		const path = join(temporaryDirectory!, 'chat-batch-rollback.db');
+		const session = 'session://chat-batch-rollback';
+		database = new AgentHostDatabase(path);
+		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog(session, [{ chat: 'ahp-chat://original', order: 0, providerData: 'original' }], undefined);
+		await database.markSessionChatCatalogLegacyMirrored(session, 1, 'original-mirror');
+		const before = await database.getSessionChatCatalog(session);
+		await database.close();
+		const rawDatabase = await openDatabase(path);
+		try {
+			await exec(rawDatabase, `CREATE TRIGGER fail_late_chat_batch
+				BEFORE INSERT ON session_chats WHEN NEW.chat_order = 900
+				BEGIN SELECT RAISE(ABORT, 'late chat batch failed'); END`);
+		} finally {
+			await close(rawDatabase);
+		}
+		database = new AgentHostDatabase(path);
+		const chats = Array.from({ length: 1001 }, (_, order) => ({ chat: `ahp-chat://replacement-${order}`, order }));
+
+		await assert.rejects(database.replaceSessionChatCatalog(session, chats, 1), /late chat batch failed/);
+		assert.deepStrictEqual(await database.getSessionChatCatalog(session), before);
+	});
+
 	test('rejects chat catalog replacement after session tombstoning', async () => {
 		database = new AgentHostDatabase(':memory:');
 		const session = 'session://deleted-chat-catalog';
