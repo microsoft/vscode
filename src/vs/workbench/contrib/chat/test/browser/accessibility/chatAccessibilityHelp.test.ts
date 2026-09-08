@@ -23,6 +23,28 @@ suite('Chat Accessibility Help', () => {
 		}, { details: true, immediatePreview: true, inactiveTiers: true, activation: true });
 	});
 
+	test('documents the archive suggestion only while it is shown', () => {
+		const keybindingService = new MockKeybindingService();
+		const shown = getAccessibilityHelpText('agentView', keybindingService, true, false, false, true, true);
+		const hidden = getAccessibilityHelpText('agentView', keybindingService, true);
+
+		assert.deepStrictEqual({
+			shown: shown.includes('An archive suggestion appears'),
+			hidden: hidden.includes('An archive suggestion appears'),
+			keyboard: shown.includes('Tab or Shift+Tab to reach Archive or Dismiss Archive Suggestion, then press Enter or Space'),
+			focus: shown.includes('Escape while it is focused, returns to the chat input'),
+			recovery: shown.includes('session-list filter to find the session and unarchive it at any time'),
+			worktree: shown.includes('archiving cleans up the worktree and unarchiving recreates it'),
+		}, {
+			shown: true,
+			hidden: false,
+			keyboard: true,
+			focus: true,
+			recovery: true,
+			worktree: true,
+		});
+	});
+
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -152,12 +174,18 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
+			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
+			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('toolbar context menu to show all again'),
 			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
 		}, {
 			panelChat: true,
 			agentView: true,
+			pullRequestFilter: true,
+			filterPersistence: true,
+			filterRecovery: true,
 			agentQuickChat: false,
 			quickChat: false,
 			inlineChat: false,
