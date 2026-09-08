@@ -58,8 +58,9 @@ export class FileEditTracker {
 	 *
 	 * @param filePath - Absolute path of the file being edited.
 	 * @param mode - Provider execution mode when the edit started.
+	 * @param operationId - Optional identity that isolates concurrent edits to the same file.
 	 */
-	async trackEditStart(filePath: string, mode?: string): Promise<void> {
+	async trackEditStart(filePath: string, mode?: string, operationId?: string): Promise<void> {
 		const snapshotDone = this._readFileWithExistence(filePath);
 		const entry = {
 			beforeContent: VSBuffer.fromString(''),
@@ -70,7 +71,7 @@ export class FileEditTracker {
 				entry.beforeExisted = existed;
 			}),
 		};
-		this._pendingEdits.set(filePath, entry);
+		this._pendingEdits.set(this._editKey(filePath, operationId), entry);
 		await entry.snapshotDone;
 	}
 
@@ -80,23 +81,35 @@ export class FileEditTracker {
 	 * {@link takeCompletedEdit}.
 	 *
 	 * @param filePath - Absolute path of the file that was edited.
+	 * @param operationId - Optional identity supplied when tracking started.
 	 */
-	async completeEdit(filePath: string): Promise<void> {
-		const pending = this._pendingEdits.get(filePath);
+	async completeEdit(filePath: string, operationId?: string): Promise<void> {
+		const editKey = this._editKey(filePath, operationId);
+		const pending = this._pendingEdits.get(editKey);
 		if (!pending) {
 			return;
 		}
-		this._pendingEdits.delete(filePath);
 		await pending.snapshotDone;
 
 		const afterContent = await this._readFile(filePath);
+		if (this._pendingEdits.get(editKey) !== pending) {
+			return;
+		}
 
-		this._completedEdits.set(filePath, {
+		this._pendingEdits.delete(editKey);
+		this._completedEdits.set(editKey, {
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,
 			afterContent,
 			mode: pending.mode,
 		});
+	}
+
+	/** Drops any pending or completed snapshot for an edit that did not succeed. */
+	discardEdit(filePath: string, operationId?: string): void {
+		const editKey = this._editKey(filePath, operationId);
+		this._pendingEdits.delete(editKey);
+		this._completedEdits.delete(editKey);
 	}
 
 	/**
@@ -108,13 +121,16 @@ export class FileEditTracker {
 	 * `toolName` and `toolInput` are forwarded to {@link extractAiChunks}
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
+	 *
+	 * @param operationId - Optional identity supplied when tracking started.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): Promise<ToolResultFileEditContent | undefined> {
-		const edit = this._completedEdits.get(filePath);
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, operationId?: string): Promise<ToolResultFileEditContent | undefined> {
+		const editKey = this._editKey(filePath, operationId);
+		const edit = this._completedEdits.get(editKey);
 		if (!edit) {
 			return undefined;
 		}
-		this._completedEdits.delete(filePath);
+		this._completedEdits.delete(editKey);
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -229,6 +245,10 @@ export class FileEditTracker {
 
 	async flushAttribution(): Promise<void> {
 		await this._editAttributionService.flushSession(this._sessionUri);
+	}
+
+	private _editKey(filePath: string, operationId?: string): string {
+		return operationId === undefined ? filePath : `${operationId}\0${filePath}`;
 	}
 
 	private async _readFile(filePath: string): Promise<VSBuffer> {
