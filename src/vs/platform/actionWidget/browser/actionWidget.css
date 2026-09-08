@@ -582,6 +582,10 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	/* Hug the inner list so rows (and their hover background) fill the panel.
+	 * Otherwise the panel inherits the 100px min-width from `.action-widget`
+	 * and the hover highlight stops short of the right edge. */
+	min-width: 0;
 	outline: none;
 }
 
