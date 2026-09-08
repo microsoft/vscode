@@ -127,6 +127,8 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		for (const part of parts) {
 			model.acceptResponseProgress(request, part);
 		}
+		// Match the list's element lifecycle when reusing the response template.
+		renderer.disposeElement(node, 0, template);
 		renderer.renderElement(node, 0, template);
 	}));
 	if (state === 'thinking') {
