@@ -46,7 +46,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 			}
 		}));
 
-		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionChangeCountObs);
+		const onDidChangeCount = Event.fromObservableLight(sessionChangesService.activeSessionUncommittedChangesCountObs);
 		this._register(onDidChangeCount(() => this._onDidChangeLabel.fire()));
 	}
 
@@ -72,7 +72,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	}
 
 	override getAriaLabel(): string {
-		const changeCount = this.sessionChangesService.activeSessionChangeCountObs.get();
+		const changeCount = this.sessionChangesService.activeSessionUncommittedChangesCountObs.get();
 		return !changeCount
 			? this.getName()
 			: localize('sessionChangesEditor.ariaLabel', "{0}, {1}", this.getName(), getSessionChangesFileCountLabel(changeCount));
