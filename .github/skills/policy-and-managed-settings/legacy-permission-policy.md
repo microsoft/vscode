@@ -17,9 +17,8 @@ There are two related but distinct bounded migrations:
 
 Neither path is open to newly designed settings or controls. Put new runtime-owned
 controls directly in the shared managed-settings schema and SDK contract.
-The legacy-setting bridge may have a false-by-default experimental gate for staged
-adoption; that gate controls the compatibility mechanism itself and is not a mapped
-runtime control.
+The legacy-setting bridge is unconditional; its former staged-adoption gate has been
+retired now that the bridge is the default enforcement path.
 
 ## Legacy permission policy rules
 
