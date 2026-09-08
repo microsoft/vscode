@@ -7753,7 +7753,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('promotes PR artifacts and current-branch discovery but keeps PR references out of GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('exposes all recorded artifacts and references alongside promoted GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
 			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
@@ -7770,18 +7770,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const meta = withSessionArtifacts(withSessionGitHubState(undefined, {
 			owner: 'owner',
 			repo: 'repo',
-			pullRequestUrls: ['https://github.com/owner/repo/pull/41'],
+			pullRequestUrls: ['https://github.com/owner/repo/pull/41', 'https://github.com/owner/repo/pull/42'],
 		}), [
 			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', isArtifact: true, link: 'https://github.com/owner/repo/pull/50', isGitHub: true },
 			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', isArtifact: false, link: 'https://github.com/owner/repo/pull/60', isGitHub: true },
-			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/owner/repo/pull/41/', isGitHub: true },
+			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/OWNER/REPO/pull/41/', isGitHub: true },
 			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', isArtifact: true, link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false },
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
-			// The pull request discovered from git state, also recorded as a
-			// reference: the pull request pill already shows it, so it is dropped here.
-			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/41', isGitHub: true },
+			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/42', isGitHub: true },
 		]);
 		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
 			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
@@ -7796,18 +7794,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activePullRequest: gitHubInfo?.pullRequest?.number,
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
 			issues: gitHubInfo?.issues?.map(issue => issue.number),
-			artifacts: session.artifacts?.get().map(artifact => artifact.id),
+			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
-			// Newest first, so the latest pull request is the active one.
 			activePullRequest: 41,
-			pullRequests: [41, 50],
+			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
 			issues: [7],
-			artifacts: ['a7', 'a6', 'a5', 'a2'],
+			artifacts: [
+				['a8', false],
+				['a7', false],
+				['a6', true],
+				['a5', true],
+				['a4', true],
+				['a3', true],
+				['a2', false],
+				['a1', true],
+			],
 		});
 	}));
 
-	test('keeps a promoted artifact in the pill when GitHub info cannot surface it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('preserves recorded artifacts as GitHub repository metadata hydrates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
 			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
@@ -7821,8 +7827,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session);
 
 		provider.getSessionConfig(session.sessionId);
-		// No repository at all, plus a reference belonging to another repository:
-		// neither can be polled, so both have to stay visible as artifacts.
 		agentHost.setSessionState('pr-unsurfaced', 'copilotcli', {
 			provider: 'copilotcli', title: 'Unsurfaced Session', status: ProtocolSessionStatus.Idle,
 			lifecycle: SessionLifecycle.Ready,
@@ -7853,7 +7857,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
 		}, {
 			withoutRepository: ['a1'],
-			foreignRepository: ['a2'],
+			foreignRepository: ['a2', 'a1'],
 			issues: [7],
 			pullRequests: undefined,
 		});

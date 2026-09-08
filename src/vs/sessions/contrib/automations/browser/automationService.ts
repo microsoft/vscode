@@ -9,7 +9,6 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
@@ -34,7 +33,6 @@ import {
 	IAutomationStore,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
@@ -137,7 +135,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		private readonly storageKey: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
 	) {
 		super();
@@ -211,7 +208,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
 			result: undefined,
 		}), mutationGuard);
-		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
 
@@ -229,16 +225,14 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
 					runs: ledger.runs,
 				},
-				result: { current, updated },
+				result: updated,
 			};
 		});
-		publishAutomationUpdated(this.telemetryService, result.current, result.updated);
-		return result.updated;
+		return result;
 	}
 
 	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const now = this._now();
-		let previous: IAutomationDescriptor | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
 			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
@@ -249,7 +243,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			}
 
 			const updated = updateAutomation(current, patch, now);
-			previous = current;
 			return {
 				kind: 'commit',
 				ledger: {
@@ -259,11 +252,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				result: { kind: 'updated', automation: updated } as const,
 			};
 		}, mutationGuard);
-		if (result.kind === 'conflict' || !previous) {
-			return result;
-		}
-
-		publishAutomationUpdated(this.telemetryService, previous, result.automation);
 		return result;
 	}
 
@@ -287,7 +275,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 
 		this._runsForCache.delete(id);
-		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
 	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
@@ -615,10 +602,9 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IAutomationStorageService automationStorageService: IAutomationStorageService,
 	) {
-		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
+		super(AUTOMATION_STORAGE_KEY, storageService, logService, automationStorageService);
 	}
 
 	startStaleRunRecovery(reason: string): Promise<void> {

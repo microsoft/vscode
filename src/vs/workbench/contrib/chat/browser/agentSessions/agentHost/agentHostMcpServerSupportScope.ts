@@ -18,13 +18,21 @@ import { assessMcpServersForCopilotAgentHost, IAgentHostInstalledMcpServer, IAge
 
 const MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY = 50;
 
+function createEmptySupportSnapshot(coverage: IAgentHostMcpServerSupportSnapshot['coverage']): IAgentHostMcpServerSupportSnapshot {
+	return {
+		servers: [],
+		discoveryComplete: false,
+		coverage,
+	};
+}
+
 /** A refcounted reactive view of MCP support for one Agent Host working-directory scope. */
 export interface IAgentHostMcpServerSupportScope extends IDisposable {
-	/** The latest complete support snapshot. */
+	/** The latest settled support snapshot. */
 	readonly support: IObservable<IAgentHostMcpServerSupportSnapshot>;
-	/** Whether the initial support snapshot has resolved. */
+	/** Whether the latest scheduled support assessment has settled. */
 	readonly isResolved: IObservable<boolean>;
-	/** Resolves after the initial snapshot succeeds or fails. */
+	/** Resolves after the latest scheduled support assessment settles or the scope is disposed. */
 	whenResolved(): Promise<void>;
 }
 
@@ -40,7 +48,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 		},
 	});
 	private readonly _isResolved = observableValue('agentHostMcpServerSupportResolved', false);
-	private readonly _initialResolution = new DeferredPromise<void>();
+	private _latestResolution = new DeferredPromise<void>();
 	private _refCount = 0;
 	private _updateSequence = 0;
 	private _isDisposed = false;
@@ -57,8 +65,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 		super();
 		this._updateDelayer = this._register(new Delayer<void>(MCP_SUPPORT_UPDATE_DEBOUNCE_DELAY));
 
-		const update = async () => {
-			const sequence = ++this._updateSequence;
+		const update = async (sequence: number) => {
 			try {
 				const lazyState = this._mcpService.lazyCollectionState.get();
 				const initialAssessment = await assessMcpServersForCopilotAgentHost(
@@ -69,9 +76,16 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 					lazyState.state,
 				);
 				if (!initialAssessment) {
+					this._completeUpdate(sequence, createEmptySupportSnapshot(this._getCoverage()));
+					return;
+				}
+				if (sequence !== this._updateSequence || this._isDisposed) {
 					return;
 				}
 				await this._mcpWorkbenchService.whenInitialLocalMcpServersLoaded;
+				if (sequence !== this._updateSequence || this._isDisposed) {
+					return;
+				}
 				const installedServers = this._mcpWorkbenchService.local.flatMap(server => {
 					const local = server.local;
 					return local ? [{
@@ -93,31 +107,28 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 				if (sequence !== this._updateSequence) {
 					return;
 				}
-				const access = this._configurationService.getValue<McpAccessValue>(mcpAccessConfig);
-				const strictPluginOnly = this._configurationService.getValue<StrictPluginOnlyCustomization>(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
-				transaction(tx => {
-					this._support.set({
-						...assessment,
-						coverage: {
-							restrictedByMcpAccess: access !== McpAccessValue.All,
-							restrictedByCustomizationPolicy: isStrictPluginOnlyCustomizationEnabled(strictPluginOnly),
-						},
-					}, tx);
-					this._isResolved.set(true, tx);
-				});
+				this._completeUpdate(sequence, { ...assessment, coverage: this._getCoverage() });
 			} catch (error) {
 				onUnexpectedError(error);
-				if (sequence === this._updateSequence) {
-					transaction(tx => this._isResolved.set(true, tx));
-				}
+				this._completeUpdate(sequence, createEmptySupportSnapshot(this._getCoverage()));
 			} finally {
-				if (sequence === this._updateSequence && !this._initialResolution.isSettled) {
-					this._initialResolution.complete();
+				if (sequence === this._updateSequence && !this._latestResolution.isSettled) {
+					this._latestResolution.complete();
 				}
 			}
 		};
 		const scheduleUpdate = () => {
-			this._updateDelayer.trigger(() => update()).catch(() => { /* scope disposed */ });
+			if (this._isDisposed) {
+				return;
+			}
+			const sequence = ++this._updateSequence;
+			const previousResolution = this._latestResolution;
+			this._latestResolution = new DeferredPromise<void>();
+			transaction(tx => this._isResolved.set(false, tx));
+			if (!previousResolution.isSettled) {
+				previousResolution.complete();
+			}
+			this._updateDelayer.trigger(() => update(sequence)).catch(() => { /* scope disposed */ });
 		};
 
 		this._register(autorun(reader => {
@@ -142,7 +153,7 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 		return {
 			support: this._support,
 			isResolved: this._isResolved,
-			whenResolved: () => this._initialResolution.p,
+			whenResolved: () => this._whenResolved(),
 			dispose: () => {
 				if (!released) {
 					released = true;
@@ -158,11 +169,40 @@ export class AgentHostMcpServerSupportScope extends Disposable {
 		}
 		this._isDisposed = true;
 		this._updateSequence++;
-		if (!this._initialResolution.isSettled) {
-			this._initialResolution.complete();
+		if (!this._latestResolution.isSettled) {
+			this._latestResolution.complete();
 		}
 		super.dispose();
 		this._onDispose();
+	}
+
+	private async _whenResolved(): Promise<void> {
+		while (!this._isDisposed) {
+			const resolution = this._latestResolution;
+			await resolution.p;
+			if (resolution === this._latestResolution) {
+				return;
+			}
+		}
+	}
+
+	private _completeUpdate(sequence: number, snapshot: IAgentHostMcpServerSupportSnapshot): void {
+		if (sequence !== this._updateSequence || this._isDisposed) {
+			return;
+		}
+		transaction(tx => {
+			this._support.set(snapshot, tx);
+			this._isResolved.set(true, tx);
+		});
+	}
+
+	private _getCoverage(): IAgentHostMcpServerSupportSnapshot['coverage'] {
+		const access = this._configurationService.getValue<McpAccessValue>(mcpAccessConfig);
+		const strictPluginOnly = this._configurationService.getValue<StrictPluginOnlyCustomization>(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+		return {
+			restrictedByMcpAccess: access !== McpAccessValue.All,
+			restrictedByCustomizationPolicy: isStrictPluginOnlyCustomizationEnabled(strictPluginOnly),
+		};
 	}
 
 	private _release(): void {

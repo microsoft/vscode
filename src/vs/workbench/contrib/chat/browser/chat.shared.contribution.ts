@@ -2358,6 +2358,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
 		},
+		[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.openInAgentsWindow.revealCurrentSession', "Controls whether Open in Agents Window reveals the current local Agent Host session instead of opening a new session."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
 			items: { type: 'string' },
@@ -2489,6 +2496,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental'],
 			description: nls.localize('chat.customizations.locationsMigration.enabled', "Controls whether the Chat Customizations editor offers to move agents, instructions, and skills from configured locations that are not supported by the active agent-host harness. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: false,
+		},
+		[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether the Chat Customizations editor offers to move supported workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: false,
 		},
 		[ChatConfiguration.ChatCustomizationsMigrationHint]: {

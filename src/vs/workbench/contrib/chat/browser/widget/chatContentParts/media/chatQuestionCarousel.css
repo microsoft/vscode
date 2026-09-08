@@ -90,6 +90,11 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.hc-black .chat-question-carousel-container .rendered-markdown a,
+.hc-light .chat-question-carousel-container .rendered-markdown a {
+	text-decoration: underline;
+}
+
 .interactive-session .chat-question-carousel-container .rendered-markdown a:hover,
 .interactive-session .chat-question-carousel-container .rendered-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);
