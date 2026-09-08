@@ -29,12 +29,12 @@ disposal ownership.
 
 ## Protocol Metadata
 
-Treat `common/meta` as the validation boundary for the protocol's open `_meta`
-bags. Raw field access is allowed only in that directory. Each reader must take
-the parent protocol object, validate every value it returns, and expose typed
-data; code outside the boundary must call those readers instead of inspecting
-`_meta` fields directly. Prefer shared type guards such as `hasKey` for dynamic
-properties; do not bypass type narrowing or lint rules with `Reflect.get`.
+Put new readers for namespaced protocol `_meta` slots under `common/meta`.
+Readers must validate every value they return and expose typed data; callers
+should pass the parent protocol object rather than inspecting `_meta` fields
+directly. Existing unnamespaced and legacy readers live elsewhere and should be
+migrated separately when touched. Use type guards for dynamic properties; do
+not bypass type narrowing or lint rules with `Reflect.get`.
 
 ## End to End Testing
 
