@@ -35,6 +35,7 @@ suite('BrowserViewModel', () => {
 			onDynamicDidChangeDevToolsState: () => Event.None,
 			onDynamicDidChangeTitle: () => Event.None,
 			onDynamicDidChangeFavicon: () => Event.None,
+			onDynamicDidChangeOwner: () => Event.None,
 			onDynamicDidChangeFocus: () => Event.None,
 			onDynamicDidChangeVisibility: () => Event.None,
 			onDynamicDidChangeElementSelectionState: () => Event.None,
