@@ -130,6 +130,20 @@
 	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
+
+	.sync-changes-action-view-item {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+
+		> .codicon {
+			color: inherit;
+		}
+	}
+
+	.new-chat-status-toolbar.has-no-actions {
+		display: none;
+	}
 }
 
 /* Toolbar hosts can shrink, while individual expanded pickers remain intrinsic
