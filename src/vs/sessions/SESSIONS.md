@@ -115,7 +115,7 @@ Turn-level file changes route through `IChatResponseFileChangesService`. The edi
 
 ### Artifacts, references, and customizations
 
-Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
+Sessions may expose the artifacts and references recorded by the agent. Both categories are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. `recordedArtifacts` contains the complete set for aggregate consumers; `artifacts` contains the generic-pill presentation and may omit entries promoted into dedicated UI. Providers that do not distinguish the two may expose only `artifacts`. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
 
 ## Provider contract
 

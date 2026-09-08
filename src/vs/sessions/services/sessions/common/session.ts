@@ -770,10 +770,14 @@ export interface ISession {
 	/** Changesets produced by the session. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
-	 * The artifacts and references the agent recorded for this session (pull
-	 * requests, issues, files, …). Both categories share this observable and are
-	 * told apart by {@link ISessionArtifact.isArtifact}, so a consumer that
-	 * surfaces only one of them must filter on that field.
+	 * The complete set of artifacts and references the agent recorded for this
+	 * session, including entries promoted into dedicated UI.
+	 */
+	readonly recordedArtifacts?: IObservable<readonly ISessionArtifact[]>;
+	/**
+	 * The artifacts and references presented in the generic session pills.
+	 * Providers may omit entries promoted into dedicated UI. When
+	 * {@link recordedArtifacts} is absent, this is also the complete recorded set.
 	 */
 	readonly artifacts?: IObservable<readonly ISessionArtifact[]>;
 	/** Currently selected model identifier. */

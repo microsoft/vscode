@@ -7794,12 +7794,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activePullRequest: gitHubInfo?.pullRequest?.number,
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
 			issues: gitHubInfo?.issues?.map(issue => issue.number),
+<<<<<<< HEAD
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
+=======
+			artifacts: session.artifacts?.get().map(artifact => artifact.id),
+			recordedArtifacts: session.recordedArtifacts?.get().map(artifact => artifact.id),
+>>>>>>> 9aaf490382b (sessions: Add artifact counts to session summary telemetry (#335028))
 		}, {
 			activePullRequest: 41,
 			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
 			issues: [7],
+<<<<<<< HEAD
 			artifacts: [
 				['a8', false],
 				['a7', false],
@@ -7810,6 +7816,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				['a2', false],
 				['a1', true],
 			],
+=======
+			artifacts: ['a2', 'a5', 'a6', 'a7'],
+			recordedArtifacts: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'],
+>>>>>>> 9aaf490382b (sessions: Add artifact counts to session summary telemetry (#335028))
 		});
 	}));
 
