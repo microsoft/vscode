@@ -49,6 +49,8 @@ export interface IToolCallMeta {
 	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
+	/** Latest progress message from a running tool; transient, meaningful only while Running. */
+	readonly progressMessage?: string;
 }
 
 /** Minimal metadata needed to embed and rank a deferred tool. */
@@ -132,6 +134,7 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta['subagentChatUri'] === 'string') { result.subagentChatUri = meta['subagentChatUri']; }
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
+	if (typeof meta['progressMessage'] === 'string') { result.progressMessage = meta['progressMessage']; }
 	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
 	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
 	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);

@@ -108,7 +108,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 		// Tab strip contents: the open chats in the provider's order, with subagent
 		// (tool-origin) chats hidden by default. A subagent surfaces as a tab only
-		// once explicitly opened (e.g. from the Conversations menu), tracked in
+		// once explicitly opened (e.g. via its chat-transcript pill), tracked in
 		// `_shownSubagentUris`. Hidden and closed chats are excluded by `openChats`.
 		this.visibleChatTabs = derived(this, reader => {
 			const shownSubagents = this._shownSubagentUris.read(reader);
@@ -119,7 +119,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		// Shown only when there is more than one chat actually showing as a tab.
 		// A single visible tab (even if other chats are closed, or its title
 		// diverged from the session title, or subagents exist) always hides the
-		// strip; the Conversations menu surfaces in the session header instead.
+		// strip; side chats remain reachable from the Side Chats menu in the
+		// session header, and subagents from their chat-transcript pills.
 		this.shouldShowChatTabs = derived(this, reader => {
 			return this.visibleChatTabs.read(reader).length > 1;
 		});
@@ -136,7 +137,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			return;
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
-		// reachable from the Conversations menu and is not added to the
+		// reachable from its chat-transcript pill and is not added to the
 		// reopenable closed set.
 		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			const shown = this._shownSubagentUris.get();
@@ -242,6 +243,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -254,6 +256,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
+	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -292,6 +295,7 @@ class ResourceOverrideSession implements ISession {
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
 	get isExternal() { return this._session.isExternal; }
+	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -304,6 +308,7 @@ class ResourceOverrideSession implements ISession {
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
+	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
 	get description() { return this._session.description; }
@@ -467,10 +472,10 @@ export class VisibleSessions extends Disposable {
 	 * "open at position" entry points.
 	 *
 	 * - If the slot is not yet visible, a new non-sticky entry is created
-	 *   at the computed position. For an `undefined` session (empty slot),
-	 *   this is a no-op when an empty slot already exists in the grid.
+	 *   at the computed position.
 	 * - If the slot is already visible, it is moved to the computed
-	 *   position; its sticky / non-sticky state is preserved.
+	 *   position; its sticky / non-sticky state is preserved. This also
+	 *   moves the single empty slot when `session` is `undefined`.
 	 *
 	 * When `activate` is `true` (default), the inserted slot also becomes
 	 * the active session. When `false`, the active session is left
@@ -483,12 +488,6 @@ export class VisibleSessions extends Disposable {
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
-			return;
-		}
-
-		// Invariant: at most one empty slot. If inserting the empty slot and
-		// one already exists, do not add or move another.
-		if (id === undefined && this._visibleList.includes(undefined)) {
 			return;
 		}
 

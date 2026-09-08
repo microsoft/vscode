@@ -65,13 +65,13 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
-	if (typeof raw['id'] !== 'string' || typeof raw['label'] !== 'string' || !isSessionArtifactType(raw['type'])) {
+	if (typeof raw.id !== 'string' || typeof raw.label !== 'string' || !isSessionArtifactType(raw.type)) {
 		return undefined;
 	}
 	// `isArtifact` is mandatory, so only its absence is tolerated — that is an
 	// entry recorded before artifacts and references were told apart, which was
 	// always an artifact. Any other value is malformed and rejects the entry.
-	const isArtifact = raw['isArtifact'];
+	const isArtifact = raw.isArtifact;
 	if (isArtifact !== undefined && typeof isArtifact !== 'boolean') {
 		return undefined;
 	}
@@ -85,16 +85,16 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		commitHash?: string;
 		isGitHub?: boolean;
 	} = {
-		id: raw['id'],
-		type: raw['type'],
-		label: raw['label'],
+		id: raw.id,
+		type: raw.type,
+		label: raw.label,
 		isArtifact: isArtifact ?? true,
 	};
 
-	if (typeof raw['link'] === 'string') { artifact.link = raw['link']; }
-	if (typeof raw['uri'] === 'string') { artifact.uri = raw['uri']; }
-	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
-	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
+	if (typeof raw.link === 'string') { artifact.link = raw.link; }
+	if (typeof raw.uri === 'string') { artifact.uri = raw.uri; }
+	if (typeof raw.commitHash === 'string') { artifact.commitHash = raw.commitHash; }
+	if (typeof raw.isGitHub === 'boolean') { artifact.isGitHub = raw.isGitHub; }
 	return artifact;
 }
 
@@ -112,6 +112,11 @@ export function readSessionArtifacts(meta: SessionSummaryMeta | undefined): read
 		}
 	}
 	return artifacts;
+}
+
+/** Reads a session's artifacts in reverse insertion order. */
+export function readSessionArtifactsNewestFirst(meta: SessionSummaryMeta | undefined): readonly ISessionArtifact[] {
+	return readSessionArtifacts(meta).slice().reverse();
 }
 
 /** Returns `meta` with the artifact slot replaced, dropping it when empty. */

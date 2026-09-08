@@ -120,6 +120,15 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 		return false;
 	}
 
+	/**
+	 * Governs the panel at the workbench level (like the side pane). Flipping this
+	 * single gate off makes the base remember the panel's *view* per session instead
+	 * (defaulting to the Terminal).
+	 */
+	protected override get _isPanelVisibilityPerSession(): boolean {
+		return false;
+	}
+
 	protected override _shouldRevealEditorPartOnApply(_editorPartHidden: boolean, _isModal: boolean): boolean {
 		return false;
 	}

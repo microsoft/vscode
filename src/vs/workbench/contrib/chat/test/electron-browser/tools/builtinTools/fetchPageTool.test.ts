@@ -82,6 +82,7 @@ class ExtendedTestFileService extends TestFileService {
 class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
 	_serviceBrand: undefined;
 	onDidChange = Event.None;
+	isEnabled(): boolean { return true; }
 	isUriAllowed(_uri: URI): boolean { return true; }
 	formatError(uri: URI): string { return `Access to ${uri.authority} is blocked by network domain policy.`; }
 }

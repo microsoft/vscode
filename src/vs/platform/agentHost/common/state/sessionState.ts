@@ -36,6 +36,8 @@ import {
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -73,6 +75,7 @@ export {
 	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
+	type AutomationState, type AutomationRunState,
 	type SessionConfigState, type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
@@ -176,7 +179,16 @@ function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], curren
 	return [...totals.values()];
 }
 
-export { isMessageHiddenFromTranscript, withMessageHiddenFromTranscript } from '../meta/messageTranscriptMeta.js';
+export {
+	isHostNoticeTurn,
+	isMessageHiddenFromTranscript,
+	isMessageRequestHiddenFromTranscript,
+	lastAttributableTurnId,
+	readMessageSystemInitiatedLabel,
+	withMessageHiddenFromTranscript,
+	withMessageRequestHiddenFromTranscript,
+	withMessageSystemInitiatedLabel,
+} from '../meta/messageTranscriptMeta.js';
 export { hasReportedUsage, readUsageInfoMeta } from '../meta/usageInfoMeta.js';
 export type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, UsageInfoMeta } from '../meta/usageInfoMeta.js';
 
@@ -683,6 +695,8 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
 }
 
 export type ComponentToState = {
@@ -692,9 +706,41 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationState;
+	[StateComponents.AutomationRun]: AutomationRunState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
+
+/**
+ * Singleton channel containing the host-owned automation catalogue.
+ */
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
+
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
+	}
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
+	}
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
+}
 
 /** Scheme used by chat channel URIs (`ahp-chat://...`). */
 export const AHP_CHAT_SCHEME = 'ahp-chat';
@@ -917,15 +963,20 @@ export function getDefaultChat(session: SessionState): ChatSummary | undefined {
 export {
 	AH_META_CREATED_BY_SESSION_DB_KEY,
 	AH_META_EHCLI_ADOPTED_DB_KEY,
+	AH_META_EHCLI_LAST_TURN_DB_KEY,
+	AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY,
+	AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY,
 	AH_META_WORKSPACELESS_DB_KEY,
 	MAX_SESSION_PULL_REQUEST_REFERENCES,
 	SESSION_META_CREATED_BY_SESSION_KEY,
 	SESSION_META_EHCLI_ADOPTABLE_KEY,
 	SESSION_META_EHCLI_ADOPTED_KEY,
+	SESSION_META_EHCLI_LAST_TURN_KEY,
 	SESSION_META_EXTERNAL_KEY,
 	SESSION_META_FOLDER_PICKER_KEY,
 	SESSION_META_GIT_KEY,
 	SESSION_META_GITHUB_KEY,
+	SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY,
 	SESSION_META_MULTI_ROOT_KEY,
 	SESSION_META_PROMPT_CACHE_KEY,
 	SESSION_META_SOURCE_CONTROL_KEY,
@@ -940,10 +991,12 @@ export {
 	readSessionCreationReference,
 	readSessionEhcliAdoptable,
 	readSessionEhcliAdopted,
+	readSessionEhcliLastMigratedTurn,
 	readSessionExternal,
 	readSessionFolderPickerDecision,
 	readSessionGitHubState,
 	readSessionGitState,
+	readSessionHasWorkspaceTransitions,
 	readSessionMatchesByProjectRoot,
 	readSessionMultiRootMetadata,
 	readSessionPromptCacheState,
@@ -956,10 +1009,12 @@ export {
 	withSessionCreationReference,
 	withSessionEhcliAdoptable,
 	withSessionEhcliAdopted,
+	withSessionEhcliLastMigratedTurn,
 	withSessionExternal,
 	withSessionFolderPickerDecision,
 	withSessionGitHubState,
 	withSessionGitState,
+	withSessionHasWorkspaceTransitions,
 	withSessionMultiRootMetadata,
 	withSessionPromptCacheState,
 	withSessionSourceControlState,

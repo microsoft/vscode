@@ -26,3 +26,49 @@
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button:not(.active) {
 	color: var(--vscode-descriptionForeground);
 }
+
+/* A closing tab holds its old label while it shrinks, so it has to clip it. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing {
+	overflow: hidden;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button.label-collapsing > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.align-end {
+	margin-left: auto;
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.action-widget .tabbed-action-list-footer,
+.action-widget .tabbed-action-list-empty {
+	flex: 0 0 auto;
+}

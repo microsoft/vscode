@@ -45,8 +45,8 @@ rounds:
           part:
             kind: markdown
             content: |-
-              Modified: tracked.txt
-              Untracked: untracked.txt
+              Modified: `tracked.txt`
+              Untracked: `untracked.txt`
       - channel: ${chat_0}
         action:
           type: chat/turnComplete

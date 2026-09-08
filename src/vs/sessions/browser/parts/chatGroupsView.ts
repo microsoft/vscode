@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupsView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -19,7 +19,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChatViewOptions } from './chatView.js';
+import { IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
@@ -324,6 +324,12 @@ export class ChatGroupsView extends Themable {
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
 		const activeId = activeChat?.resource.toString();
+		const hasUnassignedVisibleChats = orderedIds.some(id => !this._groups.some(group => group.resourceIds.get().includes(id)));
+
+		// Dispose orphaned groups before publishing an empty assignment.
+		if (!this._restorePending && !hasUnassignedVisibleChats) {
+			this._removeGroupsWithoutVisibleChats(validIds);
+		}
 
 		transaction(tx => {
 			// Prune stale assignments.
@@ -621,11 +627,19 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _removeEmptyGroups(): void {
+		this._removeGroups(group => group.resourceIds.get().length === 0);
+	}
+
+	private _removeGroupsWithoutVisibleChats(visibleChatIds: ReadonlySet<string>): void {
+		this._removeGroups(group => group.resourceIds.get().every(id => !visibleChatIds.has(id)));
+	}
+
+	private _removeGroups(shouldRemove: (group: IGroupEntry) => boolean): void {
 		if (!this._grid || this._groups.length <= 1) {
 			return;
 		}
-		const empties = this._groups.filter(g => g.resourceIds.get().length === 0);
-		for (const group of empties) {
+		const groups = this._groups.filter(shouldRemove);
+		for (const group of groups) {
 			if (this._groups.length <= 1) {
 				break;
 			}
@@ -653,6 +667,19 @@ export class ChatGroupsView extends Themable {
 			group.view.setGroupActive(group === entry);
 		}
 		this._persistLayout();
+	}
+
+	getFocusedChat(): IChat | undefined {
+		const group = this._getFocusedGroup();
+		if (!group) {
+			return undefined;
+		}
+		const activeResource = group.activeResourceId.get();
+		return group.chats.get().find(chat => chat.resource.toString() === activeResource);
+	}
+
+	private _getFocusedGroup(): IGroupEntry | undefined {
+		return this._groups.find(group => isAncestorOfActiveElement(group.view.element));
 	}
 
 	/**
@@ -778,8 +805,12 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._activeGroup?.view.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+		this._activeGroup?.view.selectWorkspace(folderUri, options);
+	}
+
+	selectNoWorkspace(): void {
+		this._activeGroup?.view.selectNoWorkspace();
 	}
 
 	prefillInput(text: string): void {

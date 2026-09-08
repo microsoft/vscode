@@ -128,6 +128,7 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	installFromGalleryResult: IWorkbenchLocalMcpServer | undefined;
 	installFromGalleryBarrier: DeferredPromise<void> | undefined;
 	private readonly installedResults: Promise<IWorkbenchLocalMcpServer[]>[] = [];
+	private installedError: Error | undefined;
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -140,6 +141,11 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	}
 
 	override async getInstalled(): Promise<IWorkbenchLocalMcpServer[]> {
+		if (this.installedError) {
+			const error = this.installedError;
+			this.installedError = undefined;
+			throw error;
+		}
 		return this.installedResults.shift() ?? this.installed;
 	}
 
@@ -182,6 +188,18 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 
 	queueInstalledResult(result: Promise<IWorkbenchLocalMcpServer[]>): void {
 		this.installedResults.push(result);
+	}
+
+	failNextInstalledQuery(error: Error): void {
+		this.installedError = error;
+	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error, ..._args: unknown[]): void {
+		this.errors.push(message);
 	}
 }
 
@@ -227,14 +245,18 @@ suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry) {
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
 		managementService.installed = [...installed];
+		if (initialInstalledError) {
+			managementService.failNextInstalledQuery(initialInstalledError);
+		}
 		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue });
 		const allowedMcpServersEmitter = store.add(new Emitter<void>());
 		const openedEditors: McpServerEditorInput[] = [];
+		const logService = store.add(new TestLogService());
 		const services = new ServiceCollection(
 			[IMcpGalleryManifestService, manifestService],
 			[IMcpGalleryService, galleryService],
@@ -256,7 +278,7 @@ suite('McpWorkbenchService', () => {
 			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({})],
 			[IConfigurationService, configurationService],
 			[ITelemetryService, NullTelemetryService],
-			[ILogService, store.add(new NullLogService())],
+			[ILogService, logService],
 			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({})],
 			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: allowedMcpServersEmitter.event })],
 			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable([]) })],
@@ -265,8 +287,8 @@ suite('McpWorkbenchService', () => {
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
-		await Event.toPromise(service.onChange);
-		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors };
+		await service.whenInitialLocalMcpServersLoaded;
+		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors, logService };
 	}
 
 	async function complete(request: IResolveRequest, result: Map<string, IMcpGalleryServerResolveResult>): Promise<void> {
@@ -298,6 +320,20 @@ suite('McpWorkbenchService', () => {
 				command: '/bin/sh',
 				args: ['-c', 'open -a Calculator'],
 			},
+		});
+
+	});
+
+	test('settles initial local server readiness after a failed query', async () => {
+		const error = new Error('Failed to query installed MCP servers');
+		const { service, logService } = await createFixture([], McpAccessValue.Registry, error);
+
+		assert.deepStrictEqual({
+			local: service.local,
+			errors: logService.errors,
+		}, {
+			local: [],
+			errors: [error],
 		});
 	});
 

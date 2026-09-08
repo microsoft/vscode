@@ -115,8 +115,8 @@ export function readSessionPromptCacheState(meta: SessionMeta | undefined): ISes
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
-	return typeof raw['modelId'] === 'string' && typeof raw['cacheExpiresAt'] === 'string'
-		? { modelId: raw['modelId'], cacheExpiresAt: raw['cacheExpiresAt'] }
+	return typeof raw.modelId === 'string' && typeof raw.cacheExpiresAt === 'string'
+		? { modelId: raw.modelId, cacheExpiresAt: raw.cacheExpiresAt }
 		: undefined;
 }
 
@@ -181,18 +181,18 @@ function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPick
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
-	if (typeof raw['hidden'] !== 'boolean') {
+	if (typeof raw.hidden !== 'boolean') {
 		return undefined;
 	}
-	const primary = raw['primary'];
+	const primary = raw.primary;
 	// `primary` is only valid on a hidden, pinned decision (see
 	// ISessionFolderPickerDecision); reject the contradictory `{ hidden: false,
 	// primary }` so malformed persisted/remote metadata can't make the client
 	// both reveal the picker and auto-select/recreate the session.
-	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw['hidden'] !== true)) {
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw.hidden !== true)) {
 		return undefined;
 	}
-	return primary !== undefined ? { hidden: true, primary } : { hidden: raw['hidden'] };
+	return primary !== undefined ? { hidden: true, primary } : { hidden: raw.hidden };
 }
 
 /** Returns session metadata with the folder-picker decision updated or removed. */
@@ -272,13 +272,13 @@ export function readSessionSourceControlState(meta: SessionMeta | undefined): IS
 
 	const raw = value as Record<string, unknown>;
 	let merge: ISessionSourceControlState['merge'];
-	const rawMerge = raw['merge'];
+	const rawMerge = raw.merge;
 	if (rawMerge && typeof rawMerge === 'object' && !Array.isArray(rawMerge)) {
-		const commit = (rawMerge as Record<string, unknown>)['commit'];
+		const commit = (rawMerge as Record<string, unknown>).commit;
 		merge = typeof commit === 'string' && commit.length > 0 ? { commit } : undefined;
 	}
 
-	const rawLatestOutcome = raw['latestOutcome'];
+	const rawLatestOutcome = raw.latestOutcome;
 	const latestOutcome = rawLatestOutcome === SessionSourceControlOutcome.Merge || rawLatestOutcome === SessionSourceControlOutcome.PullRequest
 		? rawLatestOutcome
 		: undefined;
@@ -319,6 +319,10 @@ export interface ISessionGitHubState {
 	readonly initialPullRequestUrls?: readonly string[];
 	/** Pull requests explicitly associated through user intent, most recent first. */
 	readonly associatedPullRequestUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
 	/**
 	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
@@ -361,7 +365,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
 		const groups = match?.groups;
 		return groups
-			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			? `https://${groups.host.toLowerCase()}/${groups.owner}/${groups.repo}/pull/${groups.number}`
 			: url;
 	});
 	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
@@ -373,10 +377,15 @@ export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubStat
 		pullRequestUrl,
 		...(gitHubState?.pullRequestUrls ?? [])
 	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
 
 	return {
 		pullRequestUrls,
 		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
 	};
 }
 
@@ -443,18 +452,18 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
-	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
-	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
-	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
-	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
-	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
-	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
-	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
-	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
-	if (typeof raw['hasBaseBranchChanges'] === 'boolean') { result.hasBaseBranchChanges = raw['hasBaseBranchChanges']; }
-	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
-	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
-	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
+	if (typeof raw.hasGitHubRemote === 'boolean') { result.hasGitHubRemote = raw.hasGitHubRemote; }
+	if (typeof raw.branchName === 'string') { result.branchName = raw.branchName; }
+	if (typeof raw.isDetachedHead === 'boolean') { result.isDetachedHead = raw.isDetachedHead; }
+	if (typeof raw.baseBranchName === 'string') { result.baseBranchName = raw.baseBranchName; }
+	if (typeof raw.upstreamBranchName === 'string') { result.upstreamBranchName = raw.upstreamBranchName; }
+	if (typeof raw.incomingChanges === 'number') { result.incomingChanges = raw.incomingChanges; }
+	if (typeof raw.outgoingChanges === 'number') { result.outgoingChanges = raw.outgoingChanges; }
+	if (typeof raw.uncommittedChanges === 'number') { result.uncommittedChanges = raw.uncommittedChanges; }
+	if (typeof raw.hasBaseBranchChanges === 'boolean') { result.hasBaseBranchChanges = raw.hasBaseBranchChanges; }
+	if (typeof raw.githubOwner === 'string') { result.githubOwner = raw.githubOwner; }
+	if (typeof raw.githubHeadOwner === 'string') { result.githubHeadOwner = raw.githubHeadOwner; }
+	if (typeof raw.githubRepo === 'string') { result.githubRepo = raw.githubRepo; }
 	return result;
 }
 
@@ -513,29 +522,35 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 		pullRequestUrls?: readonly string[];
 		initialPullRequestUrls?: readonly string[];
 		associatedPullRequestUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
 		pullRequestBranchName?: string;
 	} = {};
 
-	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
-	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
-	const pullRequestUrls = Array.isArray(raw['pullRequestUrls'])
-		? raw['pullRequestUrls'].filter((url): url is string => typeof url === 'string')
-		: typeof raw['pullRequestUrl'] === 'string'
-			? [raw['pullRequestUrl']]
+	if (typeof raw.owner === 'string') { result.owner = raw.owner; }
+	if (typeof raw.repo === 'string') { result.repo = raw.repo; }
+	const pullRequestUrls = Array.isArray(raw.pullRequestUrls)
+		? raw.pullRequestUrls.filter((url): url is string => typeof url === 'string')
+		: typeof raw.pullRequestUrl === 'string'
+			? [raw.pullRequestUrl]
 			: [];
 	if (pullRequestUrls.length > 0) {
 		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
 	}
-	if (Array.isArray(raw['initialPullRequestUrls'])) {
-		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw['initialPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	if (Array.isArray(raw.initialPullRequestUrls)) {
+		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw.initialPullRequestUrls.filter((url): url is string => typeof url === 'string'));
 	}
-	if (Array.isArray(raw['associatedPullRequestUrls'])) {
-		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw['associatedPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	if (Array.isArray(raw.associatedPullRequestUrls)) {
+		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw.associatedPullRequestUrls.filter((url): url is string => typeof url === 'string'));
 		if (associatedPullRequestUrls.length > 0) {
 			result.associatedPullRequestUrls = associatedPullRequestUrls;
 		}
 	}
-	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
+	if (raw.pullRequestState === 'open' || raw.pullRequestState === 'closed' || raw.pullRequestState === 'merged') {
+		result.pullRequestState = raw.pullRequestState;
+	}
+	if (typeof raw.pullRequestStateUrl === 'string') { result.pullRequestStateUrl = raw.pullRequestStateUrl; }
+	if (typeof raw.pullRequestBranchName === 'string') { result.pullRequestBranchName = raw.pullRequestBranchName; }
 	return result;
 }
 
@@ -641,6 +656,15 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
 
+/** Session-database marker indicating that retained turns include workspace-transition boundaries. */
+export const AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY = 'agentHost.hasWorkspaceTransitions';
+
+/** Summary metadata mirror of {@link AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}. */
+export const SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY = 'hasWorkspaceTransitions';
+
+/** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
+export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
+
 /**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
  * `true` only when the well-known key is present and set to boolean `true`.
@@ -660,6 +684,22 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether retained turns in this session include host-owned workspace transitions. */
+export function readSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] === true;
+}
+
+/** Returns summary metadata with the workspace-transition history marker updated. */
+export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined, hasTransitions: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (hasTransitions) {
+		next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] = true;
+	} else {
+		delete next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -724,6 +764,33 @@ export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, ad
 		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
 }
 
 /**

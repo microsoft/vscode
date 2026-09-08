@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../base/common/observable.js';
+import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -12,8 +13,10 @@ export const IDiffEditorOptionsService = createDecorator<IDiffEditorOptionsServi
 
 export interface IDiffEditorOptionsService {
 	readonly _serviceBrand: undefined;
+	readonly viewMode: IObservable<DiffEditorViewMode>;
 	readonly renderSideBySide: IObservable<boolean>;
+	setViewMode(mode: DiffEditorViewMode): void;
 	toggleRenderSideBySide(): void;
 }
 
-export const SessionsDiffRenderSideBySideContext = new RawContextKey<boolean>('sessionsDiffRenderSideBySide', true, localize('sessionsDiffRenderSideBySide', "Whether Agents window diffs prefer side-by-side layout"));
+export const SessionsDiffViewModeContext = new RawContextKey<DiffEditorViewMode>('sessionsDiffViewMode', 'automatic', localize('sessionsDiffViewMode', "The preferred layout mode for diffs in the Agents window"));

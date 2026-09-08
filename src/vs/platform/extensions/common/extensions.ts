@@ -252,6 +252,7 @@ export interface IExtensionContributions {
 export interface IExtensionCapabilities {
 	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+	readonly agentsWindow?: { readonly supported: boolean };
 }
 
 

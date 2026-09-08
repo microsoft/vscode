@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -72,9 +73,10 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -132,9 +134,10 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -186,9 +189,10 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -231,9 +235,10 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -288,9 +293,10 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
+			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
 		);
 
 		try {
@@ -323,7 +329,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
@@ -378,7 +384,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
-		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 

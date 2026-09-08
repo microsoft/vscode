@@ -18,6 +18,7 @@ export const enum AgentHostClientConnectionKind {
 	Local = 'local',
 	DirectWebSocket = 'direct_websocket',
 	DevTunnel = 'dev_tunnel',
+	DevContainer = 'dev_container',
 	SSH = 'ssh',
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
@@ -83,6 +84,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.Local:
 		case AgentHostClientConnectionKind.DirectWebSocket:
 		case AgentHostClientConnectionKind.DevTunnel:
+		case AgentHostClientConnectionKind.DevContainer:
 		case AgentHostClientConnectionKind.SSH:
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:

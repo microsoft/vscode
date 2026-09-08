@@ -6,10 +6,15 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { tildify } from '../../../../../base/common/labels.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 // eslint-disable-next-line local/code-import-patterns
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -21,6 +26,7 @@ import { IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvider } from '../../../../../sessions/services/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
@@ -48,6 +54,8 @@ interface ISessionSpec {
 	readonly changes?: readonly { readonly insertions: number; readonly deletions: number }[];
 	readonly sessionType?: string;
 	readonly isQuickChat?: boolean;
+	/** Renders the trailing "External Session" row. */
+	readonly isExternal?: boolean;
 }
 
 function createWorkspace(spec: IWorkspaceSpec): ISessionWorkspace {
@@ -94,6 +102,7 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly worktreePending: IObservable<boolean> = constObservable(!!spec.worktreePending);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!!spec.isQuickChat);
+		override readonly isExternal: IObservable<boolean> = constObservable(!!spec.isExternal);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
 	}();
 }
@@ -112,6 +121,27 @@ const SESSIONS_PROVIDERS_SERVICE = new class extends mock<ISessionsProvidersServ
 			override readonly icon: ThemeIcon = Codicon.vm;
 			override readonly sessionTypes = SESSION_TYPES;
 		}() as T;
+	}
+}();
+
+const OPENER_SERVICE = new class extends mock<IOpenerService>() {
+	override async open(): Promise<boolean> {
+		return true;
+	}
+}();
+
+const PREFERENCES_SERVICE = new class extends mock<IPreferencesService>() {
+	override async openSettings(): Promise<undefined> {
+		return undefined;
+	}
+}();
+
+/** Stands in for the workbench label service: a POSIX home, tildified. */
+const LABEL_SERVICE = new class extends mock<ILabelService>() {
+	override getUriLabel(resource: URI): string {
+		return resource.scheme === Schemas.file
+			? tildify(resource.path, '/home/user', OperatingSystem.Linux)
+			: resource.toString(true);
 	}
 }();
 
@@ -158,7 +188,7 @@ function renderInHover(ctx: ComponentFixtureContext, content: HTMLElement): void
 
 /** The Agents window path: ISession → hover data → shared widget. */
 function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec): void {
-	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE);
+	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE, PREFERENCES_SERVICE);
 	renderInHover(ctx, new SessionSummaryHoverWidget(data).domNode);
 }
 
@@ -230,6 +260,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderSessionHover(ctx, {
 			title: '',
 			isQuickChat: true,
+		}),
+	}),
+	// Picked up from another application, so the hover closes by naming where
+	// the session came from.
+	SessionHover_ExternalSession: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
+			isExternal: true,
 		}),
 	}),
 	SessionHover_LongValues: defineComponentFixture({
