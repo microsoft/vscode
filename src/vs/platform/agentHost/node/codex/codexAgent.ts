@@ -2355,6 +2355,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		let child: ChildProcessWithoutNullStreams | undefined;
 		let client: CodexAppServerClient | undefined;
+		let sandboxTempDirectory: string | undefined;
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -2363,6 +2364,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 			const launchConfig = buildCodexLaunchConfig(process.env, proxyHandle, extraArgs, telemetry);
 			const env = launchConfig.env;
+			sandboxTempDirectory = await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-agent-codex-sandbox-'));
+			env.TMPDIR = sandboxTempDirectory;
+			env.TMP = sandboxTempDirectory;
+			env.TEMP = sandboxTempDirectory;
 			const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
 			if (userCodexHome) {
 				env.CODEX_HOME = userCodexHome;
@@ -2373,6 +2378,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			// exporter headers. Keep them out of the persistent agent-host log.
 			this._logService.info(`[Codex] spawning app-server from ${binaryPath}`);
 			child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+			const ownedSandboxTempDirectory = sandboxTempDirectory;
+			sandboxTempDirectory = undefined;
+			child.once('close', () => {
+				void fs.promises.rm(ownedSandboxTempDirectory, { recursive: true, force: true }).catch(error => {
+					this._logService.warn(`[Codex] failed to remove sandbox temp directory ${ownedSandboxTempDirectory}: ${error instanceof Error ? error.message : String(error)}`);
+				});
+			});
 
 			// Surface stderr to the log channel — codex writes useful startup
 			// diagnostics there. Mirror Claude's pattern.
@@ -2403,6 +2415,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			client?.dispose();
 			proxyHandle.dispose();
 			try { child?.kill('SIGKILL'); } catch { /* already dead */ }
+			if (sandboxTempDirectory) {
+				try { await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
 			throw err;
 		}
 	}

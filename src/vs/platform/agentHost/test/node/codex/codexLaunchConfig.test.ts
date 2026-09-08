@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile } from '../../../node/codex/codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,12 +61,7 @@ suite('CodexLaunchConfig', () => {
 
 	test('defines workspace-only permission profiles after extra arguments', () => {
 		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
-		const expectedOverrides = [
-			'default_permissions="vscode-workspace"',
-			'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd" = "deny", "/private/etc/passwd" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }',
-			'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
-			'permissions.vscode-workspace-read-only={ extends = "vscode-workspace", filesystem = { ":workspace_roots" = { "." = "read" } } }',
-		];
+		const expectedOverrides = codexPermissionProfileOverrides();
 		assert.deepStrictEqual({
 			profiles: expectedOverrides.map(override => config.args.includes(override)),
 			secureDefaultWins: config.args.indexOf('default_permissions=":danger-full-access"') < config.args.indexOf('default_permissions="vscode-workspace"'),
@@ -85,6 +80,23 @@ suite('CodexLaunchConfig', () => {
 				readOnly: 'vscode-workspace-read-only',
 				fullAccess: ':danger-full-access',
 			},
+		});
+	});
+
+	test('uses platform-valid protected paths and a private writable temp root', () => {
+		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
+		const macProfile = codexPermissionProfileOverrides('darwin')[1];
+		const windowsProfile = codexPermissionProfileOverrides('win32')[1];
+		assert.deepStrictEqual({
+			linux: [linuxProfile.includes('"/etc/passwd*" = "deny"'), linuxProfile.includes('/private/etc/passwd')],
+			mac: [macProfile.includes('"/etc/passwd*" = "deny"'), macProfile.includes('"/private/etc/passwd*" = "deny"')],
+			windows: [windowsProfile.includes('/etc/passwd')],
+			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
+		}, {
+			linux: [true, false],
+			mac: [true, true],
+			windows: [false],
+			temp: [[true, true], [true, true], [true, true]],
 		});
 	});
 

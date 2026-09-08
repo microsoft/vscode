@@ -13,6 +13,27 @@ const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
 const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
+export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
+	const protectedSystemPathPatterns = platform === 'win32'
+		? []
+		: platform === 'darwin'
+			? ['/etc/passwd*', '/private/etc/passwd*']
+			: ['/etc/passwd*'];
+	const fileSystemEntries = [
+		`":root" = "deny"`,
+		`":minimal" = "read"`,
+		...protectedSystemPathPatterns.map(pattern => `${JSON.stringify(pattern)} = "deny"`),
+		`":tmpdir" = "write"`,
+		`":slash_tmp" = "deny"`,
+	].join(', ');
+	return [
+		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace", filesystem = { ${fileSystemEntries} }, network = { enabled = false } }`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`,
+	];
+}
+
 export function codexPermissionProfile(mode: SandboxMode, networkAccess: boolean): string {
 	if (mode === 'danger-full-access') {
 		return ':danger-full-access';
@@ -89,12 +110,7 @@ export function buildCodexLaunchConfig(
 		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
 	];
-	const permissionOverrides = [
-		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd" = "deny", "/private/etc/passwd" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`,
-	];
+	const permissionOverrides = codexPermissionProfileOverrides();
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
