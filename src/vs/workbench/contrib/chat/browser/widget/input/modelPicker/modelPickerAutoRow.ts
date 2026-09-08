@@ -20,7 +20,7 @@ export interface IAutoRowOptions {
 	readonly onToggle: (enabled: boolean) => void;
 }
 
-/** Auto's routing tiers remain available while off; activating a tier also enables Auto. */
+/** Auto's routing tiers appear while enabled and remember their selection across toggles. */
 export class ModelPickerAutoRow extends DisposableStore {
 
 	readonly element = dom.$('.chat-model-picker-auto-row');
@@ -38,6 +38,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 
 		const main = dom.append(this.element, dom.$('.chat-model-picker-auto-main'));
 		dom.append(main, dom.$('.chat-model-picker-auto-label', undefined, _options.autoModel.metadata.name));
+		this._description = dom.append(main, dom.$('.chat-model-picker-auto-description'));
 
 		this._toggle = this.add(new Switch({
 			ariaLabel: localize('chat.modelPicker.autoToggle', "Choose a model automatically"),
@@ -60,10 +61,6 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this.add(dom.addDisposableGenericMouseDownListener(main, e => e.preventDefault()));
 
 		this._tierContainer = dom.append(this.element, dom.$('.chat-model-picker-auto-tiers'));
-		this._description = dom.append(this.element, dom.$('.chat-model-picker-auto-description'));
-		// The description is inert text, so pressing it must not dismiss the popup either.
-		// The tiers are left alone: their buttons take focus of their own accord.
-		this.add(dom.addDisposableGenericMouseDownListener(this._description, e => e.preventDefault()));
 		this.render();
 	}
 
@@ -87,7 +84,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 		this._renderDisposables.clear();
 		this._tierControl = undefined;
 
-		if (tier && values.length > 1) {
+		if (enabled && tier && values.length > 1) {
 			const control = this._renderDisposables.add(new Radio({
 				ariaLabel: tier.schema.title ?? localize('chat.modelPicker.autoTier', "Optimize for"),
 				className: 'segmented',
@@ -109,7 +106,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}
 		}
 
-		const tierDescription = tier?.schema.enumDescriptions?.[selectedIndex];
+		const tierDescription = enabled ? tier?.schema.enumDescriptions?.[selectedIndex] : undefined;
 		// Auto's own detail stays put; the tier description joins it rather than replacing it.
 		const detail = this._options.autoModel.metadata.detail;
 		const parts = [detail, tierDescription].filter(part => !!part);

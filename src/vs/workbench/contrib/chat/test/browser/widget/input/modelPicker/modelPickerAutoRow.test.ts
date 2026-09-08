@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
@@ -160,7 +159,7 @@ suite('ModelPickerAutoRow', () => {
 			{ strip: true, description: true });
 	});
 
-	test('inactive tiers remain visible and interactive with the remembered tier and description', () => {
+	test('inactive Auto hides tiers and the selected tier description', () => {
 		const { row, tiers, description, toggle, configurationAccess } = createRow(false, {
 			autoModel: createAutoModel(true),
 			configurationAccess: createConfigurationAccess({ tier: 'max' }),
@@ -183,13 +182,9 @@ suite('ModelPickerAutoRow', () => {
 		}, {
 			enabled: false,
 			toggle: 'false',
-			group: 'Optimize for',
-			tiers: [
-				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true },
-			],
-			description: 'Automatic model selection · Most capable models',
+			group: undefined,
+			tiers: [],
+			description: 'Automatic model selection',
 			descriptionVisible: true,
 			savedTier: 'max',
 		});
@@ -199,10 +194,10 @@ suite('ModelPickerAutoRow', () => {
 		[0, 'eco', 'Cheaper models'],
 		[1, 'balanced', 'Balances capability and cost'],
 	] as const) {
-		test(`clicking the ${tier} tier saves it before enabling Auto, including the remembered tier`, async () => {
+		test(`clicking the ${tier} tier saves it while Auto is enabled`, async () => {
 			const configurationAccess = createConfigurationAccess({ tier: 'balanced' });
 			const savedAtToggle: unknown[] = [];
-			const result = createRow(false, {
+			const result = createRow(true, {
 				autoModel: createAutoModel(true),
 				configurationAccess,
 				onToggle: () => savedAtToggle.push(configurationAccess.getModelConfiguration('copilot/auto')?.tier),
@@ -222,8 +217,8 @@ suite('ModelPickerAutoRow', () => {
 				focused: mainWindow.document.activeElement === result.tiers[index],
 				previousConnected: previousButton.isConnected,
 			}, {
-				toggles: [true],
-				savedAtToggle: [tier],
+				toggles: [],
+				savedAtToggle: [],
 				savedTier: tier,
 				enabled: true,
 				checked: [0, 1, 2].map(candidate => String(candidate === index)),
@@ -236,8 +231,8 @@ suite('ModelPickerAutoRow', () => {
 
 	for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
 		for (const index of [0, 1]) {
-			test(`${key === ' ' ? 'Space' : key} activates ${index === 1 ? 'the remembered' : 'a different'} tier while Auto is off`, async () => {
-				const result = createRow(false, { autoModel: createAutoModel(true) });
+			test(`${key === ' ' ? 'Space' : key} activates ${index === 1 ? 'the remembered' : 'a different'} tier while Auto is on`, async () => {
+				const result = createRow(true, { autoModel: createAutoModel(true) });
 				result.tiers[index].focus();
 				result.tiers[index].dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
 				await timeout(0);
@@ -248,7 +243,7 @@ suite('ModelPickerAutoRow', () => {
 					checked: result.tiers.map(element => element.getAttribute('aria-checked')),
 					focused: mainWindow.document.activeElement === result.tiers[index],
 				}, {
-					toggles: [true],
+					toggles: [],
 					savedTier: index === 0 ? 'eco' : 'balanced',
 					checked: [0, 1, 2].map(candidate => String(candidate === index)),
 					focused: true,
@@ -257,8 +252,8 @@ suite('ModelPickerAutoRow', () => {
 		}
 	}
 
-	test('arrows and re-rendering preserve focus without changing the tier or enabling Auto', async () => {
-		const result = createRow(false, {
+	test('arrows and re-rendering preserve focus without changing the tier', async () => {
+		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: createConfigurationAccess({ tier: 'balanced' }),
 		});
@@ -288,40 +283,34 @@ suite('ModelPickerAutoRow', () => {
 		});
 	});
 
-	test('toggling Auto off and back on retains the tiers, description, selection, and layout', () => {
+	test('toggling Auto off hides configuration and toggling it back on restores the selection', () => {
 		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: createConfigurationAccess({ tier: 'max' }),
 		});
-		const measure = () => [result.row.element, ...result.tiers, result.description, result.toggle].map(element => {
-			const { x, y, width, height } = element.getBoundingClientRect();
-			return { x, y, width, height };
-		});
 		const readState = () => ({
 			description: result.description.textContent,
 			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
-			bounds: measure(),
 		});
 		const initial = readState();
 		result.toggle.focus();
 		result.toggle.click();
 		const inactive = readState();
-		const inactiveStyle = getWindow(result.tiers[2]).getComputedStyle(result.tiers[2]);
-		const inactiveAppearance = { color: inactiveStyle.color, background: inactiveStyle.backgroundColor, opacity: inactiveStyle.opacity };
 		result.toggle.click();
 
 		assert.deepStrictEqual({
 			toggles: result.toggles,
 			inactive,
 			restored: readState(),
-			inactiveAppearance,
 			savedTier: result.configurationAccess.getModelConfiguration('copilot/auto')?.tier,
 			toggleFocused: mainWindow.document.activeElement === result.toggle,
 		}, {
 			toggles: [false, true],
-			inactive: initial,
+			inactive: {
+				description: 'Automatic model selection',
+				checked: [],
+			},
 			restored: initial,
-			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgb(32, 32, 32)', opacity: '1' },
 			savedTier: 'max',
 			toggleFocused: true,
 		});
@@ -345,42 +334,9 @@ suite('ModelPickerAutoRow', () => {
 		});
 	});
 
-	test('Auto is enabled only after the tier is saved without stealing focus moved elsewhere', async () => {
-		const saved = new DeferredPromise<void>();
-		const access = createConfigurationAccess({ tier: 'balanced' });
-		const result = createRow(false, {
-			autoModel: createAutoModel(true),
-			configurationAccess: {
-				...access,
-				setModelConfiguration: async (modelId, values) => {
-					await saved.p;
-					await access.setModelConfiguration(modelId, values);
-				},
-			},
-		});
-		result.tiers[2].focus();
-		result.tiers[2].click();
-		const beforeSave = { toggles: [...result.toggles], savedTier: access.getModelConfiguration('copilot/auto')?.tier };
-		result.toggle.focus();
-		await saved.complete();
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			beforeSave,
-			toggles: result.toggles,
-			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
-			toggleFocused: mainWindow.document.activeElement === result.toggle,
-		}, {
-			beforeSave: { toggles: [], savedTier: 'balanced' },
-			toggles: [true],
-			savedTier: 'max',
-			toggleFocused: true,
-		});
-	});
-
-	test('configuration failures are reported and restore the remembered tier without enabling Auto', async () => {
+	test('configuration failures are reported and restore the remembered tier', async () => {
 		const failure = new Error('Cannot save tier');
-		const result = createRow(false, {
+		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: {
 				...createConfigurationAccess({ tier: 'balanced' }),
@@ -413,11 +369,11 @@ suite('ModelPickerAutoRow', () => {
 		});
 	});
 
-	test('rapid tier activations save in order and enable Auto once', async () => {
+	test('rapid tier activations save in order without toggling Auto', async () => {
 		const firstSave = new DeferredPromise<void>();
 		const access = createConfigurationAccess({ tier: 'balanced' });
 		const writes: unknown[] = [];
-		const result = createRow(false, {
+		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: {
 				...access,
@@ -447,55 +403,50 @@ suite('ModelPickerAutoRow', () => {
 		}, {
 			pendingWrites: ['eco'],
 			writes: ['eco', 'max'],
-			toggles: [true],
+			toggles: [],
 			savedTier: 'max',
 			checked: ['false', 'false', 'true'],
 			description: 'Automatic model selection · Most capable models',
 		});
 	});
 
-	for (const initiallyEnabled of [false, true]) {
-		test(`turning Auto off during a pending save is respected when initially ${initiallyEnabled ? 'on' : 'off'}`, async () => {
-			const saved = new DeferredPromise<void>();
-			const access = createConfigurationAccess({ tier: 'balanced' });
-			const result = createRow(initiallyEnabled, {
-				autoModel: createAutoModel(true),
-				configurationAccess: {
-					...access,
-					setModelConfiguration: async (modelId, values) => {
-						await saved.p;
-						await access.setModelConfiguration(modelId, values);
-					},
+	test('turning Auto off during a pending save keeps configuration hidden', async () => {
+		const saved = new DeferredPromise<void>();
+		const access = createConfigurationAccess({ tier: 'balanced' });
+		const result = createRow(true, {
+			autoModel: createAutoModel(true),
+			configurationAccess: {
+				...access,
+				setModelConfiguration: async (modelId, values) => {
+					await saved.p;
+					await access.setModelConfiguration(modelId, values);
 				},
-			});
-			result.tiers[2].click();
-			await timeout(0);
-			if (!initiallyEnabled) {
-				result.toggle.click();
-			}
-			result.toggle.click();
-			await saved.complete();
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				toggles: result.toggles,
-				enabled: result.row.element.classList.contains('enabled'),
-				savedTier: access.getModelConfiguration('copilot/auto')?.tier,
-				checked: result.tiers.map(element => element.getAttribute('aria-checked')),
-				description: result.description.textContent,
-			}, {
-				toggles: initiallyEnabled ? [false] : [true, false],
-				enabled: false,
-				savedTier: 'max',
-				checked: ['false', 'false', 'true'],
-				description: 'Automatic model selection · Most capable models',
-			});
+			},
 		});
-	}
+		result.tiers[2].click();
+		await timeout(0);
+		result.toggle.click();
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			toggles: result.toggles,
+			enabled: result.row.element.classList.contains('enabled'),
+			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
+			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
+			description: result.description.textContent,
+		}, {
+			toggles: [false],
+			enabled: false,
+			savedTier: 'max',
+			checked: [],
+			description: 'Automatic model selection',
+		});
+	});
 
 	test('a disposed row does not enable Auto or recreate controls after a pending save', async () => {
 		const saved = new DeferredPromise<void>();
-		const result = createRow(false, {
+		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: {
 				...createConfigurationAccess(),
@@ -523,7 +474,7 @@ suite('ModelPickerAutoRow', () => {
 	});
 
 	test('an unrecognized saved tier uses the same fallback for selection and description', () => {
-		const result = createRow(false, {
+		const result = createRow(true, {
 			autoModel: createAutoModel(true),
 			configurationAccess: createConfigurationAccess({ tier: 'retired' }),
 		});

@@ -15,7 +15,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelContextWindowTotal, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner } from './modelPickerHover.js';
-import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, getChangedModelConfigProperties, getModelConfigValueLabel, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 
@@ -60,6 +60,9 @@ export class ModelCard extends DisposableStore {
 	private readonly _contentDisposables = this.add(new DisposableStore());
 	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
 	private _pricingToggle: HTMLElement | undefined;
+	/** Controls rebuilt on each render, kept so focus can be put back on one of them. */
+	private _pinButton: HTMLElement | undefined;
+	private readonly _groupControls = new Map<string, Radio>();
 
 	constructor(private readonly _options: IModelCardOptions) {
 		super();
@@ -77,15 +80,33 @@ export class ModelCard extends DisposableStore {
 
 	private async _setValue(group: string, key: string, value: unknown): Promise<void> {
 		const previous = this._configProperty(group)?.value;
+		const hadFocus = this.element.contains(dom.getActiveElement());
 		await this._options.configurationAccess.setModelConfiguration(this._options.model.identifier, { [key]: value });
 		this._render();
+		// The write rebuilds the control that was just used. Leaving focus on the removed
+		// element would read as focus leaving the popup, which dismisses it.
+		if (hadFocus) {
+			this._restoreFocus(group);
+		}
 		this._options.onDidChangeConfiguration?.(group, key, previous, value);
+	}
+
+	/** Puts focus back on the rebuilt card, preferring the control the user was using. */
+	private _restoreFocus(group?: string): void {
+		const control = group ? this._groupControls.get(group) : undefined;
+		if (control) {
+			control.focusActiveItem();
+			return;
+		}
+		this._pinButton?.focus();
 	}
 
 	private _render(): void {
 		this._contentDisposables.clear();
 		dom.clearNode(this.element);
 		this._pricingToggle = undefined;
+		this._pinButton = undefined;
+		this._groupControls.clear();
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;
@@ -142,12 +163,14 @@ export class ModelCard extends DisposableStore {
 
 		const badgeLabel = isAuto
 			? metadata.detail
-			: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
+			: this._showsPriceBadgeInPricing()
+				? undefined
+				: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
 		if (badgeLabel) {
-			const badge = dom.append(header, dom.$('span.chat-model-card-badge', undefined, badgeLabel));
-			badge.classList.toggle('high-cost', !isAuto && isHighCostCategory(metadata.priceCategory));
+			this._renderBadge(header, badgeLabel, !isAuto && isHighCostCategory(metadata.priceCategory));
 		}
 
+		this._renderResetButton(header);
 		// Pinning lives here rather than on the row: a control that only exists on hover
 		// makes every row twitch as the pointer crosses the list.
 		if (this._options.onTogglePin) {
@@ -162,10 +185,62 @@ export class ModelCard extends DisposableStore {
 			button.ariaLabel = label;
 			button.title = label;
 			dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(pinned ? Codicon.pinned : Codicon.pin)}`));
+			this._pinButton = button;
 			this._contentDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
 				dom.EventHelper.stop(e, true);
 				this._options.onTogglePin?.(!pinned);
 			}));
+		}
+	}
+
+	private _showsPriceBadgeInPricing(): boolean {
+		const metadata = this._options.model.metadata;
+		return this._options.isUBB
+			&& !!getPriceCategoryLabel(metadata.priceCategory)
+			&& getModelCostMetrics(metadata).length > 0;
+	}
+
+	private _renderBadge(container: HTMLElement, label: string, highCost: boolean): void {
+		const badge = dom.append(container, dom.$('span.chat-model-card-badge', undefined, label));
+		badge.classList.toggle('high-cost', highCost);
+	}
+
+	/**
+	 * Resets this model's settings to the values the producer ships. Only offered once
+	 * something differs from them, so an untouched model has no control to explain.
+	 */
+	private _renderResetButton(header: HTMLElement): void {
+		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess);
+		if (!changed.length) {
+			return;
+		}
+		const label = localize('chat.modelPicker.resetToDefault', "Reset to Default");
+		const button = dom.append(header, dom.$<HTMLButtonElement>('button.chat-model-card-reset'));
+		button.type = 'button';
+		button.ariaLabel = label;
+		button.title = label;
+		dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(Codicon.discard)}`));
+		this._contentDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			void this._resetToDefaults(changed);
+		}));
+	}
+
+	private async _resetToDefaults(properties: readonly IModelConfigProperty[]): Promise<void> {
+		const values: Record<string, unknown> = {};
+		for (const property of properties) {
+			values[property.key] = property.schema.default;
+		}
+		const hadFocus = this.element.contains(dom.getActiveElement());
+		await this._options.configurationAccess.setModelConfiguration(this._options.model.identifier, values);
+		this._render();
+		// Resetting removes this very button, so focus has to land elsewhere in the card
+		// rather than fall out of the popup.
+		if (hadFocus) {
+			this._restoreFocus();
+		}
+		for (const property of properties) {
+			this._options.onDidChangeConfiguration?.(property.schema.group ?? '', property.key, property.value, property.schema.default);
 		}
 	}
 
@@ -216,6 +291,7 @@ export class ModelCard extends DisposableStore {
 			})),
 		}));
 		this._contentDisposables.add(control.onDidSelect(index => void this._setValue(group, property.key, values[index])));
+		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
 	}
 
@@ -282,13 +358,18 @@ export class ModelCard extends DisposableStore {
 		// Folded away by default: the numbers only matter to the people who go looking
 		// for them, and they are the last thing most people need to read.
 		if (disclosure) {
-			const title = localize('models.pricingDetails', "Pricing details");
+			const title = localize('models.pricingDetails', "Pricing Details");
 			const toggle = dom.append(section, dom.$<HTMLButtonElement>('button.chat-model-card-pricing-toggle'));
 			toggle.type = 'button';
 			toggle.setAttribute('aria-expanded', String(expanded));
 			toggle.setAttribute('aria-controls', bodyId);
+			const chevron = dom.append(toggle, dom.$(`span.chat-model-card-pricing-chevron${ThemeIcon.asCSSSelector(expanded ? Codicon.chevronDown : Codicon.chevronRight)}`));
+			chevron.setAttribute('aria-hidden', 'true');
 			dom.append(toggle, dom.$('span.chat-model-card-section-title', undefined, title));
-			dom.append(toggle, dom.$(`span.chat-model-card-pricing-chevron${ThemeIcon.asCSSSelector(expanded ? Codicon.chevronDown : Codicon.chevronRight)}`));
+			const priceBadgeLabel = getPriceCategoryLabel(metadata.priceCategory);
+			if (priceBadgeLabel && this._showsPriceBadgeInPricing()) {
+				this._renderBadge(toggle, priceBadgeLabel, isHighCostCategory(metadata.priceCategory));
+			}
 			this._pricingToggle = toggle;
 			this._contentDisposables.add(dom.addDisposableListener(toggle, dom.EventType.CLICK, e => {
 				dom.EventHelper.stop(e, true);

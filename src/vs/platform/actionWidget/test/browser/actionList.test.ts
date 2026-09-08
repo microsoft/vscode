@@ -705,14 +705,55 @@ suite('ActionListWidget', () => {
 		widget.domNode.appendChild(editable);
 		const text = editable.appendChild(document.createElement('span'));
 		events.push(dispatchKeyDown(text, { key: 'b', keyCode: 66 }));
-		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
-		assert.ok(panel);
-		events.push(dispatchKeyDown(panel, { key: 'b', keyCode: 66 }));
 
 		assert.deepStrictEqual({
 			typed,
 			prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
 		}, { typed: [], prevented: [] });
+	});
+
+	test('typing over an open detail panel closes it and searches instead', async () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('alpha'), hover: { content: 'Alpha details', expandable: true } }, action('beta')],
+			listOptions: { showFilter: false, persistentHover: true, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		widget.showHoverForCheckedItem();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		const panelOpen = panel.style.display !== 'none';
+		const event = dispatchKeyDown(panel, { key: 'b', keyCode: 66 });
+
+		assert.deepStrictEqual({
+			panelOpen,
+			typed,
+			defaultPrevented: event.defaultPrevented,
+			panelClosed: panel.style.display === 'none',
+		}, {
+			panelOpen: true,
+			typed: ['b'],
+			defaultPrevented: true,
+			panelClosed: true,
+		});
+	});
+
+	test('a submenu list keeps its own typing rather than handing it to search', () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('alpha'),
+				submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
+			}],
+			listOptions: { showFilter: false, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		const event = dispatchKeyDown(submenu, { key: 'b', keyCode: 66 });
+
+		assert.deepStrictEqual({ typed, defaultPrevented: event.defaultPrevented }, { typed: [], defaultPrevented: false });
 	});
 
 	test('batches row width writes before reading layout', () => {

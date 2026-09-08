@@ -421,7 +421,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
 }
 
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
@@ -484,7 +484,6 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action {
-	position: relative;
 	box-sizing: border-box;
 	flex: 0 0 auto;
 	width: var(--vscode-spacing-size280);
@@ -502,7 +501,7 @@
 	margin: var(--vscode-spacing-sizeNone);
 }
 
-/* Let the active tab label yield space first, and clip the label rather than its underline. */
+/* Let the active tab label yield space first, and clip the label rather than its pill. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
 	flex: 0 1 auto;
 	width: auto;
@@ -519,27 +518,19 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover:not(.active),
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
-	color: var(--vscode-foreground);
-	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-modernTab-hoverForeground);
+	background: var(--vscode-modernTab-hoverBackground);
 }
 
+/* Tabs read as the workbench's modern tabs: a filled, rounded pill for the active one
+ * rather than a rule underneath it, so the two tab strips are recognisably the same
+ * control. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active,
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active:hover,
 .action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
-	color: var(--vscode-foreground);
-	background: transparent;
-}
-
-.action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active::after,
-.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked::after {
-	content: "";
-	position: absolute;
-	right: var(--vscode-spacing-size40);
-	bottom: calc(-1 * var(--vscode-spacing-size60) - var(--vscode-strokeThickness));
-	left: var(--vscode-spacing-size40);
-	height: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-textLink-foreground);
+	color: var(--vscode-modernTab-activeForeground);
+	background: var(--vscode-modernTab-activeBackground);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:focus-visible,
@@ -635,7 +626,7 @@
 	content: '';
 	flex: 1 1 auto;
 	height: var(--vscode-strokeThickness);
-	background: var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	background: var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-section-toggle {
@@ -794,8 +785,9 @@
 .chat-model-picker-auto-row {
 	display: flex;
 	flex-direction: column;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-sizeNone);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	gap: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
 }
 
 .chat-model-picker-auto-main {
@@ -817,26 +809,32 @@
 }
 
 .chat-model-picker-auto-tiers:not(:empty) {
-	margin-bottom: var(--vscode-spacing-size20);
+	margin-bottom: var(--vscode-spacing-sizeNone);
 }
 
 .chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
 	color: var(--vscode-descriptionForeground);
 	background: var(--vscode-menu-background);
-	border-color: var(--vscode-contrastBorder, var(--vscode-radio-inactiveBorder, transparent));
+	border-color: var(--vscode-contrastActiveBorder, transparent);
 	box-shadow: none;
 }
 
 .chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:hover,
 .chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:focus-visible {
 	color: var(--vscode-foreground);
-	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
+	border-color: var(--vscode-contrastActiveBorder, transparent);
 }
 
 .chat-model-picker-auto-description {
-	margin-bottom: var(--vscode-spacing-size20);
+	flex: 1 1 auto;
+	min-width: 0;
+	margin-bottom: var(--vscode-spacing-sizeNone);
+	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .chat-model-picker-auto-description.hidden {
@@ -890,8 +888,8 @@
 .chat-model-card {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size100);
-	padding: var(--vscode-spacing-size100);
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120);
 	min-width: 220px;
 	max-width: 300px;
 	font-size: var(--vscode-fontSize-label1);
@@ -923,14 +921,17 @@
 .chat-model-card-name {
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading3);
+	line-height: var(--vscode-spacing-size200);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 /* Pinning sits with the model's name rather than on its row: a control that only
- * appears on hover makes the list twitch as the pointer crosses it. */
-.chat-model-card-pin {
+ * appears on hover makes the list twitch as the pointer crosses it. Resetting keeps
+ * it company, since both act on the model the card describes. */
+.chat-model-card-pin,
+.chat-model-card-reset {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
@@ -945,7 +946,8 @@
 	cursor: pointer;
 }
 
-.chat-model-card-pin:hover {
+.chat-model-card-pin:hover,
+.chat-model-card-reset:hover {
 	color: var(--vscode-foreground);
 	background: var(--vscode-toolbar-hoverBackground);
 }
@@ -954,17 +956,24 @@
 	color: var(--vscode-textLink-foreground);
 }
 
-.chat-model-card-pin:focus-visible {
+.chat-model-card-pin:focus-visible,
+.chat-model-card-reset:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.chat-model-card-pin:focus:not(:focus-visible) {
+.chat-model-card-pin:focus:not(:focus-visible),
+.chat-model-card-reset:focus:not(:focus-visible) {
 	outline: none;
 }
 
-.chat-model-card-pin .codicon {
+.chat-model-card-pin .codicon,
+.chat-model-card-reset .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-model-card-header > .chat-model-card-name + :is(.chat-model-card-pin, .chat-model-card-reset) {
+	margin-left: auto;
 }
 
 .chat-model-card-badge {
@@ -987,7 +996,7 @@
 .chat-model-card-section {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size60);
 }
 
 .chat-model-card-section-heading {
@@ -998,11 +1007,43 @@
 
 .chat-model-card-section-title {
 	flex: 1 1 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: var(--vscode-spacing-size160);
 }
 
 .chat-model-card-section-value {
 	color: var(--vscode-descriptionForeground);
+}
+
+/*
+ * Keep the reel quiet and let the selected segment read as the card's top surface.
+ * High contrast themes retain a semantic border instead of relying on elevation.
+ */
+.chat-model-card .monaco-custom-radio.segmented,
+.chat-model-picker-auto-row .monaco-custom-radio.segmented {
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
+.chat-model-card .monaco-custom-radio.segmented > .monaco-button,
+.chat-model-picker-auto-row .monaco-custom-radio.segmented > .monaco-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-model-card .monaco-custom-radio.segmented > .monaco-button:hover:not(.active),
+.chat-model-picker-auto-row .monaco-custom-radio.segmented > .monaco-button:hover:not(.active) {
+	background: var(--vscode-modernTab-hoverBackground);
+}
+
+.chat-model-card .monaco-custom-radio.segmented > .monaco-button.active,
+.chat-model-card .monaco-custom-radio.segmented > .monaco-button.active:hover,
+.chat-model-picker-auto-row.enabled .monaco-custom-radio.segmented > .monaco-button.active,
+.chat-model-picker-auto-row.enabled .monaco-custom-radio.segmented > .monaco-button.active:hover {
+	background: var(--vscode-menu-background);
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+	box-shadow: none;
 }
 
 .chat-model-card-options {
@@ -1050,19 +1091,46 @@
 	white-space: nowrap;
 }
 
+.chat-model-card-pricing {
+	gap: var(--vscode-spacing-size20);
+	padding: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}
+
 .chat-model-card-pricing-toggle {
 	display: flex;
+	align-self: stretch;
 	align-items: center;
-	justify-content: space-between;
+	justify-content: flex-start;
 	gap: var(--vscode-spacing-size40);
 	width: 100%;
-	padding: var(--vscode-spacing-sizeNone);
+	margin: var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 	border: none;
-	color: inherit;
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-foreground);
 	background: transparent;
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+}
+
+.chat-model-card-pricing-toggle:hover {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+.chat-model-card-pricing-toggle .chat-model-card-section-title {
+	flex: 0 0 auto;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-model-card-pricing-toggle .chat-model-card-badge {
+	margin-left: auto;
+	color: var(--vscode-editorWarning-foreground);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, transparent);
 }
 
 .chat-model-card-pricing-chevron {
@@ -1073,8 +1141,7 @@
 
 .chat-model-card-pricing-toggle:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-small);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .chat-model-card-pricing-toggle:focus:not(:focus-visible) {
@@ -1085,7 +1152,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size20);
-	margin-top: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size240);
 }
 
 .chat-model-card-pricing-caption {

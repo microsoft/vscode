@@ -164,7 +164,9 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
-			showCheckedItemHover: !this._isAutoSelected(context),
+			// The card is opened by resting on a row, not by opening the picker: it
+			// describes one model, so showing it up front speaks before being asked.
+			showCheckedItemHover: false,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			// Recomputed on every render so a tab switch reflects the current Auto state.
@@ -189,7 +191,6 @@ export class TabbedModelPicker extends Disposable {
 					items,
 					listOptions: withChatInputPickerMotion({
 						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
-						persistentHover: true,
 						showFilter: this._searchVisible,
 						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 						focusFilterOnOpen: this._searchVisible,
@@ -224,8 +225,9 @@ export class TabbedModelPicker extends Disposable {
 			renderFooter: autoModel ? container => this._renderAutoRow(container, autoModel, context) : undefined,
 			delegate: {
 				onSelect: action => {
+					// The popup stays up: several choices are usually made in one visit, and
+					// clicking away is what says the user is done.
 					void action.run();
-					this._widget.hide();
 				},
 				onHide: () => { },
 			},
@@ -236,6 +238,44 @@ export class TabbedModelPicker extends Disposable {
 	private _isAutoSelected(context: ITabbedModelPickerContext): boolean {
 		const selected = context.models.find(model => model.identifier === context.selectedModelId);
 		return !!selected && isAutoModel(selected);
+	}
+
+	/**
+	 * Applies a selection and rebuilds the list in place, so the popup stays up for the
+	 * next choice instead of dismissing itself on the first one. A detail panel the user
+	 * had open is kept open across the rebuild.
+	 */
+	private _selectModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const context = this._context;
+		if (!context) {
+			return;
+		}
+		context.onSelect(model);
+		this._context = { ...context, selectedModelId: model.identifier };
+		if (!isAutoModel(model)) {
+			this._lastExplicitModelId = model.identifier;
+		}
+		this._widget.refreshActiveList(/* preserveExpandedPanel */ true);
+		this._autoRow.value?.render();
+		// The visit has served its purpose, so walking away from the picker ends it while
+		// staying inside leaves room for another change.
+		this._widget.dismissOnPointerLeave();
+	}
+
+	/** Pins or unpins a model, keeping the popup open over the list it reorders. */
+	private _togglePin(modelIdentifier: string, pinned: boolean): void {
+		const context = this._context;
+		if (!context?.onTogglePin) {
+			return;
+		}
+		context.onTogglePin(modelIdentifier, pinned);
+		this._context = {
+			...context,
+			pinnedModelIds: pinned
+				? [...context.pinnedModelIds, modelIdentifier]
+				: context.pinnedModelIds.filter(id => id !== modelIdentifier),
+		};
+		this._widget.refreshActiveList(/* preserveExpandedPanel */ true);
 	}
 
 	private _destinationForSelectedModel(destinations: readonly IModelPickerDestination[], context: ITabbedModelPickerContext): string | undefined {
@@ -371,7 +411,7 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
-		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, context.onSelect, section, true);
+		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => this._selectModel(next), section, true);
 		const badge = getModelBadge(model, { configurationAccess: context.configurationAccess, providerLabel });
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.
@@ -386,27 +426,22 @@ export class TabbedModelPicker extends Disposable {
 			isPinned: context.pinnedModelIds.includes(model.identifier),
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
-			onSelectVariant: next => {
-				context.onSelect(next);
-				this._widget.hide();
-			},
+			onSelectVariant: next => this._selectModel(next),
 			onTogglePin: context.onTogglePin
-				? pinned => {
-					context.onTogglePin?.(model.identifier, pinned);
-					// Closes like every other action in the card, so the card is not left
-					// open over a list that has since reordered itself.
-					this._widget.hide();
-				}
+				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (group, key, fromValue, toValue) => {
 				context.onConfigurationChanged(model, group, key, fromValue, toValue);
 				// Configuring a model is a choice of it: the settings only take effect on the
 				// model they belong to, so tuning one and leaving another selected would
 				// discard the change the user just made.
-				if (model.identifier !== context.selectedModelId) {
-					context.onSelect(model);
+				if (model.identifier !== (this._context ?? context).selectedModelId) {
+					this._selectModel(model);
+					return;
 				}
-				this._widget.hide();
+				// The row's badge reports the settings, so it is rebuilt around the card the
+				// user is still working in.
+				this._widget.refreshActiveList(/* preserveExpandedPanel */ true);
 			},
 		}))).element;
 		return {
@@ -448,12 +483,9 @@ export class TabbedModelPicker extends Disposable {
 			this._autoRow.value?.render();
 			return;
 		}
-		context.onSelect(next);
-		this._context = { ...context, selectedModelId: next.identifier };
-		// Updated in place rather than re-shown: rebuilding the popup would move focus
+		// Applied in place rather than re-shown: rebuilding the popup would move focus
 		// off the switch the user just clicked, and can dismiss it outright.
-		this._widget.refreshActiveList();
-		this._autoRow.value?.render();
+		this._selectModel(next);
 	}
 
 	/** The model to select when Auto is switched off: the last explicit pick, else the most recent one. */

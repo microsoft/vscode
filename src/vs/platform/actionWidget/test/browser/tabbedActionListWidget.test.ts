@@ -192,6 +192,84 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	test('a pointer press outside dismisses the popup, while the popup and its anchor keep it', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		const outside = document.createElement('div');
+		document.body.appendChild(outside);
+		disposables.add({ dispose: () => { anchor.remove(); outside.remove(); } });
+
+		const press = (target: HTMLElement) => target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+		const show = () => widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		show();
+		press(contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!);
+		const visibleAfterInsidePress = widget.isVisible;
+		press(anchor);
+		const visibleAfterAnchorPress = widget.isVisible;
+		press(outside);
+
+		assert.deepStrictEqual({
+			visibleAfterInsidePress,
+			visibleAfterAnchorPress,
+			visibleAfterOutsidePress: widget.isVisible,
+		}, {
+			visibleAfterInsidePress: true,
+			visibleAfterAnchorPress: true,
+			visibleAfterOutsidePress: false,
+		});
+	});
+
+	test('after arming, the popup closes when the pointer leaves and survives a return', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const container = contextView.getContextViewElement();
+		const popup = container.querySelector<HTMLElement>('.action-widget')!;
+		const leave = () => popup.dispatchEvent(new MouseEvent('mouseleave'));
+		const settle = () => new Promise<void>(resolve => setTimeout(resolve, 400));
+
+		leave();
+		await settle();
+		const visibleAfterUnarmedLeave = widget.isVisible;
+
+		widget.dismissOnPointerLeave();
+		leave();
+		popup.dispatchEvent(new MouseEvent('mouseenter'));
+		await settle();
+		const visibleAfterReturning = widget.isVisible;
+
+		leave();
+		await settle();
+
+		assert.deepStrictEqual({
+			visibleAfterUnarmedLeave,
+			visibleAfterReturning,
+			visibleAfterArmedLeave: widget.isVisible,
+		}, {
+			visibleAfterUnarmedLeave: true,
+			visibleAfterReturning: true,
+			visibleAfterArmedLeave: false,
+		});
+	});
+
 	for (const matches of [['first match'], ['first match', 'second match']]) {
 		test(`tab-bar search accepts after ArrowDown with ${matches.length} matching results`, () => {
 			const { widget, input, selected } = createSearchableWidget(disposables, [...matches, 'other']);

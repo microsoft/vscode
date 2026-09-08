@@ -535,12 +535,15 @@ export class ModelPickerWidget extends Disposable {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
-		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
+		const setModelPinned = (modelIdentifier: string, pinned: boolean) => {
 			if (pinned) {
 				this._languageModelsService.pinModel(modelIdentifier);
 			} else {
 				this._languageModelsService.unpinModel(modelIdentifier);
 			}
+		};
+		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
+			setModelPinned(modelIdentifier, pinned);
 			// Re-show the picker to reflect the updated pin state
 			this._actionWidgetService.hide();
 			this.show(anchorElement);
@@ -576,7 +579,9 @@ export class ModelPickerWidget extends Disposable {
 				},
 				onUnavailableLinkClick: onLinkClick,
 				onSelect,
-				onTogglePin,
+				// The tabbed picker rebuilds its own list around the change, so it must not
+				// be torn down and re-shown from here.
+				onTogglePin: setModelPinned,
 				onManageModels: () => manageModelsAction?.run(),
 				onConfigurationChanged: (model, group, key, fromValue, toValue) => logModelConfigurationChange(this._telemetryService, model, group, key, fromValue, toValue),
 				cacheBreakHint: showCacheBreakHint ? {

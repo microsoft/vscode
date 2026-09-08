@@ -146,12 +146,17 @@ const COPILOT_NOTICE_MODELS = [
 ];
 
 /** The full effort ladder a real model can publish, where the labels vary in width. */
-const MANY_EFFORT_MODEL = createModel('gpt-5-6-terra', 'GPT-5.6 Terra', {
+const MANY_EFFORT_MODEL_OPTIONS = {
 	category: 'powerful', priceCategory: 'medium', costs: true,
 	effortValues: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
 	effortLabels: ['None', 'Low', 'Medium', 'High', 'Extra High', 'Max'],
 	contextLabels: ['272K', '1M'],
-});
+} satisfies IFixtureModelOptions;
+const MANY_EFFORT_MODEL = createModel('gpt-5-6-terra', 'GPT-5.6 Terra', MANY_EFFORT_MODEL_OPTIONS);
+const MANY_EFFORT_VARIANT_MODELS = [
+	MANY_EFFORT_MODEL,
+	createModel('gpt-5-6-terra-fast', 'GPT-5.6 Terra (fast mode)', { ...MANY_EFFORT_MODEL_OPTIONS, priceCategory: 'high' }),
+];
 
 const DEMOTED_MODELS = Array.from({ length: 21 }, (_, index) => createModel(`older-${index}`, `Older Model ${index + 1}`));
 
@@ -294,6 +299,8 @@ interface IPickerFixtureOptions {
 	readonly entitlement?: ChatEntitlement;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
+	/** Opens the hovered card's pricing breakdown. */
+	readonly pricingExpanded?: boolean;
 }
 
 async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
@@ -305,6 +312,9 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		container.style.width = 'calc(100vw - 32px)';
 	} else if (options.selectedModelId !== AUTO_MODEL.identifier) {
 		container.style.minHeight = '400px';
+	}
+	if (options.pricingExpanded) {
+		container.style.minHeight = '600px';
 	}
 	const layoutContainer = options.anchored ? container : container.ownerDocument.body;
 
@@ -414,6 +424,21 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		}
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+
+	if (options.pricingExpanded) {
+		let pricingToggle: HTMLElement | null = null;
+		for (let attempt = 0; attempt < 100 && !pricingToggle; attempt++) {
+			pricingToggle = container.ownerDocument.querySelector<HTMLElement>('.chat-model-card-pricing-toggle');
+			if (!pricingToggle) {
+				await new Promise(resolve => setTimeout(resolve, 20));
+			}
+		}
+		if (!pricingToggle) {
+			throw new Error('Pricing toggle not found');
+		}
+		pricingToggle.click();
 		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 }
@@ -543,6 +568,19 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerSearch: defineComponentFixture({ render: context => renderPicker(context, { search: true }) }),
 	PickerWithCard: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5' }) }),
+	PickerWithCompleteCard: defineComponentFixture({
+		additionalThemes: ['darkHighContrast'],
+		render: context => renderPicker(context, {
+			models: [...COPILOT_ONLY_MODELS, ...MANY_EFFORT_VARIANT_MODELS],
+			selectedModelId: MANY_EFFORT_MODEL.identifier,
+			expandOther: true,
+			openCardFor: MANY_EFFORT_MODEL.metadata.name,
+			configured: {
+				[MANY_EFFORT_MODEL.identifier]: { reasoningEffort: 'high', contextSize: 1000000 },
+			},
+			pricingExpanded: true,
+		}),
+	}),
 	PickerWelcome: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [],

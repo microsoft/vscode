@@ -6,6 +6,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -18,6 +19,12 @@ import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
 const TAB_RESIZE_ANIMATION: KeyframeAnimationOptions = { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+
+/**
+ * Grace given to a pointer that has left an armed popup, so clipping a corner on the
+ * way between the list and its panel does not read as walking away from it.
+ */
+const POINTER_LEAVE_DISMISS_DELAY = 250;
 
 /** The box a tab occupied, including the spacing that travels with its width. */
 interface ITabBox {
@@ -150,7 +157,9 @@ export class TabbedActionListWidget extends Disposable {
 
 	private readonly _activePopup = this._register(new MutableDisposable());
 	private _swappingTab = false;
-	private _refreshActiveList: (() => void) | undefined;
+	private _refreshActiveList: ((preserveExpandedPanel: boolean) => void) | undefined;
+	/** Arms the current popup to dismiss once the pointer leaves it. */
+	private _armPointerLeaveDismiss: (() => void) | undefined;
 	/** Boxes and labels from the last render, so the next one can animate from them. */
 	private _previousTabBoxes: Map<string, ITabBox> | undefined;
 	private _previousTabTexts: ReadonlyMap<string, string> | undefined;
@@ -322,10 +331,16 @@ export class TabbedActionListWidget extends Disposable {
 				listRef = list;
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
-				this._refreshActiveList = () => {
+				this._refreshActiveList = preserveExpandedPanel => {
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
+					const expandedItemId = preserveExpandedPanel ? list.expandedItemId : undefined;
 					applyWidgetClassNames();
 					list.updateItems(options.createActionList(activeTab).items);
+					// Only a panel that was already open is put back, so a rebuild never
+					// opens one the user had not asked for.
+					if (expandedItemId) {
+						list.showHoverForItemId(expandedItemId);
+					}
 					if (hadFocus && !dom.isAncestorOfActiveElement(widget)) {
 						if (emptyBody) {
 							radio.focusActiveItem();
@@ -470,6 +485,41 @@ export class TabbedActionListWidget extends Disposable {
 					hide();
 				}));
 
+				// Focus alone cannot carry dismissal: a click can land on workbench chrome
+				// that never takes DOM focus, which would leave the popup up with no way
+				// back out but Escape. The anchor is left alone so its own trigger keeps
+				// owning the open/close toggle.
+				renderDisposables.add(dom.addDisposableListener(dom.getWindow(container).document, dom.EventType.POINTER_DOWN, (e: PointerEvent) => {
+					const target = e.target;
+					if (this._swappingTab || !dom.isHTMLElement(target)) {
+						return;
+					}
+					if (container.contains(target) || options.anchor.contains(target) || target.closest('.action-widget-hover, .action-list-submenu-panel')) {
+						return;
+					}
+					hide();
+				}, true));
+
+				// Once the consumer reports the popup has served its purpose, walking away
+				// from it closes it, the way a menu would. Watched on the popup itself
+				// rather than its container, which also holds a full-screen block layer the
+				// pointer never leaves. The detail panel lives inside the popup, so moving
+				// between the list and the panel is still "inside".
+				let pointerLeaveArmed = false;
+				const pointerLeaveTimer = renderDisposables.add(new MutableDisposable());
+				this._armPointerLeaveDismiss = () => { pointerLeaveArmed = true; };
+				renderDisposables.add(toDisposable(() => { this._armPointerLeaveDismiss = undefined; }));
+				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.MOUSE_LEAVE, () => {
+					if (!pointerLeaveArmed || this._swappingTab) {
+						return;
+					}
+					pointerLeaveTimer.value = disposableTimeout(() => {
+						pointerLeaveTimer.clear();
+						hide();
+					}, POINTER_LEAVE_DISMISS_DELAY, renderDisposables);
+				}));
+				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.MOUSE_ENTER, () => pointerLeaveTimer.clear()));
+
 				return renderDisposables;
 			},
 			onHide: () => {
@@ -569,10 +619,21 @@ export class TabbedActionListWidget extends Disposable {
 	/**
 	 * Rebuilds the active tab's items and the popup's class names in place, keeping its
 	 * position and whatever currently has focus. Use when an action inside the popup
-	 * changes what it shows but should not dismiss it.
+	 * changes what it shows but should not dismiss it. Pass `preserveExpandedPanel` to
+	 * put back the detail panel that was open, so acting from inside one does not
+	 * close it.
 	 */
-	refreshActiveList(): void {
-		this._refreshActiveList?.();
+	refreshActiveList(preserveExpandedPanel = false): void {
+		this._refreshActiveList?.(preserveExpandedPanel);
+	}
+
+	/**
+	 * Arms the popup to dismiss once the pointer leaves it. Call after the popup has
+	 * served its purpose (e.g. a selection was made) so moving away finishes the visit,
+	 * while staying inside keeps it open for another change.
+	 */
+	dismissOnPointerLeave(): void {
+		this._armPointerLeaveDismiss?.();
 	}
 
 	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */

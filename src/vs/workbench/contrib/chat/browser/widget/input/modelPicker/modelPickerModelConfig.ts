@@ -62,6 +62,21 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 	return values.length > 1 && property.value === values[values.length - 1];
 }
 
+/** The configurable properties of `model` whose value differs from the model's own default. */
+export function getChangedModelConfigProperties(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: IModelConfigurationAccess,
+): IModelConfigProperty[] {
+	const changed: IModelConfigProperty[] = [];
+	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
+		const property = getModelConfigProperty(model, configurationAccess, group);
+		if (property && property.value !== undefined && property.value !== property.schema.default) {
+			changed.push(property);
+		}
+	}
+	return changed;
+}
+
 /**
  * A short read-out of the model settings the user changed, e.g. "Extra high · 1M".
  *
@@ -73,13 +88,7 @@ export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 ): string | undefined {
-	const parts: string[] = [];
-	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
-		const property = getModelConfigProperty(model, configurationAccess, group);
-		if (!property || property.value === undefined || property.value === property.schema.default) {
-			continue;
-		}
-		parts.push(getModelConfigValueLabel(property.schema, property.value));
-	}
+	const parts = getChangedModelConfigProperties(model, configurationAccess)
+		.map(property => getModelConfigValueLabel(property.schema, property.value));
 	return parts.length ? parts.join(' \u00b7 ') : undefined;
 }
