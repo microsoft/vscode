@@ -6,7 +6,7 @@
 import { createHash } from 'crypto';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
@@ -304,13 +304,16 @@ function skillToCustomization(skill: SkillMetadata): SkillCustomization {
  * {@link DirectoryCustomization} container per {@link SkillScope}, each
  * carrying its skills as {@link SkillCustomization} children. Skills are
  * de-duplicated by their `SKILL.md` path (codex can report the same skill
- * for several requested cwds). Scopes with no skills are omitted; the result
- * is ordered by {@link SKILL_SCOPE_ORDER}.
+ * for several requested cwds). Loaded containers are ordered by
+ * {@link SKILL_SCOPE_ORDER}, followed by disabled containers for invalid skills.
  */
 export function codexSkillsToContainers(response: SkillsListResponse | undefined): DirectoryCustomization[] {
 	const byScope = new Map<SkillScope, Map<string, SkillMetadata>>();
+	const loadedPaths = new Set<string>();
+	const errors = new Map<string, string>();
 	for (const entry of response?.data ?? []) {
 		for (const skill of entry.skills ?? []) {
+			loadedPaths.add(skill.path);
 			let scoped = byScope.get(skill.scope);
 			if (!scoped) {
 				scoped = new Map();
@@ -318,6 +321,11 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 			}
 			if (!scoped.has(skill.path)) {
 				scoped.set(skill.path, skill);
+			}
+		}
+		for (const error of entry.errors ?? []) {
+			if (!errors.has(error.path)) {
+				errors.set(error.path, error.message);
 			}
 		}
 	}
@@ -341,6 +349,26 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
 			children,
+		});
+	}
+	for (const [path, message] of [...errors].sort(([left], [right]) => compare(left, right))) {
+		if (loadedPaths.has(path)) {
+			continue;
+		}
+		const skillUri = URI.file(path);
+		const uri = skillUri.toString();
+		const name = basename(dirname(skillUri));
+		const containerUri = URI.from({ scheme: CODEX_SKILLS_SCHEME, path: `/errors${skillUri.path}` }).toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(containerUri),
+			uri: containerUri,
+			name,
+			enabled: false,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Error, message },
+			children: [{ type: CustomizationType.Skill, id: customizationId(uri), uri, name, enabled: false }],
 		});
 	}
 	return containers;
