@@ -58,13 +58,13 @@ gh api "repos/microsoft/vscode/commits/$HEAD/check-runs" \
 - **Policy/approval gate**: its output says it is awaiting collaborator approvals, labels, mergeability, or another human action. This is not a CI failure. Report the required action and do **not** wait for it.
 - **External asynchronous service** (for example a requested code review): submit the request once, verify that it was accepted, and stop. Do not poll for completion; resume when the user asks again or the host provides a completion notification.
 
-Do not use unbounded `gh pr checks --watch` as the default. Prefer a one-shot status query. If a short wait on confirmed workflow jobs is genuinely useful, keep `--fail-fast` so the watch returns as soon as a failure is actionable:
+Do not use `gh pr checks --watch`, even with `--fail-fast`: it watches every pending PR check and, when no check fails, waits for all of them—including approval gates—to complete. Prefer a one-shot status query. If a brief wait on a specific workflow run is genuinely useful, watch that run by ID and have the execution environment bound the command to a few minutes:
 
 ```bash
-gh pr checks --watch --fail-fast
+gh run watch <RUN_ID> --exit-status
 ```
 
-The execution environment must still bound this command to a few minutes: `--fail-fast` exits early on failure but does not impose a timeout or help with approval gates. Return control when the bound expires rather than continuing to poll indefinitely.
+Return control when the bound expires rather than continuing to poll indefinitely.
 
 ---
 
@@ -272,7 +272,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
 | List all checks | `gh pr checks --json name,state,bucket` |
 | List failed checks only | `gh pr checks --json name,state,link,bucket --jq '.[] \| select(.bucket == "fail")'` |
 | Inspect pending check details | `gh api "repos/microsoft/vscode/commits/$HEAD/check-runs"` |
-| Watch confirmed CI jobs (bounded externally) | `gh pr checks --watch --fail-fast` |
+| Watch one workflow run (bounded externally) | `gh run watch <RUN_ID> --exit-status` |
 | Failed jobs in a run | `gh run view <RUN_ID> --json jobs --jq '.jobs[] \| select(.conclusion == "failure") \| {name, id: .databaseId}'` |
 | View failed step logs | `gh run view <RUN_ID> --job <JOB_ID> --log-failed` (requires full run to complete) |
 | Download job log via API | `gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"` (works while run is in progress) |
