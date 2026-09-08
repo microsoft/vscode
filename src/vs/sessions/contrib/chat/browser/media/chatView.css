@@ -39,6 +39,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -48,6 +49,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
@@ -67,6 +69,18 @@
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-request.editing .interactive-input-part .chat-input-container {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+/* The checkpoint and fork rows sit straight on the wallpaper: their controls are
+ * transparent at rest and only :hover supplies a fill. Back each row's toolbar and
+ * its sibling text with one opaque plate — the move the editor-instance restore row
+ * already makes in chat.css — so the controls stay transparent and their existing
+ * hover fill composites over it. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-label-text,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-dot-separator {
+	background-color: var(--session-view-background);
 }
 
 .agent-sessions-workbench .interactive-session {

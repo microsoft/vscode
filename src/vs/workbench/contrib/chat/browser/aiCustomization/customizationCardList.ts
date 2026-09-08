@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 
 const $ = DOM.$;
+const DEFAULT_VIRTUALIZED_SECTION_ROWS = 4;
 let collapsibleSectionIdPool = 0;
 
 export interface ICustomizationCardListItem {
@@ -75,6 +76,10 @@ export interface IVirtualizedSectionLayout {
 	readonly container: HTMLElement;
 	readonly contentHeight: number;
 	readonly minimumHeight: number;
+}
+
+export function getVirtualizedSectionMinimumHeight<T>(items: readonly T[], getHeight: (item: T) => number): number {
+	return items.slice(0, DEFAULT_VIRTUALIZED_SECTION_ROWS).reduce((height, item) => height + getHeight(item), 0);
 }
 
 export function renderVirtualizedSectionLoadingPlaceholder(container: HTMLElement, label: string, height: number): HTMLElement {

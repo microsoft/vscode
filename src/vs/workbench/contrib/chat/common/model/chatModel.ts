@@ -2433,9 +2433,13 @@ class InputModel implements IInputModel {
 			selectedModel: undefined,
 			inputText: '',
 			selections: [],
-			contrib: {},
 			...current,
 			...state,
+			// `contrib` is a shared bag whose keys belong to their individual
+			// writers - widget contributions, but also non-widget writers such as
+			// the customization migration hint. A partial update must not drop
+			// the keys it says nothing about, so merge rather than replace.
+			contrib: { ...current?.contrib, ...state.contrib },
 			origin: state.origin
 		}, undefined);
 	}

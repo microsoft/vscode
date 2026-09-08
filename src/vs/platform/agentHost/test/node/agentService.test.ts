@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -65,7 +65,7 @@ import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type IC
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
@@ -1167,6 +1167,67 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('batched artifact tools persist centrally and list after restart without local database reads', async () => {
+			class ArtifactAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const baseSessionDataService = createSessionDataService(database);
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					databaseOpens++;
+					return baseSessionDataService.openDatabase(resource);
+				},
+				tryOpenDatabase: async resource => {
+					databaseOpens++;
+					return baseSessionDataService.tryOpenDatabase(resource);
+				},
+			};
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			const agent = disposables.add(new ArtifactAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+			const session = await svc.createSession({ provider: 'copilot' });
+			const items = [
+				{ type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
+				{ type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
+			];
+
+			await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), ArtifactServerToolName.AddArtifactOrReference, { items });
+			await svc.whenCatalogReconciliationIdle();
+			const artifacts = readSessionArtifacts(getStateManager(svc).getSessionSummary(session.toString())?._meta);
+			const central = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+			const legacy = await database.getMetadata(SESSION_ARTIFACTS_KEY);
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const [listed] = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				items: artifacts.map(({ id, ...item }) => item),
+				legacy: JSON.parse(legacy!),
+				central: readSessionArtifacts(central?._meta),
+				restarted: readSessionArtifacts(listed._meta),
+				databaseOpens,
+			}, {
+				items,
+				legacy: artifacts,
+				central: artifacts,
+				restarted: artifacts,
+				databaseOpens: 0,
+			});
+		});
+
 		test('activity changes and clearing do not open session databases', async () => {
 			const baseSessionDataService = createSessionDataService(new TestSessionDatabase());
 			let databaseOpens = 0;

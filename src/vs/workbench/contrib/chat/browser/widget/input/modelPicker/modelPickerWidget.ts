@@ -643,6 +643,7 @@ export class ModelPickerWidget extends Disposable {
 			showFilter: !unavailable,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
+			filterAsCombobox: !unavailable,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
 				if (section === ModelPickerSection.Other) {
@@ -678,7 +679,7 @@ export class ModelPickerWidget extends Disposable {
 			anchorElement,
 			undefined,
 			[],
-			getModelPickerAccessibilityProvider(),
+			getModelPickerAccessibilityProvider(!unavailable),
 			listOptions
 		);
 	}
