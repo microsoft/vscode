@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -288,6 +288,29 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(registry.getServerDefinition(pluginCollection, baseDefinition).get().server, baseDefinition);
 	});
 
+	test('selective plugin-only customization applies only to MCP', () => {
+		store.add(registry.registerCollection(testCollection));
+		const pluginCollection = {
+			...testCollection,
+			id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}selective`,
+			provenance: McpCollectionProvenance.Plugin,
+			serverDefinitions: observableValue<McpServerDefinition[]>('selectivePluginDefinitions', [baseDefinition]),
+		};
+		store.add(registry.registerCollection(pluginCollection));
+
+		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['skills']);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		} as unknown as IConfigurationChangeEvent);
+		assert.deepStrictEqual(registry.collections.get().map(collection => collection.id), [testCollection.id, pluginCollection.id]);
+
+		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcp']);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		} as unknown as IConfigurationChangeEvent);
+		assert.deepStrictEqual(registry.collections.get().map(collection => collection.id), [pluginCollection.id]);
+	});
+
 	test('collections are not visible when not enabled', () => {
 		const disposable = registry.registerCollection(testCollection);
 		store.add(disposable);
@@ -446,6 +469,61 @@ suite('Workbench - MCP - Registry', () => {
 		connection.dispose();
 	});
 
+	test('resolveConnection rejects a collection blocked while launch resolution is pending', async () => {
+		const deferredLaunch = new DeferredPromise<McpServerLaunch | undefined>();
+		const customCollection: McpCollectionDefinition = {
+			...testCollection,
+			id: 'pending-launch-collection',
+			serverDefinitions: observableValue('pendingLaunchDefinitions', [baseDefinition]),
+			resolveServerLanch: () => deferredLaunch.p,
+		};
+		store.add(registry.registerDelegate(new TestMcpHostDelegate()));
+		store.add(registry.registerCollection(customCollection));
+
+		const connection = registry.resolveConnection({
+			collectionRef: customCollection,
+			definitionRef: baseDefinition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		});
+		configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcp']);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		} as unknown as IConfigurationChangeEvent);
+		deferredLaunch.complete(baseDefinition.launch);
+
+		await assert.rejects(connection, /blocked by enterprise customization policy/);
+	});
+
+	test('resolveConnection rejects a same-ID collection replacement while launch resolution is pending', async () => {
+		const deferredLaunch = new DeferredPromise<McpServerLaunch | undefined>();
+		const originalCollection: McpCollectionDefinition = {
+			...testCollection,
+			id: 'replaced-launch-collection',
+			serverDefinitions: observableValue('replacedLaunchDefinitions', [baseDefinition]),
+			resolveServerLanch: () => deferredLaunch.p,
+		};
+		store.add(registry.registerDelegate(new TestMcpHostDelegate()));
+		const registration = registry.registerCollection(originalCollection);
+
+		const connection = registry.resolveConnection({
+			collectionRef: originalCollection,
+			definitionRef: baseDefinition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		});
+		registration.dispose();
+		store.add(registry.registerCollection({
+			...originalCollection,
+			provenance: McpCollectionProvenance.Plugin,
+		}));
+		deferredLaunch.complete(baseDefinition.launch);
+
+		await assert.rejects(connection, /changed while resolving the connection/);
+	});
+
 	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
 		testMcpSandboxService.enabled = true;
 		const mcpResource = URI.file('/test/mcp.json');
@@ -584,7 +662,7 @@ suite('Workbench - MCP - Registry', () => {
 				},
 			};
 			store.add(registry.registerCollection(lazyCollection));
-			configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, ['mcp']);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				affectsConfiguration: (key: string) => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
 			} as unknown as IConfigurationChangeEvent);

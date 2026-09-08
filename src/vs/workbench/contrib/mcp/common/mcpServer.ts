@@ -542,6 +542,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._policyEpoch = observableFromEvent(this, this._allowedMcpServersService.onDidChangeAllowedMcpServers, () => undefined);
 		this._policyBlock = derived<McpConnectionState.Error | undefined>(this, reader => {
 			this._policyEpoch.read(reader);
+			const fullDefinitions = this._fullDefinitions.read(reader);
+			if (!fullDefinitions.collection) {
+				return { state: McpConnectionState.Kind.Error, message: localize('mcp.customizationPolicyBlocked', "Blocked by enterprise customization policy") };
+			}
 			const connection = this._connection.read(reader);
 			if (connection) {
 				// Authoritative: the connection carries the fully resolved launch.
@@ -554,7 +558,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			// — which re-checks the fully resolved launch — to avoid over-eagerly blocking (and hiding
 			// the cached tools of) a server that will actually be allowed once resolved. `chat.mcp.access`
 			// and deny-by-name are still enforced at start(), and access also by the enablement layer.
-			const launch = this._fullDefinitions.read(reader).server?.launch;
+			const launch = fullDefinitions.server?.launch;
 			if (!launch) {
 				return undefined;
 			}

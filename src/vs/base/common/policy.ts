@@ -21,8 +21,10 @@ export type PolicyValue = string | number | boolean;
 export type ManagedSettingValue = PolicyValue;
 export type ManagedSettingsData = Readonly<Record<string, ManagedSettingValue>>;
 
+export type ManagedSettingType = 'string' | 'number' | 'boolean';
+
 export interface IManagedSettingPolicyDefinition {
-	readonly type: 'string' | 'number' | 'boolean';
+	readonly type: ManagedSettingType | readonly [ManagedSettingType, ...ManagedSettingType[]];
 }
 
 export type IManagedSettingsPolicyDefinitions = Readonly<Record<string, IManagedSettingPolicyDefinition>>;
