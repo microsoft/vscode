@@ -63,6 +63,12 @@ tampered with. The merged bag is then projected onto the declared schema (see be
 Client-side merging still happens *within* a channel's value (e.g. `enabledPlugins`,
 `extraKnownMarketplaces`).
 
+**Sandbox routing exception:** `sandbox.enabled` follows the runtime's `force-on-wins`
+contract: `true` from any managed channel wins over `false` from another channel.
+The shared resolver supplies this result to harness selection, permissions UI, and
+Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain
+their existing delivery-channel precedence.
+
 ## Schema source of truth
 
 When the developer has `copilot-agent-runtime` checked out side-by-side, reference
@@ -81,7 +87,7 @@ the schema's nested
 
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
-| `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
+| `permissions.disableBypassPermissionsMode` | string enum `"disable"` \| `"allow-auto-only"` | most-restrictive-wins (sticky once set) |
 | `model` | string (`auto`, a model family name, or a full model id) | — |
 | `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |
@@ -372,10 +378,13 @@ constant, configuration policy, or policy-data export.
 
 `forceRemoteSettingsRefresh` is not a user configuration setting. It controls whether the
 server-managed-settings cache may satisfy startup, so VS Code preserves it in the cached raw server
-bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves an
-explicit native MDM boolean ahead of the cached server value; when the result is `true`, it bypasses
-an otherwise-fresh server cache for the first fetch for that account in the current process. The
-cache remains available as the normal fetch-failure fallback.
+bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves the
+control across native MDM, cached server, and managed-file delivery before using the server cache.
+When the result is `true`, only a fresh successful server response for the current account,
+authentication provider, and endpoint satisfies the requirement. A failed refresh may retain cached
+restrictions and the flag itself, but the Account Policy gate keeps AI features disabled until a
+retry succeeds. Authentication remains available so users can recover from missing or expired
+credentials.
 
 Reference tests:
 - `src/vs/platform/policy/test/common/copilotManagedSettings.test.ts`

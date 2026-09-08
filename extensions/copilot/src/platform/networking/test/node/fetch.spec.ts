@@ -41,16 +41,27 @@ suite('getRequestId', () => {
 		const headers = new HeadersImpl({
 			'x-request-id': 'req-123',
 			'x-github-request-id': 'gh-456',
+			'x-copilot-service-request-id': 'svc-abc',
 			'azureml-model-deployment': 'deploy-789',
 		});
 		const result = getRequestId(headers, { id: 'comp-1', created: 1000 });
 		assert.deepStrictEqual(result, {
 			headerRequestId: 'req-123',
 			gitHubRequestId: 'gh-456',
+			copilotServiceRequestId: 'svc-abc',
 			completionId: 'comp-1',
 			created: 1000,
 			serverExperiments: '',
 			deploymentId: 'deploy-789',
 		});
+	});
+
+	test('reads X-Copilot-Service-Request-Id regardless of header casing', () => {
+		const headers = new HeadersImpl({ 'X-Copilot-Service-Request-Id': 'svc-abc' });
+		assert.strictEqual(getRequestId(headers).copilotServiceRequestId, 'svc-abc');
+	});
+
+	test('missing X-Copilot-Service-Request-Id returns empty string', () => {
+		assert.strictEqual(getRequestId(new HeadersImpl({})).copilotServiceRequestId, '');
 	});
 });

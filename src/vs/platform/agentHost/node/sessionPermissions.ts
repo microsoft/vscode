@@ -20,7 +20,7 @@ import { localize } from '../../../nls.js';
 import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -273,6 +273,34 @@ export class SessionPermissionManager extends Disposable {
 			return ToolCallConfirmationReason.Setting;
 		}
 
+		// 3.5 Surface edit scope. A session created by a file-bound surface
+		// (editor inline chat) is scoped to the one document it was invoked on.
+		// The user opened chat *on* that file, so reading and writing it needs no
+		// further consent even when it sits outside the working directory. Every
+		// other write -- and every shell command, which can write anywhere and
+		// carries no inspectable destination -- falls through to a confirmation
+		// prompt. Reads of other files keep the normal rules below so routine
+		// context gathering stays silent.
+		//
+		// This runs after the explicit opt-ins above: a user who turned on
+		// global or session auto-approve asked for that everywhere, and inline
+		// chat does not override it.
+		const surfaceScope = this._getSurfaceEditScope(sessionKey);
+		if (surfaceScope) {
+			if ((e.permissionKind === 'write' || e.permissionKind === 'read')
+				&& e.permissionPath
+				&& surfaceScope.target
+				&& extUriBiasedIgnorePathCase.isEqual(URI.file(e.permissionPath), surfaceScope.target)
+			) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving in-scope surface ${e.permissionKind} of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
+			if (e.permissionKind === 'write' || e.permissionKind === 'shell') {
+				this._logService.trace(`[SessionPermissionManager] Requiring confirmation for out-of-scope surface ${e.permissionKind}`);
+				return undefined;
+			}
+		}
+
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
 			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
@@ -326,6 +354,31 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
+	 * The edit scope of a session created by a file-bound chat surface, or
+	 * `undefined` for surfaces that are not file-bound.
+	 *
+	 * Returning a scope whose `target` is `undefined` is deliberate and fails
+	 * closed: an inline-chat session that did not record a usable target must
+	 * not fall back to unscoped editing, so no write auto-approves for it.
+	 */
+	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
+		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		if (surface?.surface !== 'editorInline') {
+			return undefined;
+		}
+		if (surface.targetUri === undefined) {
+			return { target: undefined };
+		}
+		try {
+			return { target: URI.parse(surface.targetUri) };
+		} catch {
+			this._logService.warn(`[SessionPermissionManager] Ignoring malformed inline chat target ${surface.targetUri}`);
+			return { target: undefined };
+		}
+	}
+
+	/**
 	 * Whether a write targets a file under the session attachments directory. Those files are
 	 * host-created **read-only snapshots** of client/derived content (pasted text/images, unsaved
 	 * editors, `git:` diff views); the model must never edit the copy (#331154).
@@ -371,6 +424,9 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
+		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+			return 'default';
+		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 

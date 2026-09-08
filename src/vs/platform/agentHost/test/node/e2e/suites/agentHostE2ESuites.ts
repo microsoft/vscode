@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
-import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
+import { defaultAgentHostTarget, type IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
 import { defineCustomizationDiscoveryTests } from './customizationDiscoverySuite.js';
@@ -24,6 +24,9 @@ import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
+import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
+import { defineAutomationsTests } from './automationsSuite.js';
+import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -50,6 +53,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		const noModelTrafficTestTitles = new Set<string>();
 		const context: IAgentHostE2ETestContext = {
 			tier: options.tier,
+			targetId: (options.target ?? defaultAgentHostTarget).id,
 			config,
 			get client() { return client; },
 			createdSessions,
@@ -142,6 +146,8 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			}
 		});
 
+		defineAutomationsTests(context);
+
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
 			defineHostFeaturesTests(context);
@@ -150,11 +156,13 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientHostedFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
+			defineDetachedWorktreeTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
 		if (options.tier === 'parity') {
 			defineCoreTests(context);
+			defineHostFeaturesTests(context);
 			defineCopilotCoverageTests(context);
 			defineFileOperationsTests(context);
 			defineTurnLifecycleTests(context);
@@ -171,6 +179,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);
+		defineManagementExtensionTests(context);
 	});
 }
 

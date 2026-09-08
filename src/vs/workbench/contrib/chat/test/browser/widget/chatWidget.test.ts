@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
@@ -145,6 +145,44 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('tracks unvisited completions and needs-input precedence', () => {
+		const active = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: true,
+			containsFocus: false,
+			requestWasActive: false,
+			hasUnvisitedCompletion: false,
+		});
+		const completed = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: false,
+			requestWasActive: active.requestActive,
+			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
+		});
+		const visited = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: true,
+			requestWasActive: completed.requestActive,
+			hasUnvisitedCompletion: completed.hasUnvisitedCompletion,
+		});
+		const needsInput = computeChatSessionStateIndicatorState({
+			requestNeedsInput: true,
+			requestInProgress: true,
+			containsFocus: true,
+			requestWasActive: visited.requestActive,
+			hasUnvisitedCompletion: visited.hasUnvisitedCompletion,
+		});
+
+		assert.deepStrictEqual({ active, completed, visited, needsInput }, {
+			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
+			completed: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			visited: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+		});
 	});
 
 	test('sticky request click survives synchronous template disposal during reveal', () => {

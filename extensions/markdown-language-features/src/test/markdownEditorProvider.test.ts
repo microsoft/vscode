@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from '../markdownExtensions';
-import { getMarkdownCodeBlockEditorApiV1, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
+import { getMarkdownCodeBlockEditorApiV1, getMarkdownCodeBlockEditorApiV2, isSupportedMarkdownCodeBlockEditorApiVersion, lineRangesToGutterMarkers } from '../preview/markdownEditorProvider';
 import { encodeWebviewInitialState } from '../preview/webviewInitialState';
 
 suite('Markdown editor diff', () => {
@@ -79,13 +79,32 @@ suite('Markdown code block editor API versioning', () => {
 		}), undefined);
 	});
 
-	test('only advertises API version 1', () => {
-		assert.strictEqual(isSupportedMarkdownCodeBlockEditorApiVersion(1), true);
-		assert.strictEqual(isSupportedMarkdownCodeBlockEditorApiVersion(2), false);
+	test('accepts the namespaced V2 extension API', () => {
+		const apiV2 = { getProvider: () => undefined };
+		assert.strictEqual(getMarkdownCodeBlockEditorApiV2({
+			markdownCodeBlockEditors: { apiV2 },
+		}), apiV2);
+		assert.strictEqual(getMarkdownCodeBlockEditorApiV2({
+			markdownCodeBlockEditors: { apiV1: apiV2 },
+		}), undefined);
+	});
+
+	test('advertises API versions 1 and 2', () => {
+		assert.deepStrictEqual(
+			[0, 1, 2, 3].map(isSupportedMarkdownCodeBlockEditorApiVersion),
+			[false, true, true, false],
+		);
+	});
+
+	test('reads the optional runtime key', () => {
+		assert.strictEqual(readCodeBlockEditorProviders(
+			{ kind: 'exportApi', apiVersion: 2 },
+			'shared-runtime',
+		)[0]?.runtimeKey, 'shared-runtime');
 	});
 });
 
-function readCodeBlockEditorProviders(source: unknown) {
+function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string) {
 	const extension = {
 		id: 'test.markdown-code-block-editor',
 		extensionUri: vscode.Uri.file('/test/markdown-code-block-editor'),
@@ -96,6 +115,7 @@ function readCodeBlockEditorProviders(source: unknown) {
 					id: 'test',
 					selector: { language: 'test' },
 					source,
+					runtimeKey,
 				}],
 			},
 		},

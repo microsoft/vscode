@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
@@ -46,6 +46,10 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 
 	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
 	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
+	private readonly _hasLoaded = observableValue(this, false);
+	readonly hasLoaded: IObservable<boolean> = this._hasLoaded;
+	private readonly _initialRefreshCompleted = observableValue(this, false);
+	readonly initialRefreshCompleted: IObservable<boolean> = this._initialRefreshCompleted;
 
 	private _refreshPromise: Promise<void> | undefined = undefined;
 
@@ -90,10 +94,15 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshing review threads for ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
 			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
-			this._reviewThreads.set(data, undefined);
+			transaction(tx => {
+				this._reviewThreads.set(data, tx);
+				this._hasLoaded.set(true, tx);
+				this._initialRefreshCompleted.set(true, tx);
+			});
 			const unresolved = data.filter(thread => !thread.isResolved).length;
 			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshed review threads for ${this.owner}/${this.repo}#${this.prNumber}: ${data.length} thread(s), ${unresolved} unresolved`);
 		} catch (err) {
+			this._initialRefreshCompleted.set(true, undefined);
 			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
 		}
 	}

@@ -11,7 +11,6 @@ import {
 	selectEditorGatewayEndpoint,
 	selectGatewayFallbackAfterRejection,
 	shouldNotifyTunnelFailover,
-	shouldTrackTunnelConnection,
 	TunnelFailoverTracker,
 } from '../../electron-browser/tunnelAgentHostServiceImpl.js';
 
@@ -194,38 +193,4 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 		});
 	});
 
-	suite('shouldTrackTunnelConnection', () => {
-		test('tracks (and may notify) when the connect attempt has no error', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-		});
-
-		test('does not track when the attempt ended in a connectError (e.g. incompatible handshake)', () => {
-			assert.strictEqual(shouldTrackTunnelConnection(new Error('Unsupported protocol version')), false);
-		});
-	});
-
-	suite('ordering: connectError must gate the tracker/notification step', () => {
-		test('an editor -> standalone automatic reconnect that ends in connectError must not update the tracker or notify', () => {
-			// Models `connect()`'s post-addManagedConnection guard exactly:
-			// `shouldTrackTunnelConnection(connectError)` must be checked (and
-			// found false) BEFORE `TunnelFailoverTracker.recordAndShouldNotify`
-			// is ever called, even though addManagedConnection already
-			// succeeded and registered the endpoint for a possible upgrade.
-			const tracker = new TunnelFailoverTracker();
-			tracker.recordAndShouldNotify('tunnel:abc', 'editor', true); // initial user-initiated connect
-
-			const connectError: unknown = new Error('Unsupported protocol version');
-			let notified: boolean | undefined;
-			if (shouldTrackTunnelConnection(connectError)) {
-				notified = tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false);
-			}
-			assert.strictEqual(notified, undefined, 'the tracker must never be invoked for a failed (incompatible) reconnect');
-
-			// A later, fully successful editor -> standalone reconnect must
-			// still notify: the failed attempt above must not have poisoned
-			// (or prematurely advanced) the retained state.
-			assert.strictEqual(shouldTrackTunnelConnection(undefined), true);
-			assert.strictEqual(tracker.recordAndShouldNotify('tunnel:abc', 'standalone', false), true, 'the retained state must still be "editor" since the failed attempt was never tracked');
-		});
-	});
 });

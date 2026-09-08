@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
-import { Event } from '../../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { CopilotToken } from '../../../authentication/common/copilotToken';
 
@@ -18,7 +18,8 @@ export class MockAuthenticationService implements IAuthenticationService {
 	readonly isMinimalMode = false;
 	readonly onDidAuthenticationChange: Event<void> = Event.None;
 	readonly onDidAccessTokenChange: Event<void> = Event.None;
-	readonly onDidCopilotTokenChange: Event<void> = Event.None;
+	private readonly _onDidCopilotTokenChange = new Emitter<void>();
+	readonly onDidCopilotTokenChange: Event<void> = this._onDidCopilotTokenChange.event;
 	readonly onDidAdoAuthenticationChange: Event<void> = Event.None;
 	readonly anyGitHubSession: AuthenticationSession | undefined = undefined;
 	readonly permissiveGitHubSession: AuthenticationSession | undefined = undefined;
@@ -26,6 +27,12 @@ export class MockAuthenticationService implements IAuthenticationService {
 
 	copilotToken: Omit<CopilotToken, 'token'> | undefined = undefined;
 	speculativeDecodingEndpointToken: string | undefined = undefined;
+
+	/** Replaces the current token and notifies listeners, as a real token refresh would. */
+	setCopilotToken(token: Omit<CopilotToken, 'token'> | undefined): void {
+		this.copilotToken = token;
+		this._onDidCopilotTokenChange.fire();
+	}
 
 	getGitHubSession(_kind: 'permissive' | 'any', _options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	getGitHubSession(_kind: 'permissive' | 'any', _options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession>;
@@ -43,5 +50,7 @@ export class MockAuthenticationService implements IAuthenticationService {
 		return Promise.resolve(undefined);
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		this._onDidCopilotTokenChange.dispose();
+	}
 }

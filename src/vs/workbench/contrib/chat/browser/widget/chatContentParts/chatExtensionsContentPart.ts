@@ -39,7 +39,7 @@ export class ChatExtensionsContentPart extends Disposable implements IChatConten
 
 		this.domNode = dom.$('.chat-extensions-content-part');
 		const loadingElement = dom.append(this.domNode, dom.$('.loading-extensions-element'));
-		dom.append(loadingElement, dom.$(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))), dom.$('span.loading-message', undefined, localize('chat.extensions.loading', 'Loading extensions...')));
+		dom.append(loadingElement, dom.$(ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loadingCompact, 'spin'))), dom.$('span.loading-message', undefined, localize('chat.extensions.loading', 'Loading extensions...')));
 
 		const extensionsList = dom.append(this.domNode, dom.$('.extensions-list'));
 		const list = this._register(instantiationService.createInstance(ExtensionsList, extensionsList, ChatViewId, { alwaysConsumeMouseWheel: false }, { onFocus: Event.None, onBlur: Event.None, filters: {} }));

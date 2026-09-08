@@ -14,6 +14,9 @@
 
 .sessions-github-reference-list-item {
 	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .sessions-github-reference-list-entry {
@@ -28,7 +31,7 @@
 	background: none;
 	color: var(--vscode-editorHoverWidget-foreground);
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	text-align: left;
 	cursor: pointer;
@@ -61,4 +64,13 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+/* Entry actions stay visible so the hover's focus trap can reach them by keyboard */
+.sessions-github-reference-list-entry-actions {
+	flex-shrink: 0;
+}
+
+.sessions-github-reference-list-entry-actions .monaco-action-bar .action-label:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
