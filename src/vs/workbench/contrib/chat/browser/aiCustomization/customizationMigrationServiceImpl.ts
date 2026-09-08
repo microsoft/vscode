@@ -10,8 +10,9 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -47,6 +48,18 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 				const customizations = await this.promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 				return this.createFileMigration(sessionResource, type, customizations.filter(isPromptFileMigrationCandidate));
 			}
+			case CustomizationMigrationType.AgentFiles: {
+				const agentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None);
+				const candidates = (await Promise.all(agentFiles
+					.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
+					.map(async file => ({
+						file,
+						parsed: await this.promptsService.parseNew(file.uri, CancellationToken.None),
+					}))))
+					.filter(({ parsed }) => parsed.header?.getAttribute(PromptHeaderAttributes.handOffs) !== undefined)
+					.map(({ file }) => ({ ...file, hasLocalHandoffs: true }));
+				return { type, files: candidates.map(candidate => candidate.uri), candidates };
+			}
 			case CustomizationMigrationType.McpServers:
 				return this.computeMcpServerMigration(sessionResource);
 		}
@@ -56,6 +69,7 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 		return Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
+			this.computeMigration(sessionResource, CustomizationMigrationType.AgentFiles),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
 		]);
 	}
@@ -66,9 +80,10 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			return undefined;
 		}
 
-		const [userDataMigration, promptFilesMigration, mcpServerMigration] = await Promise.all([
+		const [userDataMigration, promptFilesMigration, agentFilesMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles),
+			this.computeMigration(sessionResource, CustomizationMigrationType.AgentFiles),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers),
 		]);
 		const fileCount = userDataMigration.files.length + promptFilesMigration.files.length;
@@ -83,10 +98,15 @@ export class CustomizationMigrationService implements ICustomizationMigrationSer
 			: unsupportedMcpServerCount === 1
 				? localize('customizationMigrationHintMcpSingle', "Found 1 MCP server that is not fully supported by {0}.", harness.label)
 				: localize('customizationMigrationHintMcpMultiple', "Found {0} MCP servers that are not fully supported by {1}.", unsupportedMcpServerCount, harness.label);
-		if (fileHint && mcpHint) {
-			return localize('customizationMigrationHintCombined', "{0} {1}", fileHint, mcpHint);
-		}
-		return fileHint ?? mcpHint;
+		const agentFileHint = agentFilesMigration.files.length === 0
+			? undefined
+			: agentFilesMigration.files.length === 1
+				? localize('customizationMigrationHintAgentFileSingle', "Found 1 agent file with a handoff that {0} ignores and could be updated.", harness.label)
+				: localize('customizationMigrationHintAgentFileMultiple', "Found {0} agent files with handoffs that {1} ignores and could be updated.", agentFilesMigration.files.length, harness.label);
+		const hints = [fileHint, agentFileHint, mcpHint].filter(hint => hint !== undefined);
+		return hints.length > 1
+			? localize('customizationMigrationHintCombined', "{0}", hints.join(' '))
+			: hints[0];
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[]): Promise<FileCustomizationMigration> {

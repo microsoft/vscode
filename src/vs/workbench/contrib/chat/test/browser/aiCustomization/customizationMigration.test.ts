@@ -16,8 +16,9 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createSkillFileUri, migrateAgentFileForAgentHost, migrateAgentFilesForAgentHost, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
 	deleteFailureResource: URI | undefined;
@@ -52,11 +53,12 @@ suite('customizationMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('splits candidates into focused, non-overlapping categories', () => {
-		const customizations: IPromptPath[] = [
+		const customizations: MigratableConfiguration[] = [
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/user-data/prompts/release.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
 			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
 			{ uri: URI.file('/user-data/prompts/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData },
+			{ uri: URI.file('/workspace/.github/agents/handoff.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, source: PromptFileSource.GitHubWorkspace, hasLocalHandoffs: true },
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
 		];
@@ -66,6 +68,7 @@ suite('customizationMigration', () => {
 
 		assert.deepStrictEqual({
 			promptFiles: candidatesFor(CustomizationMigrationCategoryId.PromptFiles),
+			agentFiles: candidatesFor(CustomizationMigrationCategoryId.AgentFiles),
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
 			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...category.sourceTypes]]),
 		}, {
@@ -73,14 +76,91 @@ suite('customizationMigration', () => {
 				'/workspace/.github/prompts/review.prompt.md',
 				'/user-data/prompts/release.prompt.md',
 			],
+			agentFiles: [
+				'/workspace/.github/agents/handoff.agent.md',
+			],
 			userData: [
 				'/user-data/prompts/reviewer.agent.md',
 				'/user-data/prompts/style.instructions.md',
 			],
 			sourceTypes: [
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
+				[CustomizationMigrationCategoryId.AgentFiles, [PromptsType.agent]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 			],
+		});
+	});
+
+	test('replaces agent handoffs with body instructions and preserves model fallbacks', () => {
+		const agentFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/agents/coordinator.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const content = [
+			'---',
+			'name: coordinator',
+			'model: [claude-sonnet-4.5, gpt-5.1]',
+			'handoffs:',
+			'  - agent: implementer',
+			'    label: Implement the plan',
+			'    prompt: Implement the approved plan',
+			'  - agent: reviewer',
+			'    label: Review the implementation',
+			'    prompt: Review all changes',
+			'    send: true',
+			'    model: gpt-5.1',
+			'---',
+			'Coordinate the work.',
+		].join('\r\n');
+
+		assert.strictEqual(migrateAgentFileForAgentHost(agentFile, content), [
+			'---',
+			'name: coordinator',
+			'model: [claude-sonnet-4.5, gpt-5.1]',
+			'---',
+			'Coordinate the work.',
+			'',
+			'After completing the task, offer to hand off to the `implementer` agent for "Implement the plan" with the prompt "Implement the approved plan".',
+			'After completing the task, hand off to the `reviewer` agent for "Review the implementation" with the prompt "Review all changes" using the `gpt-5.1` model.',
+			'',
+		].join('\r\n'));
+	});
+
+	test('rejects malformed handoffs without changing the file', async () => {
+		const agentFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/agents/coordinator.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const content = [
+			'---',
+			'name: coordinator',
+			'handoffs:',
+			'  - agent: reviewer',
+			'    label: Review',
+			'---',
+			'Coordinate the work.',
+		].join('\n');
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		await fileService.writeFile(agentFile.uri, VSBuffer.fromString(content));
+
+		const result = await migrateAgentFilesForAgentHost([agentFile], fileService);
+
+		assert.deepStrictEqual({
+			result,
+			content: (await fileService.readFile(agentFile.uri)).value.toString(),
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['coordinator.agent.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+			},
+			content,
 		});
 	});
 

@@ -2457,6 +2457,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor offers to convert prompt files into skills for agent-host harnesses, which ignore prompt files. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: true,
 		},
+		[ChatConfiguration.ChatCustomizationsAgentFilesMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.agentFilesMigration.enabled', "Controls whether the Chat Customizations editor offers to update agent files that use handoffs unsupported by Agent Host. When disabled, the migration card and sidebar shortcut are hidden."),
+			default: true,
+		},
 		[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],

@@ -64,7 +64,7 @@ import {
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationService, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { getCustomizationMigrationTargetType, ICustomizationMigrationService, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, IValue, ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -102,7 +102,7 @@ import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js'
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
-import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
+import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateAgentFilesForAgentHost, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -1143,10 +1143,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 
 			const migrationsByCategory = await Promise.all(enabledCategories.map(async category => {
-				const type = category.id === CustomizationMigrationCategoryId.PromptFiles
-					? CustomizationMigrationType.PromptFiles
-					: CustomizationMigrationType.UserData;
-				const migration = await this.customizationMigrationService.computeMigration(activeSessionResource, type);
+				const migration = await this.customizationMigrationService.computeMigration(activeSessionResource, category.migrationType);
 				return [category.id, migration] as const;
 			}));
 			if (refreshSequence !== this.customizationMigrationRefreshSequence || activeHarnessId !== this.harnessService.activeHarness.get() || !isEqual(activeSessionResource, this.harnessService.activeSessionResource.get())) {
@@ -1157,7 +1154,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				migrationsByCategory.map(([categoryId, migration]) => [categoryId, migration.candidates]),
 			);
 			const provider = this.harnessService.findHarnessById(activeHarnessId)?.itemProvider;
-			const targetTypes = new Set([...candidatesByCategory.values()].flat().map(getCustomizationMigrationTargetType));
+			const targetTypes = new Set(migrationsByCategory
+				.filter(([categoryId]) => getCustomizationMigrationCategory(categoryId).requiresTargetFolders)
+				.flatMap(([, migration]) => migration.candidates)
+				.map(getCustomizationMigrationTargetType));
 			const targetFolderEntries = await Promise.all([...targetTypes].map(async targetType => {
 				const folders = await provider?.provideSourceFolders?.(activeSessionResource, targetType, CancellationToken.None);
 				return [targetType, folders ?? []] as const;
@@ -1308,7 +1308,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateCustomizationMigrationActionState();
 		try {
 			const sessionResource = this.harnessService.activeSessionResource.get();
-			const targetFolders = await this.resolveCustomizationMigrationTargetFolders(customizations, this.customizationMigrationTargetFoldersByType, sessionResource);
+			const targetFolders: CustomizationMigrationTargetFolders | undefined = category.requiresTargetFolders
+				? await this.resolveCustomizationMigrationTargetFolders(customizations, this.customizationMigrationTargetFoldersByType, sessionResource)
+				: new Map();
 			if (!targetFolders || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 				return;
 			}
@@ -1316,26 +1318,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const confirmation = category.getConfirmation(
 				customizations,
 				this.getActiveHarnessLabel(),
-				this.getCustomizationMigrationDestinationLabel(
+				category.requiresTargetFolders ? this.getCustomizationMigrationDestinationLabel(
 					[...targetFolders.values()].flatMap(foldersByStorage => [...foldersByStorage.values()]),
-				),
+				) : undefined,
 			);
 			const confirmResult = await this.dialogService.confirm({
 				type: 'question',
 				message: confirmation.message,
 				detail: confirmation.detail,
-				checkbox: {
+				checkbox: confirmation.deleteOriginalsLabel ? {
 					label: confirmation.deleteOriginalsLabel,
 					checked: true,
-				},
+				} : undefined,
 				primaryButton: confirmation.primaryButton,
 			});
 			if (!confirmResult.confirmed || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 				return;
 			}
 
-			const deleteOriginalFiles = confirmResult.checkboxChecked !== false;
-			const migrationResult = await this.runCustomizationMigration(customizations, targetFolders, deleteOriginalFiles);
+			const deleteOriginalFiles = category.requiresTargetFolders && confirmResult.checkboxChecked !== false;
+			const migrationResult = await this.runCustomizationMigration(category, customizations, targetFolders, deleteOriginalFiles);
 			const { migratedCount, failedCustomizationFileNames, unsupportedHeaderKeys, migratedCustomizations } = migrationResult;
 
 			if (failedCustomizationFileNames.length > 0) {
@@ -1351,7 +1353,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 
-			if (deleteOriginalFiles) {
+			if (deleteOriginalFiles || !category.requiresTargetFolders) {
 				await this.refreshCustomizationMigrationInfo();
 			}
 
@@ -1360,7 +1362,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				? category.getMigratedWithReviewMessage(migratedCount, unsupportedKeysLabel)
 				: category.getMigratedMessage(migratedCount));
 
-			if (deleteOriginalFiles) {
+			if (deleteOriginalFiles || !category.requiresTargetFolders) {
 				void this.revealMigratedCustomizations(migratedCustomizations);
 			}
 		} finally {
@@ -1369,9 +1371,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsResult> {
+	private async runCustomizationMigration(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsResult> {
 		this.customizationMigrationWritesInProgress = true;
 		try {
+			if (category.id === CustomizationMigrationCategoryId.AgentFiles) {
+				return await migrateAgentFilesForAgentHost(customizations, this.fileService, onUnexpectedError);
+			}
 			return await migrateCustomizations(
 				customizations,
 				targetFolders,
