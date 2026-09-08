@@ -10,8 +10,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getGitHubPullRequestRefs, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
-import { linkKey } from '../../../common/sessionLinks.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+
+function getArtifactLinkKey(link: URI): string {
+	return link.toString().replace(/\/+$/, '').toLowerCase();
+}
 
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
@@ -526,7 +529,7 @@ export class SessionsLifecycleTracker extends Disposable {
 			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
 				const status = getPullRequestStatusFromIcon(pullRequest.icon) ?? pullRequest.liveState ?? pullRequest.state;
 				if (status) {
-					pullRequestStatuses.set(linkKey(pullRequest.uri.toString()), status);
+					pullRequestStatuses.set(getArtifactLinkKey(pullRequest.uri), status);
 				}
 			}
 		}
@@ -556,7 +559,7 @@ export class SessionsLifecycleTracker extends Disposable {
 				continue;
 			}
 
-			const status = artifact.link ? pullRequestStatuses.get(linkKey(artifact.link.toString())) : undefined;
+			const status = artifact.link ? pullRequestStatuses.get(getArtifactLinkKey(artifact.link)) : undefined;
 			switch (status) {
 				case 'merged':
 					pullRequestArtifactMergedCount++;
