@@ -23,7 +23,7 @@ export interface ISessionChangesEditorOptions extends IMultiDiffEditorOptions {
 /** Owns the identity and presentation state of a session's Changes editor. */
 export interface ISessionChangesService {
 	readonly _serviceBrand: undefined;
-	readonly activeSessionChangeCountObs: IObservable<number | undefined>;
+	readonly activeSessionUncommittedChangesCountObs: IObservable<number | undefined>;
 
 	/** Builds the multi-diff source URI that identifies a session's Changes editor. */
 	getChangesEditorResource(sessionResource: URI): URI;

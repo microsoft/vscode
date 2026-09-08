@@ -24,6 +24,7 @@ import { ISessionsListModelService, SessionSortMode } from '../../../../services
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -244,6 +245,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChangeProviders = Event.None;
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
+	});
+	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+		override readonly hadPriorWindowOpen = true;
+		override readonly windowOpenCount = 2;
 	});
 	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 		override readonly pendingResponseVersion = constObservable(0);

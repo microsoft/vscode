@@ -83,7 +83,7 @@ parameters:
   - name: VSCODE_CLI_CANARY_VERSION
     displayName: "Product @github/copilot runtime version ('auto' = infer from an SDK override)"
     type: string
-    default: 1.0.84-canary.67.g6496fad.unsigned
+    default: 1.0.84-canary.70.gdb75d0d.unsigned
 
 variables:
   - name: VSCODE_PRIVATE_BUILD

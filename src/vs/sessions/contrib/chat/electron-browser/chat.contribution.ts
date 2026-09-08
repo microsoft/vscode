@@ -134,10 +134,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	private async openExistingSession(sessionResource: URI): Promise<void> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
-		// Wait for the workbench to be ready so the session list / providers
-		// have populated. Otherwise openSession can't find the session.
-		await this.lifecycleService.when(LifecyclePhase.Eventually);
-		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Eventually');
+		// Wait until initial restore has started so opening the target can cancel it,
+		// without delaying the handoff until the intentionally deferred Eventually phase.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
 		// Fast path — already on the target session.
 		const current = this.sessionsService.activeSession.get();
