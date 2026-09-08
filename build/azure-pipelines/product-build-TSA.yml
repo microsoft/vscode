@@ -58,6 +58,7 @@ extends:
     stages:
       - template: product-build-template.yml@self
         parameters:
+          VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
           VSCODE_RUN_APISCAN: ${{ parameters.VSCODE_RUN_TSA }}
           VSCODE_PUBLISH: false
           VSCODE_RELEASE: false

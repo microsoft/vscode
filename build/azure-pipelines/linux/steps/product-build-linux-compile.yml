@@ -23,6 +23,8 @@ parameters:
   - name: VSCODE_RUN_CHECKS
     type: boolean
     default: false
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -322,8 +324,16 @@ steps:
       displayName: Build server
 
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
-      - script: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)"
-        displayName: 🧪 Smoke test packaged Agent Host
+      - template: ../../common/restore-test-checkpoints.yml@self
+        parameters:
+          enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+      - template: ../../common/run-test-with-checkpoint.yml@self
+        parameters:
+          enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+          testId: smoke-packaged-agent-host
+          testStep:
+            script: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)"
+            displayName: 🧪 Smoke test packaged Agent Host
 
     - script: |
         set -e
@@ -466,6 +476,7 @@ steps:
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+        VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts

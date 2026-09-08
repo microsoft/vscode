@@ -1,6 +1,8 @@
 parameters:
   - name: OS
     type: string # linux, darwin, win32
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
 
 steps:
   - script: git lfs install --local
@@ -61,68 +63,113 @@ steps:
 
   # Run Copilot integration tests
   - ${{ if eq(parameters.OS, 'linux') }}:
-    - script: xvfb-run -a npm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot extension tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-extension
+        testStep:
+          script: xvfb-run -a npm run test:extension
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot extension tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: xvfb-run -a npm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot completions core tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-completions-core
+        testStep:
+          script: xvfb-run -a npm run test:completions-core
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot completions core tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: xvfb-run -a npm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-sanity
+        testStep:
+          script: xvfb-run -a npm run test:sanity
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot sanity tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
-    - script: npm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot extension tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-extension
+        testStep:
+          script: npm run test:extension
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot extension tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: npm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot completions core tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-completions-core
+        testStep:
+          script: npm run test:completions-core
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot completions core tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: npm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-sanity
+        testStep:
+          script: npm run test:sanity
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot sanity tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
   - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: npm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot extension tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-extension
+        testStep:
+          powershell: npm run test:extension
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot extension tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
     # MAYBE https://dev.azure.com/monacotools/Monaco/_build/results?buildId=426316&view=logs&j=573fdb8c-432d-57b7-addd-e5c3edb6227f&t=6fad2a73-ceba-567d-939f-7bd557eba1dc&s=40b405d8-d9ea-5f38-8ab3-8db0b216e2d0
-    - powershell: npm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot completions core tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-completions-core
+        testStep:
+          powershell: npm run test:completions-core
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot completions core tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - powershell: npm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        enabled: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}
+        testId: copilot-sanity
+        testStep:
+          powershell: npm run test:sanity
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot sanity tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)

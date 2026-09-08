@@ -22,6 +22,8 @@ parameters:
   - name: VSCODE_RUN_CHECKS
     type: boolean
     default: false
+  - name: VSCODE_SKIP_SUCCESSFUL_TEST_TASKS
+    type: boolean
 
 jobs:
   - job: Linux_${{ parameters.VSCODE_ARCH }}
@@ -49,7 +51,10 @@ jobs:
             displayName: Publish Crash Reports
             sbomEnabled: false
             isProduction: false
-            condition: failed()
+            ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
+              condition: and(failed(), eq(variables['TEST_CHECKPOINT_CRASHES_AVAILABLE'], 'true'))
+            ${{ else }}:
+              condition: failed()
           - output: pipelineArtifact
             targetPath: $(Build.SourcesDirectory)/node_modules
             artifactName: node-modules-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
@@ -63,7 +68,10 @@ jobs:
             displayName: Publish Log Files
             sbomEnabled: false
             isProduction: false
-            condition: succeededOrFailed()
+            ${{ if eq(parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS, true) }}:
+              condition: and(succeededOrFailed(), eq(variables['TEST_CHECKPOINT_LOGS_AVAILABLE'], 'true'))
+            ${{ else }}:
+              condition: succeededOrFailed()
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
@@ -125,3 +133,4 @@ jobs:
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
           VSCODE_RUN_CHECKS: ${{ parameters.VSCODE_RUN_CHECKS }}
+          VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: ${{ parameters.VSCODE_SKIP_SUCCESSFUL_TEST_TASKS }}

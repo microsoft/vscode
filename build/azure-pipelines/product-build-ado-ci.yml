@@ -356,16 +356,19 @@ extends:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Electron
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Browser
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Remote
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
@@ -386,16 +389,19 @@ extends:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Electron
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Browser
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_TEST_SUITE: Remote
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
@@ -419,14 +425,17 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_TEST_SUITE: Electron
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_TEST_SUITE: Browser
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_TEST_SUITE: Remote
+                VSCODE_SKIP_SUCCESSFUL_TEST_TASKS: false
 
 
       - stage: node_modules
