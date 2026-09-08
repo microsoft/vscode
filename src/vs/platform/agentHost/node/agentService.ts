@@ -7772,9 +7772,18 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async shutdown(): Promise<void> {
 		this._logService.info('AgentService: shutting down all providers...');
+		this._catalogReconciliationService.dispose();
 		try {
-			await this._providerService.shutdown();
+			try {
+				while (this._clientDispatchQueues.size > 0) {
+					await Promise.allSettled([...this._clientDispatchQueues.values()]);
+				}
+				await this.whenCatalogReconciliationIdle();
+			} finally {
+				await this._providerService.shutdown();
+			}
 		} finally {
+			await this.whenCatalogReconciliationIdle();
 			await this._debugLogsCollector?.cleanup();
 			await this._orchestratorDatabase.close();
 			this._downloadProgressInterest.clear();
