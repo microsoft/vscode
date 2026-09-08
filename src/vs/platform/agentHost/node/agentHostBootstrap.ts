@@ -187,6 +187,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			agentServiceOptions,
 			accessor,
 			instantiationService!,
+			services,
 			logService,
 			sessionDataService,
 			foundation,

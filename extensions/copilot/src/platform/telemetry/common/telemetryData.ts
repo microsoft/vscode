@@ -104,6 +104,7 @@ export class TelemetryData {
 			completionId: requestId.completionId,
 			created: requestId.created.toString(),
 			headerRequestId: requestId.headerRequestId,
+			copilotServiceRequestId: requestId.copilotServiceRequestId,
 			serverExperiments: requestId.serverExperiments,
 			deploymentId: requestId.deploymentId,
 		};

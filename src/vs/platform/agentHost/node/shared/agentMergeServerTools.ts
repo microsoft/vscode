@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { parse } from '../../../../base/common/json.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
@@ -38,7 +39,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: rerunAgentMergeWorkflowToolName,
 		title: 'Rerun Agent Merge Workflow',
-		description: 'Rerun a GitHub Actions workflow associated with a failed required check in the active Agent Merge turn.',
+		description: 'Rerun a GitHub Actions workflow associated with a failed required check in the active Agent Merge turn. If its current attempt is still running, Agent Merge defers the rerun until it finishes, provided CI repair remains enabled and the pull request head is unchanged. Continue other actionable work; do not poll or repeat a deferred request.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -62,6 +63,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 	return {
 		definitions,
 		isEnabled: toolName => accessor?.isEnabled() === true && definitions.some(definition => definition.name === toolName),
+		isEnabledForSession: () => true,
 		execute: (_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown) => {
 			if (!accessor) {
 				throw new Error('Agent Merge tools are not available without an Agent Merge controller.');
@@ -115,13 +117,26 @@ function getDisplay(toolName: string, result: IServerToolDisplayResult | undefin
 		case rerunAgentMergeWorkflowToolName:
 			return {
 				displayName: localize('agentMerge.tool.rerunWorkflow', "Rerun Workflow"),
-				invocationMessage: localize('agentMerge.tool.rerunWorkflow.running', "Rerunning failed workflow"),
-				pastTenseMessage: result?.success === false
-					? localize('agentMerge.tool.rerunWorkflow.failed', "Failed to rerun workflow")
-					: localize('agentMerge.tool.rerunWorkflow.complete', "Reran failed workflow"),
+				invocationMessage: localize('agentMerge.tool.rerunWorkflow.running', "Requesting workflow rerun"),
+				pastTenseMessage: getWorkflowRerunMessage(result),
 			};
 		default:
 			return undefined;
+	}
+}
+
+function getWorkflowRerunMessage(result: IServerToolDisplayResult | undefined): string {
+	if (result?.success === false) {
+		return localize('agentMerge.tool.rerunWorkflow.failed', "Failed to rerun workflow");
+	}
+	const value: { readonly outcome?: string } | undefined = result?.text ? parse(result.text) : undefined;
+	switch (value?.outcome) {
+		case 'deferred':
+			return localize('agentMerge.tool.rerunWorkflow.deferred', "Deferred workflow rerun until the current attempt finishes");
+		case 'indeterminate':
+			return localize('agentMerge.tool.rerunWorkflow.indeterminate', "Could not confirm workflow rerun");
+		default:
+			return localize('agentMerge.tool.rerunWorkflow.complete', "Requested workflow rerun");
 	}
 }
 

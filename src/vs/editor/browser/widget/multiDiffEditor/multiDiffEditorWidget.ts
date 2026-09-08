@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { DiffEditorViewMode, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { ICodeEditor } from '../../editorBrowser.js';
@@ -20,6 +20,7 @@ import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { getMultiDiffEditorVariantConfiguration, IMultiDiffEditorVariantConfiguration, IMultiDiffEditorWidgetOptions } from './multiDiffEditorOptions.js';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
@@ -29,29 +30,32 @@ export class MultiDiffEditorWidget extends Disposable {
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
 	private readonly _diffLayoutOptions = observableValue<IDiffEditorOptions | undefined>(this, undefined);
 	private readonly _paddingBottomPx = observableValue<number>(this, 0);
-
-	private readonly _widgetImpl = derived(this, (reader) => {
-		readHotReloadableExport(DiffEditorItemTemplate, reader);
-		return reader.store.add(this._instantiationService.createInstance((
-			readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
-			this._element,
-			this._dimension,
-			this._viewModel,
-			this._workbenchUIElementFactory,
-			this._diffLayoutOptions,
-			this._diffEditorOptions,
-			this._paddingBottomPx,
-		));
-	});
+	private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration;
+	private readonly _widgetImpl: IObservable<MultiDiffEditorWidgetImpl>;
 
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
-		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
+		private readonly _options: IMultiDiffEditorWidgetOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
+		this._variantConfiguration = getMultiDiffEditorVariantConfiguration(this._options.variant);
+		this._widgetImpl = derived(this, reader => {
+			readHotReloadableExport(DiffEditorItemTemplate, reader);
+			return reader.store.add(this._instantiationService.createInstance((
+				readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
+				this._element,
+				this._dimension,
+				this._viewModel,
+				this._workbenchUIElementFactory,
+				this._variantConfiguration,
+				this._diffLayoutOptions,
+				this._options.diffEditorOptions,
+				this._paddingBottomPx,
+			));
+		});
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
@@ -111,6 +115,15 @@ export class MultiDiffEditorWidget extends Disposable {
 		}, undefined);
 	}
 
+	public setViewMode(mode: DiffEditorViewMode): void {
+		const currentOptions = this._diffLayoutOptions.get();
+		const wasAutomatic = currentOptions?.renderSideBySide === true && currentOptions.useInlineViewWhenSpaceIsLimited === true;
+		this.setRenderSideBySide(mode !== 'inline', { useInlineViewWhenSpaceIsLimited: mode === 'automatic' });
+		if (mode === 'automatic' && !wasAutomatic) {
+			this.resetWidthBasedLayout();
+		}
+	}
+
 	public toggleRenderSideBySide(): void {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
@@ -158,6 +171,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public getScopedInstantiationService(): IInstantiationService {
 		return this._widgetImpl.get().getScopedInstantiationService();
+	}
+
+	public resetWidthBasedLayout(): void {
+		this._widgetImpl.get().resetWidthBasedLayout();
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {

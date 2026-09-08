@@ -587,12 +587,15 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 					: 'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
 				1,
 			);
-			const edit = context.client.receivedNotifications(n =>
-				isActionNotification(n, 'chat/toolCallComplete')
-				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
-				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
-			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+			const completionNotification = await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallComplete') || getActionEnvelope(n).channel !== buildDefaultChatUri(sessionUri)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as ChatToolCallCompleteAction;
+				return action.turnId === turnId && !!action.result.content?.some(content => content.type === ToolResultContentType.FileEdit);
+			}, 90_000);
+			const completion = getActionEnvelope(completionNotification).action as ChatToolCallCompleteAction;
+			const edit = completion.result.content?.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
 

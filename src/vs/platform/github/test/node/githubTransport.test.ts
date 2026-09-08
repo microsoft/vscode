@@ -33,7 +33,7 @@ suite('GitHubTransport', () => {
 		}
 	}
 
-	test('always reaches the injected fetch with explicit no-store behavior', async () => {
+	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
 			server.enqueue(
 				gitHubRestStep({ method: 'GET', path: '/repos/o/r/issues/1', response: gitHubJsonResponse({ value: 1 }) }),
@@ -60,8 +60,8 @@ suite('GitHubTransport', () => {
 				values: [1, 2],
 				serverRequests: 2,
 				fetchOptions: [
-					{ cache: 'no-store', cacheControl: 'no-store' },
-					{ cache: 'no-store', cacheControl: 'no-store' },
+					{ cache: 'no-store', cacheControl: undefined },
+					{ cache: 'no-store', cacheControl: undefined },
 				],
 			});
 			server.assertSatisfied();
@@ -245,7 +245,7 @@ suite('GitHubTransport', () => {
 				errors: [{ message: 'field denied', type: 'FORBIDDEN', path: ['repository', 'viewerPermission'] }],
 				rateLimit: { limit: 5000, remaining: 7, used: 3, resetAt: Date.parse('2030-01-01T00:00:00.000Z') },
 				authorizationIsExpected: true,
-				requestHeaders: { cacheControl: 'no-store', authorization: '******' },
+				requestHeaders: { cacheControl: undefined, authorization: '******' },
 			});
 			server.assertSatisfied();
 		});
@@ -711,6 +711,78 @@ suite('GitHubTransport', () => {
 			});
 			server.assertSatisfied();
 		});
+	});
+
+	test('reports the failing download hop and nested network codes without signed URLs or credentials', async () => {
+		const requests: { host: string; authorization: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({ host: new URL(String(input)).host, authorization: new Headers(init?.headers).get('Authorization') });
+			if (requests.length === 1) {
+				return new Response(null, { status: 302, headers: { location: 'https://storage.example.test/private-log?sig=secret-signature' } });
+			}
+			throw new TypeError('fetch failed for secret-signature', {
+				cause: new AggregateError([
+					Object.assign(new Error('private-address'), { code: 'UND_ERR_CONNECT_TIMEOUT' }),
+					Object.assign(new Error('secret-token'), { code: 'ETIMEDOUT' }),
+					{ code: 'https://storage.example.test/private-log?sig=secret-signature' },
+				]),
+			});
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: storage.example.test, redirect: 1, codes: UND_ERR_CONNECT_TIMEOUT, ETIMEDOUT)',
+		});
+		assert.deepStrictEqual(requests, [
+			{ host: 'api.example.test', authorization: 'Bearer token-a' },
+			{ host: 'storage.example.test', authorization: null },
+		]);
+	});
+
+	test('reports initial download failures with a bounded cyclic cause chain', async () => {
+		const error = Object.assign(new Error('private details'), { code: 'ENOTFOUND' });
+		error.cause = error;
+		const transport = disposables.add(new GitHubTransport(async () => { throw error; }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: ENOTFOUND)',
+		});
+	});
+
+	test('reports unknown download network codes without exposing thrown content', async () => {
+		const transport = disposables.add(new GitHubTransport(async () => { throw new Error('secret-token'); }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: unknown)',
+		});
+	});
+
+	test('preserves download cancellation instead of reporting a network failure', async () => {
+		const controller = new AbortController();
+		const reason = new Error('cancelled download');
+		const transport = disposables.add(new GitHubTransport(async () => {
+			controller.abort(reason);
+			throw new TypeError('fetch failed');
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, controller.signal), error => error === reason);
 	});
 
 	test('runs higher-priority queued work before older background work', async () => {

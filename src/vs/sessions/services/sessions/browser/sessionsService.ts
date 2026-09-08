@@ -62,6 +62,14 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
+	/** Cancel startup session restoration so this new-session navigation wins. */
+	readonly cancelRestore?: boolean;
+
+	/**
+	 * When `true`, opens the new session (or empty composer slot) to the side
+	 * of the active session in the grid instead of replacing it in place.
+	 */
+	readonly toSide?: boolean;
 }
 
 /**
@@ -268,9 +276,10 @@ export interface ISessionsService {
 
 	/**
 	 * Insert (or move) a session into the grid positioned next to a target
-	 * session that is already visible.
+	 * session that is already visible. Passing `undefined` operates on the
+	 * empty (new-session) slot.
 	 */
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -343,8 +352,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Cancellation for the in-flight {@link restoreVisibleSessions}. Kept
 	 * separate from {@link _openSessionCts} so that additive new-session
 	 * operations (the new-chat composer eagerly creating a draft on startup)
-	 * do not abort restoring the previously visible grid. Only an explicit
-	 * navigation to a specific session cancels a restore.
+	 * do not abort restoring the previously visible grid. Explicit navigation
+	 * to a session, or a new-session handoff with `cancelRestore`, cancels it.
 	 */
 	private readonly _restoreCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
@@ -718,8 +727,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/**
 	 * Cancel an in-flight {@link restoreVisibleSessions}. Called when the user
-	 * explicitly navigates to a specific session, so restore stops fighting
-	 * the user's choice. Additive new-session operations do NOT call this.
+	 * explicitly navigates to a session, including a new-session handoff that
+	 * sets `cancelRestore`, so restore stops fighting the user's choice.
 	 */
 	private _cancelRestore(): void {
 		// `cancel()` (not just `clear()`/dispose) so the in-flight restore's
@@ -878,6 +887,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			const sessionData = this._getSession(resolved);
+			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
 				sessionData.resource,
@@ -1050,6 +1063,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
+		if (options?.cancelRestore) {
+			this._cancelRestore();
+		}
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			// Single trust gate for every path that creates a concrete session for
@@ -1080,7 +1096,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
-				this._activate(session);
+				this._activateOrInsert(session, options?.toSide);
 				return { session, trustDeclined: false };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
@@ -1092,11 +1108,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Without a folder (or when folder resolution failed above): switch to
 		// the new-session composer view.
-		// No-op when no session is active (empty new-session placeholder showing).
+		// No-op when the empty new-session placeholder is active, unless opening to the side.
 		if (!folderUri) {
 			this._dismissCustomViewForNavigation(intent);
 		}
-		if (this._visibility.activeSession.get() === undefined) {
+		if (this._visibility.activeSession.get() === undefined && !options?.toSide) {
 			return { session: undefined, trustDeclined: false };
 		}
 		if (!folderUri) {
@@ -1108,17 +1124,25 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		// A quick-chat draft must not be restored into the workspace new-session
-		// composer (symmetric to the New Quick Chat gesture): discard it and show
-		// a fresh workspace composer instead.
-		if (newSession?.isQuickChat?.get()) {
-			this.sessionsManagementService.discardNewSession(newSession);
-			this._activate(undefined);
-			return { session: undefined, trustDeclined: false };
-		}
+		const targetSession = newSession ?? undefined;
+		this._activateOrInsert(targetSession, options?.toSide);
+		return { session: targetSession, trustDeclined: false };
+	}
 
-		this._activate(newSession ?? undefined);
-		return { session: newSession ?? undefined, trustDeclined: false };
+	/** Open or move beside the active session when requested, keeping a single empty slot. */
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined): void {
+		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
+		const sessionId = session?.sessionId;
+		if (toSide && activeSessionId !== sessionId) {
+			const visible = this.visibleSessions.get();
+			// An empty active slot has no id; fall back to the rightmost session.
+			const anchorId = activeSessionId ?? visible[visible.length - 1]?.sessionId;
+			if (anchorId && anchorId !== sessionId) {
+				this.insertAt(session, anchorId, 'right', true);
+				return;
+			}
+		}
+		this._activate(session);
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
@@ -1182,7 +1206,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
 		this._visibility.insertAt(session, targetSessionId, side, activate);
 	}
 
@@ -1561,6 +1585,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		if (token.isCancellationRequested) {
 			return;
+		}
+		if (activeSession) {
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			void provider?.prepareSessionForOpen?.(activeSession, 'restore').catch(error => this.logService.warn(`[SessionsView] Failed to prepare restored session for provider '${provider.id}'`, error));
 		}
 
 		// Lay out all currently-available sessions atomically in the persisted

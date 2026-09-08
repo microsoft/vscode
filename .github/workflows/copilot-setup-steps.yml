@@ -8,6 +8,9 @@ on:
     paths:
       - .github/workflows/copilot-setup-steps.yml
   pull_request:
+    branches:
+      - main
+      - 'release/*'
     paths:
       - .github/workflows/copilot-setup-steps.yml
 

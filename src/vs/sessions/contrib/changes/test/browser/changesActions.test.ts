@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -38,6 +38,11 @@ suite('Changes Actions', () => {
 			id: 'discard-file',
 			label: 'Discard File',
 			scopes: [SessionChangesetOperationScope.Resource],
+			status: SessionChangesetOperationStatus.Idle,
+		}, {
+			id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+			label: 'Checkout',
+			scopes: [SessionChangesetOperationScope.Changeset],
 			status: SessionChangesetOperationStatus.Idle,
 		}, {
 			id: AGENT_HOST_SYNC_CHANGESET_OPERATION_ID,
@@ -112,6 +117,7 @@ suite('Changes Actions', () => {
 			visibleForChangesTab,
 			visibleForTextTab,
 			resourceOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}discard-file`) !== undefined,
+			checkoutOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID}`) !== undefined,
 			syncOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_SYNC_CHANGESET_OPERATION_ID}`) !== undefined,
 		}, {
 			actions: [{
@@ -128,6 +134,7 @@ suite('Changes Actions', () => {
 			visibleForChangesTab: true,
 			visibleForTextTab: false,
 			resourceOperationRegistered: false,
+			checkoutOperationRegistered: false,
 			syncOperationRegistered: false,
 		});
 
