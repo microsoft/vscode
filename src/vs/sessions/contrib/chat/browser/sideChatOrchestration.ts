@@ -10,13 +10,14 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISideChatSelection } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ITransientSideChatService } from './transientSideChatService.js';
+import { ITransientSideChatService, TransientSideChatPresentationResult } from './transientSideChatService.js';
 
 export const ISideChatOrchestrationService = createDecorator<ISideChatOrchestrationService>('sideChatOrchestrationService');
 
 export const enum SideChatPresentation {
 	Full = 'full',
 	Transient = 'transient',
+	Superseded = 'superseded',
 }
 
 export interface IPreparedSideChat {
@@ -27,7 +28,6 @@ export interface IPreparedSideChat {
 
 export interface ISideChatOrchestrationService {
 	readonly _serviceBrand: undefined;
-	prepare(session: ISession, sourceChat: IChat, sideChat: IChat, question: string): Promise<IPreparedSideChat>;
 	createAndPresent(session: ISession, sourceChat: IChat, turnId: string, question: string, selection?: ISideChatSelection): Promise<IPreparedSideChat>;
 }
 
@@ -42,34 +42,41 @@ export class SideChatOrchestrationService implements ISideChatOrchestrationServi
 	) { }
 
 	async createAndPresent(session: ISession, sourceChat: IChat, turnId: string, question: string, selection?: ISideChatSelection): Promise<IPreparedSideChat> {
-		const sideChat = await this.sessionsManagementService.createSideChatInSession(session, sourceChat.resource, turnId, selection);
-		return this.prepare(session, sourceChat, sideChat, question);
-	}
-
-	async prepare(session: ISession, sourceChat: IChat, sideChat: IChat, question: string): Promise<IPreparedSideChat> {
-		const presentation = await this.transientSideChatService.show(session, sourceChat, sideChat, question)
-			? SideChatPresentation.Transient
-			: SideChatPresentation.Full;
-		if (presentation === SideChatPresentation.Full) {
-			await this.sessionsService.openChat(session, sideChat.resource);
-			const activeSession = this.sessionsService.activeSession.get();
-			if (activeSession?.sessionId !== session.sessionId || !isEqual(activeSession.activeChat.get().resource, sideChat.resource)) {
-				throw new Error(`Side chat '${sideChat.resource.toString()}' did not open`);
+		const pendingPresentation = this.transientSideChatService.beginPresentation(sourceChat);
+		try {
+			const sideChat = await this.sessionsManagementService.createSideChatInSession(session, sourceChat.resource, turnId, selection);
+			const result = await pendingPresentation.show(session, sideChat, question);
+			let presentation = pendingPresentation.token.isCancellationRequested || result === TransientSideChatPresentationResult.Superseded
+				? SideChatPresentation.Superseded
+				: result === TransientSideChatPresentationResult.Shown ? SideChatPresentation.Transient : SideChatPresentation.Full;
+			if (presentation === SideChatPresentation.Full) {
+				await this.sessionsService.openChat(session, sideChat.resource, { token: pendingPresentation.token });
+				if (pendingPresentation.token.isCancellationRequested) {
+					await this.sessionsService.closeChat(session, sideChat, { skipHistory: true });
+					presentation = SideChatPresentation.Superseded;
+				} else {
+					const activeSession = this.sessionsService.activeSession.get();
+					if (activeSession?.sessionId !== session.sessionId || !isEqual(activeSession.activeChat.get().resource, sideChat.resource)) {
+						throw new Error(`Side chat '${sideChat.resource.toString()}' did not open`);
+					}
+					this.sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
+				}
 			}
-			this.sessionsPartService.getSessionView(session.sessionId)?.splitChatToSide(sideChat.resource);
+			return {
+				sideChat,
+				presentation,
+				send: requestOptions => this._send(session, sideChat, presentation, requestOptions),
+			};
+		} finally {
+			pendingPresentation.dispose();
 		}
-		return {
-			sideChat,
-			presentation,
-			send: requestOptions => this._send(session, sideChat, presentation, requestOptions),
-		};
 	}
 
 	private async _send(session: ISession, sideChat: IChat, presentation: SideChatPresentation, requestOptions: ISendRequestOptions): Promise<ChatSideChatSendResult> {
 		try {
 			await this.sessionsManagementService.sendRequest(session, sideChat, {
 				...requestOptions,
-				preserveActiveChat: presentation === SideChatPresentation.Transient,
+				preserveActiveChat: presentation !== SideChatPresentation.Full,
 			});
 			return { kind: ChatSideChatSendResultKind.Sent };
 		} catch (error) {

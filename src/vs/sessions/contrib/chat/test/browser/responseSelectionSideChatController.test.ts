@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -19,7 +20,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
-import { ITransientSideChatService } from '../../browser/transientSideChatService.js';
+import { ITransientSideChatService, TransientSideChatPresentationResult } from '../../browser/transientSideChatService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -46,6 +47,7 @@ suite('ResponseSelectionSideChatController', () => {
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
 		presentTransiently?: boolean;
+		superseded?: boolean;
 		failurePresented?: boolean;
 	}) {
 		const store = disposables.add(new DisposableStore());
@@ -188,7 +190,12 @@ suite('ResponseSelectionSideChatController', () => {
 			getSessionView: () => undefined,
 		}));
 		instantiationService.stub(ITransientSideChatService, upcastPartial<ITransientSideChatService>({
-			show: async () => options?.presentTransiently ?? false,
+			beginPresentation: () => ({
+				token: options?.superseded ? CancellationToken.Cancelled : CancellationToken.None,
+				show: async () => options?.superseded ? TransientSideChatPresentationResult.Superseded
+					: options?.presentTransiently ? TransientSideChatPresentationResult.Shown : TransientSideChatPresentationResult.Unavailable,
+				dispose: () => undefined,
+			}),
 			markFailed: resource => {
 				callOrder.push(`failed:${resource.toString()}`);
 				return options?.failurePresented !== false;
@@ -573,6 +580,49 @@ suite('ResponseSelectionSideChatController', () => {
 			visible: false,
 			notifications: [],
 			failed: [`failed:${URI.parse('test:///chat/side').toString()}`],
+		});
+	});
+
+	test('a superseded selection submission releases its overlay without refocusing on failure', async () => {
+		const sendStarted = new DeferredPromise<void>();
+		const sendCompleted = new DeferredPromise<void>();
+		const { controller, setSelection, autoScrollHolds, focusResponseItemCalls, notificationService, doc } = setup({
+			superseded: true,
+			sendRequest: async () => {
+				await sendStarted.complete();
+				await sendCompleted.p;
+			},
+		});
+		const destinationInput = dom.append(doc.body, dom.$('textarea'));
+		disposables.add(toDisposable(() => destinationInput.remove()));
+		setSelection('hello world');
+		destinationInput.focus();
+
+		submitViaClick(controller, 'older question');
+		await sendStarted.p;
+		const stateAfterPresentation = {
+			visible: inputDomNode(controller).style.display !== 'none',
+			busy: isInputBusy(controller),
+			autoScrollHolds: autoScrollHolds(),
+			destinationFocused: doc.activeElement === destinationInput,
+		};
+		await sendCompleted.error(new Error('older send failed'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			stateAfterPresentation,
+			visibleAfterFailure: inputDomNode(controller).style.display !== 'none',
+			draftAfterFailure: inputTextArea(controller).value,
+			destinationStillFocused: doc.activeElement === destinationInput,
+			focusResponseItemCalls,
+			notifications: notificationService.notifications.map(notification => notification.message),
+		}, {
+			stateAfterPresentation: { visible: false, busy: false, autoScrollHolds: 0, destinationFocused: true },
+			visibleAfterFailure: false,
+			draftAfterFailure: '',
+			destinationStillFocused: true,
+			focusResponseItemCalls: [],
+			notifications: ['The side question could not be answered.'],
 		});
 	});
 

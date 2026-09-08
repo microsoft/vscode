@@ -327,24 +327,43 @@ suite('TransientSideChatWidget', () => {
 		assert.deepStrictEqual(notificationService.errors, ['The side question could not be opened as a full chat.']);
 	});
 
-	test('focuses the promoted full chat input', async () => {
-		let focusCount = 0;
+	test('preserves promotion focus when the full chat opens in a different group', async () => {
+		const destinationInput = dom.append(dom.getActiveDocument().body, dom.$('textarea'));
+		disposables.add(toDisposable(() => destinationInput.remove()));
 		const sourceChat = upcastPartial<IChat>({ resource: URI.parse('test:///source') });
+		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///side') });
+		let activeChat = sourceChat;
+		let sourceFocusCount = 0;
 		const widget = createWidget({
 			chatService: upcastPartial<IChatService>({}),
 			transientSideChatService: upcastPartial<ITransientSideChatService>({
 				states: constObservable([]),
 				registerHost: () => toDisposable(() => undefined),
 				removeBySideChat: () => undefined,
-				promote: async () => true,
+				promote: async () => {
+					activeChat = sideChat;
+					destinationInput.focus();
+					return true;
+				},
 			}),
-			onFocusInput: () => focusCount++,
+			onFocusInput: () => {
+				activeChat = sourceChat;
+				sourceFocusCount++;
+			},
 		});
 		widget.setSource(sourceChat, upcastPartial<ISession>({ sessionId: 'session' }));
 
 		await (Reflect.get(widget, '_promote') as () => Promise<void>).call(widget);
 
-		assert.strictEqual(focusCount, 1);
+		assert.deepStrictEqual({
+			activeChat: activeChat.resource.toString(),
+			destinationFocused: dom.getActiveDocument().activeElement === destinationInput,
+			sourceFocusCount,
+		}, {
+			activeChat: sideChat.resource.toString(),
+			destinationFocused: true,
+			sourceFocusCount: 0,
+		});
 	});
 
 	test('dismisses through a scoped Escape command', () => {

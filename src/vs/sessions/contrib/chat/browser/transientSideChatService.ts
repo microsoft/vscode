@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -12,6 +13,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
 export const AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING = 'chat.agentSessions.transientSideChat';
@@ -34,11 +36,22 @@ export interface IResolvedTransientSideChatState extends ITransientSideChatState
 
 export const ITransientSideChatService = createDecorator<ITransientSideChatService>('transientSideChatService');
 
+export const enum TransientSideChatPresentationResult {
+	Shown = 'shown',
+	Unavailable = 'unavailable',
+	Superseded = 'superseded',
+}
+
+export interface ITransientSideChatPresentation extends IDisposable {
+	readonly token: CancellationToken;
+	show(session: ISession, sideChat: IChat, question: string): Promise<TransientSideChatPresentationResult>;
+}
+
 export interface ITransientSideChatService {
 	readonly _serviceBrand: undefined;
 	readonly states: IObservable<readonly ITransientSideChatState[]>;
 	registerHost(sourceChat: URI): IDisposable;
-	show(session: ISession, sourceChat: IChat, sideChat: IChat, question: string): Promise<boolean>;
+	beginPresentation(sourceChat: IChat): ITransientSideChatPresentation;
 	resolveState(state: ITransientSideChatState, reader?: IReader): IResolvedTransientSideChatState | undefined;
 	promote(sourceChat: URI): Promise<boolean>;
 	dismiss(sourceChat: URI): void;
@@ -53,14 +66,14 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 	readonly states: IObservable<readonly ITransientSideChatState[]> = this._states;
 
 	private readonly _hosts = new ResourceMap<Set<object>>();
-	private readonly _presentationIds = new ResourceMap<number>();
+	private readonly _presentations = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _catalogChanged: IObservable<void>;
-	private _presentationIdPool = 0;
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super();
 		this._catalogChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
@@ -86,7 +99,7 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 		}));
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING) && !this._isEnabled()) {
-				this._presentationIds.clear();
+				this._cancelPresentations();
 				this._states.set([], undefined);
 			}
 		}));
@@ -117,27 +130,36 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 		});
 	}
 
-	async show(session: ISession, sourceChat: IChat, sideChat: IChat, question: string): Promise<boolean> {
-		if (!this._isEnabled()) {
-			return false;
-		}
-		if (!this._hasHost(sourceChat.resource)) {
-			return false;
-		}
-		if (sourceChat.interactivity.get() !== ChatInteractivity.Full) {
-			return false;
+	beginPresentation(sourceChat: IChat): ITransientSideChatPresentation {
+		this._presentations.get(sourceChat.resource)?.cancel();
+		const source = new CancellationTokenSource();
+		this._presentations.set(sourceChat.resource, source);
+		const token = source.token;
+		return Object.assign(toDisposable(() => {
+			source.cancel();
+			if (this._presentations.get(sourceChat.resource) === source) {
+				this._presentations.deleteAndDispose(sourceChat.resource);
+			}
+		}), {
+			token,
+			show: (session: ISession, sideChat: IChat, question: string) => this._show(session, sourceChat, sideChat, question, token),
+		});
+	}
+
+	private async _show(session: ISession, sourceChat: IChat, sideChat: IChat, question: string, token: CancellationToken): Promise<TransientSideChatPresentationResult> {
+		if (!token.isCancellationRequested && (!this._isEnabled()
+			|| !this._hasHost(sourceChat.resource)
+			|| sourceChat.interactivity.get() !== ChatInteractivity.Full)) {
+			return TransientSideChatPresentationResult.Unavailable;
 		}
 
-		const presentationId = ++this._presentationIdPool;
-		this._presentationIds.set(sourceChat.resource, presentationId);
+		// Superseded creations remain recoverable without taking over visible navigation.
 		await this.sessionsService.closeChat(session, sideChat, { skipHistory: true });
-		if (this._presentationIds.get(sourceChat.resource) !== presentationId
-			|| !this._isEnabled()
-			|| !this._hasHost(sourceChat.resource)) {
-			if (this._presentationIds.get(sourceChat.resource) === presentationId) {
-				this._presentationIds.delete(sourceChat.resource);
-			}
-			return false;
+		if (token.isCancellationRequested) {
+			return TransientSideChatPresentationResult.Superseded;
+		}
+		if (!this._isEnabled() || !this._hasHost(sourceChat.resource)) {
+			return TransientSideChatPresentationResult.Unavailable;
 		}
 		const liveSession = this.sessionsManagementService.getSession(session.resource);
 		const liveChats = liveSession?.chats.get();
@@ -147,8 +169,7 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 			|| !liveSourceChat
 			|| liveSourceChat.interactivity.get() !== ChatInteractivity.Full
 			|| !liveChats.some(chat => isEqual(chat.resource, sideChat.resource))) {
-			this._presentationIds.delete(sourceChat.resource);
-			return false;
+			return TransientSideChatPresentationResult.Unavailable;
 		}
 		this._setState({
 			sessionResource: liveSession.resource,
@@ -159,7 +180,7 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 			failed: false,
 			replacedExisting: this._getState(sourceChat.resource) !== undefined,
 		});
-		return true;
+		return TransientSideChatPresentationResult.Shown;
 	}
 
 	private _isEnabled(): boolean {
@@ -193,27 +214,34 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 			throw new Error('The transient side chat is no longer available');
 		}
 
-		this._setState({ ...state, promoting: true });
+		const presentation = this.beginPresentation(resolved.sourceChat);
 		try {
-			await this.sessionsService.openChat(resolved.session, state.sideChatResource);
+			this._setState({ ...state, promoting: true });
+			await this.sessionsService.openChat(resolved.session, state.sideChatResource, { token: presentation.token });
+			if (presentation.token.isCancellationRequested) {
+				return false;
+			}
 			if (!this._isActiveChat(resolved.session, state.sideChatResource)) {
 				throw new Error('The transient side chat did not open');
 			}
+			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 			const current = this._getState(sourceChat);
 			if (current && isEqual(current.sideChatResource, state.sideChatResource) && current.promoting) {
 				this._remove(sourceChat);
 			}
 			return true;
-		} catch (error) {
+		} finally {
 			const current = this._getState(sourceChat);
 			if (current && isEqual(current.sideChatResource, state.sideChatResource) && current.promoting) {
 				this._setState({ ...current, promoting: false });
 			}
-			throw error;
+			presentation.dispose();
 		}
 	}
 
 	dismiss(sourceChat: URI): void {
+		this._presentations.get(sourceChat)?.cancel();
+		this._presentations.deleteAndDispose(sourceChat);
 		this._remove(sourceChat);
 	}
 
@@ -259,9 +287,7 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 		const states = this._states.get();
 		const next: ITransientSideChatState[] = [];
 		for (const state of states) {
-			if (predicate(state)) {
-				this._presentationIds.delete(state.sourceChatResource);
-			} else {
+			if (!predicate(state)) {
 				next.push(state);
 			}
 		}
@@ -277,6 +303,18 @@ export class TransientSideChatService extends Disposable implements ITransientSi
 	private _isActiveChat(session: ISession, chatResource: URI): boolean {
 		const activeSession: IActiveSession | undefined = this.sessionsService.activeSession.get();
 		return activeSession?.sessionId === session.sessionId && isEqual(activeSession.activeChat.get().resource, chatResource);
+	}
+
+	private _cancelPresentations(): void {
+		for (const source of this._presentations.values()) {
+			source.cancel();
+		}
+		this._presentations.clearAndDisposeAll();
+	}
+
+	override dispose(): void {
+		this._cancelPresentations();
+		super.dispose();
 	}
 
 }

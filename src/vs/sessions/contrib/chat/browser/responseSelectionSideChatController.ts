@@ -344,7 +344,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	 * it — outside interactions like Escape or selection invalidation must not
 	 * race the in-flight create/open/send.
 	 */
-	private _dismiss(force = false): void {
+	private _dismiss(force = false, preserveFocus = false): void {
 		if (!force && this._input.isBusy) {
 			return;
 		}
@@ -359,7 +359,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._input.setBusy(false);
 		this._input.hide();
 		this._input.clearInput();
-		if (hadFocus) {
+		if (hadFocus && !preserveFocus) {
 			// Hiding the focused input would otherwise leave focus stranded on
 			// the body; return it to the transcript it was invoked from.
 			this._widget.focusResponseItem(true);
@@ -391,16 +391,16 @@ export class ResponseSelectionSideChatController extends Disposable {
 	}
 
 	private async _createAndSendSideChat(session: ISession, sourceChat: IChat, turnId: string, selectedText: string, query: string, generation: number): Promise<void> {
-		let presentedTransiently = false;
+		let presentation: SideChatPresentation | undefined;
 		try {
 			const prepared = await this._sideChatOrchestrationService.createAndPresent(session, sourceChat, turnId, query, { text: selectedText });
-			presentedTransiently = prepared.presentation === SideChatPresentation.Transient;
-			if (presentedTransiently && this._generation === generation) {
-				this._dismissAfterTransientPresentation();
+			presentation = prepared.presentation;
+			if (presentation !== SideChatPresentation.Full && this._generation === generation) {
+				this._dismissAfterBackgroundPresentation(presentation === SideChatPresentation.Superseded);
 			}
 
 			await prepared.send({ query });
-			if (!presentedTransiently && this._generation === generation) {
+			if (presentation === SideChatPresentation.Full && this._generation === generation) {
 				this._input.setBusy(false);
 				this._dismiss();
 			}
@@ -409,7 +409,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			if (this._generation !== generation) {
 				return;
 			}
-			if (presentedTransiently) {
+			if (presentation === SideChatPresentation.Transient || presentation === SideChatPresentation.Superseded) {
 				this._notificationService.error(localize('sessions.selectionSideChat.sendFailed', "The side question could not be answered."));
 				return;
 			}
@@ -422,10 +422,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 	}
 
-	private _dismissAfterTransientPresentation(): void {
+	private _dismissAfterBackgroundPresentation(preserveFocus: boolean): void {
 		dom.getWindow(this._widget.domNode).getSelection()?.removeAllRanges();
 		this._input.setBusy(false);
-		this._dismiss();
+		this._dismiss(false, preserveFocus);
 		this._autoScrollHold.clear();
 	}
 }

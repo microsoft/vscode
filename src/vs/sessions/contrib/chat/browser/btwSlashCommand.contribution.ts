@@ -81,9 +81,9 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 			}
 			const selection = captureSideChatSelection(chatWidgetService.getWidgetBySessionResource(chat.resource));
 
-			let sideChat;
+			let prepared;
 			try {
-				sideChat = await sessionsManagementService.createSideChatInSession(session, chat.resource, sourceTurn.id, selection);
+				prepared = await sideChatOrchestrationService.createAndPresent(session, chat, sourceTurn.id, remainder, selection);
 			} catch (err) {
 				logService.error('[btw] Failed to create side chat', err);
 				notificationService.error(localize('btw.createFailed', "The side chat could not be created."));
@@ -91,7 +91,6 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 			}
 
 			try {
-				const prepared = await sideChatOrchestrationService.prepare(session, chat, sideChat, remainder);
 				await prepared.send({ query: remainder, attachedContext: options?.attachedContext });
 			} catch (err) {
 				logService.error('[btw] Failed to send side chat request', err);

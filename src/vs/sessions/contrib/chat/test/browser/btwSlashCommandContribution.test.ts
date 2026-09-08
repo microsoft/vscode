@@ -30,7 +30,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ITransientSideChatService } from '../../browser/transientSideChatService.js';
+import { ITransientSideChatService, TransientSideChatPresentationResult } from '../../browser/transientSideChatService.js';
 import { ISideChatOrchestrationService, SideChatOrchestrationService, SideChatPresentation } from '../../browser/sideChatOrchestration.js';
 
 suite('BtwSlashCommandContribution', () => {
@@ -130,10 +130,14 @@ suite('BtwSlashCommandContribution', () => {
 			}),
 		}));
 		instantiationService.stub(ITransientSideChatService, upcastPartial<ITransientSideChatService>({
-			show: async (_session, source, target, question) => {
-				callOrder.push(`show:${source.resource.toString()}:${target.resource.toString()}:${question}`);
-				return false;
-			},
+			beginPresentation: source => ({
+				token: CancellationToken.None,
+				show: async (_session, target, question) => {
+					callOrder.push(`show:${source.resource.toString()}:${target.resource.toString()}:${question}`);
+					return TransientSideChatPresentationResult.Unavailable;
+				},
+				dispose: () => undefined,
+			}),
 		}));
 		instantiationService.stub(ISideChatOrchestrationService, instantiationService.createInstance(SideChatOrchestrationService));
 		instantiationService.stub(INotificationService, new TestNotificationService());
@@ -206,7 +210,7 @@ suite('BtwSlashCommandContribution', () => {
 			createSideChatInSession: async () => sideChat,
 		}));
 		instantiationService.stub(ISideChatOrchestrationService, upcastPartial<ISideChatOrchestrationService>({
-			prepare: async () => ({
+			createAndPresent: async () => ({
 				sideChat,
 				presentation: SideChatPresentation.Transient,
 				send: async () => ({ kind: ChatSideChatSendResultKind.FailedAndPresented, error: new Error('send failed') }),
@@ -256,7 +260,7 @@ suite('BtwSlashCommandContribution', () => {
 			createSideChatInSession: async () => sideChat,
 		}));
 		instantiationService.stub(ISideChatOrchestrationService, upcastPartial<ISideChatOrchestrationService>({
-			prepare: async () => ({
+			createAndPresent: async () => ({
 				sideChat,
 				presentation: SideChatPresentation.Full,
 				send: async () => { throw new Error('send failed'); },

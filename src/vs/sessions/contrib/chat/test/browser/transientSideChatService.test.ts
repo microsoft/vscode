@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import type { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -16,8 +17,8 @@ import { ChatInteractivity, IChat, ISession } from '../../../../services/session
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { SideChatOrchestrationService } from '../../browser/sideChatOrchestration.js';
-import { AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, TransientSideChatService } from '../../browser/transientSideChatService.js';
+import { SideChatOrchestrationService, SideChatPresentation } from '../../browser/sideChatOrchestration.js';
+import { AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, ITransientSideChatService, TransientSideChatPresentationResult, TransientSideChatService } from '../../browser/transientSideChatService.js';
 
 suite('TransientSideChatService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,12 +36,15 @@ suite('TransientSideChatService', () => {
 
 	function setup(options: {
 		readonly onOpenChat?: () => Promise<void>;
+		readonly onDidOpenChat?: (chat: IChat) => void;
 		readonly onCloseChat?: (chat: IChat) => Promise<void>;
 		readonly enabled?: boolean;
 		readonly openChatSucceeds?: boolean;
 		readonly sendRequest?: ISessionsManagementService['sendRequest'];
+		readonly createSideChatInSession?: ISessionsManagementService['createSideChatInSession'];
 	} = {}) {
 		const calls: string[] = [];
+		const focusedChats: string[] = [];
 		const didDeleteChat = disposables.add(new Emitter<{ session: ISession; chatResource: URI }>());
 		const didChangeSessions = disposables.add(new Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>());
 		const didReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
@@ -56,13 +60,14 @@ suite('TransientSideChatService', () => {
 				calls.push(`close:${chat.resource.toString()}:${closeOptions?.skipHistory}`);
 				await options.onCloseChat?.(chat);
 			},
-			openChat: async (_session, chatResource) => {
+			openChat: async (_session, chatResource, openOptions) => {
 				calls.push(`open:${chatResource.toString()}`);
 				await options.onOpenChat?.();
-				if (options.openChatSucceeds !== false) {
+				if (options.openChatSucceeds !== false && !openOptions?.token?.isCancellationRequested) {
 					const chat = chats.get().find(candidate => candidate.resource.toString() === chatResource.toString());
 					if (chat) {
 						activeChat.set(chat, undefined);
+						options.onDidOpenChat?.(chat);
 					}
 				}
 			},
@@ -74,29 +79,50 @@ suite('TransientSideChatService', () => {
 			onDidDeleteSession: Event.None,
 			onDidDeleteChat: didDeleteChat.event,
 			sendRequest: options.sendRequest,
+			createSideChatInSession: options.createSideChatInSession ?? (async () => sideChat),
 		});
+		const sessionsPartService = upcastPartial<ISessionsPartService>({
+			focusSession: session => { focusedChats.push(session!.activeChat.get().resource.toString()); },
+			getSessionView: () => upcastPartial<NonNullable<ReturnType<ISessionsPartService['getSessionView']>>>({
+				splitChatToSide: resource => calls.push(`split:${resource.toString()}`),
+			}),
+		});
+		const service = disposables.add(new TransientSideChatService(sessionsService, managementService, configurationService, sessionsPartService));
 		return {
-			service: disposables.add(new TransientSideChatService(sessionsService, managementService, configurationService)),
+			service,
+			orchestration: new SideChatOrchestrationService(managementService, sessionsService, sessionsPartService, service),
 			calls,
+			focusedChats,
+			activeChat,
 			didDeleteChat,
 			didReplaceSession,
 			chats,
 			configurationService,
 			sessionsService,
 			managementService,
+			sessionsPartService,
 			setCurrentSession: (next: ISession) => currentSession = next,
 		};
+	}
+
+	async function show(service: ITransientSideChatService, session: ISession, sourceChat: IChat, sideChat: IChat, question: string): Promise<TransientSideChatPresentationResult> {
+		const presentation = service.beginPresentation(sourceChat);
+		try {
+			return await presentation.show(session, sideChat, question);
+		} finally {
+			presentation.dispose();
+		}
 	}
 
 	test('falls back when the source chat has no live host', async () => {
 		const { service, calls } = setup();
 
 		assert.deepStrictEqual({
-			shown: await service.show(session, sourceChat, sideChat, 'question'),
+			shown: await show(service, session, sourceChat, sideChat, 'question'),
 			states: service.states.get(),
 			calls,
 		}, {
-			shown: false,
+			shown: TransientSideChatPresentationResult.Unavailable,
 			states: [],
 			calls: [],
 		});
@@ -112,11 +138,11 @@ suite('TransientSideChatService', () => {
 		disposables.add(service.registerHost(readOnlySourceChat.resource));
 
 		assert.deepStrictEqual({
-			shown: await service.show(session, readOnlySourceChat, sideChat, 'question'),
+			shown: await show(service, session, readOnlySourceChat, sideChat, 'question'),
 			states: service.states.get(),
 			calls,
 		}, {
-			shown: false,
+			shown: TransientSideChatPresentationResult.Unavailable,
 			states: [],
 			calls: [],
 		});
@@ -127,7 +153,7 @@ suite('TransientSideChatService', () => {
 		const { service, calls } = setup({ onCloseChat: () => closeChat.p });
 		const host = service.registerHost(sourceChat.resource);
 
-		const showing = service.show(session, sourceChat, sideChat, 'question');
+		const showing = show(service, session, sourceChat, sideChat, 'question');
 		host.dispose();
 		closeChat.complete();
 
@@ -136,7 +162,7 @@ suite('TransientSideChatService', () => {
 			states: service.states.get(),
 			calls,
 		}, {
-			shown: false,
+			shown: TransientSideChatPresentationResult.Unavailable,
 			states: [],
 			calls: [`close:${sideChat.resource.toString()}:true`],
 		});
@@ -147,7 +173,7 @@ suite('TransientSideChatService', () => {
 		const { service, chats } = setup({ onCloseChat: () => closeChat.p });
 		disposables.add(service.registerHost(sourceChat.resource));
 
-		const showing = service.show(session, sourceChat, sideChat, 'question');
+		const showing = show(service, session, sourceChat, sideChat, 'question');
 		chats.set([sourceChat], undefined);
 		closeChat.complete();
 
@@ -155,7 +181,7 @@ suite('TransientSideChatService', () => {
 			shown: await showing,
 			states: service.states.get(),
 		}, {
-			shown: false,
+			shown: TransientSideChatPresentationResult.Unavailable,
 			states: [],
 		});
 	});
@@ -166,13 +192,13 @@ suite('TransientSideChatService', () => {
 		const secondHost = service.registerHost(sourceChat.resource);
 		secondHost.dispose();
 
-		const shown = await service.show(session, sourceChat, sideChat, 'question');
+		const shown = await show(service, session, sourceChat, sideChat, 'question');
 
 		assert.deepStrictEqual({
 			shown,
 			states: service.states.get().map(state => state.sideChatResource.toString()),
 		}, {
-			shown: true,
+			shown: TransientSideChatPresentationResult.Shown,
 			states: [sideChat.resource.toString()],
 		});
 		firstHost.dispose();
@@ -181,7 +207,7 @@ suite('TransientSideChatService', () => {
 	test('removes the card when its final source host is disposed', async () => {
 		const { service } = setup();
 		const host = service.registerHost(sourceChat.resource);
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		host.dispose();
 
@@ -200,7 +226,7 @@ suite('TransientSideChatService', () => {
 		const { service, chats } = setup();
 		chats.set([mutableSourceChat, sideChat], undefined);
 		disposables.add(service.registerHost(mutableSourceChat.resource));
-		await service.show(session, mutableSourceChat, sideChat, 'question');
+		await show(service, session, mutableSourceChat, sideChat, 'question');
 
 		sourceInteractivity.set(ChatInteractivity.ReadOnly, undefined);
 
@@ -217,8 +243,8 @@ suite('TransientSideChatService', () => {
 		chats.set([sourceChat, sideChat, replacement], undefined);
 		disposables.add(service.registerHost(sourceChat.resource));
 
-		const firstShowing = service.show(session, sourceChat, sideChat, 'first');
-		const secondShowing = service.show(session, sourceChat, replacement, 'second');
+		const firstShowing = show(service, session, sourceChat, sideChat, 'first');
+		const secondShowing = show(service, session, sourceChat, replacement, 'second');
 		secondClose.complete();
 		const secondShown = await secondShowing;
 		firstClose.complete();
@@ -233,8 +259,8 @@ suite('TransientSideChatService', () => {
 				replacedExisting: state.replacedExisting,
 			})),
 		}, {
-			firstShown: false,
-			secondShown: true,
+			firstShown: TransientSideChatPresentationResult.Superseded,
+			secondShown: TransientSideChatPresentationResult.Shown,
 			state: [{
 				sideChat: replacement.resource.toString(),
 				question: 'second',
@@ -243,16 +269,197 @@ suite('TransientSideChatService', () => {
 		});
 	});
 
+	test('orders presentations by submission rather than side-chat creation completion', async () => {
+		const firstCreation = new DeferredPromise<IChat>();
+		const secondCreation = new DeferredPromise<IChat>();
+		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
+		const sends: { chat: string; preserveActiveChat: boolean | undefined }[] = [];
+		const { service, orchestration, chats, calls, activeChat } = setup({
+			createSideChatInSession: (_session, _source, turnId) => turnId === 'first' ? firstCreation.p : secondCreation.p,
+			sendRequest: async (_session, chat, options) => {
+				sends.push({ chat: chat.resource.toString(), preserveActiveChat: options.preserveActiveChat });
+			},
+		});
+		chats.set([sourceChat, sideChat, replacement], undefined);
+		disposables.add(service.registerHost(sourceChat.resource));
+
+		const first = orchestration.createAndPresent(session, sourceChat, 'first', 'first question');
+		const second = orchestration.createAndPresent(session, sourceChat, 'second', 'second question');
+		await secondCreation.complete(replacement);
+		const secondPrepared = await second;
+		await firstCreation.complete(sideChat);
+		const firstPrepared = await first;
+		await secondPrepared.send({ query: 'second question' });
+		await firstPrepared.send({ query: 'first question' });
+
+		assert.deepStrictEqual({
+			presentations: [firstPrepared.presentation, secondPrepared.presentation],
+			activeChat: activeChat.get().resource.toString(),
+			questions: service.states.get().map(state => state.question),
+			calls,
+			sends,
+		}, {
+			presentations: [SideChatPresentation.Superseded, SideChatPresentation.Transient],
+			activeChat: sourceChat.resource.toString(),
+			questions: ['second question'],
+			calls: [
+				`close:${replacement.resource.toString()}:true`,
+				`close:${sideChat.resource.toString()}:true`,
+			],
+			sends: [
+				{ chat: replacement.resource.toString(), preserveActiveChat: true },
+				{ chat: sideChat.resource.toString(), preserveActiveChat: true },
+			],
+		});
+	});
+
+	test('does not navigate or remove the newer card when an older close finishes last', async () => {
+		const firstClosing = new DeferredPromise<void>();
+		const firstClose = new DeferredPromise<void>();
+		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
+		const sends: boolean[] = [];
+		const { service, orchestration, chats, calls, activeChat } = setup({
+			createSideChatInSession: async (_session, _source, turnId) => turnId === 'first' ? sideChat : replacement,
+			onCloseChat: chat => {
+				if (chat === sideChat) {
+					void firstClosing.complete();
+					return firstClose.p;
+				}
+				return Promise.resolve();
+			},
+			sendRequest: async (_session, _chat, options) => { sends.push(options.preserveActiveChat === true); },
+		});
+		chats.set([sourceChat, sideChat, replacement], undefined);
+		const host = disposables.add(service.registerHost(sourceChat.resource));
+
+		const first = orchestration.createAndPresent(session, sourceChat, 'first', 'first question');
+		await firstClosing.p;
+		const secondPrepared = await orchestration.createAndPresent(session, sourceChat, 'second', 'second question');
+		await firstClose.complete();
+		const firstPrepared = await first;
+		await firstPrepared.send({ query: 'first question' });
+
+		assert.deepStrictEqual({
+			presentations: [firstPrepared.presentation, secondPrepared.presentation],
+			activeChat: activeChat.get().resource.toString(),
+			questions: service.states.get().map(state => state.question),
+			calls,
+			sends,
+		}, {
+			presentations: [SideChatPresentation.Superseded, SideChatPresentation.Transient],
+			activeChat: sourceChat.resource.toString(),
+			questions: ['second question'],
+			calls: [
+				`close:${sideChat.resource.toString()}:true`,
+				`close:${replacement.resource.toString()}:true`,
+			],
+			sends: [true],
+		});
+		host.dispose();
+	});
+
+	test('a newer failed creation does not restore navigation ownership to an older request', async () => {
+		const firstCreation = new DeferredPromise<IChat>();
+		const { service, orchestration, calls } = setup({
+			createSideChatInSession: (_session, _source, turnId) => turnId === 'first' ? firstCreation.p : Promise.reject(new Error('create failed')),
+		});
+		disposables.add(service.registerHost(sourceChat.resource));
+
+		const first = orchestration.createAndPresent(session, sourceChat, 'first', 'first question');
+		await assert.rejects(orchestration.createAndPresent(session, sourceChat, 'second', 'second question'), /create failed/);
+		await firstCreation.complete(sideChat);
+		const firstPrepared = await first;
+
+		assert.deepStrictEqual({
+			presentation: firstPrepared.presentation,
+			states: service.states.get(),
+			calls,
+		}, {
+			presentation: SideChatPresentation.Superseded,
+			states: [],
+			calls: [`close:${sideChat.resource.toString()}:true`],
+		});
+	});
+
+	test('cancels a pending full-chat fallback when a newer question is presented transiently', async () => {
+		const opening = new DeferredPromise<void>();
+		const openChat = new DeferredPromise<void>();
+		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
+		const sends: boolean[] = [];
+		const { service, orchestration, chats, configurationService, calls, activeChat } = setup({
+			enabled: false,
+			createSideChatInSession: async (_session, _source, turnId) => turnId === 'first' ? sideChat : replacement,
+			onOpenChat: async () => {
+				await opening.complete();
+				await openChat.p;
+			},
+			sendRequest: async (_session, _chat, options) => { sends.push(options.preserveActiveChat === true); },
+		});
+		chats.set([sourceChat, sideChat, replacement], undefined);
+		disposables.add(service.registerHost(sourceChat.resource));
+
+		const first = orchestration.createAndPresent(session, sourceChat, 'first', 'first question');
+		await opening.p;
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, true);
+		const secondPrepared = await orchestration.createAndPresent(session, sourceChat, 'second', 'second question');
+		await openChat.complete();
+		const firstPrepared = await first;
+		await firstPrepared.send({ query: 'first question' });
+
+		assert.deepStrictEqual({
+			presentations: [firstPrepared.presentation, secondPrepared.presentation],
+			activeChat: activeChat.get().resource.toString(),
+			questions: service.states.get().map(state => state.question),
+			calls,
+			sends,
+		}, {
+			presentations: [SideChatPresentation.Superseded, SideChatPresentation.Transient],
+			activeChat: sourceChat.resource.toString(),
+			questions: ['second question'],
+			calls: [
+				`open:${sideChat.resource.toString()}`,
+				`close:${replacement.resource.toString()}:true`,
+				`close:${sideChat.resource.toString()}:true`,
+			],
+			sends: [true],
+		});
+	});
+
+	test('presentation ownership is independent for different source chats', async () => {
+		const otherSource = { ...sourceChat, resource: URI.parse('test:///chat/other-source') };
+		const otherSideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/other-side') });
+		const firstCreation = new DeferredPromise<IChat>();
+		const { service, orchestration, chats } = setup({
+			createSideChatInSession: (_session, _source, turnId) => turnId === 'first' ? firstCreation.p : Promise.resolve(otherSideChat),
+		});
+		chats.set([sourceChat, sideChat, otherSource, otherSideChat], undefined);
+		disposables.add(service.registerHost(sourceChat.resource));
+		disposables.add(service.registerHost(otherSource.resource));
+
+		const first = orchestration.createAndPresent(session, sourceChat, 'first', 'first question');
+		const secondPrepared = await orchestration.createAndPresent(session, otherSource, 'second', 'second question');
+		await firstCreation.complete(sideChat);
+		const firstPrepared = await first;
+
+		assert.deepStrictEqual({
+			presentations: [firstPrepared.presentation, secondPrepared.presentation],
+			questions: service.states.get().map(state => state.question),
+		}, {
+			presentations: [SideChatPresentation.Transient, SideChatPresentation.Transient],
+			questions: ['second question', 'first question'],
+		});
+	});
+
 	test('falls back to full-chat presentation when the experiment-driven setting is disabled', async () => {
 		const { service, calls } = setup({ enabled: false });
 		disposables.add(service.registerHost(sourceChat.resource));
 
 		assert.deepStrictEqual({
-			shown: await service.show(session, sourceChat, sideChat, 'question'),
+			shown: await show(service, session, sourceChat, sideChat, 'question'),
 			states: service.states.get(),
 			calls,
 		}, {
-			shown: false,
+			shown: TransientSideChatPresentationResult.Unavailable,
 			states: [],
 			calls: [],
 		});
@@ -261,7 +468,7 @@ suite('TransientSideChatService', () => {
 	test('removes a live card when the experiment-driven setting is disabled', async () => {
 		const { service, configurationService } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		await configurationService.setUserConfiguration(AGENT_SESSIONS_TRANSIENT_SIDE_CHAT_SETTING, false);
 		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -272,10 +479,10 @@ suite('TransientSideChatService', () => {
 	});
 
 	test('shows and promotes through the normal chat path', async () => {
-		const { service, calls } = setup();
+		const { service, calls, focusedChats } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
 
-		const shown = await service.show(session, sourceChat, sideChat, 'question');
+		const shown = await show(service, session, sourceChat, sideChat, 'question');
 		const transient = service.states.get()[0];
 		await service.promote(sourceChat.resource);
 
@@ -284,21 +491,23 @@ suite('TransientSideChatService', () => {
 			transient: { question: transient?.question, promoting: transient?.promoting },
 			states: service.states.get(),
 			calls,
+			focusedChats,
 		}, {
-			shown: true,
+			shown: TransientSideChatPresentationResult.Shown,
 			transient: { question: 'question', promoting: false },
 			states: [],
 			calls: [
 				`close:${sideChat.resource.toString()}:true`,
 				`open:${sideChat.resource.toString()}`,
 			],
+			focusedChats: [sideChat.resource.toString()],
 		});
 	});
 
 	test('clears transient state when the side chat opens through another surface', async () => {
 		const { service } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		service.removeBySideChat(sideChat.resource);
 
@@ -309,11 +518,11 @@ suite('TransientSideChatService', () => {
 		const { service, didDeleteChat } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
 
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 		didDeleteChat.fire({ session, chatResource: sideChat.resource });
 		const afterSideChatDelete = service.states.get();
 
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 		didDeleteChat.fire({ session, chatResource: sourceChat.resource });
 
 		assert.deepStrictEqual({
@@ -328,7 +537,7 @@ suite('TransientSideChatService', () => {
 	test('drops resource state when the provider catalog no longer contains the side chat', async () => {
 		const { service, chats } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		chats.set([sourceChat], undefined);
 
@@ -338,7 +547,7 @@ suite('TransientSideChatService', () => {
 	test('remaps transient state when its session facade is replaced', async () => {
 		const { service, didReplaceSession, chats, setCurrentSession } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 		const replacement = upcastPartial<ISession>({
 			...session,
 			sessionId: 'replacement',
@@ -362,7 +571,7 @@ suite('TransientSideChatService', () => {
 	test('keeps the card when opening the full chat does not activate it', async () => {
 		const { service } = setup({ openChatSucceeds: false });
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		await assert.rejects(service.promote(sourceChat.resource), /did not open/);
 
@@ -375,28 +584,69 @@ suite('TransientSideChatService', () => {
 		}]);
 	});
 
-	test('successful promotion does not remove a newer transient question', async () => {
+	test('a newer question cancels promotion before it can replace the source host', async () => {
 		const openChat = new DeferredPromise<void>();
-		const { service, chats } = setup({ onOpenChat: () => openChat.p });
+		const { service, chats, activeChat, focusedChats } = setup({
+			onOpenChat: () => openChat.p,
+			onDidOpenChat: () => sourceHost.dispose(),
+		});
 		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
-		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'first');
+		const sourceHost: IDisposable = disposables.add(service.registerHost(sourceChat.resource));
+		await show(service, session, sourceChat, sideChat, 'first');
 
 		const promotion = service.promote(sourceChat.resource);
 		chats.set([sourceChat, sideChat, replacement], undefined);
-		await service.show(session, sourceChat, replacement, 'second');
+		await show(service, session, sourceChat, replacement, 'second');
 		openChat.complete();
-		await promotion;
+		const promoted = await promotion;
 
-		assert.deepStrictEqual(service.states.get().map(state => ({
-			sideChat: state.sideChatResource.toString(),
-			question: state.question,
-			promoting: state.promoting,
-		})), [{
-			sideChat: replacement.resource.toString(),
-			question: 'second',
-			promoting: false,
-		}]);
+		assert.deepStrictEqual({
+			promoted,
+			activeChat: activeChat.get().resource.toString(),
+			focusedChats,
+			states: service.states.get().map(state => ({
+				sideChat: state.sideChatResource.toString(),
+				question: state.question,
+				promoting: state.promoting,
+			})),
+		}, {
+			promoted: false,
+			activeChat: sourceChat.resource.toString(),
+			focusedChats: [],
+			states: [{
+				sideChat: replacement.resource.toString(),
+				question: 'second',
+				promoting: false,
+			}],
+		});
+	});
+
+	test('successful promotion does not supersede a newer creation still in flight', async () => {
+		const openChat = new DeferredPromise<void>();
+		const creation = new DeferredPromise<IChat>();
+		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
+		const { service, orchestration, chats } = setup({
+			onOpenChat: () => openChat.p,
+			createSideChatInSession: () => creation.p,
+		});
+		chats.set([sourceChat, sideChat, replacement], undefined);
+		disposables.add(service.registerHost(sourceChat.resource));
+		await show(service, session, sourceChat, sideChat, 'first question');
+
+		const promotion = service.promote(sourceChat.resource);
+		const creating = orchestration.createAndPresent(session, sourceChat, 'second', 'second question');
+		await openChat.complete();
+		await promotion;
+		await creation.complete(replacement);
+		const prepared = await creating;
+
+		assert.deepStrictEqual({
+			presentation: prepared.presentation,
+			questions: service.states.get().map(state => state.question),
+		}, {
+			presentation: SideChatPresentation.Transient,
+			questions: ['second question'],
+		});
 	});
 
 	test('propagates a send failure while the card is being promoted', async () => {
@@ -408,7 +658,7 @@ suite('TransientSideChatService', () => {
 		});
 		disposables.add(service.registerHost(sourceChat.resource));
 		const orchestration = new SideChatOrchestrationService(managementService, sessionsService, upcastPartial<ISessionsPartService>({}), service);
-		const prepared = await orchestration.prepare(session, sourceChat, sideChat, 'question');
+		const prepared = await orchestration.createAndPresent(session, sourceChat, 'turn', 'question');
 		const send = prepared.send({ query: 'question' });
 		const rejected = assert.rejects(send, /send failed/);
 		const promotion = service.promote(sourceChat.resource);
@@ -425,7 +675,7 @@ suite('TransientSideChatService', () => {
 		const openChat = new DeferredPromise<void>();
 		const { service } = setup({ onOpenChat: () => openChat.p });
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 		const promotion = service.promote(sourceChat.resource);
 
 		const failurePresented = service.markFailed(sideChat.resource);
@@ -446,11 +696,11 @@ suite('TransientSideChatService', () => {
 		const { service, chats } = setup({ onOpenChat: () => openChat.p });
 		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'first');
+		await show(service, session, sourceChat, sideChat, 'first');
 
 		const promotion = service.promote(sourceChat.resource);
 		chats.set([sourceChat, sideChat, replacement], undefined);
-		await service.show(session, sourceChat, replacement, 'second');
+		await show(service, session, sourceChat, replacement, 'second');
 		openChat.error(new Error('open failed'));
 		await assert.rejects(promotion, /open failed/);
 
@@ -468,7 +718,7 @@ suite('TransientSideChatService', () => {
 	test('marks the matching transient side chat as failed', async () => {
 		const { service } = setup();
 		disposables.add(service.registerHost(sourceChat.resource));
-		await service.show(session, sourceChat, sideChat, 'question');
+		await show(service, session, sourceChat, sideChat, 'question');
 
 		const marked = service.markFailed(sideChat.resource);
 		service.dismiss(sourceChat.resource);
@@ -490,10 +740,10 @@ suite('TransientSideChatService', () => {
 		const replacement = upcastPartial<IChat>({ resource: URI.parse('test:///chat/replacement') });
 		disposables.add(service.registerHost(sourceChat.resource));
 
-		await service.show(session, sourceChat, sideChat, 'first');
+		await show(service, session, sourceChat, sideChat, 'first');
 		const first = service.states.get()[0];
 		chats.set([sourceChat, sideChat, replacement], undefined);
-		await service.show(session, sourceChat, replacement, 'second');
+		await show(service, session, sourceChat, replacement, 'second');
 		const second = service.states.get()[0];
 
 		assert.deepStrictEqual({

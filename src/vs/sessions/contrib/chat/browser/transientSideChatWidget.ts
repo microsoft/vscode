@@ -701,7 +701,6 @@ export class TransientSideChatWidget extends Disposable {
 		}
 		try {
 			if (await this._transientSideChatService.promote(source.chat.resource)) {
-				this._mainWidget.focusInput();
 				announceStatus(localize('transientSideChat.promotedStatus', "Opened side question as a full chat"));
 			}
 		} catch (error) {

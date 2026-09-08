@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -26,7 +27,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ITransientSideChatService } from '../../browser/transientSideChatService.js';
+import { ITransientSideChatService, TransientSideChatPresentationResult } from '../../browser/transientSideChatService.js';
 import { ISideChatOrchestrationService, SideChatOrchestrationService } from '../../browser/sideChatOrchestration.js';
 
 suite('SessionsSideChatProviderContribution', () => {
@@ -113,10 +114,14 @@ suite('SessionsSideChatProviderContribution', () => {
 			}),
 		}));
 		instantiationService.stub(ITransientSideChatService, upcastPartial<ITransientSideChatService>({
-			show: async (_session, source, target, question) => {
-				callOrder.push(`show:${source.resource.toString()}:${target.resource.toString()}:${question}`);
-				return options.presentTransiently ?? false;
-			},
+			beginPresentation: source => ({
+				token: CancellationToken.None,
+				show: async (_session, target, question) => {
+					callOrder.push(`show:${source.resource.toString()}:${target.resource.toString()}:${question}`);
+					return options.presentTransiently ? TransientSideChatPresentationResult.Shown : TransientSideChatPresentationResult.Unavailable;
+				},
+				dispose: () => undefined,
+			}),
 			markFailed: resource => {
 				callOrder.push(`failed:${resource.toString()}`);
 				return true;
