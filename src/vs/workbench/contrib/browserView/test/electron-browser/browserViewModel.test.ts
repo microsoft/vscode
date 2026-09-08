@@ -90,6 +90,7 @@ suite('BrowserViewModel', () => {
 		const results = await Promise.all(urls.map((url, index) => {
 			const model = disposables.add(new BrowserViewModel(
 				`page-${index}`,
+				{ windowId: 1 },
 				{ type: 'user' },
 				undefined,
 				{ ...initialState, url },
