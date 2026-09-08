@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { CustomizationType, type AgentCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { AgentHostAgentPickerContribution } from '../../browser/agentHostAgentPicker.js';
 
 suite('agentHostAgentPicker', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const alpha: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://a', uri: 'agent://a', name: 'alpha' };
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
@@ -52,6 +69,84 @@ suite('agentHostAgentPicker', () => {
 		test('returns undefined for an empty agent list', () => {
 			assert.strictEqual(resolveAgentHostAgent([], 'agent://a', 'agent://a'), undefined);
 			assert.strictEqual(resolveAgentHostAgent([], undefined, undefined), undefined);
+		});
+	});
+
+	test('does not clear an established selection during a non-empty catalog gap', () => {
+		const sessionMode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('sessionMode', { id: beta.uri, kind: 'agent' });
+		const session = new class extends mock<IActiveSession>() {
+			override readonly sessionId = `${LOCAL_AGENT_HOST_PROVIDER_ID}:session-1`;
+			override readonly resource = URI.parse('agent-host-copilotcli:/session-1');
+			override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly mode = sessionMode;
+			override readonly status = constObservable(SessionStatus.Completed);
+		};
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+		};
+
+		let customAgents: readonly AgentCustomization[] = agents;
+		const customAgentsChanged = store.add(new Emitter<void>());
+		const setAgentCalls: Array<string | undefined> = [];
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override readonly onDidChangeCustomAgents = customAgentsChanged.event;
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return customAgents;
+			}
+			override setAgent(_sessionId: string, agent: ISessionAgentRef | undefined): void {
+				setAgentCalls.push(agent?.uri);
+				sessionMode.set(agent ? { id: agent.uri, kind: 'agent' } : undefined, undefined);
+			}
+		};
+		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return (providerId === provider.id ? provider : undefined) as T | undefined;
+			}
+		};
+		const chatService = new class extends mock<IChatService>() {
+			override getSession() {
+				return undefined;
+			}
+		};
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override readonly onDidAddWidget = Event.None;
+			override readonly onDidChangeFocusedSession = Event.None;
+			override getWidgetBySessionResource() {
+				return undefined;
+			}
+		};
+		const storageService = store.add(new TestStorageService());
+		const storageKey = agentHostAgentPickerStorageKey(session.resource.scheme);
+		storageService.store(storageKey, beta.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		store.add(new AgentHostAgentPickerContribution(
+			new NullActionViewItemService(),
+			sessionsService,
+			sessionsProvidersService,
+			chatService,
+			chatWidgetService,
+			storageService,
+			new NullLogService(),
+		));
+
+		customAgents = [alpha];
+		customAgentsChanged.fire();
+		const unavailable = sessionMode.get()?.id;
+
+		customAgents = agents;
+		customAgentsChanged.fire();
+
+		assert.deepStrictEqual({
+			unavailable,
+			restored: sessionMode.get()?.id,
+			remembered: storageService.get(storageKey, StorageScope.PROFILE),
+			setAgentCalls,
+		}, {
+			unavailable: beta.uri,
+			restored: beta.uri,
+			remembered: beta.uri,
+			setAgentCalls: [],
 		});
 	});
 });
