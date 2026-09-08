@@ -1139,15 +1139,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return;
 		}
 
-		// Commit any uncommitted changes before archiving the session
-		const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-		if (hasUncommittedChanges) {
-			try {
-				await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', 'Saving uncommitted changes before archiving session'));
-			} catch (error) {
-				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
-				return;
-			}
+		// Only remove the worktree when git is fully in sync with the remote:
+		// a tracked branch with a clean working tree and no unpushed commits.
+		// This fails closed — if the state can't be determined, the branch has
+		// no upstream, or there is any local-only work, leave the worktree
+		// intact so nothing is lost.
+		if (!await this._isBranchUpToDateWithRemote(worktreePath, branchName, sessionId)) {
+			return;
 		}
 
 		try {
@@ -1157,6 +1155,31 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
 		}
+	}
+
+	/**
+	 * Returns `true` only when the worktree's branch is safe to remove without
+	 * losing local-only work: it tracks an upstream branch, has no unpushed
+	 * commits, and has a clean working tree. Fails closed (returns `false`) when
+	 * the git state can't be determined.
+	 */
+	private async _isBranchUpToDateWithRemote(worktreePath: URI, branchName: string, sessionId: string): Promise<boolean> {
+		const gitState = await this._gitService.getSessionGitState(worktreePath).catch(() => undefined);
+		if (!gitState) {
+			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: unable to determine git state for branch '${branchName}'`);
+			return false;
+		}
+		if (!gitState.upstreamBranchName) {
+			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: branch '${branchName}' has no upstream tracking branch`);
+			return false;
+		}
+		const outgoingChanges = gitState.outgoingChanges ?? 0;
+		const uncommittedChanges = gitState.uncommittedChanges ?? 0;
+		if (outgoingChanges > 0 || uncommittedChanges > 0) {
+			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: branch '${branchName}' is not up to date with its remote (outgoing=${outgoingChanges}, uncommitted=${uncommittedChanges})`);
+			return false;
+		}
+		return true;
 	}
 
 	/**

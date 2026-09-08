@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
-import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
+import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
@@ -82,6 +82,7 @@ suite('WorktreeIsolation', () => {
 	let hasUncommittedChanges: boolean;
 	let branchExists: boolean;
 	let headCommit: string | undefined;
+	let sessionGitState: ISessionGitState | undefined;
 
 	const sessionUri = URI.parse('agent-session://test/s1');
 	const sessionId = 's1';
@@ -99,6 +100,7 @@ suite('WorktreeIsolation', () => {
 			],
 			branchExists: async () => branchExists,
 			hasUncommittedChanges: async () => hasUncommittedChanges,
+			getSessionGitState: async () => sessionGitState,
 			addWorktree: async (_root, options) => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
@@ -165,6 +167,7 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = false;
 		branchExists = true;
 		headCommit = 'abc123';
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
 	});
 
 	teardown(() => {
@@ -1085,6 +1088,36 @@ suite('WorktreeIsolation', () => {
 			removedDuringArchive: true,
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
+		});
+	});
+
+	test('cleanup on archive keeps the worktree when the branch is not up to date with its remote', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		const outcomes: { readonly reason: string; readonly removedDuringArchive: boolean }[] = [];
+		for (const [reason, state] of [
+			['no upstream', { outgoingChanges: 0, uncommittedChanges: 0 }],
+			['unpushed commits', { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 2, uncommittedChanges: 0 }],
+			['uncommitted changes', { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 1 }],
+			['unknown git state', undefined],
+		] as const) {
+			sessionGitState = state;
+			await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+			outcomes.push({ reason, removedDuringArchive: worktree ? !existsSync(worktree.fsPath) : true });
+		}
+
+		assert.deepStrictEqual({
+			removeCalls,
+			outcomes,
+		}, {
+			removeCalls: [],
+			outcomes: [
+				{ reason: 'no upstream', removedDuringArchive: false },
+				{ reason: 'unpushed commits', removedDuringArchive: false },
+				{ reason: 'uncommitted changes', removedDuringArchive: false },
+				{ reason: 'unknown git state', removedDuringArchive: false },
+			],
 		});
 	});
 
