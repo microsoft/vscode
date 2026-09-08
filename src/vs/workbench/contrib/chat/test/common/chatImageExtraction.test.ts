@@ -511,6 +511,30 @@ suite('extractImagesFromChatRequest', () => {
 		assert.deepStrictEqual([...result[0].data.buffer], [1, 2, 3]);
 	});
 
+	test('pasted attachments retain cache identities without exposing them as sources', () => {
+		const uri = URI.file('/cache/pasted-image.png');
+		const request = makeRequest([makeImageVariableEntry({
+			value: new Uint8Array([1, 2, 3]),
+			isPasted: true,
+			references: [{ kind: 'reference', reference: uri }],
+		})]);
+		assert.deepStrictEqual(extractImagesFromChatRequest(request).map(image => ({
+			id: image.id, uri: image.uri.toString(), sourceUri: image.sourceUri,
+		})), [{ id: uri.toString(), uri: uri.toString(), sourceUri: undefined }]);
+	});
+
+	test('uses encoded attachment MIME after resizing without changing bytes or identity', () => {
+		const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+		const request = makeRequest(['gif', 'webp', 'jpeg'].map(extension => makeImageVariableEntry({
+			id: extension, name: `image.${extension}`, mimeType: `image/${extension}`, value: data,
+		})));
+		assert.deepStrictEqual(extractImagesFromChatRequest(request).map(image => ({
+			name: image.name, mimeType: image.mimeType, data: [...image.data.buffer],
+		})), ['gif', 'webp', 'jpeg'].map(extension => ({
+			name: `image.${extension}`, mimeType: 'image/png', data: [...data],
+		})));
+	});
+
 	test('extracts image attachment from ArrayBuffer', () => {
 		const request = makeRequest([
 			makeImageVariableEntry({ value: new Uint8Array([4, 5, 6]).buffer }),

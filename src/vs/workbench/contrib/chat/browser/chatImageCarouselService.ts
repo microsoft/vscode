@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { getImageMimeType } from '../../../../base/common/image.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -277,7 +278,7 @@ export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarousel
 	} catch {
 		// keep raw segment if it isn't valid percent-encoding
 	}
-	const mimeType = getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
+	const mimeType = getImageMimeType(VSBuffer.wrap(data)) ?? getMediaMime(resource.path) ?? getMediaMime(name) ?? 'image/png';
 	return { name, mimeType, data, title: name, sourceUri: getChatImageSourceUri(resource) };
 }
 

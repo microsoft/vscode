@@ -5,6 +5,7 @@
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { getImageMimeType } from '../../../../base/common/image.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -245,16 +246,17 @@ export function extractImagesFromChatVariables(
 		if (!buffer) {
 			continue;
 		}
-		const mimeType = variable.mimeType ?? getMediaMime(variable.name) ?? 'image/png';
+		const data = VSBuffer.wrap(buffer);
+		const mimeType = getImageMimeType(data) ?? variable.mimeType ?? getMediaMime(variable.name) ?? 'image/png';
 		const uri = variable.references?.[0]?.reference;
 		const imageUri = URI.isUri(uri) ? uri : URI.from({ scheme: 'data', path: `${variable.id}/${encodeURIComponent(variable.name)}` });
 		images.push({
 			id: imageUri.toString(),
 			uri: imageUri,
-			sourceUri: getChatImageSourceUri(imageUri),
+			sourceUri: variable.isPasted ? undefined : getChatImageSourceUri(imageUri),
 			name: variable.name,
 			mimeType,
-			data: VSBuffer.wrap(buffer),
+			data,
 			source: localize('chatImageExtraction.userAttachment', "Attachment"),
 			caption: undefined,
 		});

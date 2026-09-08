@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { buildCollectionArgs, buildSingleImageArgs, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { resizeImage } from '../../browser/chatImageUtils.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -177,6 +178,14 @@ suite('ChatImageCarouselService helpers', () => {
 	});
 
 	suite('buildSingleImageArgs', () => {
+		test('uses encoded MIME rather than the resource extension', () => {
+			const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+			const args = buildSingleImageArgs(URI.file('/photos/image.gif'), data);
+			assert.deepStrictEqual({ name: args.name, mimeType: args.mimeType, data: args.data }, {
+				name: 'image.gif', mimeType: 'image/png', data,
+			});
+		});
+
 
 		test('keeps real source URIs but excludes synthetic and generated resources', () => {
 			const uris = [
@@ -226,6 +235,22 @@ suite('ChatImageCarouselService helpers', () => {
 	});
 
 	suite('collectCarouselSections', () => {
+		test('preserves resized GIF bytes with PNG MIME and excludes pasted cache sources', async () => {
+			const gif = decodeBase64('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+			const data = await resizeImage(gif.buffer, 'image/gif');
+			const sections = await collectCarouselSections([], async () => { throw new Error('Unexpected file read'); }, {
+				text: '',
+				attachments: [makeImageVariableEntry({
+					name: 'image.gif', mimeType: 'image/gif', value: data, isPasted: true,
+					references: [{ kind: 'reference', reference: URI.file('/cache/image.gif') }],
+				})],
+			});
+			const image = sections[0].images[0];
+			assert.deepStrictEqual({ mimeType: image.mimeType, sourceUri: image.sourceUri, data: [...image.data] }, {
+				mimeType: 'image/png', sourceUri: undefined, data: [...data],
+			});
+		});
+
 
 		test('preserves image identity and provenance in response, pending request and current input sections', async () => {
 			const uris = [

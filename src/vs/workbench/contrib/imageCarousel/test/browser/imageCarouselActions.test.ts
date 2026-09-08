@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -26,7 +26,7 @@ import { ImageCarouselEditor } from '../../browser/imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from '../../browser/imageCarouselEditorInput.js';
 import { ICarouselImage, ImageCarouselContextKeys, ImageCarouselContextMenu } from '../../browser/imageCarouselTypes.js';
 import { isWeb, OS } from '../../../../../base/common/platform.js';
-import { IExplorerService } from '../../../files/browser/files.js';
+import { IExplorerService, IExplorerView } from '../../../files/browser/files.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
@@ -178,23 +178,51 @@ suite('ImageCarouselActions', () => {
 		});
 	});
 
-	test('reveal uses the registered Explorer view in the Agents window', async () => {
-		const sourceUri = URI.file('/images/image.svg');
-		await load([{ id: 'image', name: 'Image', mimeType: 'image/svg+xml', data: svg, sourceUri }]);
-		const calls: string[] = [];
-		instantiation.stub(IExplorerService, {
-			getViewId: () => 'sessions.files.explorer',
-			select: async (resource: URI) => { calls.push(resource.toString()); },
+	for (const failureAt of [undefined, 'close', 'select']) {
+		test(`reveal suppresses auto-reveal and restores it after ${failureAt ?? 'success'}`, async () => {
+			const sourceUri = URI.file('/images/image.svg');
+			await load([{ id: 'image', name: 'Image', mimeType: 'image/svg+xml', data: svg, sourceUri }]);
+			const calls: string[] = [];
+			const failure = new Error('Reveal failed');
+			const view = {
+				autoReveal: 'focusNoScroll' as IExplorerView['autoReveal'],
+				setExpanded: (expanded: boolean) => { calls.push(`expanded:${expanded}`); },
+				focus: () => { calls.push(`focus:${view.autoReveal}`); },
+			};
+			instantiation.stub(IExplorerService, {
+				getViewId: () => 'sessions.files.explorer',
+				select: async (resource: URI, reveal: string) => {
+					calls.push(`select:${view.autoReveal}:${reveal}:${resource.toString()}`);
+					if (failureAt === 'select') {
+						throw failure;
+					}
+				},
+			});
+			instantiation.stub(IViewsService, {});
+			instantiation.stub(IViewsService, 'openView', async (id: string) => {
+				calls.push(id);
+				return view;
+			});
+			sinon.stub(group, 'closeEditor').callsFake(async () => {
+				calls.push(`close:${view.autoReveal}`);
+				if (failureAt === 'close') {
+					throw failure;
+				}
+				return true;
+			});
+			await run('imageCarousel.revealSource');
+			const expected = ['sessions.files.explorer', 'close:false'];
+			if (failureAt !== 'close') {
+				expected.push('expanded:true', `select:false:force:${sourceUri.toString()}`);
+				if (!failureAt) {
+					expected.push('focus:false');
+				}
+			}
+			assert.deepStrictEqual({ calls, errors, autoReveal: view.autoReveal }, {
+				calls: expected, errors: failureAt ? [failure] : [], autoReveal: 'focusNoScroll',
+			});
 		});
-		instantiation.stub(IViewsService, {});
-		instantiation.stub(IViewsService, 'openView', async (id: string) => {
-			calls.push(id);
-			return { focus: () => calls.push('focus') };
-		});
-		sinon.stub(group, 'closeEditor').callsFake(async () => { calls.push('close'); return true; });
-		await run('imageCarousel.revealSource');
-		assert.deepStrictEqual({ calls, errors }, { calls: ['sessions.files.explorer', 'close', sourceUri.toString(), 'focus'], errors: [] });
-	});
+	}
 
 	test('save preserves encoding, supplies an extension and respects cancellation', async function () {
 		if (isWeb) {
@@ -211,11 +239,31 @@ suite('ImageCarouselActions', () => {
 			writes.push(data.toString());
 			return { resource: target };
 		});
+
 		await run('imageCarousel.saveMediaAs');
 		cancel = true;
 		await run('imageCarousel.saveMediaAs');
 		assert.deepStrictEqual({ names: options.map(option => option.defaultUri?.path), writes, errors }, {
 			names: ['/saved/Image.svg', '/saved/Image.svg'], writes: [svg.toString()], errors: [],
+		});
+	});
+
+	test('save corrects an extension that disagrees with the encoded MIME', async function () {
+		if (isWeb) {
+			this.skip();
+		}
+		const png = decodeBase64($<HTMLCanvasElement>('canvas').toDataURL('image/png').split(',')[1]);
+		await load([{ id: 'image', name: 'image.gif', mimeType: 'image/png', data: png }]);
+		let filename: string | undefined;
+		instantiation.stub(IFileDialogService, 'defaultFilePath', async () => URI.file('/saved'));
+		instantiation.stub(IFileDialogService, 'showSaveDialog', async (options: ISaveDialogOptions) => {
+			filename = options.defaultUri?.path;
+			return URI.file('/saved/image.png');
+		});
+		const write = instantiation.stub(IFileService, 'writeFile', async (resource: URI) => ({ resource }));
+		await run('imageCarousel.saveMediaAs');
+		assert.deepStrictEqual({ filename, data: write.firstCall.args[1], errors }, {
+			filename: '/saved/image.png', data: png, errors: [],
 		});
 	});
 });

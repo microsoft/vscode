@@ -6,7 +6,7 @@
 import { triggerDownload } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { getExtensionForMimeType } from '../../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, extname } from '../../../../base/common/path.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -25,6 +25,7 @@ import { resolveCommandsContext } from '../../../browser/parts/editor/editorComm
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExplorerService } from '../../files/browser/files.js';
+import { ExplorerView } from '../../files/browser/views/explorerView.js';
 import { VIEW_ID } from '../../files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ImageCarouselEditor } from './imageCarouselEditor.js';
@@ -99,7 +100,7 @@ registerAction2(class extends ImageCarouselAction {
 		const dialogs = accessor.get(IFileDialogService);
 		const extension = getExtensionForMimeType(image.mimeType) ?? '';
 		const name = basename(image.name.replace(/\\/g, '/')) || `image${extension}`;
-		const filename = extname(name) ? name : `${name}${extension}`;
+		const filename = extension && getMediaMime(name) !== image.mimeType ? `${name.slice(0, name.length - extname(name).length)}${extension}` : name;
 		const data = await editor.getCurrentImageData();
 		if (isWeb) {
 			triggerDownload(data.buffer, filename);
@@ -155,12 +156,19 @@ registerAction2(class extends ImageCarouselAction {
 		}
 		const input = editor.input!;
 		const explorer = accessor.get(IExplorerService);
-		const view = await accessor.get(IViewsService).openView(explorer.getViewId() ?? VIEW_ID, false);
+		const view = await accessor.get(IViewsService).openView<ExplorerView>(explorer.getViewId() ?? VIEW_ID, false);
 		if (!view) {
 			throw new Error(localize('imageCarousel.explorerUnavailable', "The Explorer view is not available."));
 		}
-		await editor.group.closeEditor(input);
-		await explorer.select(resource, 'force');
-		view.focus();
+		const autoReveal = view.autoReveal;
+		view.autoReveal = false;
+		try {
+			await editor.group.closeEditor(input);
+			view.setExpanded(true);
+			await explorer.select(resource, 'force');
+			view.focus();
+		} finally {
+			view.autoReveal = autoReveal;
+		}
 	}
 });
