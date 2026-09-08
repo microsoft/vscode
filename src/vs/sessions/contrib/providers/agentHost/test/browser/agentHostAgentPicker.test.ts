@@ -72,14 +72,15 @@ suite('agentHostAgentPicker', () => {
 		});
 	});
 
-	test('does not clear an established selection during a non-empty catalog gap', () => {
+	test('preserves an established selection without changing untitled initialization', () => {
 		const sessionMode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('sessionMode', { id: beta.uri, kind: 'agent' });
+		const sessionStatus = observableValue('sessionStatus', SessionStatus.Completed);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly sessionId = `${LOCAL_AGENT_HOST_PROVIDER_ID}:session-1`;
 			override readonly resource = URI.parse('agent-host-copilotcli:/session-1');
 			override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 			override readonly mode = sessionMode;
-			override readonly status = constObservable(SessionStatus.Completed);
+			override readonly status = sessionStatus;
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
@@ -136,17 +137,35 @@ suite('agentHostAgentPicker', () => {
 
 		customAgents = agents;
 		customAgentsChanged.fire();
-
-		assert.deepStrictEqual({
+		const established = {
 			unavailable,
 			restored: sessionMode.get()?.id,
 			remembered: storageService.get(storageKey, StorageScope.PROFILE),
-			setAgentCalls,
+			setAgentCalls: [...setAgentCalls],
+		};
+
+		sessionMode.set(undefined, undefined);
+		sessionStatus.set(SessionStatus.Untitled, undefined);
+
+		assert.deepStrictEqual({
+			established,
+			untitled: {
+				selected: sessionMode.get()?.id,
+				remembered: storageService.get(storageKey, StorageScope.PROFILE),
+				setAgentCalls,
+			},
 		}, {
-			unavailable: beta.uri,
-			restored: beta.uri,
-			remembered: beta.uri,
-			setAgentCalls: [],
+			established: {
+				unavailable: beta.uri,
+				restored: beta.uri,
+				remembered: beta.uri,
+				setAgentCalls: [],
+			},
+			untitled: {
+				selected: beta.uri,
+				remembered: beta.uri,
+				setAgentCalls: [beta.uri],
+			},
 		});
 	});
 });
