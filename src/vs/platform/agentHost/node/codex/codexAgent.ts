@@ -1756,12 +1756,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _permissionRuntimeWorkspaceRoots(workingDirectories: readonly string[], config: ReturnType<typeof codexSessionConfigSchema.validateOrDefault>, mode: SandboxMode): string[] | undefined {
-		const roots = mode === 'workspace-write'
-			? distinctAbsolutePaths([
+		const roots = distinctAbsolutePaths(mode === 'workspace-write'
+			? [
 				...workingDirectories,
 				...(narrowAdditionalDirectories(config[CodexSessionConfigKey.AdditionalDirectories]) ?? []),
-			])
-			: workingDirectories.length > 1 ? distinctAbsolutePaths(workingDirectories) : [];
+			]
+			: mode === 'read-only' || workingDirectories.length > 1 ? workingDirectories : []);
 		return roots.length ? roots : undefined;
 	}
 
@@ -5002,11 +5002,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				? URI.file(forkResult.cwd)
 				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0]));
 		const forkWorkingDirectories = multiRootEnabled
-			? distinctWorkingDirectories(
-				forkResult.runtimeWorkspaceRoots?.length
-					? forkResult.runtimeWorkspaceRoots.map(path => URI.file(path))
-					: inheritedWorkingDirectories,
-			)
+			? distinctWorkingDirectories(forkManagedWorkingDirectory ? [forkManagedWorkingDirectory] : inheritedWorkingDirectories)
 			: undefined;
 
 		const session = this._createResumedSessionEntry(

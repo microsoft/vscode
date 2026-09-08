@@ -91,7 +91,7 @@ export function buildCodexLaunchConfig(
 	];
 	const permissionOverrides = [
 		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
-		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd*" = "deny", "/private/etc/passwd*" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd" = "deny", "/private/etc/passwd" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }`,
 		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
 		`permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`,
 	];

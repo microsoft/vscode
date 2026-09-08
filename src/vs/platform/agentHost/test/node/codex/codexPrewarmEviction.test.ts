@@ -53,6 +53,7 @@ import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
+import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -2670,7 +2671,7 @@ suite('CodexAgent prewarm eviction', () => {
 					permissions: ':danger-full-access',
 				},
 				readOnly: {
-					runtimeWorkspaceRoots: undefined,
+					runtimeWorkspaceRoots: [repo.fsPath],
 					permissions: 'vscode-workspace-read-only',
 				},
 			});
@@ -2761,6 +2762,81 @@ suite('CodexAgent prewarm eviction', () => {
 					permissions: 'vscode-workspace',
 				},
 				workingDirectories: [repoA.fsPath, repoB.fsPath],
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('fork keeps additional writable directories out of workspace state', async () => {
+		const additionalDirectory = URI.file('/manual-write').fsPath;
+		const agent = await createAgent(disposables, {
+			multiRootEnabled: true,
+			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
+		});
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repo = URI.file('/repo');
+		const requested = URI.file('/requested');
+
+		try {
+			const source = await createSession(agent, { workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+			const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'source-thread' }, cwd: repo.fsPath, runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory] } });
+			await sourceEntry.materializePromise;
+
+			const forkPromise = createSession(agent, {
+				workingDirectories: [requested],
+				fork: { source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
+			});
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: {
+					thread: {
+						id: 'source-thread',
+						cwd: repo.fsPath,
+						historyMode: 'paginated',
+						turns: [],
+					},
+				},
+			});
+			const historyPage = await readNextRequest(peer.outbound);
+			peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
+			const fork = await readNextRequest(peer.outbound);
+			peer.push({
+				id: fork.id,
+				result: {
+					thread: { id: 'fork-thread', cwd: repo.fsPath },
+					cwd: repo.fsPath,
+					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+				},
+			});
+			const forked = await forkPromise;
+			const forkedEntry = agent['_sessions'].get(AgentSession.id(forked.session))!;
+			const configurationService = agent['_configurationService'];
+			assert.ok(configurationService instanceof TestCodexConfigurationService);
+			configurationService.setSessionConfig({ [CodexSessionConfigKey.AdditionalDirectories]: [] });
+			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test');
+
+			assert.deepStrictEqual({
+				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+				forkRuntimeWorkspaceRoots: fork.params.runtimeWorkspaceRoots,
+				forkedWorkingDirectories: forkedEntry.workingDirectories?.map(directory => directory.fsPath),
+				afterClearRuntimeWorkspaceRoots: afterClear.runtimeWorkspaceRoots,
+			}, {
+				startRuntimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+				forkRuntimeWorkspaceRoots: undefined,
+				forkedWorkingDirectories: [repo.fsPath],
+				afterClearRuntimeWorkspaceRoots: [repo.fsPath],
 			});
 		} finally {
 			peer.exit();

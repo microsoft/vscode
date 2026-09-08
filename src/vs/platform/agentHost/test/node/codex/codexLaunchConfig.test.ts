@@ -63,7 +63,7 @@ suite('CodexLaunchConfig', () => {
 		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
 		const expectedOverrides = [
 			'default_permissions="vscode-workspace"',
-			'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd*" = "deny", "/private/etc/passwd*" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", "/etc/passwd" = "deny", "/private/etc/passwd" = "deny", ":tmpdir" = "deny", ":slash_tmp" = "deny" }, network = { enabled = false } }',
 			'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
 			'permissions.vscode-workspace-read-only={ extends = "vscode-workspace", filesystem = { ":workspace_roots" = { "." = "read" } } }',
 		];
