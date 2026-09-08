@@ -3114,7 +3114,9 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 			for (const session of [oldInternal, recentInternal, oldExternal]) {
 				await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({
-					pullRequestUrls: [`https://github.com/microsoft/vscode/pull/${session === oldInternal ? 1 : 2}`],
+					pullRequestUrls: session === oldInternal
+						? ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/pull/2']
+						: ['https://github.com/microsoft/vscode/pull/2'],
 				}));
 			}
 
@@ -3123,14 +3125,14 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				candidates: candidates.map(candidate => ({
 					session: candidate.session.toString(),
-					pullRequestUrl: candidate.pullRequestUrl,
+					pullRequestUrls: candidate.pullRequestUrls,
 					action: candidate.action,
 				})),
 				opened,
 			}, {
 				candidates: [{
 					session: oldInternal.toString(),
-					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/pull/2'],
 					action: 'archive',
 				}],
 				opened: [oldInternal.toString()],
@@ -3162,11 +3164,11 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(candidates.map(candidate => ({
 				session: candidate.session.toString(),
-				pullRequestUrl: candidate.pullRequestUrl,
+				pullRequestUrls: candidate.pullRequestUrls,
 				action: candidate.action,
 			})), [{
 				session: session.toString(),
-				pullRequestUrl: 'https://github.com/microsoft/vscode/pull/3',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'],
 				action: 'delete',
 			}]);
 		});
@@ -3197,14 +3199,14 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				candidates: candidates.map(candidate => ({
 					session: candidate.session.toString(),
-					pullRequestUrl: candidate.pullRequestUrl,
+					pullRequestUrls: candidate.pullRequestUrls,
 					action: candidate.action,
 				})),
 				afterCleanup,
 			}, {
 				candidates: [{
 					session: session.toString(),
-					pullRequestUrl: 'https://github.com/microsoft/vscode/pull/4',
+					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'],
 					action: 'cleanupWorktree',
 				}],
 				afterCleanup: [],

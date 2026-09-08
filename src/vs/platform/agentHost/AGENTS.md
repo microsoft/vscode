@@ -136,8 +136,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Owns the automatic merged-pull-request session lifecycle through
   `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
   into root config; candidates are filtered from the registry using only the
-  persisted archive/GitHub fields needed for cleanup; and the designated pull
-  request is authoritatively refreshed before a candidate is restored. Eligible
+  persisted archive/GitHub fields needed for cleanup; and every related pull
+  request is authoritatively refreshed before a candidate is restored. A
+  session is eligible only when all related pull requests are merged. Eligible
   sessions are archived through the normal `SessionIsArchivedChanged` action
   and side-effect path. Cleanup-only candidates are handled without restoring
   the session, and sessions whose worktree is already absent are filtered

@@ -2168,8 +2168,8 @@ export class AgentService extends Disposable implements IAgentService {
 			if (action === 'cleanupWorktree' && !await this._worktree.isWorktreeCleanupNeeded(entry.session)) {
 				return undefined;
 			}
-			const pullRequestUrl = getSessionRelatedPullRequestUrls(gitHubState)[0];
-			return pullRequestUrl ? { session: entry.session, pullRequestUrl, action } : undefined;
+			const pullRequestUrls = getSessionRelatedPullRequestUrls(gitHubState);
+			return pullRequestUrls.length > 0 ? { session: entry.session, pullRequestUrls, action } : undefined;
 		})));
 		return candidates.filter((candidate): candidate is IAgentHostSessionLifecycleCandidate => candidate !== undefined);
 	}

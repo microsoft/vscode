@@ -19,7 +19,7 @@ const DEFAULT_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface IAgentHostSessionLifecycleCandidate {
 	readonly session: URI;
-	readonly pullRequestUrl: string;
+	readonly pullRequestUrls: readonly string[];
 	readonly action: 'archive' | 'delete' | 'cleanupWorktree';
 }
 
@@ -143,9 +143,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 	private async _evaluateCandidate(candidate: IAgentHostSessionLifecycleCandidate): Promise<void> {
 		const { session } = candidate;
 		const sessionKey = session.toString();
-		const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey, candidate.pullRequestUrl);
-		if (pullRequest?.state !== 'merged'
-			|| pullRequest.url.toLowerCase() !== candidate.pullRequestUrl.toLowerCase()) {
+		if (!await this._areAllPullRequestsMerged(sessionKey, candidate.pullRequestUrls)) {
 			return;
 		}
 
@@ -165,7 +163,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 					true,
 				);
 				if (refreshedCandidate?.action !== 'cleanupWorktree'
-					|| refreshedCandidate.pullRequestUrl.toLowerCase() !== pullRequest.url.toLowerCase()) {
+					|| !samePullRequestUrls(refreshedCandidate.pullRequestUrls, candidate.pullRequestUrls)) {
 					return;
 				}
 			}
@@ -192,22 +190,22 @@ export class AgentHostSessionLifecycle extends Disposable {
 			)
 			: undefined;
 		if (refreshedCandidate?.action !== candidate.action
-			|| refreshedCandidate.pullRequestUrl.toLowerCase() !== pullRequest.url.toLowerCase()) {
+			|| !samePullRequestUrls(refreshedCandidate.pullRequestUrls, candidate.pullRequestUrls)) {
 			return;
 		}
 
 		if (candidate.action === 'archive') {
 			const finalArchiveAfterDays = this._settings.archiveAfterDays;
-			const finalPullRequestUrl = finalArchiveAfterDays > 0
+			const finalPullRequestUrls = finalArchiveAfterDays > 0
 				? this._getArchiveCandidate(
 					this._stateManager.getSessionSummary(sessionKey),
 					this._now() - finalArchiveAfterDays * DAY_MS,
 				)
 				: undefined;
-			if (finalPullRequestUrl?.toLowerCase() !== pullRequest.url.toLowerCase()) {
+			if (!samePullRequestUrls(finalPullRequestUrls, candidate.pullRequestUrls)) {
 				return;
 			}
-			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
+			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
 			this._accessor.archiveSession(session);
 			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
@@ -232,10 +230,10 @@ export class AgentHostSessionLifecycle extends Disposable {
 						: undefined;
 					return this._settings.deleteAfterDays === finalDeleteAfterDays
 						&& finalCandidate?.action === 'delete'
-						&& finalCandidate.pullRequestUrl.toLowerCase() === pullRequest.url.toLowerCase();
+						&& samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls);
 				});
 				if (deleted) {
-					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, pr=${pullRequest.url}`);
+					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
 				}
 			} catch (error) {
 				this._logService.warn(`[AgentHostSessionLifecycle] Failed to permanently delete merged-session cleanup candidate ${sessionKey}`, error);
@@ -243,32 +241,43 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 	}
 
+	private async _areAllPullRequestsMerged(sessionKey: string, pullRequestUrls: readonly string[]): Promise<boolean> {
+		for (const pullRequestUrl of pullRequestUrls) {
+			const pullRequest = await this._pullRequestStatusService.resolveForLifecycle(sessionKey, pullRequestUrl);
+			if (pullRequest?.state !== 'merged'
+				|| pullRequest.url.toLowerCase() !== pullRequestUrl.toLowerCase()) {
+				return false;
+			}
+		}
+		return pullRequestUrls.length > 0;
+	}
+
 	private async _getCleanupCandidate(session: URI, summary: SessionSummary | undefined, archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean): Promise<IAgentHostSessionLifecycleCandidate | undefined> {
 		if (!summary
 			|| isSessionStatusActive(summary.status)) {
 			return undefined;
 		}
-		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
-		if (!pullRequestUrl) {
+		const pullRequestUrls = getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
+		if (pullRequestUrls.length === 0) {
 			return undefined;
 		}
 		if (!isSessionStatusArchived(summary.status)) {
 			const modifiedTime = Date.parse(summary.modifiedAt);
 			if (archiveCutoff !== undefined && modifiedTime <= archiveCutoff) {
-				return { session, pullRequestUrl, action: 'archive' };
+				return { session, pullRequestUrls, action: 'archive' };
 			}
-			return cleanupWorktrees ? { session, pullRequestUrl, action: 'cleanupWorktree' } : undefined;
+			return cleanupWorktrees ? { session, pullRequestUrls, action: 'cleanupWorktree' } : undefined;
 		}
 		if (deleteCutoff === undefined) {
 			return undefined;
 		}
 		const autoArchivedAt = await this._accessor.getAutoArchivedAt(session);
 		return autoArchivedAt !== undefined && autoArchivedAt <= deleteCutoff
-			? { session, pullRequestUrl, action: 'delete' }
+			? { session, pullRequestUrls, action: 'delete' }
 			: undefined;
 	}
 
-	private _getArchiveCandidate(summary: SessionSummary | undefined, archiveCutoff: number): string | undefined {
+	private _getArchiveCandidate(summary: SessionSummary | undefined, archiveCutoff: number): readonly string[] | undefined {
 		const modifiedTime = summary ? Date.parse(summary.modifiedAt) : Number.NaN;
 		if (!summary
 			|| isSessionStatusArchived(summary.status)
@@ -277,10 +286,18 @@ export class AgentHostSessionLifecycle extends Disposable {
 			|| modifiedTime > archiveCutoff) {
 			return undefined;
 		}
-		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta))[0];
+		return getSessionRelatedPullRequestUrls(readSessionGitHubState(summary._meta));
 	}
 }
 
 function isSessionStatusActive(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.InProgress) !== 0;
+}
+
+function samePullRequestUrls(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	const normalizedA = new Set(a.map(url => url.toLowerCase()));
+	return normalizedA.size === b.length && b.every(url => normalizedA.has(url.toLowerCase()));
 }

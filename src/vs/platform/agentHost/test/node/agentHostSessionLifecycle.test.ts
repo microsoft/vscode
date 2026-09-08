@@ -29,6 +29,7 @@ suite('AgentHostSessionLifecycle', () => {
 
 	function createHarness(options?: {
 		readonly status?: IAgentHostPullRequestStatus;
+		readonly resolveStatus?: (pullRequestUrl: string) => IAgentHostPullRequestStatus | undefined;
 		readonly sessionStatus?: SessionStatus;
 		readonly modifiedTime?: number;
 		readonly external?: boolean;
@@ -77,6 +78,7 @@ suite('AgentHostSessionLifecycle', () => {
 		stateManager.createSession(summary);
 		const restored: string[] = [];
 		const resolved: string[] = [];
+		const resolvedPullRequestUrls: string[] = [];
 		const cleanedWorktrees: string[] = [];
 		const archivedSessions: string[] = [];
 		const deleted: string[] = [];
@@ -91,9 +93,10 @@ suite('AgentHostSessionLifecycle', () => {
 			override async refresh() { }
 			override async resolveForLifecycle(sessionKey: string, pullRequestUrl: string) {
 				resolved.push(sessionKey);
-				assert.strictEqual(pullRequestUrl, options?.pullRequestUrls?.[0] ?? PULL_REQUEST_URL);
+				resolvedPullRequestUrls.push(pullRequestUrl);
+				assert.ok((options?.pullRequestUrls ?? [PULL_REQUEST_URL]).includes(pullRequestUrl));
 				options?.onResolve?.(configurationService, stateManager, session);
-				return options?.status;
+				return options?.resolveStatus?.(pullRequestUrl) ?? options?.status;
 			}
 			override dispose() { }
 		}();
@@ -107,14 +110,14 @@ suite('AgentHostSessionLifecycle', () => {
 					if (options?.external || status === SessionStatus.InProgress) {
 						return [];
 					}
-					const pullRequestUrl = options?.pullRequestUrls?.[0] ?? PULL_REQUEST_URL;
+					const pullRequestUrls = options?.pullRequestUrls ?? [PULL_REQUEST_URL];
 					const archived = isSessionStatusArchived(status);
 					const action = archived
 						? deleteCutoff !== undefined && autoArchivedAt !== undefined && autoArchivedAt <= deleteCutoff ? 'delete' : undefined
 						: archiveCutoff !== undefined && modifiedTime <= archiveCutoff ? 'archive' : cleanupWorktrees ? 'cleanupWorktree' : undefined;
-					return pullRequestUrl && action ? [{
+					return pullRequestUrls.length > 0 && action ? [{
 						session,
-						pullRequestUrl,
+						pullRequestUrls,
 						action,
 					} satisfies IAgentHostSessionLifecycleCandidate] : [];
 				},
@@ -159,7 +162,7 @@ suite('AgentHostSessionLifecycle', () => {
 			logService,
 			{ now: () => NOW, start: false },
 		));
-		return { lifecycle, configurationService, stateManager, session, restored, resolved, cleanedWorktrees, archivedSessions, deleted, autoArchiveTimestamps, listed };
+		return { lifecycle, configurationService, stateManager, session, restored, resolved, resolvedPullRequestUrls, cleanedWorktrees, archivedSessions, deleted, autoArchiveTimestamps, listed };
 	}
 
 	test('archives an inactive internal session after an authoritative merged result', async () => {
@@ -562,7 +565,58 @@ suite('AgentHostSessionLifecycle', () => {
 		assert.strictEqual(isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status), false);
 	});
 
-	test('does not archive from a merged non-designated pull request', async () => {
+	test('does not archive, delete, or clean the worktree while any related pull request is unmerged', async () => {
+		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
+		const resolveStatus = (pullRequestUrl: string) => pullRequestUrl === PULL_REQUEST_URL
+			? mergedPullRequestStatus()
+			: { ...mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2), state: 'open' as const };
+		const harnesses = [
+			createHarness({ pullRequestUrls, resolveStatus }),
+			createHarness({ enabled: false, pullRequestUrls, resolveStatus }),
+			createHarness({
+				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+				autoArchivedAt: NOW - 2 * DAY_MS,
+				pullRequestUrls,
+				resolveStatus,
+			}),
+		];
+
+		await Promise.all(harnesses.map(harness => harness.lifecycle.run()));
+
+		assert.deepStrictEqual(harnesses.map(harness => ({
+			restored: harness.restored,
+			resolvedPullRequestUrls: harness.resolvedPullRequestUrls,
+			cleanedWorktrees: harness.cleanedWorktrees,
+			deleted: harness.deleted,
+			archived: isSessionStatusArchived(harness.stateManager.getSessionSummary(harness.session.toString())?.status),
+		})), [
+			{ restored: [], resolvedPullRequestUrls: pullRequestUrls, cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolvedPullRequestUrls: pullRequestUrls, cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolvedPullRequestUrls: pullRequestUrls, cleanedWorktrees: [], deleted: [], archived: true },
+		]);
+	});
+
+	test('archives when all related pull requests are merged', async () => {
+		const pullRequestUrls = [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL];
+		const { lifecycle, stateManager, session, resolvedPullRequestUrls } = createHarness({
+			pullRequestUrls,
+			resolveStatus: pullRequestUrl => pullRequestUrl === PULL_REQUEST_URL
+				? mergedPullRequestStatus()
+				: mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2),
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			resolvedPullRequestUrls,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			resolvedPullRequestUrls: pullRequestUrls,
+			archived: true,
+		});
+	});
+
+	test('does not archive when a lifecycle lookup returns a different pull request', async () => {
 		const { lifecycle, stateManager, session } = createHarness({
 			pullRequestUrls: [PULL_REQUEST_URL, SECOND_PULL_REQUEST_URL],
 			status: { ...mergedPullRequestStatus(), number: 2, url: SECOND_PULL_REQUEST_URL },
@@ -616,11 +670,11 @@ suite('AgentHostSessionLifecycle', () => {
 	});
 });
 
-function mergedPullRequestStatus(): IAgentHostPullRequestStatus {
+function mergedPullRequestStatus(url = PULL_REQUEST_URL, number = 1): IAgentHostPullRequestStatus {
 	return {
 		pullRequestId: 'PR_1',
-		number: 1,
-		url: PULL_REQUEST_URL,
+		number,
+		url,
 		headSha: 'sha',
 		state: 'merged',
 		draft: false,
