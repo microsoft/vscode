@@ -39,6 +39,7 @@ import { IAgentHostCustomizationEnablementService, type CustomizationEnablementR
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostMcpConnectorsService } from '../../../node/agentHostMcpConnectorsService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -57,6 +58,7 @@ import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/Sa
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { createTestMcpConnectorsService } from '../testMcpConnectorsService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 
@@ -221,6 +223,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostMcpConnectorsService, createTestMcpConnectorsService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
