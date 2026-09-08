@@ -3230,7 +3230,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
-				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
+				// Isolation is host-owned; the workspace schema determines the available choices.
+				supportsWorktreeConfiguration: true,
 				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),

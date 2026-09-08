@@ -2880,6 +2880,26 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		test('does not enable unsupported Cloud worktree or branch configuration', async () => {
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration: {} });
+			await provider.setIsolationMode(sessionInfo.sessionId, 'worktree');
+			await provider.setBranch(sessionInfo.sessionId, 'feature/saved');
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				supportsWorktree: CopilotCloudSessionType.supportsWorktreeConfiguration ?? false,
+				isolationMode: session.isolationMode.get(),
+				branch: session.branch.get(),
+				config: captured?.sessionTemplate?.config,
+			}, {
+				supportsWorktree: false,
+				isolationMode: undefined,
+				branch: undefined,
+				config: { autoApprove: ChatPermissionLevel.Default, useSandbox: false },
+			});
+		});
 	});
 
 	suite('Automation custom agent restoration', () => {

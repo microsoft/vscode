@@ -753,6 +753,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	test('advertises host-owned worktree configuration for every agent', () => {
+		agentHost.setAgents(['copilotcli', 'claude', 'codex', 'custom'].map(provider => ({
+			provider, displayName: provider, description: '', models: [],
+		})));
+		const configurationService = new TestConfigurationService({ [AgentHostCodexAgentEnabledSettingId]: true });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+
+		assert.deepStrictEqual(provider.sessionTypes.map(type => ({
+			id: type.id,
+			supportsWorktreeConfiguration: type.supportsWorktreeConfiguration,
+		})), ['copilotcli', 'claude', 'codex', 'custom'].map(id => ({
+			id, supportsWorktreeConfiguration: true,
+		})));
+	});
+
 	test('shares the root-state listener across session adapters', () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 		const provider = createProvider(disposables, agentHost);
