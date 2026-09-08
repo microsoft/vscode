@@ -49,22 +49,22 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/83f74ecd73ce774dc3810cda0e41da17d236d5142cd154d049379069ae0845c9)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0a77a6278db4f5779d6a04a3b0c2b8d19d6fc6ac26f56647cb6adb6dbef48391)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/cc4c07ba161b9720d34bafacb23b62a83a2b268608315b8ff430c10e47a78f8c)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3cbb41fb50daa95541def6293d7d9defb0ec44416a497e7b3f03a2da24fb4695)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9162abf4826e38fbdfbd4a77a81f20cd5177672e924bd3a76576e94530c98f51)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHome/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/e3eee532373366a533ac4374808d799b1a2cfdc7db83ad479ae38eac2102e670)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7754ebff4fb96dbf72d43cdd2ceda3a23d4b9d5c191da30af7e4103ad8529e52)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHome/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1cb59613169dce3604a71ffc9b9a7460de175e78d323436e6427299730ee0a76)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ce7a5a73fb94f76bd1f9e3d0c5215adb886358d3c309468766ce728be95ba0aa)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHomeNarrow/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9b4ea6512c19a7999a18d857ff15140d13fbfea69d32d63b0aa871739d4c5af5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f9450179e83ec24ece17822138f021dbc662f1f5a341d988ba3c06ba79e472bf)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHomeNarrow/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/13d81ef8758630efebb534de263c87ec72f24fea419305539c3e9449b08dd838)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3be93044609609385ad24b289e132f3580c34bfc4f710f656caf150adf8859e2)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogSearch/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/1c73380dc80120ef5cf9a9ad9998701074fd71101eba681d9c3c53bb1d14f450)

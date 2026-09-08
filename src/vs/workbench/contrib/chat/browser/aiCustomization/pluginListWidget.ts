@@ -38,7 +38,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
@@ -784,7 +783,6 @@ export class PluginListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -799,9 +797,6 @@ export class PluginListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
-			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsFeaturedEnabled)) {
-				this.renderPluginHome();
 			}
 		}));
 		this._register({
@@ -1578,9 +1573,6 @@ export class PluginListWidget extends Disposable {
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
-		if (this.productService.quality !== 'stable' && this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsFeaturedEnabled) === true) {
-			this.renderDiscoverySnapshot(content);
-		}
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1834,48 +1826,6 @@ export class PluginListWidget extends Disposable {
 
 	private rememberCardFocusElement(element: HTMLElement): void {
 		this.firstCardFocusElement ??= element;
-	}
-
-	private renderDiscoverySnapshot(parent: HTMLElement): void {
-		const marketplaceItems = this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
-		if (marketplaceItems.length === 0) {
-			if (this.marketplaceSnapshot.state === 'failed') {
-				this.renderDiscoveryError(parent);
-			}
-			return;
-		}
-		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
-		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
-		const snapshotItems = [
-			...recommended,
-			...marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item))),
-		].slice(0, 3);
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredPlugins', "Featured"),
-			localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise."),
-			'plugin-discovery-section',
-		);
-		grid.classList.add('plugin-inventory-list');
-		this.createPluginSectionList(grid, localize('featuredPlugins', "Featured"), snapshotItems.map(item => ({ type: 'marketplace-item', item })), false);
-	}
-
-	private renderDiscoveryError(parent: HTMLElement): void {
-		this.renderCardSection(
-			parent,
-			localize('pluginDiscoveryUnavailable', "Available plugins could not be loaded"),
-			localize('pluginDiscoveryUnavailableDescription', "Check your connection, then try loading results from the configured marketplaces again."),
-			'plugin-discovery-section',
-			undefined,
-			header => {
-				const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.marketplaceSnapshot.reset();
-					void this.queryMarketplaceSnapshot();
-				}));
-			},
-		);
 	}
 
 	private renderBrowseMarketplaceCards(): void {

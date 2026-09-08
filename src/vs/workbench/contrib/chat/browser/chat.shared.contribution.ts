@@ -2480,13 +2480,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsFeaturedEnabled]: {
-			type: 'boolean',
-			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
-			description: nls.localize('chat.customizations.featured.enabled', "Controls whether the Chat Customizations editor shows featured plugins and MCP servers."),
-			default: false,
-		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],

@@ -685,7 +685,6 @@ interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly files?: readonly IFixtureFile[];
 	readonly configuration?: Record<string, unknown>;
-	readonly productQuality?: IProductService['quality'];
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -1091,7 +1090,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}
 			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
-				override readonly quality = options.productQuality ?? 'insider';
 				override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() {
 					override readonly chatExtensionId = 'GitHub.copilot-chat';
 				}();
@@ -1382,7 +1380,7 @@ const marketplacePlugins: IMarketplacePlugin[] = [
 	makeMarketplacePlugin('Vercel', 'Deployment and preview environments', 'vercel-plugin'),
 ];
 
-async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false, featuredEnabled = false, productQuality: IProductService['quality'] = 'insider'): Promise<void> {
+async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean, searchQuery?: string, width = browse ? 650 : 840, noInstalledPlugins = false): Promise<void> {
 	const height = browse ? 600 : 800;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
@@ -1411,14 +1409,6 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
-			const configurationService = new TestConfigurationService({
-				[ChatConfiguration.ChatCustomizationsFeaturedEnabled]: featuredEnabled,
-			});
-			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
-				override readonly quality = productQuality;
-			}());
-			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
-			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
@@ -1832,31 +1822,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	McpServersTabFeatured: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers page shows a Featured section above Installed and Available sections.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			configuration: {
-				[ChatConfiguration.ChatCustomizationsFeaturedEnabled]: true,
-			},
-		}),
-	}),
-
-	McpServersTabFeaturedStable: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Stable shows Installed and Available MCP server sections, with no Featured section even when the setting is enabled.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			productQuality: 'stable',
-			configuration: {
-				[ChatConfiguration.ChatCustomizationsFeaturedEnabled]: true,
-			},
-		}),
-	}),
-
 	McpServersSearch: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
@@ -2161,18 +2126,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: renderPluginHomeMode,
-	}),
-
-	PluginCatalogHomeFeatured: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Plugins page shows a Featured section above Installed and Available sections.'],
-		render: ctx => renderPluginCatalog(ctx, false, undefined, 840, false, true),
-	}),
-
-	PluginCatalogHomeFeaturedStable: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Stable shows Installed and Available plugin sections, with no Featured section even when the setting is enabled.'],
-		render: ctx => renderPluginCatalog(ctx, false, undefined, 840, false, true, 'stable'),
 	}),
 
 	PluginCatalogSearch: defineComponentFixture({

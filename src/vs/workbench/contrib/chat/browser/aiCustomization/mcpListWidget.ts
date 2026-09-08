@@ -18,7 +18,6 @@ import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
@@ -26,7 +25,6 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -1262,7 +1260,6 @@ export class McpListWidget extends Disposable {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -1293,9 +1290,6 @@ export class McpListWidget extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this.updateAccessState();
-			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsFeaturedEnabled)) {
-				this.renderMcpHome();
 			}
 		}));
 		this._register({
@@ -1846,9 +1840,6 @@ export class McpListWidget extends Disposable {
 		this.showCardSurface();
 
 		const content = this.createCardScrollContent('distributed-section-layout');
-		if (this.productService.quality !== 'stable' && this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsFeaturedEnabled) === true) {
-			this.renderFeaturedServers(content);
-		}
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1878,36 +1869,6 @@ export class McpListWidget extends Disposable {
 		add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
 		this.firstCardFocusElement ??= add.element;
 		this.cardDisposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
-	}
-
-	private renderFeaturedServers(parent: HTMLElement): void {
-		const featured = this.getAvailableGalleryServers().slice(0, 3);
-		if (featured.length === 0) {
-			if (this.gallerySnapshotFailed) {
-				const grid = this.renderCardSection(
-					parent,
-					localize('mcpMarketplaceUnavailable', "Featured MCP servers could not be loaded"),
-					localize('mcpMarketplaceUnavailableDescription', "Check your connection, then try loading marketplace results again."),
-					'plugin-discovery-section',
-				);
-				const retry = this.cardDisposables.add(new Button(grid, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryMcpMarketplace', "Retry Loading MCP Servers") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.gallerySnapshotFailed = false;
-					void this.queryGallerySnapshot();
-				}));
-			}
-			return;
-		}
-
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredMcpServers', "Featured"),
-			localize('featuredMcpServersDescription', "Discover MCP servers that connect agents to popular tools and services."),
-			'plugin-discovery-section',
-		);
-		grid.classList.add('plugin-inventory-list');
-		this.createMcpSectionList(grid, localize('featuredMcpServers', "Featured"), featured.map(server => ({ type: 'marketplace-item', server })));
 	}
 
 	private renderAvailableServers(parent: HTMLElement, servers: readonly IWorkbenchMcpServer[], showDescription: boolean): void {
