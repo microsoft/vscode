@@ -29,7 +29,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../../common/constants.js';
 import { isAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
@@ -944,7 +944,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				return intention;
 			}
 		}
-		const message = IChatToolInvocation.isComplete(toolInvocation)
+		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		const wasCancelled = confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped;
+		const message = IChatToolInvocation.isComplete(toolInvocation) && !wasCancelled
 			? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage
 			: toolInvocation.invocationMessage;
 		const messageText = typeof message === 'string' ? message : message.value;

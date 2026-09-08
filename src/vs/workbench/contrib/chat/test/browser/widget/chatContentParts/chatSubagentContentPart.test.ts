@@ -1257,6 +1257,36 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('should not show success messages for skipped or denied child tools', () => {
+			const labels = [];
+			for (const reason of [ToolConfirmKind.Skipped, ToolConfirmKind.Denied] as const) {
+				const part = createPart(createMockToolInvocation({
+					toolSpecificData: {
+						kind: 'subagent',
+						chatResource: 'ahp-chat://subagent/test/tool-call',
+						isActive: true,
+					},
+				}), createMockRenderContext(false));
+				const state = observableValue<IChatToolInvocation.State>('state', createState(IChatToolInvocation.StateKind.WaitingForConfirmation));
+				const tool: IChatToolInvocation = {
+					...createMockToolInvocation({ toolId: 'create_file', invocationMessage: 'Creating example.ts' }),
+					pastTenseMessage: 'Created example.ts',
+					state,
+				};
+				part.trackToolState(tool);
+				state.set({ type: IChatToolInvocation.StateKind.Cancelled, reason, parameters: undefined }, undefined);
+				labels.push(getOpenChatContext(part)?.activeToolLabel);
+				part.trackToolState({
+					...createMockSerializedToolInvocation({ toolId: 'create_file' }),
+					invocationMessage: 'Creating example.ts',
+					pastTenseMessage: 'Created example.ts',
+					isConfirmed: { type: reason },
+				});
+				labels.push(getOpenChatContext(part)?.activeToolLabel);
+			}
+			assert.deepStrictEqual(labels, Array(4).fill('Creating example.ts'));
+		});
+
 		test('should restore the latest serialized child tool in the open-chat pill', () => {
 			const part = createPart(createMockToolInvocation({
 				toolSpecificData: {

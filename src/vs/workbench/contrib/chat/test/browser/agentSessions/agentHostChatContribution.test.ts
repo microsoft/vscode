@@ -8778,6 +8778,77 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('restores nested subagent availability from parent-chat-scoped catalog entries', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'nested-subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'outer-child');
+			const grandchildChatUri = buildSubagentChatUri(sessionUri.toString(), 'inner-child');
+			const unrelatedChatUri = buildSubagentChatUri(sessionUri.toString(), 'unrelated-child');
+			const unrelatedInnerChatUri = buildSubagentChatUri(sessionUri.toString(), 'unrelated-inner-child');
+			const catalog = [
+				{ resource: childChatUri, parent: defaultChatUri, toolCallId: 'outer-task' },
+				{ resource: grandchildChatUri, parent: childChatUri, toolCallId: 'inner-task' },
+				{ resource: unrelatedChatUri, parent: buildChatUri(sessionUri.toString(), 'peer'), toolCallId: 'outer-task' },
+				{ resource: unrelatedInnerChatUri, parent: buildChatUri(sessionUri.toString(), 'peer'), toolCallId: 'inner-task' },
+			].map(entry => ({
+				resource: entry.resource,
+				title: 'Reviewer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date().toISOString(),
+				origin: { kind: ChatOriginKind.Tool, chat: entry.parent, toolCallId: entry.toolCallId } as const,
+			}));
+			const makeHistory = (resource: string, toolCallId?: string): SeededSessionState => ({
+				...createSessionState({
+					resource, provider: 'copilot', title: 'Review', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				defaultChat: defaultChatUri,
+				chats: catalog,
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'completed-turn',
+					message: { text: 'Review', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: toolCallId ? [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId,
+							toolName: 'task',
+							displayName: 'Delegate task',
+							invocationMessage: 'Delegating',
+							pastTenseMessage: 'Delegated',
+							status: ToolCallStatus.Completed,
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: true,
+							content: [],
+						},
+					}] : [],
+					usage: undefined,
+				}],
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), makeHistory(sessionUri.toString(), 'outer-task'));
+			agentHostService.sessionStates.set(childChatUri, makeHistory(childChatUri, 'inner-task'));
+			agentHostService.sessionStates.set(grandchildChatUri, makeHistory(grandchildChatUri));
+			agentHostService.sessionStates.set(unrelatedChatUri, makeHistory(unrelatedChatUri));
+			agentHostService.sessionStates.set(unrelatedInnerChatUri, makeHistory(unrelatedInnerChatUri));
+
+			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/nested-subagent-history' }), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const response = session.history[1];
+			assert.strictEqual(response.type, 'response');
+			const parts = response.type === 'response' ? response.parts.flatMap(part =>
+				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent'
+					? [{ resource: part.toolSpecificData.chatResource, available: part.toolSpecificData.isChatAvailable }]
+					: []
+			) : [];
+
+			assert.deepStrictEqual(parts, [
+				{ resource: childChatUri, available: true },
+				{ resource: grandchildChatUri, available: true },
+			]);
+		});
+
 		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'direct-subagent');
@@ -11545,61 +11616,73 @@ suite('AgentHostChatContribution', () => {
 			);
 		}));
 
-		test('restored background subagent pills observe their child chat completing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-background-subagent');
-			const toolCallId = 'tc-background-task';
-			const childChatUri = buildSubagentChatUri(sessionUri.toString(), toolCallId);
-			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
-			sessionState.activeTurn!.responseParts.unshift({
-				kind: ResponsePartKind.ToolCall,
-				toolCall: {
-					toolCallId,
-					toolName: 'task',
-					displayName: 'Delegating task',
-					invocationMessage: 'Delegating task',
-					pastTenseMessage: 'Delegated task',
-					status: ToolCallStatus.Completed,
-					confirmed: ToolCallConfirmationReason.NotNeeded,
-					success: true,
-					content: [{ type: ToolResultContentType.Subagent, resource: childChatUri, title: 'Reviewer' }],
-				},
-			});
-			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
-			agentHostService.sessionStates.set(childChatUri, {
-				...createSessionState({
-					resource: childChatUri, provider: 'copilot', title: 'Reviewer', status: SessionStatus.InProgress,
-					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
-				}),
-				lifecycle: SessionLifecycle.Ready,
-				activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
-			});
-			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-background-subagent' }), CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-			await timeout(0);
-			const parent = session.progressObs?.get().find((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
-				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolCallId === toolCallId
-			);
-			assert.ok(parent?.toolSpecificData?.kind === 'subagent');
-			const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive };
-			agentHostService.fireAction({
-				channel: childChatUri,
-				action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 1000 },
-				serverSeq: 100,
-				origin: undefined,
-			});
-			await timeout(0);
+		for (const clientId of [undefined, 'test-window-1', 'other-window']) {
+			test(`restored background subagent pills observe their child chat completing (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
+				const { sessionHandler, agentHostService } = createContribution(disposables, {
+					languageModelToolsServiceOverride: {
+						getToolByName: () => toolData,
+						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
+					},
+				});
+				const sessionUri = AgentSession.uri('copilot', 'reconnect-background-subagent');
+				const toolCallId = 'tc-background-task';
+				const childChatUri = buildSubagentChatUri(sessionUri.toString(), toolCallId);
+				const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+				sessionState.activeTurn!.responseParts.unshift({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId,
+						toolName: 'task',
+						displayName: 'Delegating task',
+						invocationMessage: 'Delegating task',
+						pastTenseMessage: 'Delegated task',
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						success: true,
+						content: [],
+						contributor: clientId ? { kind: ToolCallContributorKind.Client, clientId } : undefined,
+					},
+				});
+				agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+				agentHostService.sessionStates.set(childChatUri, {
+					...createSessionState({
+						resource: childChatUri, provider: 'copilot', title: 'Reviewer', status: SessionStatus.InProgress,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-background-subagent' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				await timeout(0);
+				const parents = session.progressObs?.get().filter((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
+					(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolCallId === toolCallId
+				) ?? [];
+				const parent = parents[0];
+				assert.ok(parent?.toolSpecificData?.kind === 'subagent');
+				const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive };
+				agentHostService.fireAction({
+					channel: childChatUri,
+					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 1000 },
+					serverSeq: 100,
+					origin: undefined,
+				});
+				await timeout(0);
 
-			assert.deepStrictEqual({
-				kind: parent.kind,
-				beforeCompletion,
-				afterCompletion: { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive, duration: parent.toolSpecificData.duration },
-			}, {
-				kind: 'toolInvocation',
-				beforeCompletion: { available: true, active: true },
-				afterCompletion: { available: true, active: false, duration: 1000 },
-			});
-		}));
+				assert.deepStrictEqual({
+					parentCount: parents.length,
+					kind: parent.kind,
+					beforeCompletion,
+					afterCompletion: { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive, duration: parent.toolSpecificData.duration },
+				}, {
+					parentCount: 1,
+					kind: 'toolInvocation',
+					beforeCompletion: { available: true, active: true },
+					afterCompletion: { available: true, active: false, duration: 1000 },
+				});
+			}));
+		}
 
 		test('adopts and updates an active streaming tool call after reconnect', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -13970,6 +14053,49 @@ suite('AgentHostChatContribution', () => {
 				children: [parentToolCallId],
 				completed: { available: true, active: false },
 			});
+		}));
+
+		test('subagent catalog discovery scopes reused tool ids to the spawning chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'reused-task-id';
+			const childChatUri = buildSubagentChatUri(parentSession, 'correct-child');
+			const siblingChatUri = buildSubagentChatUri(parentSession, 'sibling-child');
+			agentHostService.sessionStates.set(childChatUri, makeChildState(childChatUri, 'correct-child-tool'));
+			agentHostService.sessionStates.set(siblingChatUri, makeChildState(siblingChatUri, 'sibling-child-tool'));
+			for (const [index, summary] of [
+				{ resource: siblingChatUri, parent: buildChatUri(parentSession, 'peer') },
+				{ resource: childChatUri, parent: session },
+			].entries()) {
+				agentHostService.fireAction({
+					channel: parentSession,
+					action: {
+						type: ActionType.SessionChatAdded,
+						summary: {
+							resource: summary.resource,
+							title: 'Reviewer',
+							status: SessionStatus.InProgress,
+							modifiedAt: new Date().toISOString(),
+							origin: { kind: ChatOriginKind.Tool, chat: summary.parent, toolCallId },
+						},
+					},
+					serverSeq: 100 + index,
+					origin: undefined,
+				});
+			}
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId, toolName: 'task', displayName: 'Task' } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId, invocationMessage: 'Reviewing', confirmed: 'not-needed' } as ChatAction);
+			await timeout(0);
+			const tools = collected.flat().filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			const parent = tools.find(part => part.toolCallId === toolCallId);
+			assert.ok(parent?.toolSpecificData?.kind === 'subagent');
+			const result = { resource: parent.toolSpecificData.chatResource, children: tools.filter(part => part.subAgentInvocationId === toolCallId).map(part => part.toolCallId) };
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(result, { resource: childChatUri, children: ['correct-child-tool'] });
 		}));
 
 		test('switches subagent observation from a provisional URI to the discovered chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

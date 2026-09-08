@@ -35,7 +35,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -398,6 +398,21 @@ function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState
 /** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
 function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
 	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
+}
+
+function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
+	const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) ? getToolSubagentContent(tc) : undefined;
+	if (!isSubagentTool(tc) && !subagentContent) {
+		return undefined;
+	}
+	return {
+		kind: 'subagent',
+		description: getSubagentTaskDescription(tc),
+		...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
+		agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
+		chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+		isChatAvailable: false,
+	};
 }
 
 /**
@@ -2330,10 +2345,12 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		displayName: tc.displayName,
 		modelDescription: tc.toolName,
 	};
+	const subagentData = getSubagentToolSpecificData(tc, sessionResource);
 
 	if (tc.contributor?.kind === ToolCallContributorKind.Client && options && tc.contributor.clientId !== options.currentClientId) {
 		const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 		invocation.invocationMessage = localize('agentHost.otherClientTool.running', "Running {0} on another client...", tc.displayName);
+		invocation.toolSpecificData = subagentData;
 		invocation.otherClientToolCall = {
 			cancel: () => options.cancelOtherClientToolCall(tc),
 		};
@@ -2444,23 +2461,13 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// `terminalCommandUri`) stay undefined — the renderer treats this
 		// as a display-only terminal that still surfaces command + output.
 		invocation.toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-	} else if (isSubagentTool(tc)) {
+	} else if (subagentData) {
 		// Subagent-spawning tool: set subagent toolSpecificData eagerly so the
 		// renderer groups it correctly from the start (before child content
 		// arrives). Agent metadata comes from `_meta` (set by the event
 		// mapper from the tool's arguments) and is later refined by the
 		// Subagent content block via `updateRunningToolSpecificData`.
-		const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
-			? getToolSubagentContent(tc)
-			: undefined;
-		invocation.toolSpecificData = {
-			kind: 'subagent',
-			description: getSubagentTaskDescription(tc),
-			...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
-			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
-			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
-			isChatAvailable: false,
-		};
+		invocation.toolSpecificData = subagentData;
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
 	} else if (tc.status !== ToolCallStatus.Streaming) {
