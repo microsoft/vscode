@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir, userInfo } from 'os';
+import { Promises } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -121,9 +122,11 @@ suite('CapiReplayProxy path normalization', () => {
 					hasPid: false,
 				});
 			} finally {
-				await recording.stop();
-				await replayToDispose?.stop();
-				rmSync(testDirectory, { recursive: true, force: true });
+				try {
+					await Promises.settled([recording.stop(), replayToDispose?.stop() ?? Promise.resolve()]);
+				} finally {
+					rmSync(testDirectory, { recursive: true, force: true });
+				}
 			}
 		});
 	}
