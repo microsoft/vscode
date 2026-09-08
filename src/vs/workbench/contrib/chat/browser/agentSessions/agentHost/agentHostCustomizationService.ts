@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -41,6 +43,13 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	/**
+	 * Waits up to two seconds for {@link getCustomizations} to reflect the session's first state snapshot; it may resolve earlier on cancellation, failure, or when no agent-host session exists.
+	 * The wait is shared per session, so repeated calls observe one deadline rather than restarting it, and resolve immediately once it has elapsed.
+	 * Intended for one-shot reads; reactive callers should continue listening to {@link onDidChangeCustomizations}.
+	 */
+	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
 
 	/**
 	 * The harness-owned decision about the multi-root Folder picker for a
@@ -107,6 +116,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
+	}
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
 	}
 	getFolderPickerDecision(_sessionResource: URI): ISessionFolderPickerDecision | undefined {
 		return undefined;
@@ -183,6 +195,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getCustomizations(sessionResource: URI): readonly Customization[] {
 		return this._resolveTarget(sessionResource)?.customizations ?? [];
+	}
+
+	/**
+	 * Targets resolved by this base are backed by already-materialized provider
+	 * state, so a snapshot is available as soon as the target resolves.
+	 */
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
 	}
 
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined {
@@ -434,9 +454,30 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
 }
 
+/**
+ * Upper bound on how long {@link WorkbenchAgentHostCustomizationService.whenCustomizationsReady}
+ * waits for a session's first state snapshot.
+ */
+const SESSION_STATE_SNAPSHOT_TIMEOUT_MS = 2000;
+
+/**
+ * A live session-state subscription plus the memoized readiness wait shared by
+ * every {@link WorkbenchAgentHostCustomizationService.whenCustomizationsReady}
+ * caller for that subscription.
+ */
+interface ISessionStateSubscriptionEntry extends IDisposable {
+	readonly connection: IAgentConnection;
+	readonly backendSession: URI;
+	readonly sub: IAgentSubscription<SessionState>;
+	readiness?: Promise<void>;
+}
+
 export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
-	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }>());
+	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<ISessionStateSubscriptionEntry>());
+
+	/** Overridable so tests can exercise the timeout without real-time waits. */
+	protected readonly _snapshotTimeoutMs: number = SESSION_STATE_SNAPSHOT_TIMEOUT_MS;
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -528,6 +569,50 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		};
 	}
 
+	/**
+	 * Session state arrives asynchronously over the protocol, so a freshly
+	 * created subscription reports `undefined` until its first snapshot lands.
+	 *
+	 * The wait is memoized per subscription so that the many source-folder
+	 * queries behind a single migration hint observe one shared deadline rather
+	 * than restarting it per prompt type. It is bounded because the chat request
+	 * path blocks on this before sending the user's message: once it elapses,
+	 * callers fall back to the current (possibly empty) snapshot rather than
+	 * stalling the send again on every subsequent query.
+	 */
+	override async whenCustomizationsReady(sessionResource: URI, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const target = this._resolveSessionTarget(sessionResource);
+		if (!target) {
+			return;
+		}
+		const entry = this._ensureSessionStateSubscription(sessionResource, target);
+		// An `Error` value counts as resolved: the subscription settled, just not with a snapshot.
+		if (!entry || entry.sub.value !== undefined) {
+			return;
+		}
+
+		// Each caller races the shared wait against its own token, so one
+		// cancellation cannot settle the wait for the others.
+		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
+		await raceCancellation(entry.readiness, token);
+	}
+
+	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {
+		const store = new DisposableStore();
+		try {
+			const firstSnapshot = new Promise<void>(resolve => {
+				store.add(subscription.onDidChange(() => resolve()));
+				const onDidError = subscription.onDidError;
+				if (onDidError) {
+					store.add(onDidError(() => resolve()));
+				}
+			});
+			await raceTimeout(firstSnapshot, this._snapshotTimeoutMs);
+		} finally {
+			store.dispose();
+		}
+	}
+
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
 		const target = this._resolveSessionTarget(sessionResource);
 		const subscription = target ? this._ensureSessionStateSubscription(sessionResource, target)?.sub : undefined;
@@ -535,7 +620,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		return value instanceof Error ? subscription?.verifiedValue : value;
 	}
 
-	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): (IDisposable & { readonly connection: IAgentConnection; readonly backendSession: URI; readonly sub: IAgentSubscription<SessionState> }) | undefined {
+	private _ensureSessionStateSubscription(sessionResource: URI, target: IAgentHostSessionResolution): ISessionStateSubscriptionEntry | undefined {
 		const existing = this._sessionStateSubscriptions.get(sessionResource);
 		if (existing?.backendSession.toString() === target.backendSession.toString() && existing.connection === target.connection) {
 			return existing;
@@ -547,7 +632,9 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		});
-		const entry = {
+		// A new generation starts with no memoized readiness, so the untitled →
+		// real rebind that backs a first send always gets a full wait.
+		const entry: ISessionStateSubscriptionEntry = {
 			connection: target.connection,
 			backendSession: target.backendSession,
 			sub,
