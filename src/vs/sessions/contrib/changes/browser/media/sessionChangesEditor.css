@@ -149,7 +149,12 @@
 	box-sizing: border-box;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background-color: var(--vscode-commandCenter-background);
+	color: var(--vscode-commandCenter-foreground);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.changes-picker-action-with-summary .action-label > .codicon {
+	color: var(--vscode-commandCenter-foreground);
 }
 
 :is(.hc-black, .hc-light) .changes-picker-action-with-summary .action-label {
