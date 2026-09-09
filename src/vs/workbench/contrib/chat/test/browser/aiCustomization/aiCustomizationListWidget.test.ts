@@ -11,6 +11,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
@@ -735,6 +736,8 @@ suite('aiCustomizationListWidget', () => {
 
 		for (const isSessionsWindow of [false, true]) {
 			test(`keyboard-focused skill rows expose validation diagnostics in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+				const listService = disposables.add(new ListService());
+				instaService.stub(IListService, listService);
 				instaService.stub(IAICustomizationWorkspaceService, 'isSessionsWindow', isSessionsWindow);
 				const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
 					id: 'dreaming',
@@ -767,7 +770,10 @@ suite('aiCustomizationListWidget', () => {
 				const list = row.closest<HTMLElement>('.monaco-list');
 				assert(list);
 				list.focus();
-				list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+				list.dispatchEvent(new FocusEvent('focus'));
+				const focusedList = listService.lastFocusedList;
+				assert(focusedList);
+				await focusedList.focusNext(1, false, new KeyboardEvent('keydown'));
 
 				assert.deepStrictEqual({
 					hasKeyboardFocus: document.activeElement === list,
