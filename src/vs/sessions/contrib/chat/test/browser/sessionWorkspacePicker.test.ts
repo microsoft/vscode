@@ -565,6 +565,43 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
+	test('refreshes Dev Container availability each time the picker opens', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		let available = true;
+		let availabilityChecks = 0;
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async () => {
+				availabilityChecks++;
+				return available;
+			},
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: provider.id, checked: false }]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+		const container = document.createElement('div');
+		picker.render(container);
+
+		picker.showPicker();
+		await timeout(0);
+		const initiallyAvailable = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+		available = false;
+		picker.showPicker();
+		await timeout(0);
+		const availableAfterReopen = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+
+		assert.deepStrictEqual({
+			availabilityChecks,
+			initiallyAvailable,
+			availableAfterReopen,
+		}, {
+			availabilityChecks: 2,
+			initiallyAvailable: true,
+			availableAfterReopen: false,
+		});
+	});
+
 	test('restore picks checked entry even when remote is disconnected (before grace period)', () => {
 		// Restore is honored synchronously: the picker shows the checked entry
 		// while we wait to see if the connection comes up. The grace-period

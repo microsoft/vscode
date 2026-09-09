@@ -622,6 +622,9 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		const alreadyVisible = this.actionWidgetService.isVisible || this._tabbedWidget.isVisible;
+		if (!alreadyVisible) {
+			this._devContainerAvailability.clear();
+		}
 		if (alreadyVisible) {
 			if (this._activeTriggerElement === triggerElement) {
 				if (!force) {
