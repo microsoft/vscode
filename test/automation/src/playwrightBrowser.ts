@@ -45,6 +45,7 @@ async function launchServer(options: LaunchOptions) {
 		'--disable-telemetry',
 		'--disable-experiments',
 		'--disable-workspace-trust',
+		'--force-disable-user-env',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
 		'--accept-server-license-terms',

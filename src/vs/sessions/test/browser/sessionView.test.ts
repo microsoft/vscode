@@ -10,7 +10,8 @@ import { DisposableStore, MutableDisposable } from '../../../base/common/lifecyc
 import { observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { AbstractChatView } from '../../browser/parts/chatView.js';
+import { AbstractChatView, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,8 +76,36 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('lays out the header host and chat content at the full session width', () => {
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const groupsLayout: number[] = [];
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_centeredContentContainer: centeredContentContainer,
+			_header: { visible: true, height: 35 },
+			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
+			_standaloneView: { value: undefined },
+		});
+
+		view.layout(1200, 800, 10, 20);
+
+		assert.deepStrictEqual({
+			sessionSize: [element.style.width, element.style.height],
+			headerHostSize: [centeredContentContainer.style.width, centeredContentContainer.style.height],
+			groupsLayout,
+		}, {
+			sessionSize: ['1200px', '800px'],
+			headerHostSize: ['1200px', '35px'],
+			groupsLayout: [1200, 765, 45, 20],
+		});
+	});
+
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
+		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
 		const shownSessions: Array<IActiveSession | undefined> = [];
 		const contentContainer = document.createElement('div');
 		const groupsElement = document.createElement('div');
@@ -86,6 +115,7 @@ suite('Sessions - Session View', () => {
 		}();
 		const standaloneView = disposables.add(new MutableDisposable<AbstractChatView>());
 		const openSessionDisposables = disposables.add(new DisposableStore());
+		const scopedInstantiationService = new class extends mock<IInstantiationService>() { }();
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_hasOpenedSession: false,
 			_currentSession: undefined,
@@ -97,10 +127,12 @@ suite('Sessions - Session View', () => {
 				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
 			},
 			_standaloneView: standaloneView,
+			_scopedInstantiationService: scopedInstantiationService,
 			_floatingToolbar: { setSession: () => { } },
 			_contentContainer: contentContainer,
 			_chatViewFactory: {
-				createNewChatView: () => {
+				createNewChatView: (_isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
 					createdViews.push(created);
 					return created;
@@ -125,12 +157,14 @@ suite('Sessions - Session View', () => {
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
 			shownSessions,
+			forwardedInstantiationServices,
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
 			shownSessions: [undefined, undefined, session],
+			forwardedInstantiationServices: [scopedInstantiationService],
 		});
 	});
 });

@@ -15,7 +15,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -67,6 +67,7 @@ export interface IFixtureMessage {
 	readonly responseComplete?: boolean;
 	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: ChatRequestSource;
 	/** Whether the request half of the turn stays out of the transcript. */
 	readonly requestHidden?: boolean;
 	/**
@@ -82,6 +83,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Total horizontal padding reserved when laying out response content and embedded editors. */
+	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -279,6 +282,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			undefined,
 			undefined,
 			message.requestHidden,
+			message.requestSource,
 		);
 		const response = request.response!;
 		if (message.fileChanges) {
@@ -448,6 +452,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
+				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
 		},

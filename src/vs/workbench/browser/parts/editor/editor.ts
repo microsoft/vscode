@@ -271,6 +271,9 @@ export interface IEditorGroupViewOptions {
 
 	/** Shows the full-width group header with its configured actions and breadcrumbs. */
 	readonly showHeader?: boolean;
+
+	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
+	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 }
 
 export interface IEditorGroupMenuIds {

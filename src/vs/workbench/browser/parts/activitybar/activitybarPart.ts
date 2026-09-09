@@ -176,7 +176,7 @@ export class ActivitybarPart extends Part {
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
 	private _isCompact: boolean;
-	private isInactive: boolean;
+	private activeWindowId: number | undefined;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -191,7 +191,6 @@ export class ActivitybarPart extends Part {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this._isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
-		this.isInactive = !this.hostService.hasFocus;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_COMPACT)) {
@@ -213,8 +212,16 @@ export class ActivitybarPart extends Part {
 			}
 		}));
 
-		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== mainWindow.vscodeWindowId)));
+		const updateStyles = () => {
+			if (this.element) {
+				this.updateStyles();
+			}
+		};
+		this._register(this.hostService.onDidChangeFocus(updateStyles));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			updateStyles();
+		}));
 
 		// Showing or hiding the primary side bar decides whether the rail connects to it or
 		// stands alone, which can change the gutter it reserves (see `needsFloatingLeadingGap`).
@@ -223,17 +230,6 @@ export class ActivitybarPart extends Part {
 				this._onDidChange.fire(undefined);
 			}
 		}));
-	}
-
-	private setInactive(inactive: boolean): void {
-		if (this.isInactive === inactive) {
-			return;
-		}
-
-		this.isInactive = inactive;
-		if (this.element) {
-			this.updateStyles();
-		}
 	}
 
 	private updateCompactStyle(): void {
@@ -331,7 +327,9 @@ export class ActivitybarPart extends Part {
 		const container = assertReturnsDefined(this.getContainer());
 		let backgroundColor = ACTIVITY_BAR_BACKGROUND;
 		if (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
-			backgroundColor = this.isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
+			const isWindowActive = this.activeWindowId === undefined ? mainWindow.document.hasFocus() : this.activeWindowId === mainWindow.vscodeWindowId;
+			const isInactive = !this.hostService.hasFocus || !isWindowActive;
+			backgroundColor = isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
 		}
 		const background = this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
