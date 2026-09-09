@@ -5,6 +5,7 @@
 
 import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { formatMessageForHoverMarkdown } from '../hover';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -265,6 +266,64 @@ suite('git', () => {
 `;
 
 			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
+	suite('formatMessageForHoverMarkdown', () => {
+		test('treats single newlines as soft wraps', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\nbody line 1\nbody line 2'),
+				'subject body line 1 body line 2'
+			);
+		});
+
+		test('treats double newlines as paragraph breaks', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\nbody line 1\n\nbody line 2'),
+				'subject body line 1\n\nbody line 2'
+			);
+		});
+
+		test('normalizes windows newlines and escapes image syntax', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\r\n![alt](image)\r\n\r\nbody'),
+				'subject &#33;&#91;alt](image)\n\nbody'
+			);
+		});
+
+		test('preserves list items separated by single newlines', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\n\n- item 1\n- item 2\n- item 3'),
+				'subject\n\n- item 1\n- item 2\n- item 3'
+			);
+		});
+
+		test('joins continuation lines within list items', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\n\n- item 1 that wraps\n  across lines\n- item 2'),
+				'subject\n\n- item 1 that wraps across lines\n- item 2'
+			);
+		});
+
+		test('preserves list items with asterisk and plus markers', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\n\n* item 1\n+ item 2'),
+				'subject\n\n* item 1\n+ item 2'
+			);
+		});
+
+		test('preserves numbered list items', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\n\n1. first\n2. second'),
+				'subject\n\n1. first\n2. second'
+			);
+		});
+
+		test('handles prose followed by list items in same paragraph', () => {
+			assert.strictEqual(
+				formatMessageForHoverMarkdown('subject\n\nDuring compilation:\n- step 1\n- step 2'),
+				'subject\n\nDuring compilation:\n- step 1\n- step 2'
+			);
 		});
 	});
 
