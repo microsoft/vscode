@@ -30,6 +30,12 @@
 	background-color: var(--vscode-panel-background);
 }
 
+/* Occlude scrolling connected fills beneath sticky tabs while preserving the final separator row. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .sticky-tabs-background {
+	bottom: var(--vscode-strokeThickness);
+	height: auto;
+}
+
 /* Keep the separator underneath the active fill without changing the tab,
  * scrollbar, pinned-tab or drag-and-drop stacking order. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
@@ -94,7 +100,9 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected):first-child > .tab-fill::before,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected):last-child > .tab-fill::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab.active:not(.multi-selected) > .tab-fill::before,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected):last-child > .tab-fill::after,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).last-in-row > .tab-fill::after {
 	content: none;
 }
 
@@ -138,7 +146,9 @@
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).connected-tab-left-edge > .tab-connected-edge::before,
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).connected-tab-right-edge > .tab-connected-edge::after,
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected):last-child > .tab-connected-edge::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.last-in-row + .tab.active:not(.multi-selected) > .tab-connected-edge::before,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected):last-child > .tab-connected-edge::after,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).last-in-row > .tab-connected-edge::after {
 	content: none;
 }
 

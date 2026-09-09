@@ -1908,8 +1908,9 @@ suite('ModernUIContribution', () => {
 		const tabs = appendElement(title, 'tabs-container');
 		const firstTab = appendElement(tabs, 'tab active');
 		const firstFill = appendElement(firstTab, 'tab-fill');
-		const nextTab = appendElement(tabs, 'tab');
-		const nextFill = appendElement(nextTab, 'tab-fill');
+		const middleTab = appendElement(tabs, 'tab');
+		const middleFill = appendElement(middleTab, 'tab-fill');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
 		const targetWindow = getWindow(root);
 		const getShoulders = (fill: HTMLElement) => [
 			targetWindow.getComputedStyle(fill, '::before').content,
@@ -1918,14 +1919,14 @@ suite('ModernUIContribution', () => {
 
 		const firstShoulders = getShoulders(firstFill);
 		firstTab.classList.remove('active');
-		nextTab.classList.add('active');
-		const leftShoulderStyle = targetWindow.getComputedStyle(nextFill, '::before');
-		const rightShoulderStyle = targetWindow.getComputedStyle(nextFill, '::after');
+		middleTab.classList.add('active');
+		const leftShoulderStyle = targetWindow.getComputedStyle(middleFill, '::before');
+		const rightShoulderStyle = targetWindow.getComputedStyle(middleFill, '::after');
 
 		assert.deepStrictEqual({
 			firstTab: firstShoulders,
-			nextTab: {
-				shoulders: getShoulders(nextFill),
+			middleTab: {
+				shoulders: getShoulders(middleFill),
 				radii: [leftShoulderStyle.borderBottomRightRadius, rightShoulderStyle.borderBottomLeftRadius],
 				sizes: [
 					[leftShoulderStyle.width, leftShoulderStyle.height],
@@ -1934,11 +1935,100 @@ suite('ModernUIContribution', () => {
 			},
 		}, {
 			firstTab: ['none', '""'],
-			nextTab: {
+			middleTab: {
 				shoulders: ['""', '""'],
 				radii: ['8px', '8px'],
 				sizes: [['8px', '8px'], ['8px', '8px']],
 			},
+		});
+	});
+
+	test('uses straight connected edges at wrapped row boundaries', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const tabs = appendElement(title, 'tabs-container');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const rowEndTab = appendElement(tabs, 'tab active last-in-row');
+		const rowEndFill = appendElement(rowEndTab, 'tab-fill');
+		const rowEndEdge = appendElement(rowEndTab, 'tab-connected-edge');
+		const rowStartTab = appendElement(tabs, 'tab');
+		const rowStartFill = appendElement(rowStartTab, 'tab-fill');
+		const rowStartEdge = appendElement(rowStartTab, 'tab-connected-edge');
+		appendElement(appendElement(tabs, 'tab'), 'tab-fill');
+		const targetWindow = getWindow(root);
+		const getEdges = (fill: HTMLElement, edge: HTMLElement) => ({
+			shoulders: [
+				targetWindow.getComputedStyle(fill, '::before').content,
+				targetWindow.getComputedStyle(fill, '::after').content,
+			],
+			masks: [
+				targetWindow.getComputedStyle(edge, '::before').content,
+				targetWindow.getComputedStyle(edge, '::after').content,
+			],
+		});
+
+		const rowEnd = getEdges(rowEndFill, rowEndEdge);
+		rowEndTab.classList.remove('active');
+		rowStartTab.classList.add('active');
+
+		assert.deepStrictEqual({
+			rowEnd,
+			rowStart: getEdges(rowStartFill, rowStartEdge),
+		}, {
+			rowEnd: {
+				shoulders: ['""', 'none'],
+				masks: ['""', 'none'],
+			},
+			rowStart: {
+				shoulders: ['none', '""'],
+				masks: ['none', '""'],
+			},
+		});
+	});
+
+	test('extends the connected sticky mask to the strip separator', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const tabsAndActions = appendElement(title, 'tabs-and-actions-container');
+		const scrollable = appendElement(tabsAndActions, 'monaco-scrollable-element');
+		scrollable.style.position = 'relative';
+		scrollable.style.width = '250px';
+		scrollable.style.height = '33px';
+		const stickyBackground = appendElement(scrollable, 'sticky-tabs-background');
+		stickyBackground.style.width = '84px';
+		const scrollableBounds = scrollable.getBoundingClientRect();
+		const stickyBounds = stickyBackground.getBoundingClientRect();
+		const stickyStyle = getWindow(root).getComputedStyle(stickyBackground);
+
+		assert.deepStrictEqual({
+			top: stickyStyle.top,
+			bottom: stickyStyle.bottom,
+			height: stickyBounds.height,
+			separatorHeight: scrollableBounds.bottom - stickyBounds.bottom,
+		}, {
+			top: '0px',
+			bottom: '1px',
+			height: 32,
+			separatorHeight: 1,
 		});
 	});
 
